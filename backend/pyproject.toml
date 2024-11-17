@@ -5,5 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "authlib>=1.3.2",
     "fastapi[standard]>=0.115.5",
+    "passlib[bcrypt]>=1.7.4",
+    "pyjwt>=2.9.0",
 ]
