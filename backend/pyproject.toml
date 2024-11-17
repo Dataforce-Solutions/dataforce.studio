@@ -9,4 +9,5 @@ dependencies = [
     "fastapi[standard]>=0.115.5",
     "passlib[bcrypt]>=1.7.4",
     "pyjwt>=2.9.0",
+    "uvicorn>=0.32.0",
 ]
