@@ -1,0 +1,72 @@
+name: Backend Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Image version'
+        required: true
+
+env:
+  REGISTRY: "registry.digitalocean.com/dataforce-registry"
+  IMAGE_NAME: "df-studio"
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v2
+
+      - name: Build container image
+        run: docker build -t $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7} ./backend
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DigitalOcean Container Registry with short-lived credentials
+        run: doctl registry login --expiry-seconds 600
+
+      - name: Remove all old images (Optional)
+        run: |
+          if [ ! -z "$(doctl registry repository list | grep "$IMAGE_NAME")" ]; then
+            doctl registry repository delete-manifest $IMAGE_NAME $(doctl registry repository list-tags $IMAGE_NAME | grep -o "sha.*") --force
+          else
+            echo "No repository!!!"
+          fi
+
+      - name: Push image to DigitalOcean Container Registry
+        run: docker push $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    steps:
+      - name: Deploy to DigitalOcean droplet via SSH action
+        uses: appleboy/ssh-action@v0.1.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSHKEY }}
+          port: 22
+          envs: IMAGE_NAME,REGISTRY,GITHUB_SHA
+          script: |
+            # Login to registry
+            docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
+            # Stop running container
+            docker stop $IMAGE_NAME || true
+            # Remove old container
+            docker rm $IMAGE_NAME || true
+            # Run a new container from the new image
+            docker run -d \
+              --restart always \
+              --name $IMAGE_NAME \
+              -p 8000:8000 \
+              $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}

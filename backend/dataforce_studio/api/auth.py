@@ -16,7 +16,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 180
 
 fake_users_db = {}
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
