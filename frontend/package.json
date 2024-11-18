@@ -15,6 +15,7 @@
   "dependencies": {
     "@primevue/forms": "^4.2.2",
     "@primevue/themes": "^4.2.2",
+    "axios": "^1.7.7",
     "pinia": "^2.2.6",
     "primevue": "^4.2.2",
     "vue": "^3.5.12",
