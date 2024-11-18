@@ -13,11 +13,13 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@primevue/forms": "^4.2.2",
     "@primevue/themes": "^4.2.2",
     "pinia": "^2.2.6",
     "primevue": "^4.2.2",
     "vue": "^3.5.12",
-    "vue-router": "^4.4.5"
+    "vue-router": "^4.4.5",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.0",
