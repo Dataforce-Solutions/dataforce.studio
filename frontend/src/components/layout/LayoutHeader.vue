@@ -3,7 +3,7 @@
     <router-link :to="{ name: 'home' }" class="logo">
       <img :src="logo" alt="Dataforce Studio" class="logo-img" />
     </router-link>
-    <div class="actives">
+    <div v-if="isActivesVisible" class="actives">
       <div class="buttons">
         <d-button label="Log in" variant="link" @click="$router.push({ name: 'sign-in' })" />
         <d-button label="Sign up" @click="$router.push({ name: 'sign-up' })" />
@@ -15,6 +15,13 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import logo from '@/assets/img/logo.svg'
+
+defineProps({
+  isActivesVisible: {
+    type: Boolean,
+    default: true,
+  },
+})
 </script>
 
 <style scoped>
