@@ -41,7 +41,7 @@ defineProps<TAuthorizationWrapperProps>()
 .wrapper {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  background-color: #fff;
+  background-color: var(--color-background);
   border-radius: 16px;
   padding: 48px;
   max-width: 1360px;
