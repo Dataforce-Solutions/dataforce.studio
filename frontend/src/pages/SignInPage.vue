@@ -41,6 +41,11 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { ref } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
+import type { IPostSignInRequest } from '@/utils/api/DataforceApi.interfaces'
+
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const services: IAuthorizationService[] = [
   {
@@ -64,21 +69,36 @@ const services: IAuthorizationService[] = [
 ]
 
 const initialValues = ref({
-  username: '',
+  email: '',
   password: '',
 })
 
 const resolver = ref(
   zodResolver(
     z.object({
-      username: z.string().min(3, { message: 'Username is required.' }),
+      email: z.string().email({ message: 'Email is incorrect' }),
       password: z.string().min(8, { message: 'Minimum password length 8 characters' }),
     }),
   ),
 )
 
-const onFormSubmit = (event: FormSubmitEvent) => {
-  console.log(event)
+const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
+  if (!valid) {
+    console.error('Form invalid')
+
+    return
+  }
+
+  const data: IPostSignInRequest = {
+    username: values.email,
+    password: values.password,
+  }
+
+  try {
+    await authStore.signIn(data)
+  } catch (e) {
+    console.error(e)
+  }
 }
 </script>
 
