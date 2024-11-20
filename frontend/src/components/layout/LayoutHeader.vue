@@ -4,7 +4,8 @@
       <img :src="logo" alt="Dataforce Studio" class="logo-img" />
     </router-link>
     <div v-if="isActivesVisible" class="actives">
-      <div class="buttons">
+      <user-toolbar v-if="authStore.isAuth" />
+      <div v-else class="buttons">
         <d-button label="Log in" variant="link" @click="$router.push({ name: 'sign-in' })" />
         <d-button label="Sign up" @click="$router.push({ name: 'sign-up' })" />
       </div>
@@ -16,12 +17,17 @@
 import { RouterLink } from 'vue-router'
 import logo from '@/assets/img/logo.svg'
 
+import UserToolbar from '../user/UserToolbar.vue'
+import { useAuthStore } from '@/stores/auth'
+
 defineProps({
   isActivesVisible: {
     type: Boolean,
     default: true,
   },
 })
+
+const authStore = useAuthStore()
 </script>
 
 <style scoped>
