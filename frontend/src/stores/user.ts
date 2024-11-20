@@ -3,8 +3,11 @@ import type { IUser } from './user.interfaces'
 import { computed, ref } from 'vue'
 import { dataforceApi } from '@/utils/api'
 import type { IPostChangePasswordRequest } from '@/utils/api/DataforceApi.interfaces'
+import { useAuthStore } from './auth'
 
 export const useUserStore = defineStore('user', () => {
+  const authStore = useAuthStore()
+
   const user = ref<IUser | null>(null)
 
   const getUserEmail = computed(() => user.value?.email)
@@ -23,6 +26,8 @@ export const useUserStore = defineStore('user', () => {
 
   const deleteAccount = async () => {
     await dataforceApi.deleteUser()
+
+    authStore.logout()
   }
 
   const resetUser = () => {

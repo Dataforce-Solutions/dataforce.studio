@@ -39,12 +39,18 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (!refresh_token) throw new Error('Refresh token is not exist')
 
-    await dataforceApi.logout({ refresh_token })
+    try {
+      await dataforceApi.logout({ refresh_token })
+    } catch (e) {
+      throw e
+    } finally {
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
 
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+      usersStore.resetUser()
 
-    usersStore.resetUser()
+      isAuth.value = false
+    }
   }
 
   const checkIsLoggedId = async () => {
