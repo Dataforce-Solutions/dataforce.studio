@@ -42,6 +42,11 @@ import { z } from 'zod'
 import { ref } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
 
+import { useAuthStore } from '@/stores/auth'
+import type { IPostSignupRequest } from '@/utils/api/DataforceApi.interfaces'
+
+const authStore = useAuthStore()
+
 const services: IAuthorizationService[] = [
   {
     id: 'google',
@@ -79,8 +84,25 @@ const resolver = ref(
   ),
 )
 
-const onFormSubmit = (event: FormSubmitEvent) => {
-  console.log(event)
+const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
+  if (!valid) {
+    console.error('Form invalid')
+
+    return
+  }
+
+  const data: IPostSignupRequest = {
+    email: values.email,
+    password: values.password,
+  }
+
+  if (values.username) data.full_name = values.username
+
+  try {
+    await authStore.signUp(data)
+  } catch (e) {
+    console.error(e)
+  }
 }
 </script>
 
