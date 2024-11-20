@@ -52,7 +52,7 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
   )
 
   api.interceptors.request.use((config) => {
-    if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+    if (config.data && !config.isJSON && typeof config.data === 'object' && !(config.data instanceof FormData)) {
       const formData = new FormData()
       for (const key in config.data) {
         if (Object.prototype.hasOwnProperty.call(config.data, key)) {

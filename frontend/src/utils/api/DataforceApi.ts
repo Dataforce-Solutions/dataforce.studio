@@ -49,6 +49,7 @@ export class DataforceApiClass {
   public async refreshToken(data: IPostRefreshTokenRequest): Promise<IPostRefreshTokenResponse> {
     const { data: responseData } = await this.api.post('/auth/refresh', data, {
       skipInterceptors: true,
+      isJSON: true,
     })
 
     return responseData
