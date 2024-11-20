@@ -34,11 +34,15 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
           const { data: responseData } = await api.post<IPostRefreshTokenResponse>(
             '/auth/refresh',
             data,
+            {
+              isJSON: true,
+            },
           )
 
           const newToken = responseData.access_token
 
           localStorage.setItem('token', newToken)
+          localStorage.setItem('refreshToken', responseData.refresh_token)
 
           error.config.headers.Authorization = `Bearer ${newToken}`
           return api.request(error.config)
@@ -52,7 +56,12 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
   )
 
   api.interceptors.request.use((config) => {
-    if (config.data && !config.isJSON && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+    if (
+      config.data &&
+      !config.isJSON &&
+      typeof config.data === 'object' &&
+      !(config.data instanceof FormData)
+    ) {
       const formData = new FormData()
       for (const key in config.data) {
         if (Object.prototype.hasOwnProperty.call(config.data, key)) {

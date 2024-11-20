@@ -40,7 +40,9 @@ export interface IPostChangePasswordRequest {
   new_password: string
 }
 
-export type TPostChangePasswordResponse = string
+export interface IPostChangePasswordResponse {
+  detail: string
+}
 
 export type TDeleteAccountResponse = string
 

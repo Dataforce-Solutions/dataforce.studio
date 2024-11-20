@@ -12,7 +12,7 @@ import type {
   IPostSignupRequest,
   IPostSignupResponse,
   TDeleteAccountResponse,
-  TPostChangePasswordResponse,
+  IPostChangePasswordResponse,
   TPostLogoutResponse,
 } from './DataforceApi.interfaces'
 
@@ -57,14 +57,14 @@ export class DataforceApiClass {
 
   public async changePassword(
     data: IPostChangePasswordRequest,
-  ): Promise<TPostChangePasswordResponse> {
+  ): Promise<IPostChangePasswordResponse> {
     const { data: responseData } = await this.api.post('/auth/change-password', data)
 
     return responseData
   }
 
   public async deleteUser(): Promise<TDeleteAccountResponse> {
-    const { data: responseData } = await this.api.delete('/auth/delete_account')
+    const { data: responseData } = await this.api.delete('/auth/delete-account')
 
     return responseData
   }
@@ -76,7 +76,7 @@ export class DataforceApiClass {
   }
 
   public async logout(data: IPostLogoutRequest): Promise<TPostLogoutResponse> {
-    const { data: responseData } = await this.api.post('/auth/logout')
+    const { data: responseData } = await this.api.post('/auth/logout', data)
 
     return responseData
   }
