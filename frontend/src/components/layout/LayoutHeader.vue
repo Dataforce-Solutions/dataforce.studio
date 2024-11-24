@@ -6,8 +6,8 @@
     <div v-if="isActivesVisible" class="actives">
       <user-toolbar v-if="authStore.isAuth" />
       <div v-else class="buttons">
-        <d-button label="Log in" variant="link" @click="$router.push({ name: 'sign-in' })" />
-        <d-button label="Sign up" @click="$router.push({ name: 'sign-up' })" />
+        <d-button label="Log in" @click="$router.push({ name: 'sign-in' })" />
+        <d-button label="Sign up" severity="help" @click="$router.push({ name: 'sign-up' })" />
       </div>
     </div>
   </header>
@@ -37,7 +37,7 @@ const authStore = useAuthStore()
   justify-content: space-between;
   align-items: center;
   gap: 40px;
-  background-color: #2673fd;
+  background-color: var(--color-primary);
 }
 .logo {
 }
