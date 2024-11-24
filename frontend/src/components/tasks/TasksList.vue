@@ -1,6 +1,6 @@
 <template>
   <div class="wrapper">
-    <h2 class="label">{{ label }}</h2>
+    <h2 class="sub-title">{{ label }}</h2>
     <div class="items">
       <tasks-list-item v-for="task in tasks" :task="task" :key="task.id" />
     </div>
@@ -17,10 +17,10 @@ defineProps<ITasksList>()
 <style scoped>
 .items {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(282px, 1fr));
   gap: 24px;
 }
-.label {
-    margin-bottom: 20px;
+.sub-title {
+  margin-bottom: 20px;
 }
 </style>
