@@ -6,24 +6,43 @@
     :services="services"
   >
     <template #form>
-      <d-form :initialValues :resolver @submit="onFormSubmit" class="form">
+      <d-form v-slot="$form" :initialValues :resolver @submit="onFormSubmit" class="form">
         <div class="inputs">
-          <div>
-            <d-input-text name="email" type="text" placeholder="Email" fluid />
+          <div class="input-wrapper">
+            <d-float-label variant="on">
+              <d-input-text id="email" name="email" fluid type="text" autocomplete="off" />
+              <label for="email" class="label">Email</label>
+            </d-float-label>
+            <d-message v-if="$form.email?.invalid" severity="error" size="small" variant="simple">
+              {{ $form.email.error?.message }}
+            </d-message>
           </div>
-          <div>
-            <d-input-text name="password" type="text" placeholder="Password" fluid />
+          <div class="input-wrapper">
+            <d-float-label variant="on">
+              <d-password
+                id="password"
+                name="password"
+                fluid
+                autocomplete="off"
+                toggleMask
+                :feedback="false"
+              />
+              <label for="password" class="label">Password</label>
+            </d-float-label>
+            <d-message v-if="$form.password?.invalid" severity="error" size="small" variant="simple"
+              >{{ $form.password.error?.message }}
+            </d-message>
           </div>
         </div>
-        <d-button type="submit" severity="secondary" label="Sign in" />
+        <d-button type="submit" label="Sign up" rounded />
       </d-form>
     </template>
     <template #footer>
-      <div>
+      <div class="footer-message">
         <span>Don`t have an account? </span>
-        <router-link :to="{ name: 'sign-up' }">Sign up</router-link>
+        <router-link :to="{ name: 'sign-up' }" class="link">Sign up</router-link>
       </div>
-      <router-link :to="{ name: 'home' }">Forgot password?</router-link>
+      <router-link :to="{ name: 'home' }" class="link">Forgot password?</router-link>
     </template>
   </authorization-wrapper>
 </template>
@@ -112,5 +131,22 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.input-wrapper:has(.p-filled) .label {
+  opacity: 0;
+}
+
+.input-wrapper:has(input:focus) .label {
+  opacity: 1;
+}
+
+.footer-message {
+  margin-bottom: 16px;
 }
 </style>
