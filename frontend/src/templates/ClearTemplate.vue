@@ -12,7 +12,20 @@ import LayoutHeader from '@/components/layout/LayoutHeader.vue'
 </script>
 
 <style scoped>
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
 .page {
-  padding: 75px 40px;
+  padding: 160px 40px 20px;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 120px 20px 20px;
+  }
 }
 </style>
