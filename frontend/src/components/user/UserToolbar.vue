@@ -1,39 +1,47 @@
 <template>
   <div class="wrapper">
-    <d-button :label="mainButtonLabel" @click="togglePopover">
-      <template #icon>
-        <img :src="avatarPlaceholder" alt="" class="avatar" />
-      </template>
+    <d-button severity="help" class="user-open-button" @click="togglePopover">
+      <img :src="avatarPlaceholder" alt="" class="avatar" />
+      <span>{{ mainButtonLabel }}</span>
+      <chevron-down :size="14" />
     </d-button>
-    <d-popover ref="popover">
+    <d-popover ref="popover" unstyled>
       <div class="content">
-        <header class="header"></header>
+        <header class="header">
+          <img :src="avatarPlaceholder" alt="" class="avatar user-info-avatar" />
+          <div class="user-info">
+            <div class="user-name">{{ getUserFullName }}</div>
+            <div class="user-email">{{ getUserEmail }}</div>
+          </div>
+        </header>
         <div class="buttons">
-          <d-button
-            label="Account"
-            variant="link"
-            class="button"
+          <button
+            type="button"
+            class="menu-item"
             @click="isSettingsPopupVisible = !isSettingsPopupVisible"
-          />
-          <d-button label="Feedback" variant="link" class="button" />
-          <d-button label="Community" variant="link" class="button" />
-          <d-button variant="link">
-            <span>About</span>
-            <span>v2024.09 alpha1</span>
-          </d-button>
-          <div>
-            <span>Appearance</span>
-            <d-toggle-button v-model="isDarkTheme" on-label="dark" off-label="light" />
+          >
+            Account
+          </button>
+          <button type="button" class="menu-item">Feedback</button>
+          <button type="button" class="menu-item">Community</button>
+          <button type="button" class="menu-item">About</button>
+          <div class="appearance">
+            <span class="menu-item">Appearance</span>
+            <div class="custom-toggle">
+              <div class="custom-toggle-wrapper">
+                <div class="custom-toggle-item custom-toggle-item-active">
+                  <sun :size="14" />
+                </div>
+                <div class="custom-toggle-item">
+                  <moon :size="14" />
+                </div>
+              </div>
+            </div>
+            <!--<d-toggle-button v-model="isDarkTheme" on-label="dark" off-label="light" />-->
           </div>
         </div>
         <footer class="footer">
-          <d-button
-            label="logout"
-            variant="link"
-            severity="danger"
-            class="button"
-            @click="onButtonLogoutClick"
-          />
+          <button type="button" class="logout-button" @click="onButtonLogoutClick">Log out</button>
         </footer>
       </div>
     </d-popover>
@@ -69,6 +77,8 @@ import avatarPlaceholder from '@/assets/img/avatar-placeholder.png'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
 
+import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
+
 import { useAuthStore } from '@/stores/auth'
 
 const userStore = useUserStore()
@@ -98,20 +108,127 @@ const onShowChangePassword = () => {
 </script>
 
 <style scoped>
-.buttons {
+.wrapper {
+  --menu-item-color: #334155;
+  --avatar-width: 28px;
+  --avatar-height: 28px;
+}
+.user-open-button {
+  padding: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  color: var(--color-text);
 }
 
-.button {
-  justify-content: flex-start;
+@media (any-hover: hover) {
+  .user-open-button:not(:disabled):hover {
+    color: var(--color-text);
+  }
 }
 
 .avatar {
-  width: 24px;
-  height: 24px;
+  width: var(--avatar-width);
+  height: var(--avatar-height);
   object-fit: cover;
   border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.content {
+  padding: 24px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--p-content-border-color);
+  background-color: var(--p-card-background);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 260px;
+  margin-top: 24px;
+  box-shadow: var(--card-shadow);
+}
+
+.header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-divider-border);
+}
+
+.user-info-avatar {
+  width: 42px;
+  height: 42px;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.user-name {
+}
+.user-email {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.menu-item {
+  justify-content: flex-start;
+  color: var(--menu-item-color);
+  padding: 7px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.appearance {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.custom-toggle {
+  --toggleswitch-background: #f1f5f9;
+  --toggle-switch-handle-color: #64748b;
+  --toggle-switch-handle-checked-color: #0a0a0a;
+  --toggleswitch-handle-checked-background: #fff;
+}
+.custom-toggle-wrapper {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 16px;
+  background-color: var(--toggleswitch-background);
+}
+.custom-toggle-item {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--toggle-switch-handle-color);
+}
+
+.custom-toggle-item-active {
+  color: var(--toggle-switch-handle-checked-color);
+  background-color: var(--toggleswitch-handle-checked-background);
+}
+
+.footer {
+  padding-top: 24px;
+  border-top: 1px solid var(--color-divider-border);
+}
+
+.logout-button {
+  padding: 4px;
+  color: var(--p-orange-600);
+  cursor: pointer;
 }
 </style>
