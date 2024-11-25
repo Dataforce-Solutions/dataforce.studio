@@ -10,11 +10,15 @@ import AppTemplate from './templates/AppTemplate.vue'
 import { onBeforeMount } from 'vue'
 
 import { useAuthStore } from './stores/auth'
+import { useThemeStore } from './stores/theme'
 
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 
 onBeforeMount(() => {
   authStore.checkIsLoggedId()
+
+  themeStore.checkTheme()
 })
 </script>
 
