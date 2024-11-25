@@ -74,8 +74,10 @@ import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useAuthStore } from '@/stores/auth'
 import type { IPostSignupRequest } from '@/utils/api/DataforceApi.interfaces'
+import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const services: IAuthorizationService[] = [
   {
@@ -130,6 +132,8 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 
   try {
     await authStore.signUp(data)
+
+    router.push({ name: 'home' })
   } catch (e) {
     console.error(e)
   }
