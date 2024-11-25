@@ -59,13 +59,13 @@ import { Rabbit, Timer, Frame } from 'lucide-vue-next'
   .menu-link:hover {
     background-color: var(--p-surface-0);
     color: #1e293b;
+    box-shadow: var(--card-shadow);
   }
 }
 
 .router-link-active {
   background-color: var(--p-surface-0);
   color: #1e293b;
-
-  
+  box-shadow: var(--card-shadow);
 }
 </style>

@@ -2,7 +2,7 @@
   <div class="card">
     <div class="header">
       <img alt="user header" :src="task.icon" />
-      <div v-tooltip="task.tooltipData">
+      <div v-tooltip.left="task.tooltipData">
         <circle-help />
       </div>
     </div>
@@ -39,12 +39,7 @@ defineProps<TProps>()
   border-radius: 8px;
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
-  box-shadow:
-    0px 32px 9px 0px rgba(28, 43, 64, 0),
-    0px 21px 8px 0px rgba(28, 43, 64, 0),
-    0px 12px 7px 0px rgba(28, 43, 64, 0.01),
-    0px 5px 5px 0px rgba(28, 43, 64, 0.02),
-    0px 1px 3px 0px rgba(28, 43, 64, 0.02);
+  box-shadow: var(--card-shadow);
 }
 .header {
   display: flex;

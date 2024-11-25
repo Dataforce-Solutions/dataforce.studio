@@ -45,12 +45,7 @@ defineProps<TAuthorizationWrapperProps>()
   max-width: 1360px;
   margin: 0 auto;
   overflow: hidden;
-  box-shadow:
-    0px 32px 9px 0px rgba(28, 43, 64, 0),
-    0px 21px 8px 0px rgba(28, 43, 64, 0),
-    0px 12px 7px 0px rgba(28, 43, 64, 0.01),
-    0px 5px 5px 0px rgba(28, 43, 64, 0.02),
-    0px 1px 3px 0px rgba(28, 43, 64, 0.02);
+  box-shadow: var(--card-shadow);
 }
 
 .body {
