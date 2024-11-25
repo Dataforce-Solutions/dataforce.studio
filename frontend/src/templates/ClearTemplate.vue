@@ -17,6 +17,7 @@ import LayoutHeader from '@/components/layout/LayoutHeader.vue'
   top: 0;
   left: 0;
   width: 100%;
+  z-index: 100;
 }
 
 .page {

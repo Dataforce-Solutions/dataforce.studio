@@ -1,50 +1,44 @@
 <template>
   <div class="wrapper">
-    <d-button severity="help" class="user-open-button" @click="togglePopover">
-      <img :src="avatarPlaceholder" alt="" class="avatar" />
+    <d-button severity="help" class="user-open-button" @click="toggleMenu">
+      <d-avatar shape="circle"><user :size="18" /></d-avatar>
       <span>{{ mainButtonLabel }}</span>
       <chevron-down :size="14" />
     </d-button>
-    <d-popover ref="popover" unstyled>
-      <div class="content">
+    <d-menu ref="menu" :model="menuItems" :popup="true" style="padding: 24px 16px; width: 260px">
+      <template #start>
         <header class="header">
-          <img :src="avatarPlaceholder" alt="" class="avatar user-info-avatar" />
+          <d-avatar shape="circle" size="large"><user :size="24" /></d-avatar>
           <div class="user-info">
             <div class="user-name">{{ getUserFullName }}</div>
             <div class="user-email">{{ getUserEmail }}</div>
           </div>
         </header>
-        <div class="buttons">
-          <button
-            type="button"
-            class="menu-item"
-            @click="isSettingsPopupVisible = !isSettingsPopupVisible"
-          >
-            Account
-          </button>
-          <button type="button" class="menu-item">Feedback</button>
-          <button type="button" class="menu-item">Community</button>
-          <button type="button" class="menu-item">About</button>
-          <div class="appearance">
-            <span class="menu-item">Appearance</span>
-            <div class="custom-toggle">
-              <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
-                <div class="custom-toggle-item custom-toggle-item-active">
-                  <sun :size="14" />
-                </div>
-                <div class="custom-toggle-item">
-                  <moon :size="14" />
-                </div>
+      </template>
+      <template #item="{ item, props }">
+        <div v-if="item.themeToggle" class="appearance">
+          <span>{{ item.label }}</span>
+          <div class="custom-toggle">
+            <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
+              <div class="custom-toggle-item custom-toggle-item-active">
+                <sun :size="14" />
+              </div>
+              <div class="custom-toggle-item">
+                <moon :size="14" />
               </div>
             </div>
-            <!--<d-toggle-button v-model="isDarkTheme" on-label="dark" off-label="light" />-->
           </div>
         </div>
+        <a v-else class="menu-item" v-bind="props.action">
+          <span>{{ item.label }}</span>
+        </a>
+      </template>
+      <template #end>
         <footer class="footer">
           <button type="button" class="logout-button" @click="onButtonLogoutClick">Log out</button>
         </footer>
-      </div>
-    </d-popover>
+      </template>
+    </d-menu>
   </div>
   <d-dialog
     v-model:visible="isSettingsPopupVisible"
@@ -72,12 +66,10 @@ import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 
-import avatarPlaceholder from '@/assets/img/avatar-placeholder.png'
-
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
 
-import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
+import { ChevronDown, Sun, Moon, User } from 'lucide-vue-next'
 
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
@@ -88,14 +80,33 @@ const themeStore = useThemeStore()
 
 const { getUserEmail, getUserFullName } = storeToRefs(userStore)
 
-const mainButtonLabel = computed(() => getUserFullName.value || getUserEmail.value)
+const mainButtonLabel = computed(() => getUserFullName.value || 'Account')
 
-const popover = ref()
+const menu = ref()
+const menuItems = ref([
+  {
+    label: 'Account',
+  },
+  {
+    label: 'Feedback',
+  },
+  {
+    label: 'Community',
+  },
+  {
+    label: 'About',
+  },
+  {
+    label: 'Appearance',
+    themeToggle: true,
+  },
+])
+
 const isSettingsPopupVisible = ref(false)
 const isChangePasswordPopupVisible = ref(false)
 
-const togglePopover = (event: MouseEvent) => {
-  popover.value.toggle(event)
+const toggleMenu = (event: MouseEvent) => {
+  menu.value.toggle(event)
 }
 
 const onButtonLogoutClick = async () => {
@@ -111,8 +122,6 @@ const onShowChangePassword = () => {
 <style scoped>
 .wrapper {
   --menu-item-color: #334155;
-  --avatar-width: 28px;
-  --avatar-height: 28px;
 }
 .user-open-button {
   padding: 8px;
@@ -124,14 +133,6 @@ const onShowChangePassword = () => {
   .user-open-button:not(:disabled):hover {
     color: var(--color-text);
   }
-}
-
-.avatar {
-  width: var(--avatar-width);
-  height: var(--avatar-height);
-  object-fit: cover;
-  border-radius: 50%;
-  flex: 0 0 auto;
 }
 
 .content {
@@ -153,6 +154,7 @@ const onShowChangePassword = () => {
   align-items: center;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--color-divider-border);
+  margin-bottom: 24px;
 }
 
 .user-info-avatar {
@@ -178,19 +180,17 @@ const onShowChangePassword = () => {
 }
 
 .menu-item {
-  justify-content: flex-start;
-  color: var(--menu-item-color);
   padding: 7px;
   text-align: left;
-  cursor: pointer;
 }
 
 .appearance {
   display: flex;
   justify-content: space-between;
+  padding: 7px;
   gap: 5px;
   align-items: center;
-  cursor: pointer;
+  background-color: var(--p-menu-background);
 }
 
 .custom-toggle {
@@ -205,6 +205,7 @@ const onShowChangePassword = () => {
   padding: 4px;
   border-radius: 16px;
   background-color: var(--toggleswitch-background);
+  cursor: pointer;
 }
 .custom-toggle-item {
   width: 18px;
@@ -223,6 +224,7 @@ const onShowChangePassword = () => {
 }
 
 .footer {
+  margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid var(--color-divider-border);
 }

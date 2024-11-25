@@ -34,6 +34,7 @@ import { Rabbit, Timer, Frame } from 'lucide-vue-next'
   padding: 108px 16px 16px;
   background-color: var(--color-content-background);
   border-right: 1px solid var(--color-divider-border);
+  width: 180px;
 }
 
 .list {
@@ -50,6 +51,7 @@ import { Rabbit, Timer, Frame } from 'lucide-vue-next'
   gap: 7px;
   color: var(--p-surface-400);
   text-decoration: none;
+  font-weight: 500;
   transition:
     color 0.3s,
     background-color 0.3s;
@@ -63,9 +65,23 @@ import { Rabbit, Timer, Frame } from 'lucide-vue-next'
   }
 }
 
+@media (any-hover: hover) {
+  [data-theme='dark'] .menu-link:hover {
+    background-color: var(--p-surface-900);
+    color: #fff;
+    box-shadow: var(--card-shadow);
+  }
+}
+
 .router-link-active {
   background-color: var(--p-surface-0);
   color: #1e293b;
+  box-shadow: var(--card-shadow);
+}
+
+[data-theme='dark'] .router-link-active {
+  background-color: var(--p-surface-900);
+  color: #fff;
   box-shadow: var(--card-shadow);
 }
 </style>
