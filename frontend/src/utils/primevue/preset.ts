@@ -264,5 +264,14 @@ export const dPreset = definePreset(Aura, {
         },
       },
     },
+    menu: {
+      list: {
+        padding: '0px'
+      }
+    },
+    avatar: {
+      width: '28px',
+      height: '28px'
+    }
   },
 })
