@@ -28,7 +28,7 @@
           <div class="appearance">
             <span class="menu-item">Appearance</span>
             <div class="custom-toggle">
-              <div class="custom-toggle-wrapper">
+              <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
                 <div class="custom-toggle-item custom-toggle-item-active">
                   <sun :size="14" />
                 </div>
@@ -80,16 +80,17 @@ import UserChangePassword from './UserChangePassword.vue'
 import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
 
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 
 const { getUserEmail, getUserFullName } = storeToRefs(userStore)
 
 const mainButtonLabel = computed(() => getUserFullName.value || getUserEmail.value)
 
 const popover = ref()
-const isDarkTheme = ref(false)
 const isSettingsPopupVisible = ref(false)
 const isChangePasswordPopupVisible = ref(false)
 

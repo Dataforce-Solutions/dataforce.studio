@@ -8,6 +8,9 @@ export const initPrimeVue = (app: App) => {
   app.use(PrimeVue, {
     theme: {
       preset: dPreset,
+      options: {
+        darkModeSelector: '[data-theme="dark"]',
+      },
     },
   })
 

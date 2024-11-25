@@ -18,21 +18,19 @@
     0px 1px 3px 0px rgba(28, 43, 64, 0.02);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-content-background: #0a0a0a;
-    --color-card-background: #18181b;
+:root[data-theme='dark'] {
+  --color-content-background: #0a0a0a;
+  --color-card-background: #18181b;
 
-    --color-divider-border: #27272a;
+  --color-divider-border: #27272a;
 
-    --color-text: #ffffff;
-    --color-text-muted: #a1a1aa;
-    --color-text-link: #2563eb;
+  --color-text: #ffffff;
+  --color-text-muted: #a1a1aa;
+  --color-text-link: #2563eb;
 
-    --color-primary: #1e3a8a;
+  --color-primary: #1e3a8a;
 
-    --p-card-background: #18181b;
-  }
+  --p-card-background: #18181b;
 }
 
 *,
