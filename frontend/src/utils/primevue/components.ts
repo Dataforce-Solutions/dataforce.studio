@@ -1,5 +1,5 @@
 import type { App } from 'vue'
-import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password } from 'primevue'
+import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password, Menu, Avatar } from 'primevue'
 import { Form } from '@primevue/forms'
 
 export const addComponents = (app: App) => {
@@ -13,4 +13,6 @@ export const addComponents = (app: App) => {
   app.component('DFloatLabel', FloatLabel)
   app.component('DDialog', Dialog)
   app.component('DPassword', Password)
+  app.component('DMenu', Menu)
+  app.component('DAvatar', Avatar)
 }
