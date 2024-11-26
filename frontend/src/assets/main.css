@@ -1,4 +1,6 @@
 @import './null.css';
+@import './theme/light-theme.css';
+@import './theme/dark-theme.css';
 @import './base.css';
 
 .divider {
