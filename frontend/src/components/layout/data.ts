@@ -1,4 +1,4 @@
-import { Rabbit, Timer, Frame } from 'lucide-vue-next'
+import { Rabbit, Timer, FolderDot } from 'lucide-vue-next'
 
 export const sidebarMenu = [
   {
@@ -12,11 +12,15 @@ export const sidebarMenu = [
     label: 'Run time',
     icon: Timer,
     route: 'sign-up',
+    disabled: true,
+    tooltipMessage: 'Coming soon!',
   },
   {
     id: 3,
     label: 'Projects',
-    icon: Frame,
+    icon: FolderDot,
     route: 'sign-up',
+    disabled: true,
+    tooltipMessage: 'Coming soon!',
   },
 ]

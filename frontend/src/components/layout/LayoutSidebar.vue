@@ -3,7 +3,23 @@
     <nav class="nav">
       <ul class="list">
         <li v-for="item in sidebarMenu" :key="item.id" class="item">
-          <router-link :to="{ name: item.route }" class="menu-link">
+          <div
+            v-if="item.disabled && isSidebarOpened"
+            v-tooltip.bottom="item.tooltipMessage"
+            class="menu-link disabled"
+          >
+            <component :is="item.icon" :size="14" class="icon"></component>
+            <span>{{ item.label }}</span>
+          </div>
+          <div
+            v-else-if="item.disabled && !isSidebarOpened"
+            v-tooltip.right="item.tooltipMessage"
+            class="menu-link disabled"
+          >
+            <component :is="item.icon" :size="14" class="icon"></component>
+            <span>{{ item.label }}</span>
+          </div>
+          <router-link v-else :to="{ name: item.route }" class="menu-link">
             <component :is="item.icon" :size="14" class="icon"></component>
             <span>{{ item.label }}</span>
           </router-link>
@@ -48,7 +64,7 @@ const toggleSidebar = () => {
 }
 
 .sidebar.closed {
-  width: 63px;
+  width: 67px;
 }
 
 .list {
@@ -66,28 +82,18 @@ const toggleSidebar = () => {
   color: var(--p-surface-400);
   text-decoration: none;
   font-weight: 500;
-  height: 35px;
+  height: 30px;
   white-space: nowrap;
   overflow: hidden;
+  width: 100%;
   transition:
     color 0.3s,
-    background-color 0.3s;
+    background-color 0.3s,
+    width 0.3s;
 }
 
-@media (any-hover: hover) {
-  .menu-link:hover {
-    background-color: var(--p-surface-0);
-    color: #1e293b;
-    box-shadow: var(--card-shadow);
-  }
-}
-
-@media (any-hover: hover) {
-  [data-theme='dark'] .menu-link:hover {
-    background-color: var(--p-surface-900);
-    color: #fff;
-    box-shadow: var(--card-shadow);
-  }
+.closed .menu-link {
+  width: 30px;
 }
 
 .router-link-active {
@@ -110,11 +116,32 @@ const toggleSidebar = () => {
   box-shadow: var(--card-shadow);
   position: absolute;
   bottom: 16px;
-  left: 10px;
+  left: 16px;
   transition: transform 0.3s;
 }
 
 .toggle-width-button.closed {
   transform: rotate(180deg);
+}
+
+@media (any-hover: hover) {
+  .menu-link:hover {
+    background-color: var(--p-surface-0);
+    color: #1e293b;
+    box-shadow: var(--card-shadow);
+  }
+
+  .disabled:hover {
+    background-color: transparent;
+    color: var(--p-surface-400);
+    box-shadow: none;
+    cursor: default;
+  }
+
+  [data-theme='dark'] .menu-link:hover {
+    background-color: var(--p-surface-900);
+    color: #fff;
+    box-shadow: var(--card-shadow);
+  }
 }
 </style>
