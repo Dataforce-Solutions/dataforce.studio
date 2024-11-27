@@ -17,10 +17,28 @@ defineProps<ITasksList>()
 <style scoped>
 .items {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(282px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
 .sub-title {
   margin-bottom: 20px;
+}
+
+@media (max-width: 1920px) {
+  .items {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 1440px) {
+  .items {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 968px) {
+  .items {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
