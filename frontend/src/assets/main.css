@@ -44,3 +44,11 @@
 .p-filled {
   background-color: var(--p-inputtext-filled-background) !important;
 }
+
+.input-wrapper:has(.p-filled) .label {
+  opacity: 0;
+}
+
+.input-wrapper:has(input:focus) .label {
+  opacity: 1;
+}

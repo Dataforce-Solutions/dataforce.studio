@@ -42,7 +42,7 @@
         <span>Don`t have an account? </span>
         <router-link :to="{ name: 'sign-up' }" class="link">Sign up</router-link>
       </div>
-      <router-link :to="{ name: 'home' }" class="link">Forgot password?</router-link>
+      <router-link :to="{ name: 'forgot-password' }" class="link">Forgot password?</router-link>
     </template>
   </authorization-wrapper>
 </template>

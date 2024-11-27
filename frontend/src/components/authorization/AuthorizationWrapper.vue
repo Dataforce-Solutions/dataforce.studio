@@ -9,18 +9,21 @@
         <div class="form-wrapper">
           <slot name="form"></slot>
         </div>
-        <span class="line">or</span>
-        <div class="services">
-          <d-button
-            v-for="service in services"
-            :key="service.id"
-            variant="outlined"
-            @click="() => service.action()"
-          >
-            <span class="service-label">{{ service.label }}</span>
-            <img :src="service.icon" alt="" width="24" height="24" class="icon" />
-          </d-button>
-        </div>
+        <template v-if="services">
+          <span class="line">or</span>
+          <div class="services">
+            <d-button
+              v-for="service in services"
+              :key="service.id"
+              variant="outlined"
+              @click="() => service.action()"
+            >
+              <span class="service-label">{{ service.label }}</span>
+              <img :src="service.icon" alt="" width="24" height="24" class="icon" />
+            </d-button>
+          </div>
+        </template>
+
         <div class="footer">
           <slot name="footer"></slot>
         </div>
@@ -50,6 +53,7 @@ defineProps<TAuthorizationWrapperProps>()
 
 .body {
   padding: 48px 64px;
+  align-self: center;
 }
 
 .content {

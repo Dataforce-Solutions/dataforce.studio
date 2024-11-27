@@ -28,6 +28,14 @@ const router = createRouter({
         layout: AppLayoutsEnum.clear,
       },
     },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../pages/ForgotPasswordPage.vue'),
+      meta: {
+        layout: AppLayoutsEnum.clear,
+      },
+    }
   ],
 })
 
