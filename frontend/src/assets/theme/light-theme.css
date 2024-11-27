@@ -2,7 +2,7 @@
  * Do not edit directly, this file was auto-generated.
  */
 
-#app {
+body {
   --p-surface-0: #ffffff;
   --p-surface-50: #f8fafc;
   --p-surface-100: #f1f5f9;
@@ -34,7 +34,7 @@
   --p-highlight-focus-background: #dbeafe;
   --p-highlight-focus-color: #1e40af;
   --p-highlight-color: #1d4ed8;
-  --p-mask-background: #000000;
+  --p-mask-background: #00000066;
   --p-mask-color: #e2e8f0;
   --p-form-field-background: #ffffff;
   --p-form-field-disabled-background: #e2e8f0;
@@ -46,7 +46,7 @@
   --p-form-field-border-radius: 8px;
   --p-form-field-hover-border-color: #94a3b8;
   --p-form-field-focus-border-color: #2673fd;
-  --p-form-field-focus-ring-color: #000000;
+  --p-form-field-focus-ring-color: #00000000;
   --p-form-field-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-form-field-invalid-border-color: #f87171;
   --p-form-field-invalid-placeholder-color: #dc2626;
@@ -104,7 +104,7 @@
   --p-list-option-color: #334155;
   --p-list-option-icon-color: #94a3b8;
   --p-list-option-icon-focus-color: #64748b;
-  --p-list-option-group-background: #000000;
+  --p-list-option-group-background: #00000000;
   --p-list-option-group-color: #64748b;
   --p-list-option-group-font-weight: 600px;
   --p-list-option-border-radius: 4px;
@@ -119,7 +119,7 @@
   --p-navigation-item-icon-active-color: #64748b;
   --p-navigation-item-border-radius: 4px;
   --p-navigation-item-gap: 7px;
-  --p-navigation-submenu-label-background: #000000;
+  --p-navigation-submenu-label-background: #00000000;
   --p-navigation-submenu-label-color: #64748b;
   --p-navigation-submenu-label-font-weight: 600px;
   --p-navigation-submenu-icon-color: #94a3b8;
@@ -273,7 +273,7 @@
   --p-button-link-color: #2673fd;
   --p-button-link-hover-color: #2673fd;
   --p-button-link-active-color: #2673fd;
-  --p-button-figma-raised-background: #ffffff;
+  --p-button-figma-raised-background: #ffffff03;
   --p-button-border-radius: 8px;
   --p-button-rounded-border-radius: 28px;
   --p-button-gap: 7px;
@@ -292,11 +292,11 @@
   --p-button-raised-shadow: 0px 3px 1px -2px #00000033, 0px 2px 2px 0px #00000024, 0px 1px 5px 0px #0000001f;
   --p-toggleswitch-background: #f1f5f9;
   --p-toggleswitch-hover-background: #94a3b8;
-  --p-toggleswitch-hover-border-color: #000000;
+  --p-toggleswitch-hover-border-color: #00000000;
   --p-toggleswitch-checked-background: #2673fd;
   --p-toggleswitch-checked-hover-background: #2563eb;
-  --p-toggleswitch-checked-hover-border-color: #000000;
-  --p-toggleswitch-checked-border-color: #000000;
+  --p-toggleswitch-checked-hover-border-color: #00000000;
+  --p-toggleswitch-checked-border-color: #00000000;
   --p-toggleswitch-handle-background: #ffffff;
   --p-toggleswitch-handle-hover-background: #ffffff;
   --p-toggleswitch-handle-hover-color: #334155;
@@ -309,7 +309,7 @@
   --p-toggleswitch-handle-border-radius: 7px;
   --p-toggleswitch-handle-size: 14px;
   --p-toggleswitch-disabled-background: #e2e8f0;
-  --p-toggleswitch-border-color: #000000;
+  --p-toggleswitch-border-color: #00000000;
   --p-toggleswitch-border-radius: 30px;
   --p-toggleswitch-border-width: 1px;
   --p-toggleswitch-invalid-border-color: #f87171;
@@ -351,7 +351,7 @@
   --p-autocomplete-border-radius: 8px;
   --p-autocomplete-hover-border-color: #94a3b8;
   --p-autocomplete-focus-border-color: #2673fd;
-  --p-autocomplete-focus-ring-color: #000000;
+  --p-autocomplete-focus-ring-color: #00000000;
   --p-autocomplete-focus-ring-width: [object Object];
   --p-autocomplete-focus-ring-offset: [object Object];
   --p-autocomplete-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -371,7 +371,7 @@
   --p-autocomplete-option-selected-focus-color: #1e40af;
   --p-autocomplete-option-selected-color: #1d4ed8;
   --p-autocomplete-option-color: #334155;
-  --p-autocomplete-option-group-background: #000000;
+  --p-autocomplete-option-group-background: #00000000;
   --p-autocomplete-option-group-color: #64748b;
   --p-autocomplete-option-group-font-weight: 600px;
   --p-autocomplete-option-border-radius: 4px;
@@ -447,7 +447,7 @@
   --p-tag-danger-color: #b91c1c;
   --p-tag-contrast-background: #0a0a0a;
   --p-tag-contrast-color: #ffffff;
-  --p-tag-figma-container-background: #000000;
+  --p-tag-figma-container-background: #00000000;
   --p-tag-font-size: 12.25px;
   --p-tag-font-weight: 700px;
   --p-tag-gap: 3.5px;
@@ -535,7 +535,7 @@
   --p-colorpicker-preview-width: 21px;
   --p-colorpicker-preview-height: 21px;
   --p-colorpicker-preview-border-radius: 8px;
-  --p-inputnumber-button-background: #000000;
+  --p-inputnumber-button-background: #00000000;
   --p-inputnumber-button-hover-background: #f1f5f9;
   --p-inputnumber-button-hover-border-color: #cbd5e1;
   --p-inputnumber-button-hover-color: #64748b;
@@ -555,7 +555,7 @@
   --p-listbox-option-selected-focus-color: #1e40af;
   --p-listbox-option-selected-color: #1d4ed8;
   --p-listbox-option-color: #334155;
-  --p-listbox-option-group-background: #000000;
+  --p-listbox-option-group-background: #00000000;
   --p-listbox-option-group-color: #64748b;
   --p-listbox-option-group-font-weight: 600px;
   --p-listbox-option-border-radius: 4px;
@@ -764,7 +764,7 @@
   --p-carousel-indicator-width: 28px;
   --p-carousel-indicator-height: 7px;
   --p-carousel-indicator-border-radius: 6px;
-  --p-carousel-figma-item-tag-background: #000000;
+  --p-carousel-figma-item-tag-background: #00000000;
   --p-carousel-content-gap: 3.5px;
   --p-treetable-border-color: #e2e8f0;
   --p-treetable-body-cell-selected-border-color: #dbeafe;
@@ -837,7 +837,7 @@
   --p-treetable-figma-header-cell-padding-lg: 13.125px;
   --p-treetable-figma-header-padding-sm: 5.25px;
   --p-treetable-figma-header-padding-lg: 13.125px;
-  --p-message-info-background: #eff6ff;
+  --p-message-info-background: #eff6fff2;
   --p-message-info-border-color: #bfdbfe;
   --p-message-info-color: #2563eb;
   --p-message-info-close-button-hover-background: #dbeafe;
@@ -847,7 +847,7 @@
   --p-message-info-outlined-border-color: #2563eb;
   --p-message-info-simple-color: #2563eb;
   --p-message-info-shadow: 0px 4px 8px 0px #02050a0a;
-  --p-message-success-background: #f0fdf4;
+  --p-message-success-background: #f0fdf4f2;
   --p-message-success-border-color: #bbf7d0;
   --p-message-success-color: #16a34a;
   --p-message-success-close-button-hover-background: #dcfce7;
@@ -857,7 +857,7 @@
   --p-message-success-outlined-border-color: #16a34a;
   --p-message-success-simple-color: #16a34a;
   --p-message-success-shadow: 0px 4px 8px 0px #0108040a;
-  --p-message-warn-background: #fefce8;
+  --p-message-warn-background: #fefce8f2;
   --p-message-warn-border-color: #fef08a;
   --p-message-warn-close-button-hover-background: #fef9c3;
   --p-message-warn-close-button-focus-ring-color: #ca8a04;
@@ -867,7 +867,7 @@
   --p-message-warn-outlined-border-color: #ca8a04;
   --p-message-warn-simple-color: #ca8a04;
   --p-message-warn-shadow: 0px 4px 8px 0px #0907000a;
-  --p-message-error-background: #fef2f2;
+  --p-message-error-background: #fef2f2f2;
   --p-message-error-border-color: #fecaca;
   --p-message-error-color: #dc2626;
   --p-message-error-close-button-hover-background: #fee2e2;
@@ -916,7 +916,7 @@
   --p-message-close-icon-sm-size: 12.25px;
   --p-message-close-icon-lg-size: 15.75px;
   --p-message-outlined-border-width: 1px;
-  --p-toast-info-background: #eff6ff;
+  --p-toast-info-background: #eff6fff2;
   --p-toast-info-border-color: #bfdbfe;
   --p-toast-info-color: #2563eb;
   --p-toast-info-detail-color: #334155;
@@ -924,7 +924,7 @@
   --p-toast-info-close-button-focus-ring-color: #2563eb;
   --p-toast-info-close-button-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-toast-info-shadow: 0px 4px 8px 0px #02050a0a;
-  --p-toast-success-background: #f0fdf4;
+  --p-toast-success-background: #f0fdf4f2;
   --p-toast-success-border-color: #bbf7d0;
   --p-toast-success-color: #16a34a;
   --p-toast-success-detail-color: #334155;
@@ -932,7 +932,7 @@
   --p-toast-success-close-button-focus-ring-color: #16a34a;
   --p-toast-success-close-button-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-toast-success-shadow: 0px 4px 8px 0px #0108040a;
-  --p-toast-warn-background: #fefce8;
+  --p-toast-warn-background: #fefce8f2;
   --p-toast-warn-border-color: #fef08a;
   --p-toast-warn-color: #ca8a04;
   --p-toast-warn-detail-color: #334155;
@@ -940,7 +940,7 @@
   --p-toast-warn-close-button-focus-ring-color: #ca8a04;
   --p-toast-warn-close-button-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-toast-warn-shadow: 0px 4px 8px 0px #0907000a;
-  --p-toast-error-background: #fef2f2;
+  --p-toast-error-background: #fef2f2f2;
   --p-toast-error-border-color: #fecaca;
   --p-toast-error-color: #dc2626;
   --p-toast-error-detail-color: #334155;
@@ -1007,8 +1007,8 @@
   --p-galleria-border-color: #e2e8f0;
   --p-galleria-border-width: 1px;
   --p-galleria-border-radius: 6px;
-  --p-galleria-nav-button-background: #ffffff;
-  --p-galleria-nav-button-hover-background: #ffffff;
+  --p-galleria-nav-button-background: #ffffff1a;
+  --p-galleria-nav-button-hover-background: #ffffff33;
   --p-galleria-nav-button-hover-color: #ffffff;
   --p-galleria-nav-button-color: #f1f5f9;
   --p-galleria-nav-button-focus-ring-color: #2673fd;
@@ -1021,15 +1021,15 @@
   --p-galleria-nav-button-next-border-radius: 21px;
   --p-galleria-nav-icon-size: 21px;
   --p-galleria-thumbnails-content-background: #f8fafc;
-  --p-galleria-caption-background: #000000;
+  --p-galleria-caption-background: #00000080;
   --p-galleria-caption-color: #f1f5f9;
   --p-galleria-caption-padding: 14px;
-  --p-galleria-inset-indicator-list-background: #000000;
-  --p-galleria-inset-indicator-button-background: #ffffff;
-  --p-galleria-inset-indicator-button-hover-background: #ffffff;
-  --p-galleria-inset-indicator-button-active-background: #ffffff;
-  --p-galleria-close-button-background: #ffffff;
-  --p-galleria-close-button-hover-background: #ffffff;
+  --p-galleria-inset-indicator-list-background: #00000080;
+  --p-galleria-inset-indicator-button-background: #ffffff66;
+  --p-galleria-inset-indicator-button-hover-background: #ffffff99;
+  --p-galleria-inset-indicator-button-active-background: #ffffffe6;
+  --p-galleria-close-button-background: #ffffff1a;
+  --p-galleria-close-button-hover-background: #ffffff33;
   --p-galleria-close-button-hover-color: #ffffff;
   --p-galleria-close-button-color: #f8fafc;
   --p-galleria-close-button-focus-ring-color: #2673fd;
@@ -1301,7 +1301,7 @@
   --p-inputtext-border-radius: 8px;
   --p-inputtext-hover-border-color: #94a3b8;
   --p-inputtext-focus-border-color: #2673fd;
-  --p-inputtext-focus-ring-color: #000000;
+  --p-inputtext-focus-ring-color: #00000000;
   --p-inputtext-focus-ring-width: [object Object];
   --p-inputtext-focus-ring-offset: [object Object];
   --p-inputtext-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1322,7 +1322,7 @@
   --p-panel-border-color: #e2e8f0;
   --p-panel-border-radius: 6px;
   --p-panel-color: #334155;
-  --p-panel-header-background: #000000;
+  --p-panel-header-background: #00000000;
   --p-panel-header-color: #334155;
   --p-panel-header-border-color: #e2e8f0;
   --p-panel-header-padding: 15.75px;
@@ -1474,7 +1474,7 @@
   --p-cascadeselect-border-radius: 8px;
   --p-cascadeselect-hover-border-color: #94a3b8;
   --p-cascadeselect-focus-border-color: #2673fd;
-  --p-cascadeselect-focus-ring-color: #000000;
+  --p-cascadeselect-focus-ring-color: #00000000;
   --p-cascadeselect-focus-ring-width: [object Object];
   --p-cascadeselect-focus-ring-offset: [object Object];
   --p-cascadeselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1522,7 +1522,7 @@
   --p-select-border-radius: 8px;
   --p-select-hover-border-color: #94a3b8;
   --p-select-focus-border-color: #2673fd;
-  --p-select-focus-ring-color: #000000;
+  --p-select-focus-ring-color: #00000000;
   --p-select-focus-ring-width: [object Object];
   --p-select-focus-ring-offset: [object Object];
   --p-select-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1544,7 +1544,7 @@
   --p-select-option-selected-focus-color: #1e40af;
   --p-select-option-selected-color: #1d4ed8;
   --p-select-option-color: #334155;
-  --p-select-option-group-background: #000000;
+  --p-select-option-group-background: #00000000;
   --p-select-option-group-color: #64748b;
   --p-select-option-group-font-weight: 600px;
   --p-select-option-border-radius: 4px;
@@ -1596,7 +1596,7 @@
   --p-textarea-border-radius: 8px;
   --p-textarea-hover-border-color: #94a3b8;
   --p-textarea-focus-border-color: #2673fd;
-  --p-textarea-focus-ring-color: #000000;
+  --p-textarea-focus-ring-color: #00000000;
   --p-textarea-focus-ring-width: [object Object];
   --p-textarea-focus-ring-offset: [object Object];
   --p-textarea-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1630,7 +1630,7 @@
   --p-multiselect-border-radius: 8px;
   --p-multiselect-hover-border-color: #94a3b8;
   --p-multiselect-focus-border-color: #2673fd;
-  --p-multiselect-focus-ring-color: #000000;
+  --p-multiselect-focus-ring-color: #00000000;
   --p-multiselect-focus-ring-width: [object Object];
   --p-multiselect-focus-ring-offset: [object Object];
   --p-multiselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1652,7 +1652,7 @@
   --p-multiselect-option-selected-focus-color: #1e40af;
   --p-multiselect-option-selected-color: #1d4ed8;
   --p-multiselect-option-color: #334155;
-  --p-multiselect-option-group-background: #000000;
+  --p-multiselect-option-group-background: #00000000;
   --p-multiselect-option-group-color: #64748b;
   --p-multiselect-option-group-font-weight: 600px;
   --p-multiselect-option-border-radius: 4px;
@@ -1682,7 +1682,7 @@
   --p-treeselect-border-radius: 8px;
   --p-treeselect-hover-border-color: #94a3b8;
   --p-treeselect-focus-border-color: #2673fd;
-  --p-treeselect-focus-ring-color: #000000;
+  --p-treeselect-focus-ring-color: #00000000;
   --p-treeselect-focus-ring-width: [object Object];
   --p-treeselect-focus-ring-offset: [object Object];
   --p-treeselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
@@ -1711,14 +1711,14 @@
   --p-treeselect-lg-padding-x: 12.25px;
   --p-treeselect-lg-padding-y: 8.75px;
   --p-treeselect-shadow: 0px 1px 2px 0px #1212170d;
-  --p-dataview-border-color: #000000;
+  --p-dataview-border-color: #00000000;
   --p-dataview-header-background: #f8fafc;
   --p-dataview-header-color: #334155;
   --p-dataview-header-border-color: #e2e8f0;
   --p-dataview-header-border-width: 1px;
   --p-dataview-content-background: #f8fafc;
   --p-dataview-content-color: #334155;
-  --p-dataview-content-border-color: #000000;
+  --p-dataview-content-border-color: #00000000;
   --p-dataview-footer-background: #f8fafc;
   --p-dataview-footer-color: #334155;
   --p-dataview-footer-border-color: #e2e8f0;
@@ -1763,7 +1763,7 @@
   --p-fieldset-legend-hover-background: #f1f5f9;
   --p-fieldset-legend-hover-color: #1e293b;
   --p-fieldset-legend-color: #334155;
-  --p-fieldset-legend-border-color: #000000;
+  --p-fieldset-legend-border-color: #00000000;
   --p-fieldset-legend-border-radius: 6px;
   --p-fieldset-legend-border-width: 1px;
   --p-fieldset-legend-focus-ring-color: #2673fd;
@@ -1778,7 +1778,7 @@
   --p-splitter-border-color: #e2e8f0;
   --p-splitter-color: #334155;
   --p-splitter-gutter-background: #e2e8f0;
-  --p-splitter-handle-background: #000000;
+  --p-splitter-handle-background: #00000000;
   --p-splitter-handle-focus-ring-color: #2673fd;
   --p-splitter-handle-focus-ring-width: 1px;
   --p-splitter-handle-focus-ring-offset: 2px;
@@ -1792,12 +1792,12 @@
   --p-tabs-tab-border-width: 1px;
   --p-tabs-tab-active-border-color: #2673fd;
   --p-tabs-tab-active-color: #2673fd;
-  --p-tabs-tab-active-background: #000000;
+  --p-tabs-tab-active-background: #00000000;
   --p-tabs-tab-color: #64748b;
   --p-tabs-tab-hover-color: #334155;
-  --p-tabs-tab-hover-background: #000000;
+  --p-tabs-tab-hover-background: #00000000;
   --p-tabs-tab-hover-border-color: #e2e8f0;
-  --p-tabs-tab-background: #000000;
+  --p-tabs-tab-background: #00000000;
   --p-tabs-tab-focus-ring-color: #2673fd;
   --p-tabs-tab-focus-ring-width: 1px;
   --p-tabs-tab-focus-ring-offset: -1px;
@@ -1875,8 +1875,8 @@
   --p-contextmenu-separator-border-color: #e2e8f0;
   --p-contextmenu-list-gap: 2px;
   --p-contextmenu-shadow: 0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
-  --p-dock-background: #ffffff;
-  --p-dock-border-color: #ffffff;
+  --p-dock-background: #ffffff1a;
+  --p-dock-border-color: #ffffff33;
   --p-dock-border-radius: 12px;
   --p-dock-item-focus-ring-color: #2673fd;
   --p-dock-item-focus-ring-width: 1px;
@@ -1906,7 +1906,7 @@
   --p-megamenu-overlay-color: #334155;
   --p-megamenu-overlay-gap: 7px;
   --p-megamenu-overlay-shadow: 0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
-  --p-megamenu-submenu-label-background: #000000;
+  --p-megamenu-submenu-label-background: #00000000;
   --p-megamenu-submenu-label-color: #64748b;
   --p-megamenu-submenu-label-font-weight: 600px;
   --p-megamenu-submenu-icon-color: #94a3b8;
@@ -1939,7 +1939,7 @@
   --p-menu-item-icon-focus-color: #64748b;
   --p-menu-item-border-radius: 4px;
   --p-menu-item-gap: 7px;
-  --p-menu-submenu-label-background: #000000;
+  --p-menu-submenu-label-background: #00000000;
   --p-menu-submenu-label-color: #64748b;
   --p-menu-submenu-label-font-weight: 600px;
   --p-menu-separator-border-color: #e2e8f0;
@@ -2048,7 +2048,7 @@
   --p-organizationchart-gutter: 10.5px;
   --p-paginator-background: #f8fafc;
   --p-paginator-color: #334155;
-  --p-paginator-nav-button-background: #000000;
+  --p-paginator-nav-button-background: #00000000;
   --p-paginator-nav-button-hover-background: #f1f5f9;
   --p-paginator-nav-button-hover-color: #475569;
   --p-paginator-nav-button-selected-background: #eff6ff;
@@ -2112,18 +2112,18 @@
   --p-virtualscroller-loader-mask-background: #f8fafc;
   --p-virtualscroller-loader-mask-color: #64748b;
   --p-virtualscroller-loader-icon-size: 28px;
-  --p-image-preview-mask-background: #000000;
+  --p-image-preview-mask-background: #00000066;
   --p-image-preview-mask-color: #e2e8f0;
   --p-image-preview-icon-size: 21px;
-  --p-image-toolbar-background: #ffffff;
-  --p-image-toolbar-border-color: #ffffff;
+  --p-image-toolbar-background: #ffffff1a;
+  --p-image-toolbar-border-color: #ffffff33;
   --p-image-toolbar-border-width: 1px;
   --p-image-toolbar-border-radius: 30px;
   --p-image-toolbar-padding: 7px;
   --p-image-toolbar-gap: 7px;
   --p-image-toolbar-position-right: 14px;
   --p-image-toolbar-position-top: 14px;
-  --p-image-action-hover-background: #ffffff;
+  --p-image-action-hover-background: #ffffff1a;
   --p-image-action-hover-color: #ffffff;
   --p-image-action-color: #f8fafc;
   --p-image-action-focus-ring-color: #2673fd;
@@ -2145,7 +2145,7 @@
   --p-fileupload-border-color: #e2e8f0;
   --p-fileupload-border-radius: 6px;
   --p-fileupload-color: #334155;
-  --p-fileupload-header-background: #000000;
+  --p-fileupload-header-background: #00000000;
   --p-fileupload-header-color: #334155;
   --p-fileupload-header-padding: 15.75px;
   --p-fileupload-header-gap: 7px;
@@ -2207,13 +2207,13 @@
   --p-terminal-color: #334155;
   --p-terminal-height: 252px;
   --p-terminal-prompt-gap: 3.5px;
-  --p-imagecompare-handle-background: #ffffff;
-  --p-imagecompare-handle-hover-background: #ffffff;
-  --p-imagecompare-handle-hover-border-color: #000000;
+  --p-imagecompare-handle-background: #ffffff4d;
+  --p-imagecompare-handle-hover-background: #ffffff4d;
+  --p-imagecompare-handle-hover-border-color: #00000000;
   --p-imagecompare-handle-hover-size: 30px;
-  --p-imagecompare-handle-border-color: #000000;
+  --p-imagecompare-handle-border-color: #00000000;
   --p-imagecompare-handle-border-radius: 7.5px;
-  --p-imagecompare-handle-focus-ring-color: #ffffff;
+  --p-imagecompare-handle-focus-ring-color: #ffffff4d;
   --p-imagecompare-handle-focus-ring-width: 1px;
   --p-imagecompare-handle-focus-ring-offset: 2px;
   --p-imagecompare-handle-focus-ring-shadow: 0px 0px 0px 0px #00000000;

@@ -18,7 +18,6 @@ StyleDictionary.registerTransform({
   type: 'value',
   filter: (token) => token['$type'] === 'boxShadow',
   transform: (token) => {
-    console.warn(token)
     const shadow = token.original['$value'];
     if (Array.isArray(shadow)) {
       const shadowValues = shadow.map(s => {
@@ -35,12 +34,12 @@ StyleDictionary.registerTransform({
 
 StyleDictionary.registerTransformGroup({
   name: 'custom/css',
-  transforms: ['name/cti/kebab-prefixed', 'value/px', 'value/boxShadow', 'color/hex'],
+  transforms: ['name/cti/kebab-prefixed', 'value/px', 'value/boxShadow'],
 })
 
 export default {
-  // source: ['tokens/tokens-styles-light.json',], // for light
-  source: ['tokens/tokens-styles-dark.json'], // for dark
+  source: ['tokens/tokens-styles-light.json',], // for light
+  // source: ['tokens/tokens-styles-dark.json'], // for dark
   platforms: {
     light: {
       transformGroup: 'custom/css',
@@ -50,7 +49,7 @@ export default {
           destination: 'light-theme.css',
           format: 'css/variables',
           options: {
-            selector: '#app',
+            selector: 'body',
           },
           filter: (token) => token.filePath.includes('light'),
         },
@@ -64,7 +63,7 @@ export default {
           destination: 'dark-theme.css',
           format: 'css/variables',
           options: {
-            selector: "[data-theme='dark'] #app",
+            selector: "[data-theme='dark'] body",
           },
           filter: (token) => token.filePath.includes('dark'),
         },
