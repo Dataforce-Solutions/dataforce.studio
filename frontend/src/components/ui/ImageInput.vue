@@ -1,15 +1,16 @@
 <template>
-  <div class="area" :style="{ width, height: width }" @click="inputRef?.click()">
-    <img :src="newImage || image" alt="" class="image" />
+  <div class="area" @click="inputRef?.click()">
+    <d-avatar :image="newImage || image" size="xlarge" />
     <input
       ref="inputRef"
       type="file"
       id="avatar"
       name="avatar"
-      accept="image/png, image/jpeg"
+      accept="image/png, image/jpeg, image/webp"
       class="input"
       @change="onInputChange"
     />
+    <span class="link">{{ label }}</span>
   </div>
 </template>
 
@@ -22,13 +23,13 @@ type TEmits = {
 }
 
 defineProps({
-  width: {
-    type: String,
-    default: '100px',
-  },
   image: {
     type: String,
     default: avatarPlaceholder,
+  },
+  label: {
+    type: String,
+    default: 'Change photo',
   },
 })
 
@@ -66,14 +67,10 @@ const onInputChange = (event: Event) => {
 <style scoped>
 .area {
   position: relative;
-  border-radius: 50%;
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
   cursor: pointer;
-}
-.image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 .input {
   position: absolute;
