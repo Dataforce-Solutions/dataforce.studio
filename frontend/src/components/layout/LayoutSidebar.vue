@@ -143,5 +143,12 @@ const toggleSidebar = () => {
     color: #fff;
     box-shadow: var(--card-shadow);
   }
+
+  [data-theme='dark'] .disabled:hover {
+    background-color: transparent;
+    color: var(--p-surface-400);
+    box-shadow: none;
+    cursor: default;
+  }
 }
 </style>
