@@ -29,9 +29,9 @@
             </div>
           </div>
         </div>
-        <a v-else class="menu-item" v-bind="props.action">
+        <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
           <span>{{ item.label }}</span>
-        </a>
+        </button>
       </template>
       <template #end>
         <footer class="footer">
@@ -43,8 +43,8 @@
   <d-dialog
     v-model:visible="isSettingsPopupVisible"
     modal
-    header="Account settings"
-    :style="{ width: '41rem' }"
+    header="ACCOUNT SETTINGS"
+    :style="{ width: '37rem' }"
   >
     <user-settings
       @show-change-password="onShowChangePassword"
@@ -54,8 +54,8 @@
   <d-dialog
     v-model:visible="isChangePasswordPopupVisible"
     modal
-    header="Change password"
-    :style="{ width: '41rem' }"
+    header="CHANGE PASSWORD"
+    :style="{ width: '37rem' }"
   >
     <user-change-password />
   </d-dialog>
@@ -86,15 +86,21 @@ const menu = ref()
 const menuItems = ref([
   {
     label: 'Account',
+    action: () => {
+      isSettingsPopupVisible.value = true
+    },
   },
   {
     label: 'Feedback',
+    action: () => {},
   },
   {
     label: 'Community',
+    action: () => {},
   },
   {
     label: 'About',
+    action: () => {},
   },
   {
     label: 'Appearance',

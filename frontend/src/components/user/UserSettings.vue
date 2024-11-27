@@ -1,29 +1,41 @@
 <template>
   <d-form :initialValues :resolver class="wrapper" @submit="onFormSubmit">
-    <div class="left">
-      <div class="inputs">
+    <image-input @on-image-change="onAvatarChange" class="image-input" />
+    <div class="inputs">
+      <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-input-text id="username" name="username" />
-          <label for="username">Name</label>
-        </d-float-label>
-        <d-float-label variant="on">
-          <d-input-text id="email" name="email" />
-          <label for="email">Email</label>
+          <d-icon-field>
+            <d-input-text ref="usernameRef" id="username" name="username" fluid />
+            <d-input-icon>
+              <component :is="getCurrentInputIcon('username')" :size="14" />
+            </d-input-icon>
+          </d-icon-field>
+          <label class="label" for="username">Name</label>
         </d-float-label>
       </div>
-      <d-button variant="link" label="Change password" @click="$emit('showChangePassword')" />
-      <div class="actives">
-        <d-button label="save" type="submit" />
-        <d-button
-          label="delete account"
-          variant="link"
-          severity="danger"
-          @click="onDeleteButtonClick"
-        />
+      <div class="input-wrapper">
+        <d-float-label variant="on">
+          <d-icon-field>
+            <d-input-text ref="emailRef" id="email" name="email" fluid />
+            <d-input-icon>
+              <component :is="getCurrentInputIcon('email')" :size="14" />
+            </d-input-icon>
+          </d-icon-field>
+          <label class="label" for="email">Email</label>
+        </d-float-label>
       </div>
     </div>
-    <div class="right">
-      <image-input width="150px" @on-image-change="onAvatarChange" />
+    <button class="link change-password-link" @click="$emit('showChangePassword')">
+      Change password
+    </button>
+    <div class="footer">
+      <d-button
+        label="delete account"
+        severity="warn"
+        variant="outlined"
+        @click="onDeleteButtonClick"
+      />
+      <d-button label="save changes" type="submit" />
     </div>
   </d-form>
 </template>
@@ -34,6 +46,7 @@ import { ref } from 'vue'
 import { z } from 'zod'
 import type { FormSubmitEvent } from '@primevue/forms'
 import ImageInput from '../ui/ImageInput.vue'
+import { useInputIcon } from '@/hooks/useInputIcon'
 
 import { useUserStore } from '@/stores/user'
 
@@ -46,10 +59,16 @@ const emit = defineEmits<TEmits>()
 
 const userStore = useUserStore()
 
+const usernameRef = ref<HTMLInputElement | null>()
+const emailRef = ref<HTMLInputElement | null>()
+
+const { getCurrentInputIcon } = useInputIcon([usernameRef, emailRef])
+
 const initialValues = ref({
   username: userStore.getUserFullName || '',
   email: userStore.getUserEmail || '',
 })
+
 const resolver = ref(
   zodResolver(
     z.object({
@@ -60,6 +79,7 @@ const resolver = ref(
 )
 
 const newAvatarFile = ref<File | null>(null)
+const fileupload = ref(null)
 
 const onAvatarChange = (payload: File | null) => {
   newAvatarFile.value = payload
@@ -96,6 +116,33 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 <style scoped>
 .wrapper {
   display: flex;
+  flex-direction: column;
+}
+
+.image-input {
+  align-self: flex-start;
+  margin-bottom: 24px;
+}
+
+.inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+
+.change-password-link {
+  align-self: flex-start;
+  padding: 10px 0;
+}
+
+.footer {
+  padding-top: 32px;
+  display: flex;
+  justify-content: space-between;
+}
+/* .wrapper {
+  display: flex;
   gap: 48px;
   align-items: flex-start;
 }
@@ -112,5 +159,5 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 }
 .left {
   padding-top: 10px;
-}
+} */
 </style>
