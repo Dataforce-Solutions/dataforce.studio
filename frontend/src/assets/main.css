@@ -46,6 +46,10 @@
   background-color: var(--p-inputtext-filled-background) !important;
 }
 
+.p-filled:disabled {
+  background-color: var(--p-inputtext-disabled-background) !important;
+}
+
 .input-wrapper:has(.p-filled) .label {
   opacity: 0;
 }

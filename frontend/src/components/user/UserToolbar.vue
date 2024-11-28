@@ -40,25 +40,22 @@
       </template>
     </d-menu>
   </div>
-  <d-dialog
-    v-model:visible="isSettingsPopupVisible"
-    modal
-    header="ACCOUNT SETTINGS"
-    :style="{ width: '37rem' }"
-  >
+  <d-dialog v-model:visible="isSettingsPopupVisible" modal :style="{ width: '37rem' }">
+    <template #header>
+      <h2 style="font-weight: 600; font-size: 20px">ACCOUNT SETTINGS</h2>
+    </template>
     <user-settings
       @show-change-password="onShowChangePassword"
       @close="isSettingsPopupVisible = !isSettingsPopupVisible"
     />
   </d-dialog>
-  <d-dialog
-    v-model:visible="isChangePasswordPopupVisible"
-    modal
-    header="CHANGE PASSWORD"
-    :style="{ width: '37rem' }"
-  >
-    <user-change-password />
+  <d-dialog v-model:visible="isChangePasswordPopupVisible" modal :style="{ width: '37rem' }">
+    <template #header>
+      <h2 style="font-weight: 600; font-size: 20px">CHANGE PASSWORD</h2>
+    </template>
+    <user-change-password @success="onChangePasswordSuccess" />
   </d-dialog>
+  <d-toast />
 </template>
 
 <script setup lang="ts">
@@ -73,10 +70,21 @@ import { ChevronDown, Sun, Moon, User } from 'lucide-vue-next'
 
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from 'primevue/usetoast'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const toast = useToast()
+
+const showChangePasswordSuccess = () => {
+  toast.add({
+    severity: 'success',
+    summary: 'Success',
+    detail: 'Password has been changed!',
+    life: 3000,
+  })
+}
 
 const { getUserEmail, getUserFullName } = storeToRefs(userStore)
 
@@ -122,6 +130,15 @@ const onButtonLogoutClick = async () => {
 const onShowChangePassword = () => {
   isSettingsPopupVisible.value = false
   isChangePasswordPopupVisible.value = true
+}
+
+const onChangePasswordSuccess = () => {
+  isSettingsPopupVisible.value = true
+  isChangePasswordPopupVisible.value = false
+
+  setTimeout(() => {
+    showChangePasswordSuccess()
+  }, 100)
 }
 </script>
 
@@ -171,8 +188,6 @@ const onShowChangePassword = () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-.user-name {
 }
 .user-email {
   color: var(--color-text-muted);
