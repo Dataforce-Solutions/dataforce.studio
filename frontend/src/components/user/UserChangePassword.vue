@@ -1,22 +1,56 @@
 <template>
-  <d-form :initialValues :resolver class="wrapper" @submit="onFormSubmit">
+  <d-form v-slot="$form" :initialValues :resolver class="wrapper" @submit="onFormSubmit">
     <div class="inputs">
-      <d-float-label variant="on">
-        <d-password id="oldPassword" name="current_password" :feedback="false" fluid />
-        <label for="oldPassword">Old password</label>
-      </d-float-label>
-      <d-float-label variant="on">
-        <d-password id="newPassword" name="new_password" :feedback="false" fluid />
-        <label for="newPassword">New password</label>
-      </d-float-label>
-      <d-float-label variant="on">
-        <d-password id="confirmPassword" name="confirmPassword" :feedback="false" fluid />
-        <label for="confirmPassword">Confirm password</label>
-      </d-float-label>
+      <div class="input-wrapper">
+        <d-float-label variant="on">
+          <d-password id="oldPassword" name="current_password" :feedback="false" fluid />
+          <label class="label" for="oldPassword">Old password</label>
+        </d-float-label>
+        <d-message
+          v-if="$form.current_password?.invalid"
+          severity="error"
+          size="small"
+          variant="simple"
+        >
+          {{ $form.current_password.error?.message }}
+        </d-message>
+      </div>
+      <div class="input-wrapper">
+        <d-float-label variant="on">
+          <d-password id="newPassword" name="new_password" :feedback="false" fluid toggleMask />
+          <label class="label" for="newPassword">New password</label>
+        </d-float-label>
+        <d-message
+          v-if="$form.new_password?.invalid"
+          severity="error"
+          size="small"
+          variant="simple"
+        >
+          {{ $form.new_password.error?.message }}
+        </d-message>
+      </div>
+      <div class="input-wrapper">
+        <d-float-label variant="on">
+          <d-password id="confirmPassword" name="confirmPassword" :feedback="false" fluid />
+          <label class="label" for="confirmPassword">Confirm password</label>
+        </d-float-label>
+        <d-message
+          v-if="$form.confirmPassword?.invalid"
+          severity="error"
+          size="small"
+          variant="simple"
+        >
+          {{ $form.confirmPassword.error?.message }}
+        </d-message>
+      </div>
     </div>
-    <div class="actives">
+    <div class="footer">
+      <d-button
+        label="Forgot password?"
+        variant="link"
+        @click="$router.push({ name: 'forgot-password' })"
+      />
       <d-button label="save" type="submit" />
-      <d-button label="Forgot password?" variant="link" />
     </div>
   </d-form>
 </template>
@@ -27,6 +61,8 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { ref } from 'vue'
 import { z } from 'zod'
 import { useUserStore } from '@/stores/user'
+
+const emit = defineEmits(['success'])
 
 const userStore = useUserStore()
 
@@ -72,6 +108,8 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
     await userStore.changePassword(data)
 
     console.log('its ok')
+
+    emit('success')
   } catch (e) {
     console.error(e)
   }
@@ -86,6 +124,17 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 32px;
+}
+
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
 }
 </style>
