@@ -141,23 +141,4 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   display: flex;
   justify-content: space-between;
 }
-/* .wrapper {
-  display: flex;
-  gap: 48px;
-  align-items: flex-start;
-}
-.left {
-  flex: 1 1 auto;
-}
-.right {
-  flex: 0 0 auto;
-}
-.inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.left {
-  padding-top: 10px;
-} */
 </style>
