@@ -11,3 +11,52 @@ dependencies = [
     "pyjwt>=2.9.0",
     "uvicorn>=0.32.0",
 ]
+
+[tool.ruff]
+# Target Python 3.12
+target-version = "py312"
+
+# Black-compatible settings
+line-length = 88
+indent-width = 4
+
+src = ["src"]
+
+[tool.ruff.lint]
+# Enable all rules for maximum coverage
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "C90", # mccabe complexity
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ANN", # flake8-annotations
+]
+
+ignore = [
+    "ANN101",  # Missing type annotation for self in method
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
+]
+
+[tool.ruff.format]
+# Black-compatible formatting settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["dataforce"]
+split-on-trailing-comma = true

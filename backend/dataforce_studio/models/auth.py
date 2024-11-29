@@ -1,0 +1,38 @@
+from pydantic import BaseModel, EmailStr
+from starlette.authentication import BaseUser
+
+
+class User(BaseModel):
+    email: EmailStr
+    full_name: str | None = None
+    disabled: bool | None = None
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    refresh_token: str | None = None
+
+
+class UserInDB(User):
+    hashed_password: str
+
+
+class AuthUser(BaseUser):
+    def __init__(
+        self,
+        email: str,
+        full_name: str | None = None,
+        disabled: bool | None = None,
+    ) -> None:
+        self.email = email
+        self.full_name = full_name
+        self.disabled = disabled
+
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def display_name(self) -> str:
+        return self.email
