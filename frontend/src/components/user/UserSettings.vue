@@ -33,11 +33,12 @@
         label="delete account"
         severity="warn"
         variant="outlined"
-        @click="onDeleteButtonClick"
+        @click="deleteAccountConfirm"
       />
       <d-button label="save changes" type="submit" />
     </div>
   </d-form>
+  <d-confirm-dialog style="width:21.75rem"></d-confirm-dialog>
 </template>
 
 <script setup lang="ts">
@@ -46,18 +47,42 @@ import { ref } from 'vue'
 import { z } from 'zod'
 import type { FormSubmitEvent } from '@primevue/forms'
 import ImageInput from '../ui/ImageInput.vue'
-import { useInputIcon } from '@/hooks/useInputIcon'
 
+import { useInputIcon } from '@/hooks/useInputIcon'
 import { useUserStore } from '@/stores/user'
+import { useConfirm } from 'primevue/useconfirm'
+import { useRouter } from 'vue-router'
+
+const userStore = useUserStore()
+const confirm = useConfirm()
+const router = useRouter()
+
+const deleteAccountConfirm = () => {
+  confirm.require({
+    message: 'Deleting your account is permanent and irreversible. ',
+    header: 'Are you sure?',
+    rejectProps: {
+      label: 'cancel',
+    },
+    acceptProps: {
+      label: 'delete account',
+      severity: 'warn',
+      outlined: true,
+    },
+    accept: async () => {
+      await userStore.deleteAccount()
+
+      router.push({ name: 'sign-up' })
+    },
+  })
+}
 
 type TEmits = {
   (e: 'showChangePassword'): void
   (e: 'close'): void
 }
 
-const emit = defineEmits<TEmits>()
-
-const userStore = useUserStore()
+defineEmits<TEmits>()
 
 const usernameRef = ref<HTMLInputElement | null>()
 const emailRef = ref<HTMLInputElement | null>()
@@ -83,16 +108,6 @@ const fileupload = ref(null)
 
 const onAvatarChange = (payload: File | null) => {
   newAvatarFile.value = payload
-}
-
-const onDeleteButtonClick = async () => {
-  try {
-    await userStore.deleteAccount()
-
-    emit('close')
-  } catch (e) {
-    console.error(e)
-  }
 }
 
 const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
