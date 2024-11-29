@@ -10,7 +10,8 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build --force",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "dependencies": {
     "@primevue/forms": "^4.2.2",

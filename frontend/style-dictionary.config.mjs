@@ -10,7 +10,13 @@ StyleDictionary.registerTransform({
   name: 'value/px',
   type: 'value',
   filter: (token) => token['$type'] === 'number',
-  transform: (token) => `${token['$value']}px`,
+  transform: (token) => {
+    if (token.path[token.path.length - 1] === 'weight') {
+      return token['$value']
+    }
+
+    return `${token['$value']}px`
+  },
 })
 
 StyleDictionary.registerTransform({
@@ -18,19 +24,19 @@ StyleDictionary.registerTransform({
   type: 'value',
   filter: (token) => token['$type'] === 'boxShadow',
   transform: (token) => {
-    const shadow = token.original['$value'];
+    const shadow = token.original['$value']
     if (Array.isArray(shadow)) {
-      const shadowValues = shadow.map(s => {
-        const { color, x, y, blur, spread } = s;
-        return `${x}px ${y}px ${blur}px ${spread}px ${color}`;
+      const shadowValues = shadow.map((s) => {
+        const { color, x, y, blur, spread } = s
+        return `${x}px ${y}px ${blur}px ${spread}px ${color}`
       })
       return shadowValues.join(', ')
     } else {
-      const { color, x, y, blur, spread } = shadow;
-      return `${x}px ${y}px ${blur}px ${spread}px ${color}`;
+      const { color, x, y, blur, spread } = shadow
+      return `${x}px ${y}px ${blur}px ${spread}px ${color}`
     }
-  }
-});
+  },
+})
 
 StyleDictionary.registerTransformGroup({
   name: 'custom/css',
@@ -38,7 +44,7 @@ StyleDictionary.registerTransformGroup({
 })
 
 export default {
-  source: ['tokens/tokens-styles-light.json',], // for light
+  source: ['tokens/tokens-styles-light.json'], // for light
   // source: ['tokens/tokens-styles-dark.json'], // for dark
   platforms: {
     light: {
