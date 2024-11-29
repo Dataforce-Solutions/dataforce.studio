@@ -1,7 +1,11 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { useAuthStore } from './auth'
 
 export const useThemeStore = defineStore('theme', () => {
+  const authStore = useAuthStore()
+  const { isAuth } = storeToRefs(authStore)
+
   const theme = ref('light')
 
   const getCurrentTheme = computed(() => theme.value)
@@ -19,7 +23,7 @@ export const useThemeStore = defineStore('theme', () => {
   const checkTheme = () => {
     const themeInLocalstorage = localStorage.getItem('theme')
 
-    if (themeInLocalstorage) {
+    if (themeInLocalstorage && isAuth.value) {
       theme.value = themeInLocalstorage
     } else {
       theme.value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -33,6 +37,8 @@ export const useThemeStore = defineStore('theme', () => {
   watch(theme, (t) => {
     document.documentElement.dataset.theme = theme.value
   })
+
+  watch(isAuth, checkTheme)
 
   return { getCurrentTheme, changeTheme, checkTheme }
 })
