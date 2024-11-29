@@ -1,5 +1,5 @@
 import type { App } from 'vue'
-import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password, Menu, Avatar, Toast, FileUpload, IconField, InputIcon } from 'primevue'
+import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password, Menu, Avatar, Toast, FileUpload, IconField, InputIcon, ConfirmDialog } from 'primevue'
 import { Form } from '@primevue/forms'
 
 export const addComponents = (app: App) => {
@@ -19,4 +19,5 @@ export const addComponents = (app: App) => {
   app.component('DFileUpload', FileUpload)
   app.component('DIconField', IconField)
   app.component('DInputIcon', InputIcon)
+  app.component('DConfirmDialog', ConfirmDialog)
 }

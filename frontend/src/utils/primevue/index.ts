@@ -4,6 +4,7 @@ import { addComponents } from './components'
 import { addDirectives } from './directives'
 import { dPreset } from './preset'
 import ToastService from 'primevue/toastservice';
+import { ConfirmationService } from 'primevue'
 
 export const initPrimeVue = (app: App) => {
   app.use(PrimeVue, {
@@ -19,4 +20,5 @@ export const initPrimeVue = (app: App) => {
   addDirectives(app)
 
   app.use(ToastService);
+  app.use(ConfirmationService);
 }
