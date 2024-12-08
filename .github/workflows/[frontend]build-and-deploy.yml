@@ -32,11 +32,11 @@ jobs:
           ssh-private-key: ${{ secrets.SSHKEY }}
 
       - name: Clear Target Directory on Server
-        run: ssh -o StrictHostKeyChecking=no -p 22 ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'sudo rm -rf /var/www/dataforce.studio/*'
+        run: ssh -o StrictHostKeyChecking=no -p 22 ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'sudo rm -rf /var/www/dev.dataforce.studio/*'
 
       - name: Copy files via rsync
         run: |
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no -p 22" frontend/dist/* ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/var/www/dataforce.studio
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no -p 22" frontend/dist/* ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/var/www/dev.dataforce.studio
 
       - name: Restart nginx
         run: ssh -o StrictHostKeyChecking=no -p 22 ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'sudo systemctl restart nginx'

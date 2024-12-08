@@ -27,7 +27,7 @@ class Token(BaseModel):
 
 
 class UserInDB(User):
-    hashed_password: str
+    hashed_password: str | None
 
 
 class AuthUser(BaseUser):

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
@@ -38,6 +39,8 @@ class AuthHandler:
 
     def authenticate_user(self, email: str, password: str) -> UserInDB | None:
         user = self.get_user(email)
+        if user.auth_method != AuthProvider.EMAIL:
+            raise AuthError("Invalid auth method", 400)
         if not user or not self.verify_password(password, user.hashed_password):
             return None
         return user
@@ -220,3 +223,54 @@ class AuthHandler:
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
+
+    async def handle_google_auth(self, code: str) -> Token:
+        data = {
+            "code": code,
+            "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
+            "apps.googleusercontent.com",
+            "client_secret": "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",
+            "redirect_uri": "https://dev-api.dataforce.studio/auth/google/callback",
+            "grant_type": "authorization_code",
+        }
+
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token", data=data
+            )
+            if token_response.status_code != 200:
+                raise AuthError("Failed to retrieve token from Google", 400)
+
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                raise AuthError("Failed to retrieve access token", 400)
+
+            userinfo_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if userinfo_response.status_code != 200:
+                raise AuthError("Failed to retrieve user info from Google", 400)
+
+        userinfo = userinfo_response.json()
+        email = userinfo.get("email")
+        full_name = userinfo.get("name")
+        photo_url = userinfo.get("picture")
+
+        if not email:
+            raise AuthError("Failed to retrieve user email", 400)
+
+        user = self.get_user(email)
+        if (not user) or (user.auth_method != AuthProvider.GOOGLE):
+            user = UserInDB(
+                email=email,
+                full_name=full_name,
+                disabled=False,
+                hashed_password=None,
+                photo=photo_url,
+                auth_method=AuthProvider.GOOGLE,
+            )
+            fake_users_db[email] = user.model_dump()
+
+        return self.create_tokens(email)

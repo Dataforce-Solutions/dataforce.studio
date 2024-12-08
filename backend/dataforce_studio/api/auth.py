@@ -1,8 +1,10 @@
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import EmailStr
 from starlette.authentication import UnauthenticatedUser
+from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.models.auth import Token, User
@@ -46,12 +48,42 @@ async def signin(
         raise handle_auth_error(e) from e
 
 
+@auth_router.get("/google/login")
+async def google_login() -> RedirectResponse:
+    params = {
+        "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
+        "apps.googleusercontent.com",
+        "redirect_uri": "https://dev-api.dataforce.studio/auth/google/callback",
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+    return RedirectResponse(url)
+
+
+@auth_router.get("/google/callback")
+async def google_callback(request: Request, code: str = None) -> Token:
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing code in callback")
+    try:
+        return await auth_handler.handle_google_auth(code)
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+
+
 @auth_router.post("/refresh", response_model=Token)
 async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
     try:
         return auth_handler.handle_refresh_token(refresh_token)
     except AuthError as e:
         raise handle_auth_error(e) from e
+
+
+@auth_router.post("/forgot-password")
+async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
+    return {"detail": "Password reset email has been sent"}
 
 
 @auth_router.get("/users/me", response_model=User)
