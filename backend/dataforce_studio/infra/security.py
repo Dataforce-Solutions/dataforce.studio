@@ -1,12 +1,9 @@
-from fastapi.security import OAuth2PasswordBearer
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.models.auth import AuthUser
 from dataforce_studio.models.errors import AuthError
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/signin", scheme_name="JWT")
 
 
 class JWTAuthenticationBackend(AuthenticationBackend):

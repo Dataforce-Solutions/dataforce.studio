@@ -3,9 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
+from starlette.authentication import UnauthenticatedUser
 
 from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.infra.security import oauth2_scheme
 from dataforce_studio.models.auth import Token, User
 from dataforce_studio.models.errors import AuthError
 
@@ -45,9 +45,9 @@ async def signin(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> 
 
 
 @auth_router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_request: Annotated[str, Form()]) -> Token:
+async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
     try:
-        return auth_handler.handle_refresh_token(refresh_request)
+        return auth_handler.handle_refresh_token(refresh_token)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -57,7 +57,6 @@ async def change_password(
     request: Request,
     current_password: Annotated[str, Form()],
     new_password: Annotated[str, Form()],
-    _: str = Annotated[oauth2_scheme, Depends()],
 ) -> dict[str, str]:
     try:
         return auth_handler.handle_change_password(
@@ -70,7 +69,6 @@ async def change_password(
 @auth_router.delete("/delete-account")
 async def delete_account(
     request: Request,
-    _: str = Annotated[oauth2_scheme, Depends()],
 ) -> dict[str, str]:
     try:
         return auth_handler.handle_delete_account(request.user.email)
@@ -81,8 +79,9 @@ async def delete_account(
 @auth_router.get("/me", response_model=User)
 async def get_current_user(
     request: Request,
-    _: str = Annotated[oauth2_scheme, Depends()],
 ) -> User:
+    if isinstance(request.user, UnauthenticatedUser):
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         return auth_handler.handle_get_current_user(request.user.email)
     except AuthError as e:
@@ -93,7 +92,6 @@ async def get_current_user(
 async def logout(
     request: Request,
     refresh_token: Annotated[str, Form()],
-    _: str = Annotated[oauth2_scheme, Depends()],
 ) -> dict[str, str]:
     try:
         auth_header = request.headers.get("Authorization")

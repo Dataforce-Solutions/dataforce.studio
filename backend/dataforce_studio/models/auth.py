@@ -1,11 +1,19 @@
+from enum import Enum
+
 from pydantic import BaseModel, EmailStr
 from starlette.authentication import BaseUser
+
+
+class AuthProvider(str, Enum):
+    EMAIL = "email"
+    GOOGLE = "google"
 
 
 class User(BaseModel):
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
+    auth_method: AuthProvider
 
 
 class Token(BaseModel):

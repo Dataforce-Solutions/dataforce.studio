@@ -4,7 +4,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
-from dataforce_studio.models.auth import Token, User, UserInDB
+from dataforce_studio.models.auth import AuthProvider, Token, User, UserInDB
 from dataforce_studio.models.errors import AuthError
 from dataforce_studio.repositories.token_blacklist import token_blacklist
 from dataforce_studio.repositories.users import fake_users_db
@@ -96,6 +96,7 @@ class AuthHandler:
             full_name=full_name,
             disabled=False,
             hashed_password=hashed_password,
+            auth_method=AuthProvider.EMAIL,
         )
         fake_users_db[email] = user.model_dump()
 
