@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import EmailStr
 from starlette.authentication import UnauthenticatedUser
 
@@ -27,7 +26,7 @@ def handle_auth_error(error: AuthError) -> HTTPException:
 @auth_router.post("/signup", response_model=Token)
 async def signup(
     email: Annotated[EmailStr, Form()],
-    password: Annotated[str, Form()],
+    password: Annotated[str, Form(min_length=8)],
     full_name: Annotated[str | None, Form()] = None,
 ) -> Token:
     try:
@@ -37,9 +36,12 @@ async def signup(
 
 
 @auth_router.post("/signin", response_model=Token)
-async def signin(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
+async def signin(
+    email: Annotated[EmailStr, Form()],
+    password: Annotated[str, Form(min_length=8)],
+) -> Token:
     try:
-        return auth_handler.handle_signin(form_data.username, form_data.password)
+        return auth_handler.handle_signin(email, password)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -52,31 +54,7 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
         raise handle_auth_error(e) from e
 
 
-@auth_router.post("/change-password")
-async def change_password(
-    request: Request,
-    current_password: Annotated[str, Form()],
-    new_password: Annotated[str, Form()],
-) -> dict[str, str]:
-    try:
-        return auth_handler.handle_change_password(
-            request.user.email, current_password, new_password
-        )
-    except AuthError as e:
-        raise handle_auth_error(e) from e
-
-
-@auth_router.delete("/delete-account")
-async def delete_account(
-    request: Request,
-) -> dict[str, str]:
-    try:
-        return auth_handler.handle_delete_account(request.user.email)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
-
-
-@auth_router.get("/me", response_model=User)
+@auth_router.get("/users/me", response_model=User)
 async def get_current_user(
     request: Request,
 ) -> User:
@@ -86,6 +64,69 @@ async def get_current_user(
         return auth_handler.handle_get_current_user(request.user.email)
     except AuthError as e:
         raise handle_auth_error(e) from e
+
+
+@auth_router.delete("/users/me")
+async def delete_account(
+    request: Request,
+) -> dict[str, str]:
+    try:
+        return auth_handler.handle_delete_account(request.user.email)
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+
+
+@auth_router.patch("/users/me")
+async def update_user_profile(
+    request: Request,
+    email: Annotated[EmailStr, Form()] = None,
+    full_name: Annotated[str | None, Form()] = None,
+    current_password: Annotated[str | None, Form()] = None,
+    new_password: Annotated[str | None, Form()] = None,
+    photo: Annotated[UploadFile | None, File()] = None,
+) -> dict[str, str]:
+    if isinstance(request.user, UnauthenticatedUser):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        if email:
+            return {
+                "detail": "We've sent you an email to confirm the new email address",
+            }
+
+        if full_name:
+            auth_handler.handle_change_name(request.user.email, full_name)
+
+        if current_password and new_password:
+            auth_handler.handle_change_password(
+                request.user.email, current_password, new_password
+            )
+
+        # if photo:
+        #     await auth_handler.handle_upload_photo(request.user.email, photo)
+
+        return {"detail": "User profile updated successfully"}
+
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+
+
+@auth_router.delete("/users/me/photo")
+async def delete_user_photo(
+    request: Request,
+) -> dict[str, str]:
+    """
+    Delete the user's current profile photo.
+    """
+    if isinstance(request.user, UnauthenticatedUser):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # try:
+    #     return auth_handler.handle_delete_photo(request.user.email)
+    # except AuthError as e:
+    #     raise handle_auth_error(e) from e
+
+    return {"detail": "Photo successfully deleted"}
 
 
 @auth_router.post("/logout")

@@ -1,6 +1,7 @@
 from enum import Enum
 
 from pydantic import BaseModel, EmailStr
+from pydantic_core._pydantic_core import Url
 from starlette.authentication import BaseUser
 
 
@@ -14,6 +15,9 @@ class User(BaseModel):
     full_name: str | None = None
     disabled: bool | None = None
     auth_method: AuthProvider
+    photo: Url = Url(
+        "https://previews.123rf.com/images/vectorshots/vectorshots1309/vectorshots130901404/22318678-cute-boy-cartoon-face-vector.jpg"
+    )
 
 
 class Token(BaseModel):

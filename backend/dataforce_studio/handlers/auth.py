@@ -106,7 +106,7 @@ class AuthHandler:
         """Handle user signin process"""
         user = self.authenticate_user(email, password)
         if not user:
-            raise AuthError("Invalid email or password", 401)
+            raise AuthError("Invalid email or password", 400)
         return self.create_tokens(user.email)
 
     def handle_refresh_token(self, refresh_token: str) -> Token:
@@ -157,6 +157,19 @@ class AuthHandler:
         )
         return {"detail": "Password changed successfully"}
 
+    def handle_change_name(
+        self,
+        email: str,
+        new_name: str,
+    ) -> dict[str, str]:
+        """Handle password change process"""
+        user = self.get_user(email)
+        if not user:
+            raise AuthError("User not found", 404)
+
+        fake_users_db[user.email]["full_name"] = new_name
+        return {"detail": "Name changed successfully"}
+
     def handle_delete_account(self, email: str) -> dict[str, str]:
         """Handle account deletion process"""
         if email in fake_users_db:
@@ -178,6 +191,8 @@ class AuthHandler:
             email=user_in_db.email,
             full_name=user_in_db.full_name,
             disabled=user_in_db.disabled,
+            auth_method=user_in_db.auth_method,
+            photo=user_in_db.photo,
         )
 
     def handle_logout(self, access_token: str, refresh_token: str) -> dict[str, str]:
