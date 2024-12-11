@@ -53,7 +53,7 @@ async def google_login() -> RedirectResponse:
     params = {
         "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
         "apps.googleusercontent.com",
-        "redirect_uri": "https://dev-api.dataforce.studio/auth/google/callback",
+        "redirect_uri": "http://localhost:5173/sign-in",
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",

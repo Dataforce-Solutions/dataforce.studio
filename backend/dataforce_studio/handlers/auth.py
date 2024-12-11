@@ -39,10 +39,10 @@ class AuthHandler:
 
     def authenticate_user(self, email: str, password: str) -> UserInDB | None:
         user = self.get_user(email)
-        if user.auth_method != AuthProvider.EMAIL:
-            raise AuthError("Invalid auth method", 400)
         if not user or not self.verify_password(password, user.hashed_password):
             return None
+        if user.auth_method != AuthProvider.EMAIL:
+            raise AuthError("Invalid auth method", 400)
         return user
 
     def create_token(self, data: dict, expires_delta: timedelta) -> str:
@@ -230,7 +230,7 @@ class AuthHandler:
             "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
             "apps.googleusercontent.com",
             "client_secret": "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",
-            "redirect_uri": "https://dev-api.dataforce.studio/auth/google/callback",
+            "redirect_uri": "http://localhost:5173/sign-in",
             "grant_type": "authorization_code",
         }
 
