@@ -11,7 +11,7 @@ export interface IPostSignupResponse {
 }
 
 export interface IPostSignInRequest {
-  username: string
+  email: string
   password: string
   grant_type?: string
   scope?: string
@@ -50,6 +50,8 @@ export interface IGetUserResponse {
   email: string
   full_name: string
   disabled: boolean
+  auth_method: string
+  photo: string
 }
 
 export interface IPostLogoutRequest {
@@ -57,3 +59,23 @@ export interface IPostLogoutRequest {
 }
 
 export type TPostLogoutResponse = string
+
+export interface IUpdateUserRequest {
+  full_name?: string
+  current_password?: string
+  new_password?: string
+  photo?: File
+  email?: string
+}
+
+export interface IPostForgotPasswordRequest {
+  email: string
+}
+
+export interface IPostForgotPasswordResponse {
+  detail: string
+}
+
+export interface IGetGoogleLoginRequest {
+  code: string
+}

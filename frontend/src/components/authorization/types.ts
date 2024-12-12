@@ -7,7 +7,6 @@ export interface IAuthorizationService {
 
 export type TAuthorizationWrapperProps = {
   title: string
-  subTitle: string
+  subTitle?: string
   image: string
-  services?: IAuthorizationService[]
 }

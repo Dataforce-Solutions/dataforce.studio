@@ -1,16 +1,37 @@
 <template>
-  <authorization-wrapper
-    title="Sign up"
-    sub-title="Welcome to DataForce Studio"
-    :image="MainImage"
-    :services
-  >
+  <authorization-wrapper title="Sign up" sub-title="Welcome to DataForce Studio" :image="MainImage">
     <template #form>
-      <d-form v-slot="$form" :initialValues :resolver @submit="onFormSubmit" class="form">
+      <d-form
+        class="form"
+        ref="formRef"
+        v-slot="$form"
+        :initialValues
+        :resolver
+        :validateOnValueUpdate="false"
+        :validateOnSubmit="true"
+        @submit="onFormSubmit"
+      >
         <div class="inputs">
           <div class="input-wrapper">
             <d-float-label variant="on">
-              <d-input-text id="username" name="username" fluid type="text" autocomplete="off" />
+              <d-icon-field>
+                <d-input-text
+                  ref="usernameRef"
+                  id="username"
+                  name="username"
+                  fluid
+                  type="text"
+                  autocomplete="off"
+                  v-model="initialValues.username"
+                />
+                <d-input-icon>
+                  <component
+                    :is="getCurrentInputIcon('username')"
+                    :size="14"
+                    @click="onIconClick('username')"
+                  />
+                </d-input-icon>
+              </d-icon-field>
               <label for="username" class="label">Name</label>
             </d-float-label>
             <d-message
@@ -24,7 +45,24 @@
           </div>
           <div class="input-wrapper">
             <d-float-label variant="on">
-              <d-input-text id="email" name="email" fluid type="text" autocomplete="off" />
+              <d-icon-field>
+                <d-input-text
+                  ref="emailRef"
+                  id="email"
+                  name="email"
+                  fluid
+                  type="text"
+                  autocomplete="off"
+                  v-model="initialValues.email"
+                />
+                <d-input-icon>
+                  <component
+                    :is="getCurrentInputIcon('email')"
+                    :size="14"
+                    @click="onIconClick('email')"
+                  />
+                </d-input-icon>
+              </d-icon-field>
               <label for="email" class="label">Email</label>
             </d-float-label>
             <d-message v-if="$form.email?.invalid" severity="error" size="small" variant="simple">
@@ -40,6 +78,7 @@
                 autocomplete="off"
                 toggleMask
                 :feedback="false"
+                v-model="initialValues.password"
               />
               <label for="password" class="label">Password</label>
             </d-float-label>
@@ -49,6 +88,9 @@
           </div>
         </div>
         <d-button type="submit" label="Sign up" rounded />
+        <d-message v-if="formResponseError" severity="error" size="small" variant="simple">
+          {{ formResponseError }}
+        </d-message>
       </d-form>
     </template>
     <template #footer>
@@ -59,85 +101,70 @@
 </template>
 
 <script setup lang="ts">
-import type { IAuthorizationService } from '@/components/authorization/types'
-
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 import MainImage from '@/assets/img/sign-up.png'
-import GoogleIcon from '@/assets/img/authorization-services/google.svg'
-import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
-import GitHubIcon from '@/assets/img/authorization-services/github.svg'
 
-import { zodResolver } from '@primevue/forms/resolvers/zod'
-import { z } from 'zod'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useAuthStore } from '@/stores/auth'
 import type { IPostSignupRequest } from '@/utils/api/DataforceApi.interfaces'
 import { useRouter } from 'vue-router'
+import { signUpInitialValues } from '@/utils/forms/initialValues'
+import { signUpResolver } from '@/utils/forms/resolvers'
+import { useInputIcon } from '@/hooks/useInputIcon'
 
 const authStore = useAuthStore()
 const router = useRouter()
 
-const services: IAuthorizationService[] = [
-  {
-    id: 'google',
-    label: 'Sign up with Google',
-    icon: GoogleIcon,
-    action: () => console.log('Google'),
-  },
-  {
-    id: 'microsoft',
-    label: 'Sign up with Microsoft',
-    icon: MicrosoftIcon,
-    action: () => console.log('Microsoft'),
-  },
-  {
-    id: 'github',
-    label: 'Sign up with Github',
-    icon: GitHubIcon,
-    action: () => console.log('Github'),
-  },
-]
+const initialValues = ref(signUpInitialValues)
 
-const initialValues = ref({
-  username: '',
-  email: '',
-  password: '',
-})
+const resolver = ref(signUpResolver)
 
-const resolver = ref(
-  zodResolver(
-    z.object({
-      username: z.string().min(3, { message: 'Username is required.' }),
-      email: z.string().email('Email incorrect'),
-      password: z.string().min(8, { message: 'Minimum password length 8 characters' }),
-    }),
-  ),
+const formRef = ref()
+const usernameRef = ref<HTMLInputElement | null>(null)
+const emailRef = ref<HTMLInputElement | null>(null)
+
+const formResponseError = ref('')
+
+const { getCurrentInputIcon, onIconClick } = useInputIcon(
+  [usernameRef, emailRef],
+  formRef,
+  initialValues,
+  false,
 )
 
 const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
-  if (!valid) {
-    console.error('Form invalid')
-
-    return
-  }
+  if (!valid) return
 
   const data: IPostSignupRequest = {
-    email: values.email,
-    password: values.password,
+    email: initialValues.value.email,
+    password: initialValues.value.password,
   }
 
-  if (values.username) data.full_name = values.username
+  if (values.username) data.full_name = initialValues.value.username
 
   try {
     await authStore.signUp(data)
 
     router.push({ name: 'home' })
-  } catch (e) {
-    console.error(e)
+  } catch (e: any) {
+    const errorDetails = e.response?.data.detail
+
+    if (typeof errorDetails === 'string') formResponseError.value = e.response.data.detail
+    else if (typeof errorDetails === 'object') {
+      formResponseError.value = errorDetails[0]?.msg
+    } else formResponseError.value = 'Form is invalid'
   }
 }
+
+watch(
+  initialValues,
+  () => {
+    formResponseError.value = ''
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>
@@ -156,17 +183,5 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   display: flex;
   flex-direction: column;
   gap: 7px;
-}
-
-.input-wrapper:has(.p-filled) .label {
-  opacity: 0;
-}
-
-.input-wrapper:has(input:focus) .label {
-  opacity: 1;
-}
-
-.label {
-  font-size: 14px;
 }
 </style>

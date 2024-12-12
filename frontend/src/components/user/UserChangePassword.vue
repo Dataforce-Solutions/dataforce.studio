@@ -1,9 +1,24 @@
 <template>
-  <d-form v-slot="$form" :initialValues :resolver class="wrapper" @submit="onFormSubmit">
+  <d-form
+    class="wrapper"
+    v-slot="$form"
+    :initialValues
+    :resolver
+    :validateOnValueUpdate="false"
+    :validateOnSubmit="true"
+    @submit="onFormSubmit"
+  >
     <div class="inputs">
       <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-password id="oldPassword" name="current_password" :feedback="false" fluid />
+          <d-password
+            id="oldPassword"
+            name="current_password"
+            :feedback="false"
+            fluid
+            toggleMask
+            v-model="initialValues.current_password"
+          />
           <label class="label" for="oldPassword">Old password</label>
         </d-float-label>
         <d-message
@@ -17,7 +32,14 @@
       </div>
       <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-password id="newPassword" name="new_password" :feedback="false" fluid toggleMask />
+          <d-password
+            id="newPassword"
+            name="new_password"
+            :feedback="false"
+            fluid
+            toggleMask
+            v-model="initialValues.new_password"
+          />
           <label class="label" for="newPassword">New password</label>
         </d-float-label>
         <d-message
@@ -31,7 +53,14 @@
       </div>
       <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-password id="confirmPassword" name="confirmPassword" :feedback="false" fluid />
+          <d-password
+            id="confirmPassword"
+            name="confirmPassword"
+            :feedback="false"
+            fluid
+            toggleMask
+            v-model="initialValues.confirmPassword"
+          />
           <label class="label" for="confirmPassword">Confirm password</label>
         </d-float-label>
         <d-message
@@ -43,61 +72,33 @@
           {{ $form.confirmPassword.error?.message }}
         </d-message>
       </div>
+      <d-message v-if="formResponseError" severity="error" size="small" variant="simple">
+        {{ formResponseError }}
+      </d-message>
     </div>
     <div class="footer">
-      <d-button
-        label="Forgot password?"
-        variant="link"
-        @click="$router.push({ name: 'forgot-password' })"
-      />
-      <d-button label="save" type="submit" />
+      <d-button label="save changes" type="submit" />
     </div>
   </d-form>
 </template>
 
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@primevue/forms'
-import { zodResolver } from '@primevue/forms/resolvers/zod'
-import { ref } from 'vue'
-import { z } from 'zod'
+import { ref, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { userChangePasswordResolver } from '@/utils/forms/resolvers'
+import { userChangePasswordInitialValues } from '@/utils/forms/initialValues'
 
 const emit = defineEmits(['success'])
 
 const userStore = useUserStore()
 
-const initialValues = ref({
-  current_password: '',
-  new_password: '',
-  confirmPassword: '',
-})
-const resolver = ref(
-  zodResolver(
-    z
-      .object({
-        current_password: z
-          .string()
-          .min(8, { message: 'The password must be more than 8 characters' }),
-        new_password: z.string().min(8, { message: 'The password must be more than 8 characters' }),
-        confirmPassword: z
-          .string()
-          .min(8, { message: 'The password must be more than 8 characters' }),
-      })
-      .refine((data) => data.new_password === data.confirmPassword, {
-        message: 'Passwords must match',
-        path: ['confirmPassword'],
-      }),
-  ),
-)
+const initialValues = ref(userChangePasswordInitialValues)
+const resolver = ref(userChangePasswordResolver)
+const formResponseError = ref('')
 
 const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
-  if (!valid) {
-    console.error('Invalid Data')
-
-    return
-  }
-
-  console.log(values)
+  if (!valid) return
 
   const data = {
     current_password: values.current_password,
@@ -107,13 +108,19 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   try {
     await userStore.changePassword(data)
 
-    console.log('its ok')
-
     emit('success')
-  } catch (e) {
-    console.error(e)
+  } catch (e: any) {
+    formResponseError.value = e.response.data.detail || 'Form is invalid'
   }
 }
+
+watch(
+  initialValues,
+  () => {
+    formResponseError.value = ''
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>
@@ -135,6 +142,6 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 
 .footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 </style>

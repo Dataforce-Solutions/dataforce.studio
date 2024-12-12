@@ -1,5 +1,4 @@
 <template>
-  <d-toast />
   <authorization-wrapper
     title="Forgot password?"
     sub-title="Enter your email to receive a new password"
@@ -9,7 +8,14 @@
       <d-form v-slot="$form" :initialValues :resolver @submit="onFormSubmit" class="form">
         <div class="input-wrapper">
           <d-float-label variant="on">
-            <d-input-text id="email" name="email" type="email" autocomplete="off" fluid />
+            <d-input-text
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="off"
+              fluid
+              v-model="initialValues.email"
+            />
             <label for="email" class="label">Email</label>
           </d-float-label>
           <d-message v-if="$form.email?.invalid" severity="error" size="small" variant="simple">
@@ -30,41 +36,29 @@ import { ref } from 'vue'
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
 import MainImage from '@/assets/img/sign-up.png'
-import { zodResolver } from '@primevue/forms/resolvers/zod'
-import { z } from 'zod'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useToast } from 'primevue/usetoast'
+import { useAuthStore } from '@/stores/auth'
+
+import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
+import { forgotPasswordResolver } from '@/utils/forms/resolvers'
+import { emailSentVerifyToast } from '@/utils/primevue/data/toasts'
+
 const toast = useToast()
+const authStore = useAuthStore()
+
+const initialValues = ref(forgotPasswordInitialValues)
+const resolver = ref(forgotPasswordResolver)
 
 const showSuccess = () => {
-  toast.add({
-    severity: 'success',
-    summary: 'Email sent',
-    detail:
-      'Thanks! A new password has been sent to your email account. You can change it later in your user account settings.',
-    life: 3000,
-  })
+  toast.add(emailSentVerifyToast)
 }
 
-const initialValues = ref({
-  email: '',
-})
+const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
+  if (!valid) return
 
-const resolver = ref(
-  zodResolver(
-    z.object({
-      email: z.string().email({ message: 'Email is incorrect' }),
-    }),
-  ),
-)
-
-const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
-  if (!valid) {
-    console.error('Form invalid')
-
-    return
-  }
+  await authStore.forgotPassword(initialValues.value.email)
 
   showSuccess()
 }

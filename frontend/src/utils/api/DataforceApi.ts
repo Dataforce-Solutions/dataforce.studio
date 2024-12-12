@@ -14,6 +14,10 @@ import type {
   TDeleteAccountResponse,
   IPostChangePasswordResponse,
   TPostLogoutResponse,
+  IUpdateUserRequest,
+  IPostForgotPasswordRequest,
+  IPostForgotPasswordResponse,
+  IGetGoogleLoginRequest,
 } from './DataforceApi.interfaces'
 
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
@@ -46,31 +50,47 @@ export class DataforceApiClass {
     return responseData
   }
 
+  public async googleLogin(params: IGetGoogleLoginRequest): Promise<IPostSignInResponse> {
+    const { data } = await this.api.get('/auth/google/callback', {
+      skipInterceptors: true,
+      params,
+    })
+
+    return data
+  }
+
   public async refreshToken(data: IPostRefreshTokenRequest): Promise<IPostRefreshTokenResponse> {
     const { data: responseData } = await this.api.post('/auth/refresh', data, {
       skipInterceptors: true,
-      isJSON: true,
     })
 
     return responseData
   }
 
-  public async changePassword(
-    data: IPostChangePasswordRequest,
-  ): Promise<IPostChangePasswordResponse> {
-    const { data: responseData } = await this.api.post('/auth/change-password', data)
-
-    return responseData
-  }
-
-  public async deleteUser(): Promise<TDeleteAccountResponse> {
-    const { data: responseData } = await this.api.delete('/auth/delete-account')
+  public async forgotPassword(
+    data: IPostForgotPasswordRequest,
+  ): Promise<IPostForgotPasswordResponse> {
+    const { data: responseData } = await this.api.post('/auth/forgot-password', data, {
+      skipInterceptors: true,
+    })
 
     return responseData
   }
 
   public async getMe(): Promise<IGetUserResponse> {
-    const { data: responseData } = await this.api.get('/auth/me')
+    const { data: responseData } = await this.api.get('/auth/users/me')
+
+    return responseData
+  }
+
+  public async updateUser(data: IUpdateUserRequest): Promise<IPostChangePasswordResponse> {
+    const { data: responseData } = await this.api.patch('/auth/users/me', data)
+
+    return responseData
+  }
+
+  public async deleteUser(): Promise<TDeleteAccountResponse> {
+    const { data: responseData } = await this.api.delete('/auth/users/me')
 
     return responseData
   }

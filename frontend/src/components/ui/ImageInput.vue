@@ -1,6 +1,6 @@
 <template>
   <div class="area" @click="inputRef?.click()">
-    <d-avatar :image="newImage || image" size="xlarge" />
+    <d-avatar :image="newImage || image" size="xlarge" shape="circle" style="object-fit: cover;"/>
     <input
       ref="inputRef"
       type="file"

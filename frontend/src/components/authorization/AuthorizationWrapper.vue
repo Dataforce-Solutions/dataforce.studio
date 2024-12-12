@@ -4,7 +4,7 @@
       <div class="content">
         <div class="headings">
           <h1 class="main-title">{{ title }}</h1>
-          <h3 class="sub-title">{{ subTitle }}</h3>
+          <h3 v-if="subTitle" class="sub-title">{{ subTitle }}</h3>
         </div>
         <div class="form-wrapper">
           <slot name="form"></slot>
@@ -16,11 +16,15 @@
               v-for="service in services"
               :key="service.id"
               variant="outlined"
+              class="button-plain"
               @click="() => service.action()"
             >
               <span class="service-label">{{ service.label }}</span>
               <img :src="service.icon" alt="" width="24" height="24" class="icon" />
             </d-button>
+            <d-message v-if="servicesError" severity="error" size="small" variant="simple">
+              {{ servicesError }}
+            </d-message>
           </div>
         </template>
 
@@ -34,9 +38,51 @@
 </template>
 
 <script setup lang="ts">
-import type { TAuthorizationWrapperProps } from './types'
+import type { IAuthorizationService, TAuthorizationWrapperProps } from './types'
+
+import GoogleIcon from '@/assets/img/authorization-services/google.svg'
+// import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
+// import GitHubIcon from '@/assets/img/authorization-services/github.svg'
+
+import { useAuthStore } from '@/stores/auth'
+import { ref } from 'vue'
+
+const authStore = useAuthStore()
 
 defineProps<TAuthorizationWrapperProps>()
+
+const servicesError = ref('')
+
+const services: IAuthorizationService[] = [
+  {
+    id: 'google',
+    label: 'Sign in with Google',
+    icon: GoogleIcon,
+    action: onGoogleButtonClick,
+  },
+  // {
+  //   id: 'microsoft',
+  //   label: 'Sign in with Microsoft',
+  //   icon: MicrosoftIcon,
+  //   action: () => console.log('Microsoft'),
+  // },
+  // {
+  //   id: 'github',
+  //   label: 'Sign in with Github',
+  //   icon: GitHubIcon,
+  //   action: () => console.log('Github'),
+  // },
+]
+
+async function onGoogleButtonClick() {
+  try {
+    await authStore.loginWithGoogle()
+  } catch (e: any) {
+    console.log(e)
+
+    // servicesError.value = e.response.data.detail
+  }
+}
 </script>
 
 <style scoped>
@@ -108,6 +154,23 @@ defineProps<TAuthorizationWrapperProps>()
   flex-direction: column;
   gap: 20px;
   margin-bottom: 32px;
+}
+
+.button-plain {
+  border-color: var(--p-inputtext-border-color);
+  color: var(--p-button-text-plain-color);
+}
+
+.button-plain:not(:disabled):hover {
+  background-color: var(--p-button-outlined-plain-hover-background);
+  border-color: var(--p-inputtext-border-color);
+  color: var(--p-button-text-plain-color);
+}
+
+.button-plain:not(:disabled):active {
+  background-color: var(--p-button-outlined-plain-active-background);
+  border-color: var(--p-inputtext-border-color);
+  color: var(--p-button-text-plain-color);
 }
 
 .service-label {

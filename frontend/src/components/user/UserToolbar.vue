@@ -1,14 +1,14 @@
 <template>
   <div class="wrapper">
     <d-button severity="help" class="user-open-button" @click="toggleMenu">
-      <d-avatar shape="circle"><user :size="18" /></d-avatar>
+      <d-avatar :image="getUserAvatar" shape="circle"></d-avatar>
       <span>{{ mainButtonLabel }}</span>
       <chevron-down :size="14" />
     </d-button>
     <d-menu ref="menu" :model="menuItems" :popup="true" style="padding: 24px 16px; width: 260px">
       <template #start>
         <header class="header">
-          <d-avatar shape="circle" size="large"><user :size="24" /></d-avatar>
+          <d-avatar :image="getUserAvatar" shape="circle" size="large"></d-avatar>
           <div class="user-info">
             <div class="user-name">{{ getUserFullName }}</div>
             <div class="user-email">{{ getUserEmail }}</div>
@@ -55,7 +55,6 @@
     </template>
     <user-change-password @success="onChangePasswordSuccess" />
   </d-dialog>
-  <d-toast />
 </template>
 
 <script setup lang="ts">
@@ -66,11 +65,12 @@ import { computed, ref } from 'vue'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
 
-import { ChevronDown, Sun, Moon, User } from 'lucide-vue-next'
+import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
 
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
+import { passwordChangedSuccessToast } from '@/utils/primevue/data/toasts'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
@@ -78,15 +78,10 @@ const themeStore = useThemeStore()
 const toast = useToast()
 
 const showChangePasswordSuccess = () => {
-  toast.add({
-    severity: 'success',
-    summary: 'Success',
-    detail: 'Password has been changed!',
-    life: 3000,
-  })
+  toast.add(passwordChangedSuccessToast)
 }
 
-const { getUserEmail, getUserFullName } = storeToRefs(userStore)
+const { getUserEmail, getUserFullName, getUserAvatar } = storeToRefs(userStore)
 
 const mainButtonLabel = computed(() => getUserFullName.value || 'Account')
 

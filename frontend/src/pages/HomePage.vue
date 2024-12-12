@@ -16,8 +16,25 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+
 import AvailableTasks from '@/components/tasks/AvailableTasks.vue'
 import NotAvailableTasks from '@/components/tasks/NotAvailableTasks.vue'
+
+import { useUserStore } from '@/stores/user'
+import { useToast } from 'primevue/usetoast'
+import { passwordResetSuccessToast } from '@/utils/primevue/data/toasts'
+
+const userStore = useUserStore()
+const toast = useToast()
+
+const showPasswordMessage = () => {
+  toast.add(passwordResetSuccessToast)
+}
+
+onMounted(() => {
+  userStore.isPasswordHasBeenChanged && showPasswordMessage()
+})
 </script>
 
 <style scoped>

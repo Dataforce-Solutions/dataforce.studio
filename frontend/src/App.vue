@@ -1,4 +1,5 @@
 <template>
+  <d-toast style="top: 105px" />
   <app-template>
     <RouterView />
   </app-template>

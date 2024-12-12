@@ -1,15 +1,28 @@
 import { X, PencilLine } from 'lucide-vue-next'
 import { computed, onMounted, ref, type Ref } from 'vue'
 
-export const useInputIcon = (inputs: Ref[]) => {
+export const useInputIcon = (inputs: Ref[], formRef: any, values: Ref, isShowEditIcon: boolean = true) => {
   const inputsStates = ref<Record<string, boolean>>({})
+  const inputsRefs = ref<Record<string, HTMLInputElement>>({})
 
-  const getCurrentInputIcon = computed(
-    () => (inputName: string) => (inputsStates.value[inputName] ? X : PencilLine),
-  )
+  const getCurrentInputIcon = computed(() => (inputName: string) => {
+    if (inputsStates.value[inputName]) return X
+    else return isShowEditIcon ? PencilLine : null
+  })
 
   function setInputState(inputName: string, state: boolean) {
-    inputsStates.value[inputName] = state
+    setTimeout(() => {
+      inputsStates.value[inputName] = state
+    }, 200)
+  }
+
+  function onIconClick(inputName: string) {
+    if (getCurrentInputIcon.value(inputName) === X && formRef.value?.states[inputName]) {
+
+      formRef.value.states[inputName] = {...formRef.value.states[inputName], value: ''}
+
+      values.value[inputName] ? values.value[inputName] = '' : null
+    }
   }
 
   onMounted(() => {
@@ -21,10 +34,11 @@ export const useInputIcon = (inputs: Ref[]) => {
       el.onblur = () => setInputState(el.name, false)
       el.onfocus = () => setInputState(el.name, true)
 
-      obj[el.name] = false
+      obj[el.name] = el
+      inputsStates.value[el.name] = false
       return obj
-    }, {})
+    }, inputsRefs.value)
   })
 
-  return { getCurrentInputIcon }
+  return { getCurrentInputIcon, onIconClick }
 }

@@ -2,17 +2,24 @@ import { defineStore } from 'pinia'
 import type { IUser } from './user.interfaces'
 import { computed, ref } from 'vue'
 import { dataforceApi } from '@/utils/api'
-import type { IPostChangePasswordRequest } from '@/utils/api/DataforceApi.interfaces'
+import type {
+  IPostChangePasswordRequest,
+  IUpdateUserRequest,
+} from '@/utils/api/DataforceApi.interfaces'
 import { useAuthStore } from './auth'
+import { useRouter } from 'vue-router'
 
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
+  const router = useRouter()
 
   const user = ref<IUser | null>(null)
+  const isPasswordHasBeenChanged = ref(false)
 
   const getUserEmail = computed(() => user.value?.email)
   const getUserFullName = computed(() => user.value?.full_name)
   const isUserDisabled = computed(() => user.value?.disabled)
+  const getUserAvatar = computed(() => user.value?.photo)
 
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
@@ -21,7 +28,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {
-    await dataforceApi.changePassword(data)
+    await dataforceApi.updateUser(data)
   }
 
   const deleteAccount = async () => {
@@ -34,13 +41,35 @@ export const useUserStore = defineStore('user', () => {
     user.value = null
   }
 
+  const resetPassword = async () => {
+    isPasswordHasBeenChanged.value = true
+
+    router.push({ name: 'home' })
+
+    setTimeout(() => {
+      isPasswordHasBeenChanged.value = false
+    }, 3000)
+  }
+
+  const updateUser = async (data: IUpdateUserRequest) => {
+    const response = await dataforceApi.updateUser(data)
+
+    await loadUser()
+
+    return response
+  }
+
   return {
     getUserEmail,
     getUserFullName,
+    getUserAvatar,
     isUserDisabled,
+    isPasswordHasBeenChanged,
     loadUser,
     changePassword,
     deleteAccount,
     resetUser,
+    resetPassword,
+    updateUser,
   }
 })
