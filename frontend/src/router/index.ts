@@ -45,14 +45,6 @@ const router = createRouter({
       },
     },
     {
-      path: '/change-password',
-      name: 'change-password',
-      component: () => import('../pages/ChangePasswordPage.vue'),
-      meta: {
-        layout: AppLayoutsEnum.clear,
-      },
-    },
-    {
       path: '/email-check',
       name: 'email-check',
       component: () => import('../pages/EmailCheckPage.vue'),

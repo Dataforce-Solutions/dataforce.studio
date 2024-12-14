@@ -9,7 +9,7 @@
         <div class="form-wrapper">
           <slot name="form"></slot>
         </div>
-        <template v-if="services">
+        <template v-if="services && !hideSso">
           <span class="line">or</span>
           <div class="services">
             <d-button

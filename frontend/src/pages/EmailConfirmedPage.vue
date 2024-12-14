@@ -3,6 +3,7 @@
     title="Email confirmed!"
     sub-title="Thank you for verifying your email address. Your account is now fully activated, and you can proceed to access all the features of our platform."
     :image="MainImage"
+    :hide-sso="true"
   >
     <template #form>
       <d-button

@@ -3,6 +3,7 @@
     title="Forgot password?"
     sub-title="Enter your email to receive a new password"
     :image="MainImage"
+    :hide-sso="true"
   >
     <template #form>
       <d-form

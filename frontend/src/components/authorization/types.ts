@@ -9,4 +9,5 @@ export type TAuthorizationWrapperProps = {
   title: string
   subTitle?: string
   image: string
+  hideSso?: boolean
 }

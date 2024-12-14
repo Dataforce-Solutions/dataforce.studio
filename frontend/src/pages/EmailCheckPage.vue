@@ -1,9 +1,9 @@
 <template>
-
   <authorization-wrapper
     title="Check your email"
     sub-title="Thank you for signing up! You should see a verification link in your email (it might be in your spam folder)."
     :image="MainImage"
+    :hide-sso="true"
   >
     <template #form>
       <d-button

@@ -1,5 +1,5 @@
 <template>
-  <authorization-wrapper title="Reset password" :image="MainImage">
+  <authorization-wrapper title="Reset password" :image="MainImage" :hide-sso="true">
     <template #form>
       <d-form
         v-slot="$form"
