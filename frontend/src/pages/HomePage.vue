@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="content">
     <div class="headings">
       <h1 class="main-title">Pick a machine learning task</h1>
       <p class="sub-title">
@@ -43,6 +43,11 @@ onMounted(() => {
   flex-direction: column;
   gap: 36px;
 }
+
+.content {
+  padding-top: 28px;
+}
+
 .headings {
   margin-bottom: 44px;
   display: flex;

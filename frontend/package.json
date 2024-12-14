@@ -16,13 +16,13 @@
   "dependencies": {
     "@primevue/forms": "^4.2.2",
     "@primevue/themes": "^4.2.2",
+    "arquero": "^7.2.0",
     "axios": "^1.7.7",
     "lucide-vue-next": "^0.460.0",
     "pinia": "^2.2.6",
     "primevue": "^4.2.2",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
-    "vue3-google-login": "^2.0.33",
     "zod": "^3.23.8"
   },
   "devDependencies": {

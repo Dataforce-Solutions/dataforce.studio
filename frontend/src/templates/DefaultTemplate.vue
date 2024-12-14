@@ -51,8 +51,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .wrapper {
   min-height: 100svh;
-  padding-top: 128px;
-  padding-bottom: 128px;
+  padding-top: 100px;
+  padding-bottom: 100px;
 }
 .header {
   position: fixed;

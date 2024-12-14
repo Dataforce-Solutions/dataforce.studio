@@ -60,6 +60,11 @@ const router = createRouter({
         layout: AppLayoutsEnum.clear,
       },
     },
+    {
+      path: '/classification',
+      name: 'classification',
+      component: () => import('../pages/ClassificationPage.vue'),
+    },
   ],
 })
 

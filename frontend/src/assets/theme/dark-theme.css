@@ -100,7 +100,7 @@
   --p-list-option-icon-focus-color: #a1a1aa;
   --p-list-option-group-background: #00000000;
   --p-list-option-group-color: #a1a1aa;
-  --p-list-option-group-font-weight: 600px;
+  --p-list-option-group-font-weight: 600;
   --p-list-option-border-radius: 4px;
   --p-list-gap: 2px;
   --p-navigation-item-focus-background: #27272a;
@@ -115,7 +115,7 @@
   --p-navigation-item-gap: 7px;
   --p-navigation-submenu-label-background: #00000000;
   --p-navigation-submenu-label-color: #a1a1aa;
-  --p-navigation-submenu-label-font-weight: 600px;
+  --p-navigation-submenu-label-font-weight: 600;
   --p-navigation-submenu-icon-color: #71717a;
   --p-navigation-submenu-icon-focus-color: #a1a1aa;
   --p-navigation-submenu-icon-active-color: #a1a1aa;
@@ -280,7 +280,7 @@
   --p-button-lg-font-size: 15.75px;
   --p-button-lg-padding-x: 12.25px;
   --p-button-lg-padding-y: 8.75px;
-  --p-button-label-font-weight: 500px;
+  --p-button-label-font-weight: 500;
   --p-button-focus-ring-width: 1px;
   --p-button-focus-ring-offset: 2px;
   --p-toggleswitch-background: #27272a;
@@ -361,7 +361,7 @@
   --p-autocomplete-option-color: #ffffff;
   --p-autocomplete-option-group-background: #00000000;
   --p-autocomplete-option-group-color: #a1a1aa;
-  --p-autocomplete-option-group-font-weight: 600px;
+  --p-autocomplete-option-group-font-weight: 600;
   --p-autocomplete-option-border-radius: 4px;
   --p-autocomplete-padding-x: 24px;
   --p-autocomplete-padding-y: 12px;
@@ -389,7 +389,7 @@
   --p-badge-contrast-color: #0a0a0a;
   --p-badge-border-radius: 6px;
   --p-badge-font-size: 10.5px;
-  --p-badge-font-weight: 700px;
+  --p-badge-font-weight: 700;
   --p-badge-min-width: 21px;
   --p-badge-height: 21px;
   --p-badge-dot-size: 7px;
@@ -435,7 +435,7 @@
   --p-tag-contrast-color: #0a0a0a;
   --p-tag-figma-container-background: #000000b3;
   --p-tag-font-size: 12.25px;
-  --p-tag-font-weight: 700px;
+  --p-tag-font-weight: 700;
   --p-tag-gap: 3.5px;
   --p-tag-border-radius: 6px;
   --p-tag-rounded-border-radius: 12px;
@@ -481,7 +481,7 @@
   --p-datepicker-group-gap: 10.5px;
   --p-datepicker-week-day-color: #ffffff;
   --p-datepicker-week-day-padding: 3.5px;
-  --p-datepicker-week-day-font-weight: 500px;
+  --p-datepicker-week-day-font-weight: 500;
   --p-datepicker-date-hover-background: #18181b;
   --p-datepicker-date-hover-color: #ffffff;
   --p-datepicker-date-selected-background: #1e3a8a;
@@ -501,7 +501,7 @@
   --p-datepicker-time-picker-gap: 7px;
   --p-datepicker-time-picker-button-gap: 3.5px;
   --p-datepicker-title-gap: 7px;
-  --p-datepicker-title-font-weight: 500px;
+  --p-datepicker-title-font-weight: 500;
   --p-datepicker-month-border-radius: 6px;
   --p-datepicker-month-padding: 5.25px;
   --p-datepicker-year-border-radius: 6px;
@@ -538,7 +538,7 @@
   --p-listbox-option-color: #ffffff;
   --p-listbox-option-group-background: #00000000;
   --p-listbox-option-group-color: #a1a1aa;
-  --p-listbox-option-group-font-weight: 600px;
+  --p-listbox-option-group-font-weight: 600;
   --p-listbox-option-border-radius: 4px;
   --p-listbox-background: #0a0a0a;
   --p-listbox-disabled-background: #3f3f46;
@@ -605,7 +605,7 @@
   --p-togglebutton-focus-ring-width: 1px;
   --p-togglebutton-focus-ring-offset: 2px;
   --p-togglebutton-gap: 7px;
-  --p-togglebutton-font-weight: 500px;
+  --p-togglebutton-font-weight: 500;
   --p-togglebutton-padding-x: 14px;
   --p-togglebutton-padding-y: 7px;
   --p-togglebutton-figma-content-padding-x: 10.5px;
@@ -716,8 +716,8 @@
   --p-datatable-paginator-top-border-width: 1px;
   --p-datatable-paginator-bottom-border-color: #27272a;
   --p-datatable-paginator-bottom-border-width: 1px;
-  --p-datatable-column-title-font-weight: 600px;
-  --p-datatable-column-footer-font-weight: 600px;
+  --p-datatable-column-title-font-weight: 600;
+  --p-datatable-column-footer-font-weight: 600;
   --p-datatable-column-resizer-width: 7px;
   --p-datatable-loading-icon-size: 28px;
   --p-carousel-indicator-background: #3f3f46;
@@ -787,8 +787,8 @@
   --p-treetable-paginator-top-border-width: 1px;
   --p-treetable-paginator-bottom-border-color: #27272a;
   --p-treetable-paginator-bottom-border-width: 1px;
-  --p-treetable-column-title-font-weight: 600px;
-  --p-treetable-column-footer-font-weight: 600px;
+  --p-treetable-column-title-font-weight: 600;
+  --p-treetable-column-footer-font-weight: 600;
   --p-treetable-column-resizer-width: 7px;
   --p-treetable-loading-icon-size: 28px;
   --p-treetable-figma-body-cell-padding-sm: 5.25px;
@@ -853,7 +853,7 @@
   --p-message-border-width: 1px;
   --p-message-content-gap: 7px;
   --p-message-text-font-size: 14px;
-  --p-message-text-font-weight: 500px;
+  --p-message-text-font-weight: 500;
   --p-message-text-sm-font-size: 12.25px;
   --p-message-text-lg-font-size: 15.75px;
   --p-message-icon-size: 15.75px;
@@ -910,9 +910,9 @@
   --p-toast-icon-size: 15.75px;
   --p-toast-content-padding: 10.5px;
   --p-toast-content-gap: 7px;
-  --p-toast-summary-font-weight: 500px;
+  --p-toast-summary-font-weight: 500;
   --p-toast-summary-font-size: 14px;
-  --p-toast-detail-font-weight: 500px;
+  --p-toast-detail-font-weight: 500;
   --p-toast-detail-font-size: 12.25px;
   --p-toast-close-button-width: 24.5px;
   --p-toast-close-button-height: 24.5px;
@@ -1259,7 +1259,7 @@
   --p-panel-header-color: #ffffff;
   --p-panel-header-border-color: #27272a;
   --p-panel-header-padding: 15.75px;
-  --p-panel-title-font-weight: 600px;
+  --p-panel-title-font-weight: 600;
   --p-iconfield-icon-color: #a1a1aa;
   --p-iconfield-figma-sm-icon-size: 12.25px;
   --p-iconfield-figma-lg-icon-size: 15.75px;
@@ -1357,7 +1357,7 @@
   --p-progressbar-background: #27272a;
   --p-progressbar-value-background: #1e3a8a;
   --p-progressbar-label-color: #ffffff;
-  --p-progressbar-label-font-weight: 600px;
+  --p-progressbar-label-font-weight: 600;
   --p-progressbar-border-radius: 6px;
   --p-progressbar-font-size: 10.5px;
   --p-progressbar-height: 17.5px;
@@ -1369,7 +1369,7 @@
   --p-card-body-gap: 7px;
   --p-card-caption-gap: 7px;
   --p-card-title-font-size: 17.5px;
-  --p-card-title-font-weight: 500px;
+  --p-card-title-font-weight: 500;
   --p-breadcrumb-background: #0a0a0a;
   --p-breadcrumb-item-color: #a1a1aa;
   --p-breadcrumb-item-hover-color: #ffffff;
@@ -1387,7 +1387,7 @@
   --p-drawer-border-radius: 12px;
   --p-drawer-color: #ffffff;
   --p-drawer-header-padding: 17.5px;
-  --p-drawer-title-font-weight: 600px;
+  --p-drawer-title-font-weight: 600;
   --p-drawer-title-font-size: 21px;
   --p-cascadeselect-background: #0a0a0a;
   --p-cascadeselect-disabled-background: #3f3f46;
@@ -1466,7 +1466,7 @@
   --p-select-option-color: #ffffff;
   --p-select-option-group-background: #00000000;
   --p-select-option-group-color: #a1a1aa;
-  --p-select-option-group-font-weight: 600px;
+  --p-select-option-group-font-weight: 600;
   --p-select-option-border-radius: 4px;
   --p-select-clear-icon-color: #a1a1aa;
   --p-select-checkmark-color: #ffffff;
@@ -1567,7 +1567,7 @@
   --p-multiselect-option-color: #ffffff;
   --p-multiselect-option-group-background: #00000000;
   --p-multiselect-option-group-color: #a1a1aa;
-  --p-multiselect-option-group-font-weight: 600px;
+  --p-multiselect-option-group-font-weight: 600;
   --p-multiselect-option-border-radius: 4px;
   --p-multiselect-option-gap: 7px;
   --p-multiselect-clear-icon: #a1a1aa;
@@ -1654,7 +1654,7 @@
   --p-accordion-header-toggle-icon-active-color: #ffffff;
   --p-accordion-header-toggle-icon-active-hover-color: #ffffff;
   --p-accordion-header-padding: 15.75px;
-  --p-accordion-header-font-weight: 600px;
+  --p-accordion-header-font-weight: 600;
   --p-accordion-header-first-top-border-radius: 6px;
   --p-accordion-header-last-bottom-border-radius: 6px;
   --p-accordion-content-border-color: #27272a;
@@ -1678,7 +1678,7 @@
   --p-fieldset-legend-focus-ring-width: 1px;
   --p-fieldset-legend-focus-ring-offset: 2px;
   --p-fieldset-legend-gap: 7px;
-  --p-fieldset-legend-font-weight: 600px;
+  --p-fieldset-legend-font-weight: 600;
   --p-fieldset-toggle-icon-color: #a1a1aa;
   --p-fieldset-toggle-icon-hover-color: #d4d4d8;
   --p-splitter-background: #0a0a0a;
@@ -1707,7 +1707,7 @@
   --p-tabs-tab-focus-ring-color: #1e3a8a;
   --p-tabs-tab-focus-ring-width: 1px;
   --p-tabs-tab-focus-ring-offset: -1px;
-  --p-tabs-tab-font-weight: 600px;
+  --p-tabs-tab-font-weight: 600;
   --p-tabs-tab-gap: 7px;
   --p-tabs-tabpanel-background: #0a0a0a;
   --p-tabs-tabpanel-color: #ffffff;
@@ -1751,7 +1751,7 @@
   --p-dialog-header-padding: 17.5px;
   --p-dialog-header-gap: 7px;
   --p-dialog-title-font-size: 17.5px;
-  --p-dialog-title-font-weight: 600px;
+  --p-dialog-title-font-weight: 600;
   --p-dialog-footer-gap: 7px;
   --p-contextmenu-background: #0a0a0a;
   --p-contextmenu-border-color: #27272a;
@@ -1805,7 +1805,7 @@
   --p-megamenu-overlay-gap: 7px;
   --p-megamenu-submenu-label-background: #00000000;
   --p-megamenu-submenu-label-color: #a1a1aa;
-  --p-megamenu-submenu-label-font-weight: 600px;
+  --p-megamenu-submenu-label-font-weight: 600;
   --p-megamenu-submenu-icon-color: #71717a;
   --p-megamenu-submenu-icon-focus-color: #a1a1aa;
   --p-megamenu-submenu-icon-active-color: #a1a1aa;
@@ -1837,7 +1837,7 @@
   --p-menu-item-gap: 7px;
   --p-menu-submenu-label-background: #00000000;
   --p-menu-submenu-label-color: #a1a1aa;
-  --p-menu-submenu-label-font-weight: 600px;
+  --p-menu-submenu-label-font-weight: 600;
   --p-menu-separator-border-color: #27272a;
   --p-menu-list-gap: 2px;
   --p-menubar-background: #0a0a0a;
@@ -2053,7 +2053,7 @@
   --p-stepper-step-header-gap: 7px;
   --p-stepper-step-title-color: #a1a1aa;
   --p-stepper-step-title-active-color: #1e3a8a;
-  --p-stepper-step-title-font-weight: 500px;
+  --p-stepper-step-title-font-weight: 500;
   --p-stepper-step-number-background: #0a0a0a;
   --p-stepper-step-number-active-background: #0a0a0a;
   --p-stepper-step-number-active-border-color: #27272a;
@@ -2063,7 +2063,7 @@
   --p-stepper-step-number-color: #a1a1aa;
   --p-stepper-step-number-size: 28px;
   --p-stepper-step-number-font-size: 16.00200080871582px;
-  --p-stepper-step-number-font-weight: 500px;
+  --p-stepper-step-number-font-weight: 500;
   --p-stepper-step-padding: 7px;
   --p-stepper-step-gap: 14px;
   --p-stepper-steppanel-background: #0a0a0a;
@@ -2131,7 +2131,7 @@
   --p-icon-muted-color: #a1a1aa;
   --p-icon-size: 14px;
   --p-anchor-gutter: 2px;
-  --p-disabled-opacity: 60px;
+  --p-disabled-opacity: 0.6;
   --p-orderlist-gap: 15.75px;
   --p-orderlist-controls-gap: 7px;
   --p-picklist-gap: 15.75px;

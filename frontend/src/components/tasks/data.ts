@@ -15,7 +15,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Tabular Classification',
     description: 'Technique for categorizing table-structured data by labeled classes.',
     btnText: 'next',
-    linkName: 'home',
+    linkName: 'classification',
     tooltipData:
       'Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi sint minima labore ab tempora minus dolores repudiandae, tempore voluptate tenetur illo obcaecati, recusandae quae ipsa excepturi ad quia perspiciatis autem?',
     isAvailable: true,

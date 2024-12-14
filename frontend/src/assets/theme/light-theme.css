@@ -2250,7 +2250,7 @@ body {
   --p-icon-muted-color: #64748b;
   --p-icon-size: 14px;
   --p-anchor-gutter: 2px;
-  --p-disabled-opacity: 60px;
+  --p-disabled-opacity: 0.6;
   --p-orderlist-gap: 15.75px;
   --p-orderlist-controls-gap: 7px;
   --p-picklist-gap: 15.75px;

@@ -17,7 +17,7 @@
       </div>
     </div>
     <div class="footer" v-if="task.btnText">
-      <d-button :label="task.btnText" severity="secondary" class="w-full" />
+      <d-button :label="task.btnText" severity="secondary" class="w-full" @click="onButtonClick" />
     </div>
   </div>
 </template>
@@ -26,11 +26,19 @@
 import type { ITaskData } from './types'
 import { CircleHelp } from 'lucide-vue-next'
 
+import { useRouter } from 'vue-router'
+
 type TProps = {
   task: ITaskData
 }
 
-defineProps<TProps>()
+const props = defineProps<TProps>()
+
+const router = useRouter()
+
+function onButtonClick() {
+  if (props.task.linkName) router.push({ name: props.task.linkName })
+}
 </script>
 
 <style scoped>

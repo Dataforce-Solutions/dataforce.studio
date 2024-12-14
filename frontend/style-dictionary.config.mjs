@@ -13,6 +13,8 @@ StyleDictionary.registerTransform({
   transform: (token) => {
     if (token.path[token.path.length - 1] === 'weight') {
       return token['$value']
+    } else if (token.path[token.path.length - 1] === 'opacity') {
+      return token['$value'] / 100
     }
 
     return `${token['$value']}px`
