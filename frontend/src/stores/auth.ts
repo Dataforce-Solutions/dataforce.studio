@@ -1,13 +1,11 @@
 import { dataforceApi } from '@/utils/api'
 import type {
-  IGetGoogleLoginRequest,
   IPostSignInRequest,
   IPostSignInResponse,
   IPostSignupRequest,
   IPostSignupResponse,
 } from '@/utils/api/DataforceApi.interfaces'
 
-import { googleSdkLoaded } from 'vue3-google-login'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useUserStore } from './user'
@@ -82,30 +80,16 @@ export const useAuthStore = defineStore('auth', () => {
     await dataforceApi.forgotPassword({ email })
   }
 
-  const getTokensWithGoogleCode = async (code: string) => {
-    const response = await dataforceApi.googleLogin({ code })
+  const loginWithGoogle = async (code: string) => {
+    const { access_token, refresh_token } = await dataforceApi.googleLogin({ code })
 
-    console.log(response)
-  }
+    if (!access_token) return
 
-  const loginWithGoogle = async () => {
-    // const loginResponse = await dataforceApi.googleLogin()
+    saveTokens(access_token, refresh_token)
 
-    googleSdkLoaded((google) => {
-      google.accounts.oauth2
-        .initCodeClient({
-          client_id: '1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr.apps.googleusercontent.com',
-          scope: 'email profile openid',
-          redirect_uri: 'https://dev-api.dataforce.studio/auth/google/callback',
-          callback: (response) => {
-            console.log(response)
-            if (response.code) {
-              getTokensWithGoogleCode(response.code)
-            }
-          },
-        })
-        .requestCode()
-    })
+    isAuth.value = true
+
+    await usersStore.loadUser()
   }
 
   return { isAuth, signUp, signIn, logout, checkIsLoggedId, forgotPassword, loginWithGoogle }

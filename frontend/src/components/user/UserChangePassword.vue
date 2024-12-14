@@ -6,6 +6,7 @@
     :resolver
     :validateOnValueUpdate="false"
     :validateOnSubmit="true"
+    :validateOnBlur="true"
     @submit="onFormSubmit"
   >
     <div class="inputs">

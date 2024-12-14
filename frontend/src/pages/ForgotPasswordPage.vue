@@ -5,7 +5,16 @@
     :image="MainImage"
   >
     <template #form>
-      <d-form v-slot="$form" :initialValues :resolver @submit="onFormSubmit" class="form">
+      <d-form
+        class="form"
+        v-slot="$form"
+        :initialValues
+        :resolver
+        :validateOnValueUpdate="false"
+        :validateOnSubmit="true"
+        :validateOnBlur="true"
+        @submit="onFormSubmit"
+      >
         <div class="input-wrapper">
           <d-float-label variant="on">
             <d-input-text

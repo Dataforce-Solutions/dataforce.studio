@@ -2,6 +2,6 @@ export interface IUser {
   email: string
   full_name: string
   disabled: boolean
-  auth_method: string
+  auth_method: 'email' | 'google'
   photo?: string
 }

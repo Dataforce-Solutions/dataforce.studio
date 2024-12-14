@@ -17,6 +17,7 @@
               :key="service.id"
               variant="outlined"
               class="button-plain"
+              link
               @click="() => service.action()"
             >
               <span class="service-label">{{ service.label }}</span>
@@ -45,9 +46,11 @@ import GoogleIcon from '@/assets/img/authorization-services/google.svg'
 // import GitHubIcon from '@/assets/img/authorization-services/github.svg'
 
 import { useAuthStore } from '@/stores/auth'
-import { ref } from 'vue'
+import { onBeforeMount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 defineProps<TAuthorizationWrapperProps>()
 
@@ -58,7 +61,8 @@ const services: IAuthorizationService[] = [
     id: 'google',
     label: 'Sign in with Google',
     icon: GoogleIcon,
-    action: onGoogleButtonClick,
+    action: () =>
+      (window.location.href = `${import.meta.env.VITE_DATAFORCE_API_URL}/auth/google/login`),
   },
   // {
   //   id: 'microsoft',
@@ -74,15 +78,20 @@ const services: IAuthorizationService[] = [
   // },
 ]
 
-async function onGoogleButtonClick() {
-  try {
-    await authStore.loginWithGoogle()
-  } catch (e: any) {
-    console.log(e)
+onBeforeMount(async () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const code = urlParams.get('code')
 
-    // servicesError.value = e.response.data.detail
+  if (!code) return
+
+  try {
+    await authStore.loginWithGoogle(code)
+
+    router.push({ name: 'home' })
+  } catch (e) {
+    console.error(e)
   }
-}
+})
 </script>
 
 <style scoped>

@@ -7,6 +7,7 @@
     :resolver
     :validateOnValueUpdate="false"
     :validateOnSubmit="true"
+    :validateOnBlur="true"
     @submit="onFormSubmit"
   >
     <!--<image-input
@@ -53,9 +54,10 @@
               id="email"
               name="email"
               fluid
+              :disabled="isUserLoggedWithSSO"
               v-model="initialValues.email"
             />
-            <d-input-icon>
+            <d-input-icon v-if="!isUserLoggedWithSSO">
               <component
                 :is="getCurrentInputIcon('email')"
                 :size="14"
@@ -73,7 +75,11 @@
     <d-message v-if="formResponseError" severity="error" size="small" variant="simple">
       {{ formResponseError }}
     </d-message>
-    <button class="link change-password-link" @click="$emit('showChangePassword')">
+    <button
+      v-if="!isUserLoggedWithSSO"
+      class="link change-password-link"
+      @click="$emit('showChangePassword')"
+    >
       Change password
     </button>
     <div class="footer">
@@ -103,8 +109,11 @@ import { useToast } from 'primevue/usetoast'
 import type { IUpdateUserRequest } from '@/utils/api/DataforceApi.interfaces'
 import { userSettingResolver } from '@/utils/forms/resolvers'
 import { userProfileUpdateSuccessToast } from '@/utils/primevue/data/toasts'
+import { storeToRefs } from 'pinia'
 
 const userStore = useUserStore()
+const { getUserFullName, getUserEmail, isUserLoggedWithSSO } = storeToRefs(userStore)
+
 const confirm = useConfirm()
 const router = useRouter()
 const toast = useToast()
@@ -117,8 +126,8 @@ type TEmits = {
 defineEmits<TEmits>()
 
 const initialValues = ref({
-  username: userStore.getUserFullName || '',
-  email: userStore.getUserEmail || '',
+  username: getUserFullName.value || '',
+  email: getUserEmail.value || '',
 })
 const resolver = ref(userSettingResolver)
 

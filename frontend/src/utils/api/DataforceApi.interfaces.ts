@@ -50,7 +50,7 @@ export interface IGetUserResponse {
   email: string
   full_name: string
   disabled: boolean
-  auth_method: string
+  auth_method: 'email' | 'google'
   photo: string
 }
 
