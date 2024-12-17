@@ -8,11 +8,15 @@ import router from './router'
 
 import { initPrimeVue } from './utils/primevue'
 
+import VueApexCharts from "vue3-apexcharts";
+
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
 
 initPrimeVue(app)
+
+app.use(VueApexCharts);
 
 app.mount('#app')

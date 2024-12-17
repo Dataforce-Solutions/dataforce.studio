@@ -27,13 +27,6 @@
         </div>
       </StepPanel>
       <StepPanel v-slot="{ activateCallback }" :value="2">
-        <div class="flex flex-col h-48">
-          <div
-            class="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded bg-surface-50 dark:bg-surface-950 flex-auto flex justify-center items-center font-medium"
-          >
-            Content II
-          </div>
-        </div>
         <div class="navigation">
           <d-button label="Back" severity="secondary" @click="activateCallback(1)" />
           <d-button :disabled="!isStepAvailable(3)" @click="activateCallback(3)">
@@ -43,36 +36,25 @@
         </div>
       </StepPanel>
       <StepPanel v-slot="{ activateCallback }" :value="3">
-        <div class="flex flex-col h-48">
-          <div
-            class="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded bg-surface-50 dark:bg-surface-950 flex-auto flex justify-center items-center font-medium"
-          >
-            Content III
-          </div>
-        </div>
-        <div class="pt-6">
-          <d-button
-            label="Back"
-            severity="secondary"
-            icon="pi pi-arrow-left"
-            @click="activateCallback(2)"
-          />
-        </div>
+        <service-evaluate />
       </StepPanel>
     </StepPanels>
   </Stepper>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
 import StepPanels from 'primevue/steppanels'
-import StepItem from 'primevue/stepitem'
 import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
+
 import { ArrowRight } from 'lucide-vue-next'
+
 import UploadData from './UploadData.vue'
-import { computed } from 'vue'
+import ServiceEvaluate from './ServiceEvaluate.vue'
 
 import { useDataTable } from '@/hooks/useDataTable'
 
@@ -91,6 +73,7 @@ const { isTableExist, fileData, uploadDataErrors, isUploadWithErrors, onSelectFi
 const isStepAvailable = computed(() => (id: number) => {
   if (id === 1) return true
   if (id === 2) return isTableExist.value && !isUploadWithErrors.value
+  if (id === 3) return isTableExist.value && !isUploadWithErrors.value
 })
 </script>
 

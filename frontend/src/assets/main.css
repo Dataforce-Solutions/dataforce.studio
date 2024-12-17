@@ -69,3 +69,7 @@
 .p-avatar img {
   object-fit: cover;
 }
+
+.p-datatable-tbody .p-row-even {
+  background-color: var(--p-card-background);
+}

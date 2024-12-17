@@ -8,6 +8,7 @@
     </div>
     <div class="area">
       <file-input
+      id="table"
         :file
         :error="hasError"
         @select-file="(e) => $emit('selectFile', e)"

@@ -16,7 +16,7 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
     this.dataTable = null
   }
 
-  async createTable(file: File) {
+  async createFormCSV(file: File) {
     this.dataTable = fromCSV(await file.text())
 
     this.emit('COLUMNS_COUNT_CHANGED', this.getColumnsCount())

@@ -24,17 +24,17 @@
       <template v-else-if="currentState === 'error'">
         <div class="title">
           Something went wrong. Please check your file and
-          <label for="input" class="accent">try again</label>
+          <label :for="id" class="accent">try again</label>
           .
         </div>
       </template>
       <template v-else>
         <div class="title">
-          Drag and drop or <label for="input" class="accent">upload CSV</label>
+          Drag and drop or <label :for="id" class="accent">upload CSV</label>
         </div>
         <div class="help-text">Accepts .csv file type</div>
       </template>
-      <input ref="inputRef" id="input" type="file" @change="inputChange" />
+      <input ref="inputRef" :id="id" type="file" @change="inputChange" />
     </div>
   </div>
 </template>
@@ -55,6 +55,7 @@ type Props = {
     size?: number
   }
   error: boolean
+  id: string
 }
 
 const props = defineProps<Props>()
@@ -189,7 +190,7 @@ function removeFile() {
   color: var(--p-text-muted-color);
 }
 
-#input {
+input[type="file"] {
   opacity: 0;
   width: 0;
   height: 0;

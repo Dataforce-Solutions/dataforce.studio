@@ -1,7 +1,9 @@
-import { DataTableService } from '@/services/DataTableService'
+import { DataTableArquero } from '@/lib/data-table/DataTableArquero'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 export const useDataTable = () => {
+  const dataTable = new DataTableArquero()
+
   const isTableExist = ref(false)
   const fileSize = ref<number | undefined>()
   const fileName = ref<string | undefined>()
@@ -30,7 +32,7 @@ export const useDataTable = () => {
   })
 
   async function onSelectFile(file: File) {
-    await DataTableService.createTable(file)
+    await dataTable.createFormCSV(file)
 
     isTableExist.value = true
     fileSize.value = file.size
@@ -38,7 +40,7 @@ export const useDataTable = () => {
   }
 
   function onRemoveFile() {
-    DataTableService.clearTable()
+    dataTable.clearTable()
 
     isTableExist.value = false
     fileSize.value = undefined
@@ -54,13 +56,13 @@ export const useDataTable = () => {
   }
 
   onMounted(() => {
-    DataTableService.on('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
-    DataTableService.on('ROWS_COUNT_CHANGED', onRowsCountChanged)
+    dataTable.on('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
+    dataTable.on('ROWS_COUNT_CHANGED', onRowsCountChanged)
   })
 
   onBeforeUnmount(() => {
-    DataTableService.off('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
-    DataTableService.off('COLUMNS_COUNT_CHANGED', onRowsCountChanged)
+    dataTable.off('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
+    dataTable.off('COLUMNS_COUNT_CHANGED', onRowsCountChanged)
 
     onRemoveFile()
   })
