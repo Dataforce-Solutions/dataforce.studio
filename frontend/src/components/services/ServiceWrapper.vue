@@ -1,5 +1,5 @@
 <template>
-  <Stepper :value="1" class="stepper">
+  <Stepper :value="currentStep" class="stepper" @update:value="(step) => (currentStep = step)">
     <StepList>
       <Step
         v-for="step in steps"
@@ -12,6 +12,7 @@
     <StepPanels>
       <StepPanel v-slot="{ activateCallback }" :value="1">
         <upload-data
+          v-if="currentStep === 1"
           :errors="uploadDataErrors"
           :is-table-exist="isTableExist"
           :file="fileData"
@@ -27,6 +28,23 @@
         </div>
       </StepPanel>
       <StepPanel v-slot="{ activateCallback }" :value="2">
+        <table-view
+          v-if="currentStep === 2 && columnsCount && rowsCount && viewValues"
+          :columns-count="columnsCount"
+          :rows-count="rowsCount"
+          :all-columns="getAllColumnNames"
+          :value="viewValues"
+          :target="getTarget"
+          :group="getGroup"
+          :selected-columns="selectedColumns"
+          :export-callback="downloadCSV"
+          :filters="getFilters"
+          :columnTypes="columnTypes"
+          @set-target="setTarget"
+          @change-group="changeGroup"
+          @edit="setSelectedColumns"
+          @change-filters="setFilters"
+        />
         <div class="navigation">
           <d-button label="Back" severity="secondary" @click="activateCallback(1)" />
           <d-button :disabled="!isStepAvailable(3)" @click="activateCallback(3)">
@@ -35,26 +53,29 @@
           </d-button>
         </div>
       </StepPanel>
-      <StepPanel v-slot="{ activateCallback }" :value="3">
-        <service-evaluate />
+      <StepPanel :value="3">
+        <service-evaluate
+          v-if="currentStep === 3"
+          :selected-columns="selectedColumns.length ? selectedColumns : getAllColumnNames"
+        />
       </StepPanel>
     </StepPanels>
   </Stepper>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
 import StepPanels from 'primevue/steppanels'
 import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
-
 import { ArrowRight } from 'lucide-vue-next'
 
 import UploadData from './UploadData.vue'
 import ServiceEvaluate from './ServiceEvaluate.vue'
+import TableView from './TableView.vue'
 
 import { useDataTable } from '@/hooks/useDataTable'
 
@@ -67,13 +88,44 @@ type TProps = {
 
 defineProps<TProps>()
 
-const { isTableExist, fileData, uploadDataErrors, isUploadWithErrors, onSelectFile, onRemoveFile } =
-  useDataTable()
+const tableValidator = (size?: number, columns?: number, rows?: number) => {
+  return {
+    size: !!(size && size > 1024 * 1024),
+    columns: !!(columns && columns <= 3),
+    rows: !!(rows && rows <= 100),
+  }
+}
+
+const {
+  isTableExist,
+  fileData,
+  uploadDataErrors,
+  isUploadWithErrors,
+  columnsCount,
+  rowsCount,
+  getAllColumnNames,
+  viewValues,
+  getTarget,
+  getGroup,
+  selectedColumns,
+  getFilters,
+  columnTypes,
+  onSelectFile,
+  onRemoveFile,
+  setTarget,
+  changeGroup,
+  setSelectedColumns,
+  downloadCSV,
+  setFilters,
+} = useDataTable(tableValidator)
+
+const currentStep = ref(1)
+const trainingResult = ref(null)
 
 const isStepAvailable = computed(() => (id: number) => {
   if (id === 1) return true
   if (id === 2) return isTableExist.value && !isUploadWithErrors.value
-  if (id === 3) return isTableExist.value && !isUploadWithErrors.value
+  if (id === 3) return isTableExist.value && !isUploadWithErrors.value // trainingResult.value
 })
 </script>
 

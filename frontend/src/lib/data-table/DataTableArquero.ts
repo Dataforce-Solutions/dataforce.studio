@@ -1,32 +1,62 @@
-import { ColumnTable, fromCSV } from 'arquero'
-import type { IDataTable } from './interfaces'
+import { ColumnTable, fromCSV, escape } from 'arquero'
+import { FilterType, type FilterItem, type IDataTable } from './interfaces'
 import { Observable } from '@/utils/observable/Observable'
 
+export type SelectTableEvent = { name: string; size: number } | null
+
 export type Events = {
-  COLUMNS_COUNT_CHANGED: number | undefined
-  ROWS_COUNT_CHANGED: number | undefined
+  SELECT_TABLE: SelectTableEvent
 }
 
 export class DataTableArquero extends Observable<Events> implements IDataTable {
-  private dataTable: ColumnTable | null
+  private dataTable: ColumnTable | null = null
+  private selectedColumns: string[] = []
+  private filters: FilterItem[] = []
 
   constructor() {
     super()
+  }
 
-    this.dataTable = null
+  private getCurrentData() {
+    if (!this.dataTable) throw new Error('You need createTable before')
+
+    let data = this.dataTable
+    if (this.selectedColumns.length) data = data.select(this.selectedColumns)
+    return data.filter(escape((row: any) => this.filteredRow(row, this.filters)))
+  }
+
+  private filteredRow(row: any, filters: FilterItem[]) {
+    return filters.every((filter) => {
+      const columnValue = row[filter.column]
+      const parameter = isNaN(filter.parameter as any) ? filter.parameter : +filter.parameter
+
+      switch (filter.filterType) {
+        case FilterType.Equals:
+          return columnValue === parameter
+        case FilterType.NotEquals:
+          return columnValue !== parameter
+        case FilterType.LessThan:
+          return columnValue < parameter
+        case FilterType.LessThanOrEqualTo:
+          return columnValue <= parameter
+        case FilterType.GreaterThan:
+          return columnValue > parameter
+        case FilterType.GreaterThanOrEqualTo:
+          return columnValue >= parameter
+        default:
+          return true
+      }
+    })
   }
 
   async createFormCSV(file: File) {
     this.dataTable = fromCSV(await file.text())
 
-    this.emit('COLUMNS_COUNT_CHANGED', this.getColumnsCount())
-    this.emit('ROWS_COUNT_CHANGED', this.getRowsCount())
+    this.emit('SELECT_TABLE', { name: file.name, size: file.size })
   }
 
   async downloadCSV(fileName: string = 'output.csv') {
-    if (!this.dataTable) throw new Error('You need createTable before')
-
-    const csvContent = this.dataTable.toCSV()
+    const csvContent = this.getCurrentData().toCSV()
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -42,21 +72,40 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
   }
 
   getColumnsCount(): number {
-    if (!this.dataTable) throw new Error('You need createTable before')
-
-    return this.dataTable.numCols()
+    return this.getCurrentData().numCols()
   }
 
   getRowsCount(): number {
-    if (!this.dataTable) throw new Error('You need createTable before')
-
-    return this.dataTable.numRows()
+    return this.getCurrentData().numRows()
   }
 
   clearTable(): void {
     this.dataTable = null
 
-    this.emit('COLUMNS_COUNT_CHANGED')
-    this.emit('ROWS_COUNT_CHANGED')
+    this.emit('SELECT_TABLE', null)
+  }
+
+  getColumnNames() {
+    return this.getCurrentData().columnNames()
+  }
+
+  getObjects() {
+    return this.getCurrentData().objects()
+  }
+
+  setSelectedColumns(columns: string[]) {
+    this.selectedColumns = columns
+  }
+
+  getSelectedColumns() {
+    return this.selectedColumns
+  }
+
+  setFilters(filters: FilterItem[]) {
+    this.filters = filters
+  }
+
+  getFilters(): FilterItem[] {
+    return this.filters
   }
 }

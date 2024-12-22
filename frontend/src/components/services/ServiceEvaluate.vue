@@ -6,16 +6,7 @@
       header="Predict"
       :style="{ width: '31.25rem' }"
     >
-      <predict-content
-        :manual-fields="[
-          'AppointmentId',
-          'AppointmentDate',
-          'AppointmentTime',
-          'Status',
-          'Notes',
-          'AppointmentId',
-        ]"
-      />
+      <predict-content :manual-fields="selectedColumns" />
     </d-dialog>
     <header class="header">
       <h1 class="title">Model evaluation dashboard</h1>
@@ -28,7 +19,7 @@
           <span>download</span>
           <cloud-download width="14" height="14" />
         </d-button>
-        <d-button label="finish" />
+        <d-button label="finish" @click="$router.push({ name: 'home' })" />
       </div>
     </header>
     <div class="body">
@@ -48,7 +39,7 @@
             type="radialBar"
             :series="totalScoreData"
             :options="totalScoreOptions"
-            :style="{pointerEvents: 'none', marginTop: '-30px'}"
+            :style="{ pointerEvents: 'none', marginTop: '-30px' }"
           />
         </div>
         <div class="metric-cards">
@@ -78,7 +69,7 @@
             :series="featuresData"
             :height="224 + 60 + 'px'"
             width="100%"
-            :style="{pointerEvents: 'none', margin: '-30px 0'}"
+            :style="{ pointerEvents: 'none', margin: '-30px 0' }"
           />
         </div>
       </div>
@@ -91,20 +82,22 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
-
 import MetricCard from './MetricCard.vue'
 import DetailedTable from './DetailedTable.vue'
 import PredictContent from './PredictContent.vue'
 
 import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
-
 import { metricCardsData } from '@/assets/data/mock/mockData'
+
+type Props = {
+  selectedColumns: string[]
+}
+
+const props = defineProps<Props>()
 
 const totalScoreData = ref([85])
 const totalScoreOptions = ref(getRadialBarOptions())
-
 const featuresData = ref([{ data: [40, 30, 15, 10, 5] }])
 const featuresOptions = ref(
   getBarOptions(['AppointmentId', 'AppointmentDate', 'AppointmentTime', 'Status', 'Notes']),

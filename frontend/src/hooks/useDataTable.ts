@@ -1,69 +1,136 @@
-import { DataTableArquero } from '@/lib/data-table/DataTableArquero'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { DataTableArquero, type SelectTableEvent } from '@/lib/data-table/DataTableArquero'
+import type { FilterItem } from '@/lib/data-table/interfaces'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-export const useDataTable = () => {
+type StartedColumnData = {
+  fileSize: number
+  fileName: string
+  columnsCount: number
+  rowsCount: number
+  columnNames: string[]
+  values: object[]
+}
+
+export type ColumnType = 'number' | 'string' | 'date'
+
+export const useDataTable = (validator: Function) => {
   const dataTable = new DataTableArquero()
 
-  const isTableExist = ref(false)
-  const fileSize = ref<number | undefined>()
-  const fileName = ref<string | undefined>()
-  const tableColumnsCount = ref<number | undefined>()
-  const tableRowsCount = ref<number | undefined>()
+  const startedTableData = ref<StartedColumnData | null>()
+  const columnsCount = ref<number | undefined>()
+  const rowsCount = ref<number | undefined>()
+  const target = ref('')
+  const group = ref<string[]>([])
+  const selectedColumns = ref<string[]>([])
+  const filters = ref<FilterItem[]>([])
+  const viewValues = ref<object[] | null>(null)
+  const columnTypes = ref<Record<string, ColumnType>>({})
 
+  const isTableExist = computed(() => !!startedTableData.value)
   const fileData = computed(() => ({
-    name: fileName.value,
-    size: fileSize.value,
+    name: startedTableData.value?.fileName,
+    size: startedTableData.value?.fileSize,
   }))
-
-  const uploadDataErrors = computed(() => ({
-    size: !!(fileSize.value && fileSize.value > 1024 * 1024),
-    columns: !!(tableColumnsCount.value && tableColumnsCount.value <= 3),
-    rows: !!(tableRowsCount.value && tableRowsCount.value <= 100),
-  }))
-
+  const uploadDataErrors = computed(() =>
+    validator(
+      startedTableData.value?.fileSize,
+      startedTableData.value?.columnsCount,
+      startedTableData.value?.rowsCount,
+    ),
+  )
   const isUploadWithErrors = computed(() => {
     const errors = uploadDataErrors.value
-
     for (const key in errors) {
       if (errors[key as keyof typeof errors]) return true
     }
-
     return false
   })
+  const getAllColumnNames = computed(() => startedTableData.value?.columnNames || [])
+  const getTarget = computed(() => target.value)
+  const getGroup = computed(() => group.value)
+  const getFilters = computed(() => filters.value)
 
   async function onSelectFile(file: File) {
     await dataTable.createFormCSV(file)
-
-    isTableExist.value = true
-    fileSize.value = file.size
-    fileName.value = file.name
+    rewriteValues()
   }
-
   function onRemoveFile() {
     dataTable.clearTable()
+    viewValues.value = null
+    setColumnTypes({})
+  }
+  function setColumnTypes(row: object) {
+    for (const key in row) {
+      columnTypes.value[key] = row[key as keyof typeof row]
+    }
+  }
+  function onColumnsCountChanged(count: number | undefined) {
+    columnsCount.value = count
+  }
+  function onRowsCountChanged(count: number | undefined) {
+    rowsCount.value = count
+  }
+  function onSelectTable(event: SelectTableEvent) {
+    if (!event) {
+      startedTableData.value = null
+    } else {
+      const columnsCount = dataTable.getColumnsCount()
+      const rowsCount = dataTable.getRowsCount()
+      const columnNames = dataTable.getColumnNames()
+      const values = dataTable.getObjects()
 
-    isTableExist.value = false
-    fileSize.value = undefined
-    fileName.value = undefined
+      target.value = columnNames[columnNames.length - 1]
+      setColumnTypes(values[0])
+
+      startedTableData.value = {
+        fileSize: event.size,
+        fileName: event.name,
+        columnsCount,
+        rowsCount,
+        columnNames,
+        values,
+      }
+    }
+  }
+  function setTarget(column: string) {
+    if (!getGroup.value.includes(column)) target.value = column
+  }
+  function changeGroup(column: string) {
+    if (target.value === column) return
+
+    group.value.includes(column)
+      ? (group.value = group.value.filter((item) => item !== column))
+      : group.value.push(column)
+  }
+  function rewriteValues() {
+    viewValues.value = dataTable.getObjects()
+  }
+  function downloadCSV() {
+    dataTable.downloadCSV('dataforce')
+  }
+  function setSelectedColumns(columns: string[]) {
+    dataTable.setSelectedColumns(columns)
+    selectedColumns.value = dataTable.getSelectedColumns()
+    rewriteValues()
+    onColumnsCountChanged(dataTable.getColumnsCount())
+  }
+  function setFilters(newFilters: FilterItem[]) {
+    dataTable.setFilters(newFilters)
+    filters.value = newFilters
+    rewriteValues()
   }
 
-  function onColumnsCountChanged(columnsCount: number | undefined) {
-    tableColumnsCount.value = columnsCount
-  }
-
-  function onRowsCountChanged(rowsCount: number | undefined) {
-    tableRowsCount.value = rowsCount
-  }
+  watch(startedTableData, (value) => {
+    onColumnsCountChanged(value?.columnsCount)
+    onRowsCountChanged(value?.rowsCount)
+  })
 
   onMounted(() => {
-    dataTable.on('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
-    dataTable.on('ROWS_COUNT_CHANGED', onRowsCountChanged)
+    dataTable.on('SELECT_TABLE', onSelectTable)
   })
 
   onBeforeUnmount(() => {
-    dataTable.off('COLUMNS_COUNT_CHANGED', onColumnsCountChanged)
-    dataTable.off('COLUMNS_COUNT_CHANGED', onRowsCountChanged)
-
+    dataTable.off('SELECT_TABLE', onSelectTable)
     onRemoveFile()
   })
   return {
@@ -71,7 +138,21 @@ export const useDataTable = () => {
     fileData,
     uploadDataErrors,
     isUploadWithErrors,
+    columnsCount,
+    rowsCount,
+    getAllColumnNames,
+    viewValues,
+    getTarget,
+    getGroup,
+    selectedColumns,
+    getFilters,
+    columnTypes,
     onSelectFile,
     onRemoveFile,
+    setTarget,
+    changeGroup,
+    setSelectedColumns,
+    downloadCSV,
+    setFilters,
   }
 }

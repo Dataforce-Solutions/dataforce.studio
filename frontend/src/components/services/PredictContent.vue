@@ -1,7 +1,7 @@
 <template>
   <div class="content">
     <p class="text">Get predictions by entering data manually or uploading a dataset</p>
-    <SelectButton class="select" v-model="selectValue" :options="selectOptions" />
+    <SelectButton v-model="selectValue" :options="selectOptions" />
     <div v-if="selectValue === 'Manual'" class="manual">
       <div class="inputs">
         <div v-for="field in Object.keys(manualValues)" class="input-wrapper">
@@ -30,7 +30,7 @@
         :error="isUploadWithErrors"
         @selectFile="onSelectFile"
       />
-      <d-button label="Predict" type="submit" fluid @click="onManualSubmit" />
+      <d-button label="Predict" type="submit" fluid @click="onFileSubmit" />
     </div>
   </div>
 </template>
@@ -48,23 +48,31 @@ type Props = {
 
 const props = defineProps<Props>()
 
-const { isUploadWithErrors, fileData, onSelectFile } = useDataTable()
+const tableValidator = (size?: number, columns?: number, rows?: number) => {
+  return {}
+}
+const { isUploadWithErrors, fileData, onSelectFile } = useDataTable(tableValidator)
 
 const selectValue = ref<'Manual' | 'Upload file'>('Manual')
 const selectOptions = ref(['Manual', 'Upload file'])
 const manualValues = ref(
-  props.manualFields.reduce((acc, field) => {
-    // @ts-ignore
-    acc[field] = ''
+  props.manualFields.reduce(
+    (acc, field) => {
+      acc[field] = ''
 
-    return acc
-  }, {}),
+      return acc
+    },
+    {} as Record<string, string>,
+  ),
 )
 const predictionText = ref('')
 
 function onManualSubmit() {
   console.log(manualValues.value)
   console.log(predictionText.value)
+}
+function onFileSubmit() {
+  console.log('file submit')
 }
 </script>
 
@@ -74,27 +82,25 @@ function onManualSubmit() {
   color: var(--p-text-muted-color);
 }
 
-.select {
-  margin-bottom: 32px;
-}
-
 .manual {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 2rem;
 }
 
 .upload {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 2rem;
+  margin-top: 2rem;
 }
 
 .inputs {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
   max-height: 316px;
   overflow-y: auto;
+  padding-top: 2rem;
 }
 </style>

@@ -1,5 +1,5 @@
 import type { App } from 'vue'
-import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password, Menu, Avatar, Toast, FileUpload, IconField, InputIcon, ConfirmDialog } from 'primevue'
+import { Button, Card, InputText, Message, Popover, ToggleButton, FloatLabel, Dialog, Password, Menu, Avatar, Toast, FileUpload, IconField, InputIcon, ConfirmDialog, Badge, OverlayBadge, Divider, Select, RadioButton, Checkbox, ToggleSwitch } from 'primevue'
 import { Form, FormField } from '@primevue/forms'
 
 export const addComponents = (app: App) => {
@@ -21,4 +21,11 @@ export const addComponents = (app: App) => {
   app.component('DIconField', IconField)
   app.component('DInputIcon', InputIcon)
   app.component('DConfirmDialog', ConfirmDialog)
+  app.component('DBadge', Badge)
+  app.component('DOverlayBadge', OverlayBadge)
+  app.component('DDivider', Divider)
+  app.component('DSelect', Select)
+  app.component('DRadioButton', RadioButton)
+  app.component('DCheckbox', Checkbox)
+  app.component('DToggleSwitch', ToggleSwitch)
 }
