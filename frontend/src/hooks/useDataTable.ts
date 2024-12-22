@@ -61,7 +61,8 @@ export const useDataTable = (validator: Function) => {
   }
   function setColumnTypes(row: object) {
     for (const key in row) {
-      columnTypes.value[key] = row[key as keyof typeof row]
+      if (Number(row[key as keyof typeof row])) columnTypes.value[key] = 'number'
+      else columnTypes.value[key] = 'string'
     }
   }
   function onColumnsCountChanged(count: number | undefined) {

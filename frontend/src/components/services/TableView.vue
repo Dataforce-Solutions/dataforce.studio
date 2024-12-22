@@ -55,6 +55,7 @@
               :column="column"
               :group="group"
               :target="target"
+              :column-type="columnTypes[column]"
               @change-group="(event) => $emit('changeGroup', event)"
               @set-target="(event) => $emit('setTarget', event)"
             />

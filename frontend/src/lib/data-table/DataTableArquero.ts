@@ -21,8 +21,10 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
     if (!this.dataTable) throw new Error('You need createTable before')
 
     let data = this.dataTable
+    if (this.filters.length)
+      data = data.filter(escape((row: any) => this.filteredRow(row, this.filters)))
     if (this.selectedColumns.length) data = data.select(this.selectedColumns)
-    return data.filter(escape((row: any) => this.filteredRow(row, this.filters)))
+    return data
   }
 
   private filteredRow(row: any, filters: FilterItem[]) {

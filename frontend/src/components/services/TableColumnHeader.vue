@@ -4,7 +4,7 @@
       <span>{{ column }}</span>
       <div class="column-header-icons">
         <component
-          :is="getCurrentColumnTypeIcon(column)"
+          :is="currentColumnTypeIcon"
           width="16"
           height="16"
           color="var(--p-icon-muted-color)"
@@ -55,12 +55,14 @@ import type { LucideIcon } from 'lucide-vue-next'
 import { Boxes, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 'lucide-vue-next'
 import { Menu } from 'primevue'
 import { computed, ref } from 'vue'
+import type { ColumnType } from '@/hooks/useDataTable'
 
 type Props = {
   values: object[]
   column: string
   target: string
   group: string[]
+  columnType: ColumnType
 }
 type Emits = {
   (event: 'setTarget', column: string): void
@@ -92,12 +94,10 @@ const getCurrentMenuIconColor = computed(() => (icon: LucideIcon) => {
   if (icon === Target) return 'var(--p-message-error-color)'
   if (icon === Boxes) return 'var(--p-primary-color)'
 })
-const getCurrentColumnTypeIcon = computed(() => (column: string) => {
-  const firstRow = props.values[0]
-  const columnValue = firstRow[column as keyof typeof firstRow]
-  if (typeof columnValue === 'number') return Hash
-  else if (typeof columnValue === 'string') return CaseUpper
-  else return CalendarFold
+const currentColumnTypeIcon = computed(() => {
+  if (props.columnType === 'number') return Hash
+  else if (props.columnType === 'date') return CalendarFold
+  else return CaseUpper
 })
 
 function toggleMenu(event: Event) {
