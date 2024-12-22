@@ -47,7 +47,7 @@
         />
         <div class="navigation">
           <d-button label="Back" severity="secondary" @click="activateCallback(1)" />
-          <d-button :disabled="!isStepAvailable(3)" @click="activateCallback(3)">
+          <d-button :disabled="!isStepAvailable(3)" @click="onStep2ContinueClick">
             <span style="font-weight: 500">Continue</span>
             <arrow-right width="14" height="14" />
           </d-button>
@@ -61,6 +61,11 @@
       </StepPanel>
     </StepPanels>
   </Stepper>
+  <d-dialog v-model:visible="training" modal :closable="false" :closeOnEscape="false">
+    <template #container>
+      <training-progress :time="8" />
+    </template>
+  </d-dialog>
 </template>
 
 <script setup lang="ts">
@@ -76,6 +81,7 @@ import { ArrowRight } from 'lucide-vue-next'
 import UploadData from './UploadData.vue'
 import ServiceEvaluate from './ServiceEvaluate.vue'
 import TableView from './TableView.vue'
+import TrainingProgress from './TrainingProgress.vue'
 
 import { useDataTable } from '@/hooks/useDataTable'
 
@@ -120,6 +126,7 @@ const {
 } = useDataTable(tableValidator)
 
 const currentStep = ref(1)
+const training = ref(false)
 const trainingResult = ref(null)
 
 const isStepAvailable = computed(() => (id: number) => {
@@ -127,6 +134,13 @@ const isStepAvailable = computed(() => (id: number) => {
   if (id === 2) return isTableExist.value && !isUploadWithErrors.value
   if (id === 3) return isTableExist.value && !isUploadWithErrors.value // trainingResult.value
 })
+
+function startTraining() {
+  training.value = true
+}
+function onStep2ContinueClick() {
+  startTraining()
+}
 </script>
 
 <style scoped>
