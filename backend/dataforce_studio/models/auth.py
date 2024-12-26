@@ -14,6 +14,7 @@ class User(BaseModel):
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
+    email_verified: bool = False
     auth_method: AuthProvider
     photo: Url = Url(
         "https://previews.123rf.com/images/vectorshots/vectorshots1309/vectorshots130901404/22318678-cute-boy-cartoon-face-vector.jpg"

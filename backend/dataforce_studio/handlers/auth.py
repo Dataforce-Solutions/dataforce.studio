@@ -37,10 +37,12 @@ class AuthHandler:
             return UserInDB(**user_dict)
         return None
 
-    def authenticate_user(self, email: str, password: str) -> UserInDB | None:
+    def authenticate_user(self, email: str, password: str) -> UserInDB:
         user = self.get_user(email)
         if not user or not self.verify_password(password, user.hashed_password):
-            return None
+            raise AuthError("Invalid email or password", 400)
+        if not user.email_verified:
+            raise AuthError("Email not verified", 400)
         if user.auth_method != AuthProvider.EMAIL:
             raise AuthError("Invalid auth method", 400)
         return user
@@ -85,7 +87,7 @@ class AuthHandler:
 
     def handle_signup(
         self, email: str, password: str, full_name: str | None = None
-    ) -> Token:
+    ) -> dict:
         """Handle user signup process"""
         if fake_users_db.get(email):
             raise AuthError("Email already registered", 400)
@@ -98,18 +100,30 @@ class AuthHandler:
             email=email,
             full_name=full_name,
             disabled=False,
+            email_verified=False,
             hashed_password=hashed_password,
             auth_method=AuthProvider.EMAIL,
         )
         fake_users_db[email] = user.model_dump()
+        confirmation_token = self._generate_email_confirmation_token(email)
+        self.send_confirmation_email(email, confirmation_token)
+        link = self._get_email_confirmation_link(confirmation_token)
+        return {
+            "detail": "Please confirm your email address",
+            "link_from_email": link,
+        }
 
-        return self.create_tokens(user.email)
+    def _get_email_confirmation_link(self, token: str) -> str:
+        return (
+            f"https://dev-api.dataforce.studio/auth/confirm-email?confirmation_token={token}"
+        )
+
+    def send_confirmation_email(self, email: str, confirmation_token: str) -> None:
+        pass
 
     def handle_signin(self, email: str, password: str) -> Token:
         """Handle user signin process"""
         user = self.authenticate_user(email, password)
-        if not user:
-            raise AuthError("Invalid email or password", 400)
         return self.create_tokens(user.email)
 
     def handle_refresh_token(self, refresh_token: str) -> Token:
@@ -229,7 +243,7 @@ class AuthHandler:
             "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
             "apps.googleusercontent.com",
             "client_secret": "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",
-            "redirect_uri": "http://localhost:5173/sign-in",
+            "redirect_uri": "https://dev.dataforce.studio/sign-in",
             "grant_type": "authorization_code",
         }
 
@@ -266,6 +280,7 @@ class AuthHandler:
                 email=email,
                 full_name=full_name,
                 disabled=False,
+                email_verified=True,
                 hashed_password=None,
                 photo=photo_url,
                 auth_method=AuthProvider.GOOGLE,
@@ -273,3 +288,54 @@ class AuthHandler:
             fake_users_db[email] = user.model_dump()
 
         return self.create_tokens(email)
+
+    def _generate_email_confirmation_token(self, email: str) -> str:
+        return self.create_token(
+            data={"sub": email, "type": "email_confirmation"},
+            expires_delta=timedelta(days=1),
+        )
+
+    def _generate_password_reset_token(self, email: str) -> str:
+        return self.create_token(
+            data={"sub": email, "type": "password_reset"},
+            expires_delta=timedelta(hours=1),
+        )
+
+    def send_password_reset_email(self, email: str) -> None:
+        if email not in fake_users_db:
+            return None
+        token = self._generate_password_reset_token(email)
+        link = self._get_password_reset_link(token)
+        # send email
+        return link  # return link for testing
+
+    def _get_password_reset_link(self, token: str) -> str:
+        return f"http://localhost:5173/change-password?token={token}"
+
+    def handle_email_confirmation(self, token: str) -> None:
+        payload = jwt.decode(token, self.__secret_key, algorithms=[self.algorithm])
+        email: str = payload.get("sub")
+        if email is None:
+            raise AuthError("Invalid token", 400)
+
+        user = self.get_user(email)
+        if user is None:
+            raise AuthError("User not found", 404)
+
+        fake_users_db[email]["email_verified"] = True
+
+    def handle_reset_password(self, token: str, new_password: str) -> dict[str, str]:
+        try:
+            payload = jwt.decode(token, self.__secret_key, algorithms=[self.algorithm])
+            email: str = payload.get("sub")
+            if email is None:
+                raise AuthError("Invalid token", 400)
+
+            user = self.get_user(email)
+            if user is None:
+                raise AuthError("User not found", 404)
+
+            fake_users_db[email]["hashed_password"] = self.get_password_hash(new_password)
+            return {"detail": "Password reset successfully"}
+        except InvalidTokenError as err:
+            raise AuthError("Invalid token", 400) from err

@@ -25,12 +25,12 @@ def handle_auth_error(error: AuthError) -> HTTPException:
     )
 
 
-@auth_router.post("/signup", response_model=Token)
+@auth_router.post("/signup", response_model=dict)
 async def signup(
     email: Annotated[EmailStr, Form()],
     password: Annotated[str, Form(min_length=8)],
     full_name: Annotated[str | None, Form()] = None,
-) -> Token:
+) -> dict:
     try:
         return auth_handler.handle_signup(email, password, full_name)
     except AuthError as e:
@@ -53,7 +53,7 @@ async def google_login() -> RedirectResponse:
     params = {
         "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
         "apps.googleusercontent.com",
-        "redirect_uri": "https://dev.dataforce.studio:5173/sign-in",
+        "redirect_uri": "https://dev.dataforce.studio/sign-in",
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -83,7 +83,12 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
 
 @auth_router.post("/forgot-password")
 async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
-    return {"detail": "Password reset email has been sent"}
+    try:
+        link = auth_handler.send_password_reset_email(email)
+        # temp returning token for testing
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+    return {"detail": "Password reset email has been sent", "link_from_email": link}
 
 
 @auth_router.get("/users/me", response_model=User)
@@ -168,5 +173,27 @@ async def logout(
         auth_header = request.headers.get("Authorization")
         access_token = auth_header.split()[1] if auth_header else None
         return auth_handler.handle_logout(access_token, refresh_token)
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+
+
+@auth_router.get("/confirm-email")
+async def confirm_email(
+    confirmation_token: str,
+) -> RedirectResponse:
+    try:
+        auth_handler.handle_email_confirmation(confirmation_token)
+        return RedirectResponse("http://localhost:5173/email-confirmed")
+    except AuthError as e:
+        raise handle_auth_error(e) from e
+
+
+@auth_router.post("/reset-password")
+async def reset_password(
+    reset_token: Annotated[str, Form()],
+    new_password: Annotated[str, Form(min_length=8)],
+) -> dict[str, str]:
+    try:
+        return auth_handler.handle_reset_password(reset_token, new_password)
     except AuthError as e:
         raise handle_auth_error(e) from e
