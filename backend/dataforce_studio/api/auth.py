@@ -53,7 +53,7 @@ async def google_login() -> RedirectResponse:
     params = {
         "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
         "apps.googleusercontent.com",
-        "redirect_uri": "http://localhost:5173/sign-in",
+        "redirect_uri": "https://dev.dataforce.studio:5173/sign-in",
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -121,10 +121,8 @@ async def update_user_profile(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
-        if email:
-            return {
-                "detail": "We've sent you an email to confirm the new email address",
-            }
+        # if email:
+        #     await auth_handler.handle_update_email(email)
 
         if full_name:
             auth_handler.handle_change_name(request.user.email, full_name)

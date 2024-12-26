@@ -164,14 +164,13 @@ class AuthHandler:
         self,
         email: str,
         new_name: str,
-    ) -> dict[str, str]:
+    ) -> None:
         """Handle password change process"""
         user = self.get_user(email)
         if not user:
             raise AuthError("User not found", 404)
 
         fake_users_db[user.email]["full_name"] = new_name
-        return {"detail": "Name changed successfully"}
 
     def handle_delete_account(self, email: str) -> dict[str, str]:
         """Handle account deletion process"""
