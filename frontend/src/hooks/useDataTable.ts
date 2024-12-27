@@ -120,6 +120,9 @@ export const useDataTable = (validator: Function) => {
     filters.value = newFilters
     rewriteValues()
   }
+  function getDataForTraining() {
+    return dataTable.getDataForTraining()
+  }
 
   watch(startedTableData, (value) => {
     onColumnsCountChanged(value?.columnsCount)
@@ -155,5 +158,6 @@ export const useDataTable = (validator: Function) => {
     setSelectedColumns,
     downloadCSV,
     setFilters,
+    getDataForTraining
   }
 }

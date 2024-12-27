@@ -10,6 +10,7 @@ export interface IDataTable {
   getSelectedColumns(): string[]
   setFilters(filters: FilterItem[]): void
   getFilters(): FilterItem[]
+  getDataForTraining(): object
 }
 
 export enum FilterType {
