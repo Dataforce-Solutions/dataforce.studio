@@ -124,7 +124,6 @@ const dataForFilters = computed(() => {
 .wrapper {
   padding: 12px 12px 0 12px;
   background-color: var(--p-card-background);
-  margin-top: 36px;
   margin-bottom: 16px;
   border-radius: 8px;
   overflow: hidden;

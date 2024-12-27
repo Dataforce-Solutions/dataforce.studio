@@ -178,10 +178,6 @@ async function startTraining() {
 </script>
 
 <style scoped>
-.stepper {
-  padding-top: 17px;
-}
-
 .navigation {
   display: flex;
   gap: 24px;
@@ -189,6 +185,20 @@ async function startTraining() {
 }
 
 @media (max-width: 968px) {
+  .navigation {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    background-color: var(--p-content-background);
+    padding-top: 4px;
+    padding-bottom: 44px;
+    padding-right: 100px;
+    width: 100%;
+    z-index: 5;
+  }
+}
+
+@media (max-height: 950px) {
   .navigation {
     position: fixed;
     bottom: 0;

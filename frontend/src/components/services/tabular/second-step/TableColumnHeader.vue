@@ -15,7 +15,7 @@
           height="16"
           color="var(--p-message-error-color)"
         />
-        <Boxes
+        <Blocks
           v-if="group.includes(column)"
           width="16"
           height="16"
@@ -52,7 +52,7 @@
 import type { MenuItem } from 'primevue/menuitem'
 import type { LucideIcon } from 'lucide-vue-next'
 
-import { Boxes, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 'lucide-vue-next'
+import { Blocks, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 'lucide-vue-next'
 import { Menu } from 'primevue'
 import { computed, ref } from 'vue'
 import type { ColumnType } from '@/hooks/useDataTable'
@@ -76,7 +76,7 @@ const menu = ref()
 const menuItems: MenuItem[] = [
   {
     label: 'Set as group',
-    iconComponent: Boxes,
+    iconComponent: Blocks,
     command() {
       emit('changeGroup', props.column)
     },
@@ -92,7 +92,7 @@ const menuItems: MenuItem[] = [
 
 const getCurrentMenuIconColor = computed(() => (icon: LucideIcon) => {
   if (icon === Target) return 'var(--p-message-error-color)'
-  if (icon === Boxes) return 'var(--p-primary-color)'
+  if (icon === Blocks) return 'var(--p-primary-color)'
 })
 const currentColumnTypeIcon = computed(() => {
   if (props.columnType === 'number') return Hash
