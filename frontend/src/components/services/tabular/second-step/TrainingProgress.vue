@@ -16,8 +16,9 @@
 </template>
 
 <script setup lang="ts">
-import UiLoader from '../ui/UiLoader.vue'
 import { ProgressBar } from 'primevue'
+
+import UiLoader from '@/components/ui/UiLoader.vue'
 
 type Props = {
   time: number

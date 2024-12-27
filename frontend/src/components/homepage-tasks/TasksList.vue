@@ -8,10 +8,11 @@
 </template>
 
 <script setup lang="ts">
-import type { ITasksList } from './types'
+import type { TaskList } from './interfaces'
+
 import TasksListItem from './TasksListItem.vue'
 
-defineProps<ITasksList>()
+defineProps<TaskList>()
 </script>
 
 <style scoped>

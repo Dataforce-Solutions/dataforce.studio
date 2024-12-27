@@ -6,7 +6,7 @@
       header="Predict"
       :style="{ width: '31.25rem' }"
     >
-      <predict-content :manual-fields="selectedColumns" />
+      <predict-content :manual-fields="predictionFields" :model-id="trainingModelId" />
     </d-dialog>
     <header class="header">
       <h1 class="title">Model evaluation dashboard</h1>
@@ -15,7 +15,7 @@
           <span>predict</span>
           <wand-sparkles width="14" height="14" />
         </d-button>
-        <d-button severity="secondary">
+        <d-button severity="secondary" @click="downloadModelCallback('dataforce-model')">
           <span>download</span>
           <cloud-download width="14" height="14" />
         </d-button>
@@ -34,12 +34,12 @@
             "
           />
         </header>
-        <div>
+        <div class="radialbar-wrapper">
           <apexchart
             type="radialBar"
-            :series="totalScoreData"
+            :series="[totalScore]"
             :options="totalScoreOptions"
-            :style="{ pointerEvents: 'none', marginTop: '-30px' }"
+            :style="{ pointerEvents: 'none', marginTop: '-30px', height: '135px' }"
           />
         </div>
         <div class="metric-cards">
@@ -67,42 +67,73 @@
             type="bar"
             :options="featuresOptions"
             :series="featuresData"
-            :height="224 + 60 + 'px'"
+            :height="barChartHeight"
             width="100%"
             :style="{ pointerEvents: 'none', margin: '-30px 0' }"
           />
         </div>
       </div>
       <div class="detailed card">
-        <detailed-table />
+        <detailed-table :values="detailedView" :is-train-mode="isTrainMode" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import type { ClassificationMetrics, TrainingImportance } from '@/lib/data-processing/interfaces'
+
+import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
+
+import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
+import { getMetricsCards } from '@/helpers/helpers'
+
 import MetricCard from './MetricCard.vue'
 import DetailedTable from './DetailedTable.vue'
 import PredictContent from './PredictContent.vue'
-
-import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
-import { metricCardsData } from '@/assets/data/mock/mockData'
+import { table } from 'arquero'
 
 type Props = {
-  selectedColumns: string[]
+  predictionFields: string[]
+  totalScore: number
+  testMetrics: Omit<ClassificationMetrics, 'SC_SCORE'>
+  trainingMetrics: Omit<ClassificationMetrics, 'SC_SCORE'>
+  features: TrainingImportance[]
+  predictedData: Record<string, []>
+  isTrainMode: boolean
+  downloadModelCallback: Function
+  trainingModelId: string
 }
 
 const props = defineProps<Props>()
 
-const totalScoreData = ref([85])
 const totalScoreOptions = ref(getRadialBarOptions())
-const featuresData = ref([{ data: [40, 30, 15, 10, 5] }])
-const featuresOptions = ref(
-  getBarOptions(['AppointmentId', 'AppointmentDate', 'AppointmentTime', 'Status', 'Notes']),
-)
 const isPredictVisible = ref(false)
+const detailedView = ref<any>([])
+
+const metricCardsData = computed(() =>
+  getMetricsCards(Object.values(props.testMetrics), Object.values(props.trainingMetrics)),
+)
+const featuresData = computed(() => {
+  const data = props.features.map((feature) => (feature.scaled_importance * 100).toFixed())
+  return [{ data }]
+})
+const featuresOptions = computed(() =>
+  getBarOptions(
+    props.features.map(
+      (feature) => `${feature.feature_name} (${(feature.scaled_importance * 100).toFixed()}%)`,
+    ),
+  ),
+)
+const barChartHeight = computed(() => {
+  const featuresCount = props.features.length
+  return 45 * featuresCount + 60 + 'px'
+})
+
+onBeforeMount(() => {
+  detailedView.value = table(props.predictedData).objects()
+})
 </script>
 
 <style scoped>
@@ -149,7 +180,7 @@ const isPredictVisible = ref(false)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .card-title {
@@ -160,5 +191,30 @@ const isPredictVisible = ref(false)
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.radialbar-wrapper {
+  max-width: 325px;
+  margin: 0 auto;
+  margin-bottom: 2rem;
+}
+
+.radialbar-wrapper .vue-apexcharts {
+  min-height: 0 !important;
+}
+
+@media (max-width: 1200px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .body {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

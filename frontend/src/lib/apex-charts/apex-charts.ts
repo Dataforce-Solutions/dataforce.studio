@@ -39,7 +39,7 @@ export const getBarOptions = (categories: string[]): ApexOptions => ({
     },
   },
   dataLabels: {
-    enabled: true,
+    enabled: false,
     formatter: (val: number) => `${val}%`,
     style: {
       fontSize: '16px',

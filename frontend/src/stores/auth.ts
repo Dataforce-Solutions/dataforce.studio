@@ -1,10 +1,10 @@
-import { dataforceApi } from '@/utils/api'
+import { dataforceApi } from '@/lib/api'
 import type {
   IPostSignInRequest,
   IPostSignInResponse,
   IPostSignupRequest,
   IPostSignupResponse,
-} from '@/utils/api/DataforceApi.interfaces'
+} from '@/lib/api/DataforceApi.interfaces'
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'

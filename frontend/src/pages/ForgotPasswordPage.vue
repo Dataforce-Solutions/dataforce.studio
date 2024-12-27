@@ -53,7 +53,7 @@ import { useAuthStore } from '@/stores/auth'
 
 import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
 import { forgotPasswordResolver } from '@/utils/forms/resolvers'
-import { emailSentVerifyToast } from '@/utils/primevue/data/toasts'
+import { emailSentVerifyToast } from '@/lib/primevue/data/toasts'
 
 const toast = useToast()
 const authStore = useAuthStore()

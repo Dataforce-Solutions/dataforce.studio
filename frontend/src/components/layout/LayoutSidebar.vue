@@ -42,15 +42,30 @@
 
 <script setup lang="ts">
 import { ArrowLeftToLine } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { sidebarMenu } from './data'
+import { sidebarMenu } from '@/constants/constants'
 
 const isSidebarOpened = ref(true)
 
 const toggleSidebar = () => {
   isSidebarOpened.value = !isSidebarOpened.value
 }
+
+function windowResizeHandler() {
+  if (document.documentElement.clientWidth < 992 && isSidebarOpened.value === true)
+    isSidebarOpened.value = false
+}
+
+onMounted(() => {
+  windowResizeHandler()
+
+  window.addEventListener('resize', windowResizeHandler)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', windowResizeHandler)
+})
 </script>
 
 <style scoped>

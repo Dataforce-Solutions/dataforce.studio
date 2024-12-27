@@ -2,8 +2,13 @@
   <div class="metric">
     <h3 class="metric-title">{{ title }}</h3>
     <div class="results">
-      <div class="result" v-for="item in items" :key="item.id" :class="{ primary: item.primary }">
-        <h4 class="label">{{ item.label }}</h4>
+      <div
+        class="result"
+        v-for="(item, index) in items"
+        :key="index"
+        :class="{ primary: index === 0 }"
+      >
+        <h4 class="label">{{ index === 0 ? 'Eval' : 'Training' }}</h4>
         <div class="value">{{ item.value }}</div>
       </div>
     </div>
@@ -11,9 +16,14 @@
 </template>
 
 <script setup lang="ts">
-import type { IMetricCard } from './services.interfaces'
+type Props = {
+  title: string
+  items: {
+    value: number
+  }[]
+}
 
-defineProps<IMetricCard>()
+defineProps<Props>()
 </script>
 
 <style scoped>

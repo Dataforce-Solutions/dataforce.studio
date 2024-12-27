@@ -1,4 +1,4 @@
-export interface ITaskData {
+export interface TaskData {
   id: number
   icon: string
   title: string
@@ -8,7 +8,7 @@ export interface ITaskData {
   tooltipData: string
 }
 
-export interface ITasksList {
+export interface TaskList {
   label: string
-  tasks: ITaskData[]
+  tasks: TaskData[]
 }

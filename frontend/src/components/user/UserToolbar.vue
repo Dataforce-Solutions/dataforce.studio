@@ -70,7 +70,7 @@ import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
-import { passwordChangedSuccessToast } from '@/utils/primevue/data/toasts'
+import { passwordChangedSuccessToast } from '@/lib/primevue/data/toasts'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()

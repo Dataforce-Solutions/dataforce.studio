@@ -8,34 +8,43 @@
     @dragleave.prevent="onDragleave"
     @drop.prevent="onDrop"
   >
-    <component :is="iconComponent" width="48" height="48" class="icon" :class="currentState" />
-    <div class="content">
-      <template v-if="currentState === 'success'">
-        <div class="file-info">
-          <span class="file-name">{{ file.name }}</span>
-          <span class="file-size">{{ sizeText }}</span>
-          <d-button severity="danger" rounded variant="text" @click="removeFile">
-            <template #icon>
-              <trash-2 width="14" height="14" />
-            </template>
-          </d-button>
-        </div>
-      </template>
-      <template v-else-if="currentState === 'error'">
-        <div class="title">
-          Something went wrong. Please check your file and
-          <label :for="id" class="accent">try again</label>
-          .
-        </div>
-      </template>
-      <template v-else>
-        <div class="title">
-          Drag and drop or <label :for="id" class="accent">upload CSV</label>
-        </div>
-        <div class="help-text">Accepts .csv file type</div>
-      </template>
-      <input ref="inputRef" :id="id" type="file" @change="inputChange" />
+    <div v-if="loading" class="loading-view">
+      <progress-spinner style="width: 48px; height: 48px" />
+      <div>{{ loadingMessage ? loadingMessage : 'Loading' }}</div>
     </div>
+    <template v-else>
+      <component :is="iconComponent" width="48" height="48" class="icon" :class="currentState" />
+      <div class="content">
+        <template v-if="currentState === 'success'">
+          <div class="file-info">
+            <div v-if="successMessageOnly">{{ successMessageOnly }}</div>
+            <template v-else>
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">{{ sizeText }}</span>
+              <d-button severity="danger" rounded variant="text" @click="removeFile">
+                <template #icon>
+                  <trash-2 width="14" height="14" />
+                </template>
+              </d-button>
+            </template>
+          </div>
+        </template>
+        <template v-else-if="currentState === 'error'">
+          <div class="title">
+            Something went wrong. Please check your file and
+            <label :for="id" class="accent">try again</label>
+            .
+          </div>
+        </template>
+        <template v-else>
+          <div class="title">
+            Drag and drop or <label :for="id" class="accent">upload CSV</label>
+          </div>
+          <div class="help-text">Accepts .csv file type</div>
+        </template>
+        <input ref="inputRef" :id="id" type="file" @change="inputChange" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -43,6 +52,12 @@
 import { computed, ref } from 'vue'
 
 import { Download, BadgeCheck, BadgeX, Trash2 } from 'lucide-vue-next'
+import { ProgressSpinner } from 'primevue'
+
+import { useToast } from 'primevue'
+import { incorrectFileTypeErrorToast } from '@/lib/primevue/data/toasts'
+
+const toast = useToast()
 
 type Emits = {
   selectFile: [File]
@@ -56,6 +71,9 @@ type Props = {
   }
   error: boolean
   id: string
+  loading?: boolean
+  loadingMessage?: string
+  successMessageOnly?: string
 }
 
 const props = defineProps<Props>()
@@ -67,7 +85,8 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const dropzoneActive = ref(false)
 
 const currentState = computed(() => {
-  if (props.error) return 'error'
+  if (props.loading) return 'loading'
+  else if (props.error) return 'error'
   else if (props.file.name && props.file.size) return 'success'
   else return 'default'
 })
@@ -119,7 +138,11 @@ function inputChange(e: Event) {
 }
 
 function selectFile(file: File) {
-  if (file.type === 'text/csv') emit('selectFile', file)
+  if (file.type === 'text/csv') {
+    emit('selectFile', file)
+  } else {
+    toast.add(incorrectFileTypeErrorToast)
+  }
 }
 
 function removeFile() {
@@ -190,7 +213,7 @@ function removeFile() {
   color: var(--p-text-muted-color);
 }
 
-input[type="file"] {
+input[type='file'] {
   opacity: 0;
   width: 0;
   height: 0;
@@ -211,5 +234,14 @@ input[type="file"] {
 .file-size {
   margin-right: 12px;
   color: var(--p-text-muted-color);
+}
+
+.loading-view {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+  text-align: center;
+  font-weight: 500;
 }
 </style>

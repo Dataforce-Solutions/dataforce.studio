@@ -6,7 +6,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
-import { initPrimeVue } from './utils/primevue'
+import { initPrimeVue } from './lib/primevue'
 
 import VueApexCharts from "vue3-apexcharts";
 

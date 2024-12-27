@@ -23,13 +23,14 @@
 </template>
 
 <script setup lang="ts">
-import type { ITaskData } from './types'
+import type { TaskData } from './interfaces'
+
 import { CircleHelp } from 'lucide-vue-next'
 
 import { useRouter } from 'vue-router'
 
 type TProps = {
-  task: ITaskData
+  task: TaskData
 }
 
 const props = defineProps<TProps>()

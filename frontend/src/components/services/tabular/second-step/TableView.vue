@@ -157,6 +157,7 @@ const dataForFilters = computed(() => {
 .header-right {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .placeholder {
@@ -166,5 +167,32 @@ const dataForFilters = computed(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+@media (min-width: 993px) {
+  @media (max-width: 1200px) {
+    .header-left {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .header-info {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .header-right {
+    align-self: flex-end;
+    flex-wrap: wrap;
+  }
 }
 </style>

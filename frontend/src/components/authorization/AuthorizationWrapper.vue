@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import type { IAuthorizationService, TAuthorizationWrapperProps } from './types'
+import type { IAuthorizationService, TAuthorizationWrapperProps } from './interfaces'
 
 import GoogleIcon from '@/assets/img/authorization-services/google.svg'
 // import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'

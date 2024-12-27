@@ -8,9 +8,9 @@
       </p>
     </div>
     <div class="body">
-      <available-tasks />
+      <tasks-list label="Now available" :tasks="availableTasks" />
       <div class="divider"></div>
-      <not-available-tasks />
+      <tasks-list label="Coming soon" :tasks="notAvailableTasks" />
     </div>
   </div>
 </template>
@@ -18,12 +18,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 
-import AvailableTasks from '@/components/tasks/AvailableTasks.vue'
-import NotAvailableTasks from '@/components/tasks/NotAvailableTasks.vue'
+import TasksList from '@/components/homepage-tasks/TasksList.vue'
 
 import { useUserStore } from '@/stores/user'
 import { useToast } from 'primevue/usetoast'
-import { passwordResetSuccessToast } from '@/utils/primevue/data/toasts'
+
+import { passwordResetSuccessToast } from '@/lib/primevue/data/toasts'
+import { availableTasks, notAvailableTasks } from '@/constants/constants'
 
 const userStore = useUserStore()
 const toast = useToast()

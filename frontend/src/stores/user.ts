@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
 import type { IUser } from './user.interfaces'
 import { computed, ref } from 'vue'
-import { dataforceApi } from '@/utils/api'
+import { dataforceApi } from '@/lib/api'
 import type {
   IPostChangePasswordRequest,
   IUpdateUserRequest,
-} from '@/utils/api/DataforceApi.interfaces'
+} from '@/lib/api/DataforceApi.interfaces'
 import { useAuthStore } from './auth'
 import { useRouter } from 'vue-router'
 

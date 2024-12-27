@@ -1,9 +1,9 @@
 <template>
-  <service-wrapper :steps="steps"></service-wrapper>
+  <tabular-wrapper :steps="steps"></tabular-wrapper>
 </template>
 
 <script setup lang="ts">
-import ServiceWrapper from '@/components/services/ServiceWrapper.vue'
+import TabularWrapper from '@/components/services/tabular/TabularWrapper.vue'
 
 const steps = [
   {

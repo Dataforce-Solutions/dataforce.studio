@@ -1,6 +1,6 @@
 <template>
   <div class="area" @click="inputRef?.click()">
-    <d-avatar :image="newImage || image" size="xlarge" shape="circle" style="object-fit: cover;"/>
+    <d-avatar :image="newImage || image" size="xlarge" shape="circle" style="object-fit: cover" />
     <input
       ref="inputRef"
       type="file"
@@ -18,7 +18,7 @@
 import avatarPlaceholder from '@/assets/img/avatar-placeholder.png'
 import { ref } from 'vue'
 
-type TEmits = {
+type Emits = {
   (e: 'onImageChange', file: File | null): void
 }
 
@@ -33,7 +33,7 @@ defineProps({
   },
 })
 
-const emit = defineEmits<TEmits>()
+const emit = defineEmits<Emits>()
 
 const inputRef = ref<HTMLInputElement>()
 

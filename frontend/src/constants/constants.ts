@@ -1,10 +1,37 @@
-import type { ITaskData } from './types'
+import type { TaskData } from '@/components/homepage-tasks/interfaces'
+
+import { FolderDot, CirclePlay, Zap } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
 import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg'
 
-type IAppTaskData = ITaskData & {
+export const sidebarMenu = [
+  {
+    id: 1,
+    label: 'Express task',
+    icon: Zap,
+    route: 'home',
+  },
+  {
+    id: 2,
+    label: 'Run time',
+    icon: CirclePlay,
+    route: 'sign-up',
+    disabled: true,
+    tooltipMessage: 'Coming soon!',
+  },
+  {
+    id: 3,
+    label: 'Projects',
+    icon: FolderDot,
+    route: 'sign-up',
+    disabled: true,
+    tooltipMessage: 'Coming soon!',
+  },
+]
+
+type IAppTaskData = TaskData & {
   isAvailable: boolean
 }
 
@@ -51,5 +78,5 @@ const appTasks: IAppTaskData[] = [
   },
 ]
 
-export const availableTasks: ITaskData[] = appTasks.filter((task) => task.isAvailable)
-export const notAvailableTasks: ITaskData[] = appTasks.filter((task) => !task.isAvailable)
+export const availableTasks = appTasks.filter((task) => task.isAvailable)
+export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)

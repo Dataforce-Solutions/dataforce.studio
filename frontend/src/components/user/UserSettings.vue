@@ -106,9 +106,9 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
-import type { IUpdateUserRequest } from '@/utils/api/DataforceApi.interfaces'
+import type { IUpdateUserRequest } from '@/lib/api/DataforceApi.interfaces'
 import { userSettingResolver } from '@/utils/forms/resolvers'
-import { userProfileUpdateSuccessToast } from '@/utils/primevue/data/toasts'
+import { userProfileUpdateSuccessToast } from '@/lib/primevue/data/toasts'
 import { storeToRefs } from 'pinia'
 
 const userStore = useUserStore()
@@ -118,12 +118,12 @@ const confirm = useConfirm()
 const router = useRouter()
 const toast = useToast()
 
-type TEmits = {
+type Emits = {
   (e: 'showChangePassword'): void
   (e: 'close'): void
 }
 
-defineEmits<TEmits>()
+defineEmits<Emits>()
 
 const initialValues = ref({
   username: getUserFullName.value || '',

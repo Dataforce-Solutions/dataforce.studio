@@ -8,7 +8,7 @@
     </div>
     <div class="area">
       <file-input
-      id="table"
+        id="table"
         :file
         :error="hasError"
         @select-file="(e) => $emit('selectFile', e)"
@@ -93,7 +93,7 @@ import { ExternalLink, X, Check } from 'lucide-vue-next'
 
 import CSVIcon from '@/assets/img/icons/csv.svg'
 
-import FileInput from '../ui/FileInput.vue'
+import FileInput from '@/components/ui/FileInput.vue'
 
 type Props = {
   isTableExist: boolean

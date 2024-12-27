@@ -27,7 +27,7 @@
           </d-button>
         </div>
       </StepPanel>
-      <StepPanel v-slot="{ activateCallback }" :value="2">
+      <StepPanel v-slot="{ activateCallback }" :value="2" :style="{ margin: '0 -90px 0 -60px' }">
         <table-view
           v-if="currentStep === 2 && columnsCount && rowsCount && viewValues"
           :columns-count="columnsCount"
@@ -47,7 +47,7 @@
         />
         <div class="navigation">
           <d-button label="Back" severity="secondary" @click="activateCallback(1)" />
-          <d-button :disabled="!isStepAvailable(3)" @click="onStep2ContinueClick">
+          <d-button @click="startTraining">
             <span style="font-weight: 500">Continue</span>
             <arrow-right width="14" height="14" />
           </d-button>
@@ -55,13 +55,21 @@
       </StepPanel>
       <StepPanel :value="3">
         <service-evaluate
-          v-if="currentStep === 3"
-          :selected-columns="selectedColumns.length ? selectedColumns : getAllColumnNames"
+          v-if="currentStep === 3 && trainingModelId"
+          :prediction-fields="getPredictionFields"
+          :total-score="getTotalScore"
+          :test-metrics="getTestMetrics"
+          :training-metrics="getTrainingMetrics"
+          :features="getTop5Feature"
+          :predicted-data="getPredictedData as Record<string, []>"
+          :is-train-mode="isTrainMode"
+          :download-model-callback="downloadModel"
+          :training-model-id="trainingModelId"
         />
       </StepPanel>
     </StepPanels>
   </Stepper>
-  <d-dialog v-model:visible="training" modal :closable="false" :closeOnEscape="false">
+  <d-dialog v-model:visible="isLoading" modal :closable="false" :closeOnEscape="false">
     <template #container>
       <training-progress :time="8" />
     </template>
@@ -71,6 +79,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { Tasks } from '@/lib/data-processing/interfaces'
+
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
 import StepPanels from 'primevue/steppanels'
@@ -78,12 +88,13 @@ import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
 import { ArrowRight } from 'lucide-vue-next'
 
-import UploadData from './UploadData.vue'
-import ServiceEvaluate from './ServiceEvaluate.vue'
-import TableView from './TableView.vue'
-import TrainingProgress from './TrainingProgress.vue'
+import UploadData from './first-step/UploadData.vue'
+import ServiceEvaluate from './third-step/ServiceEvaluate.vue'
+import TableView from './second-step/TableView.vue'
+import TrainingProgress from './second-step/TrainingProgress.vue'
 
 import { useDataTable } from '@/hooks/useDataTable'
+import { useModelTraining } from '@/hooks/useModelTraining'
 
 type TProps = {
   steps: {
@@ -123,23 +134,46 @@ const {
   setSelectedColumns,
   downloadCSV,
   setFilters,
+  getDataForTraining,
 } = useDataTable(tableValidator)
+const {
+  isLoading,
+  startTraining: startModelTraining,
+  isTrainingSuccess,
+  getTotalScore,
+  getTestMetrics,
+  getTrainingMetrics,
+  getTop5Feature,
+  getPredictedData,
+  isTrainMode,
+  trainingModelId,
+  downloadModel,
+} = useModelTraining()
 
 const currentStep = ref(1)
-const training = ref(false)
-const trainingResult = ref(null)
 
 const isStepAvailable = computed(() => (id: number) => {
+  if (currentStep.value === 3) return
+
   if (id === 1) return true
-  if (id === 2) return isTableExist.value && !isUploadWithErrors.value
-  if (id === 3) return isTableExist.value && !isUploadWithErrors.value // trainingResult.value
+  else if (id === 2) return isTableExist.value && !isUploadWithErrors.value
+  else if (id === 3) return false
+})
+const getPredictionFields = computed(() => {
+  const columns = selectedColumns.value.length ? selectedColumns.value : getAllColumnNames.value
+  return columns.filter((column) => column !== getTarget.value)
 })
 
-function startTraining() {
-  training.value = true
-}
-function onStep2ContinueClick() {
-  startTraining()
+async function startTraining() {
+  const data = getDataForTraining()
+  const target = getTarget.value
+  const groups = getGroup.value
+  const task = Tasks.TABULAR_CLASSIFICATION
+  await startModelTraining({ data, target, task, groups })
+
+  if (isTrainingSuccess.value) {
+    currentStep.value = 3
+  }
 }
 </script>
 
