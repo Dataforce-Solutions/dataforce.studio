@@ -148,7 +148,7 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   try {
     await authStore.signUp(data)
 
-    router.push({ name: 'home' })
+    router.push({ name: 'email-check' })
   } catch (e: any) {
     const errorDetails = e.response?.data.detail
 

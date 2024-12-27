@@ -32,7 +32,7 @@
             {{ $form.email.error?.message }}
           </d-message>
         </div>
-        <d-button type="submit" label="Sign up" rounded />
+        <d-button type="submit" label="Send email" rounded />
       </d-form>
     </template>
     <template #footer>

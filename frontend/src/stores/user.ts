@@ -42,14 +42,8 @@ export const useUserStore = defineStore('user', () => {
     user.value = null
   }
 
-  const resetPassword = async () => {
-    isPasswordHasBeenChanged.value = true
-
-    router.push({ name: 'home' })
-
-    setTimeout(() => {
-      isPasswordHasBeenChanged.value = false
-    }, 3000)
+  const resetPassword = async (reset_token: string, new_password: string) => {
+    return dataforceApi.resetPassword({ reset_token, new_password })
   }
 
   const updateUser = async (data: IUpdateUserRequest) => {

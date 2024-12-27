@@ -14,10 +14,10 @@
         @click="$router.push({ name: 'sign-up' })"
       />
     </template>
-    <template #footer>
+    <!--<template #footer>
       <span>Did not receive it?</span>
       <router-link :to="{ name: 'sign-in' }" class="link"> Resend link</router-link>
-    </template>
+    </template>-->
   </authorization-wrapper>
 </template>
 

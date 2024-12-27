@@ -16,13 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuth = ref(false)
 
   const signUp = async (data: IPostSignupRequest) => {
-    const { access_token, refresh_token }: IPostSignupResponse = await dataforceApi.signUp(data)
-
-    saveTokens(access_token, refresh_token)
-
-    isAuth.value = true
-
-    await usersStore.loadUser()
+    return await dataforceApi.signUp(data)
   }
 
   const signIn = async (data: IPostSignInRequest) => {

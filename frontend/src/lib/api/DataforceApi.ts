@@ -18,6 +18,7 @@ import type {
   IPostForgotPasswordRequest,
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
+  IResetPasswordRequest,
 } from './DataforceApi.interfaces'
 
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
@@ -99,5 +100,9 @@ export class DataforceApiClass {
     const { data: responseData } = await this.api.post('/auth/logout', data)
 
     return responseData
+  }
+  
+  public async resetPassword(data: IResetPasswordRequest) {
+    await this.api.post('/auth/reset-password', data)
   }
 }

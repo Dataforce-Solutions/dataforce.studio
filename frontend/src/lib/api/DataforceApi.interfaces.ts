@@ -5,9 +5,7 @@ export interface IPostSignupRequest {
 }
 
 export interface IPostSignupResponse {
-  access_token: string
-  token_type: string
-  refresh_token: string
+  detail: string
 }
 
 export interface IPostSignInRequest {
@@ -78,4 +76,9 @@ export interface IPostForgotPasswordResponse {
 
 export interface IGetGoogleLoginRequest {
   code: string
+}
+
+export interface IResetPasswordRequest {
+  reset_token: string
+  new_password: string
 }

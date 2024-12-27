@@ -57,31 +57,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeMount, ref } from 'vue'
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
 import MainImage from '@/assets/img/form-bg.webp'
 import type { FormSubmitEvent } from '@primevue/forms'
+import { useToast } from 'primevue'
+import { useRouter } from 'vue-router'
 
 import { useUserStore } from '@/stores/user'
+
 import { resetPasswordInitialValues } from '@/utils/forms/initialValues'
 import { resetPasswordResolver } from '@/utils/forms/resolvers'
+import { passwordResetSuccessToast } from '@/lib/primevue/data/toasts'
 
 const userStore = useUserStore()
+const toast = useToast()
+const router = useRouter()
 
 const initialValues = ref(resetPasswordInitialValues)
-
 const resolver = ref(resetPasswordResolver)
+const token = ref<string | null>(null)
 
-const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
-  if (!valid) {
-    console.error('Form invalid')
+const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
+  if (!valid || !token.value) return
 
-    return
+  try {
+    await userStore.resetPassword(token.value, values.password)
+
+    toast.add(passwordResetSuccessToast)
+    router.push({ name: 'sign-in' })
+  } catch (error) {
+    console.error(error)
   }
-
-  userStore.resetPassword()
 }
+
+onBeforeMount(() => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const urlToken = urlParams.get('token')
+  if (urlToken) token.value = urlToken
+})
 </script>
 
 <style scoped>

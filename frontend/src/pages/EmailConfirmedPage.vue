@@ -11,7 +11,7 @@
         label="Go to account"
         rounded
         fluid
-        @click="$router.push({ name: 'home' })"
+        @click="$router.push({ name: 'sign-in' })"
       />
     </template>
   </authorization-wrapper>
