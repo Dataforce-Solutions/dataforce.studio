@@ -1,13 +1,12 @@
 from enum import Enum
 
-from pydantic import BaseModel, EmailStr
-from pydantic_core._pydantic_core import Url
+from pydantic import BaseModel, EmailStr, HttpUrl
 from starlette.authentication import BaseUser
 
 
 class AuthProvider(str, Enum):
-    EMAIL = "email"
-    GOOGLE = "google"
+    EMAIL = "EMAIL"
+    GOOGLE = "GOOGLE"
 
 
 class User(BaseModel):
@@ -16,19 +15,27 @@ class User(BaseModel):
     disabled: bool | None = None
     email_verified: bool = False
     auth_method: AuthProvider
-    photo: Url = Url(
-        "https://previews.123rf.com/images/vectorshots/vectorshots1309/vectorshots130901404/22318678-cute-boy-cartoon-face-vector.jpg"
-    )
+    photo: HttpUrl | None = None
+
+
+class ServiceUser(User):
+    hashed_password: str
+
+    def to_user(self) -> User:
+        return User(
+            email=self.email,
+            full_name=self.full_name,
+            disabled=self.disabled,
+            email_verified=self.email_verified,
+            auth_method=self.auth_method,
+            photo=self.photo,
+        )
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     refresh_token: str | None = None
-
-
-class UserInDB(User):
-    hashed_password: str | None
 
 
 class AuthUser(BaseUser):

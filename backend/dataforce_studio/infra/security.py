@@ -32,7 +32,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
                 return None
 
             try:
-                user = self.auth_handler.handle_get_current_user(email)
+                user = await self.auth_handler.handle_get_current_user(email)
                 auth_user = AuthUser(
                     email=user.email,
                     full_name=user.full_name,

@@ -32,7 +32,7 @@ async def signup(
     full_name: Annotated[str | None, Form()] = None,
 ) -> dict:
     try:
-        return auth_handler.handle_signup(email, password, full_name)
+        return await auth_handler.handle_signup(email, password, full_name)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -43,7 +43,7 @@ async def signin(
     password: Annotated[str, Form(min_length=8)],
 ) -> Token:
     try:
-        return auth_handler.handle_signin(email, password)
+        return await auth_handler.handle_signin(email, password)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -76,7 +76,7 @@ async def google_callback(request: Request, code: str = None) -> Token:
 @auth_router.post("/refresh", response_model=Token)
 async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
     try:
-        return auth_handler.handle_refresh_token(refresh_token)
+        return await auth_handler.handle_refresh_token(refresh_token)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -84,7 +84,7 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
 @auth_router.post("/forgot-password")
 async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
     try:
-        link = auth_handler.send_password_reset_email(email)
+        link = await auth_handler.send_password_reset_email(email)
         # temp returning token for testing
     except AuthError as e:
         raise handle_auth_error(e) from e
@@ -98,7 +98,7 @@ async def get_current_user(
     if isinstance(request.user, UnauthenticatedUser):
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return auth_handler.handle_get_current_user(request.user.email)
+        return await auth_handler.handle_get_current_user(request.user.email)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -108,7 +108,8 @@ async def delete_account(
     request: Request,
 ) -> dict[str, str]:
     try:
-        return auth_handler.handle_delete_account(request.user.email)
+        await auth_handler.handle_delete_account(request.user.email)
+        return {"detail": "Account deleted successfully"}
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -130,10 +131,10 @@ async def update_user_profile(
         #     await auth_handler.handle_update_email(email)
 
         if full_name:
-            auth_handler.handle_change_name(request.user.email, full_name)
+            await auth_handler.handle_change_name(request.user.email, full_name)
 
         if current_password and new_password:
-            auth_handler.handle_change_password(
+            await auth_handler.handle_change_password(
                 request.user.email, current_password, new_password
             )
 
@@ -172,7 +173,8 @@ async def logout(
     try:
         auth_header = request.headers.get("Authorization")
         access_token = auth_header.split()[1] if auth_header else None
-        return auth_handler.handle_logout(access_token, refresh_token)
+        await auth_handler.handle_logout(access_token, refresh_token)
+        return {"detail": "Successfully logged out"}
     except AuthError as e:
         raise handle_auth_error(e) from e
 
@@ -182,7 +184,7 @@ async def confirm_email(
     confirmation_token: str,
 ) -> RedirectResponse:
     try:
-        auth_handler.handle_email_confirmation(confirmation_token)
+        await auth_handler.handle_email_confirmation(confirmation_token)
         return RedirectResponse("http://localhost:5173/email-confirmed")
     except AuthError as e:
         raise handle_auth_error(e) from e
@@ -194,6 +196,7 @@ async def reset_password(
     new_password: Annotated[str, Form(min_length=8)],
 ) -> dict[str, str]:
     try:
-        return auth_handler.handle_reset_password(reset_token, new_password)
+        await auth_handler.handle_reset_password(reset_token, new_password)
+        return {"detail": "Password reset successfully"}
     except AuthError as e:
         raise handle_auth_error(e) from e
