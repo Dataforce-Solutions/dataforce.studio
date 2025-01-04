@@ -23,7 +23,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
             if scheme.lower() != "bearer":
                 return None
 
-            if self.auth_handler.is_token_blacklisted(token):
+            if await self.auth_handler.is_token_blacklisted(token):
                 return None
 
             try:
@@ -32,7 +32,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
                 return None
 
             try:
-                user = self.auth_handler.handle_get_current_user(email)
+                user = await self.auth_handler.handle_get_current_user(email)
                 auth_user = AuthUser(
                     email=user.email,
                     full_name=user.full_name,
