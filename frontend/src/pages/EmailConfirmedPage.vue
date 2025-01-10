@@ -20,5 +20,5 @@
 <script setup lang="ts">
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
-import MainImage from '@/assets/img/sign-up.png'
+import MainImage from '@/assets/img/form-bg.webp'
 </script>

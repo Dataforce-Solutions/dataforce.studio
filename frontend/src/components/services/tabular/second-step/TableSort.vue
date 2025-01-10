@@ -1,5 +1,11 @@
 <template>
-  <d-button severity="secondary" rounded variant="outlined" @click="toggleSort">
+  <d-overlay-badge v-if="multiSortMeta.length" :value="multiSortMeta.length">
+    <d-button severity="secondary" rounded variant="outlined" @click="toggleSort">
+      <span>Sort</span>
+      <ArrowDownUp width="14" height="14" />
+    </d-button>
+  </d-overlay-badge>
+  <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleSort">
     <span>Sort</span>
     <ArrowDownUp width="14" height="14" />
   </d-button>
@@ -7,7 +13,11 @@
     <div class="popover-wrapper" :style="{ width: '36.8rem' }">
       <div class="sort-list">
         <div v-for="sortItem in sortData" :key="sortItem.id" class="sort-item">
-          <d-select :options="columns" v-model="sortItem.selectedColumn" />
+          <d-select
+            :options="columnsForSelect"
+            v-model="sortItem.selectedColumn"
+            :optionDisabled="(option: string) => isOptionDisabled(option, sortItem.id)"
+          />
           <div class="sort-radio">
             <div class="radio">
               <d-radio-button
@@ -96,6 +106,17 @@ const isSortAvailable = computed(() => {
     return acc
   }, true)
 })
+const columnsForSelect = computed(() => {
+  const columnsForSelect = [...props.columns]
+
+  const selected = sortData.value
+    .filter((item) => !columnsForSelect.includes(item.selectedColumn))
+    .map((item) => item.selectedColumn)
+
+  columnsForSelect.push(...selected)
+
+  return columnsForSelect
+})
 
 function toggleSort(event: any) {
   sortPopover.value.toggle(event)
@@ -104,9 +125,11 @@ function deleteSort(id: number) {
   sortData.value = sortData.value.filter((item) => item.id !== id)
 }
 function addSort() {
+  const selectedColumnsNames = sortData.value.map((item) => item.selectedColumn)
+  const currentColumn = props.columns.find((column) => !selectedColumnsNames.includes(column))
   sortData.value.push({
     id: sortData.value.length + 1,
-    selectedColumn: props.columns[0],
+    selectedColumn: currentColumn || '',
     sortOrder: null,
   })
 }
@@ -130,6 +153,9 @@ function apply() {
   }))
   emit('update:multiSortMeta', JSON.parse(JSON.stringify(newMultiSortMeta)))
   sortPopover.value.toggle()
+}
+function isOptionDisabled(option: string, id: number) {
+  return sortData.value.find((item) => item.selectedColumn === option && item.id !== id)
 }
 </script>
 

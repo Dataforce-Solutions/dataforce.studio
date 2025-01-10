@@ -45,7 +45,7 @@
 import { ref } from 'vue'
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
-import MainImage from '@/assets/img/sign-up.png'
+import MainImage from '@/assets/img/form-bg.webp'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useToast } from 'primevue/usetoast'

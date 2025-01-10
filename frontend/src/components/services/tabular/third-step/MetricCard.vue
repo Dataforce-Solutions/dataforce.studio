@@ -19,7 +19,7 @@
 type Props = {
   title: string
   items: {
-    value: number
+    value: string
   }[]
 }
 

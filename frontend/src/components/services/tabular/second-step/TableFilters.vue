@@ -17,7 +17,6 @@
             placeholder="Column"
             :options="columnSelectOptions"
             v-model="filter.column"
-            :optionDisabled="(option: string) => isColumnSelectOptionDisabled(option, filter.id)"
           />
           <d-select
             placeholder="Type"
@@ -124,9 +123,6 @@ const getInputType = computed(() => (column: string) => {
   }
 })
 
-function isColumnSelectOptionDisabled(column: string, filterId: number) {
-  return currentFilters.value.find((filter) => filter.column === column && filter.id !== filterId)
-}
 function getCurrentFilters() {
   return props.filters.length
     ? JSON.parse(JSON.stringify(props.filters))

@@ -92,7 +92,6 @@
       <d-button label="save changes" type="submit" :disabled="userStore.isUserDisabled" />
     </div>
   </d-form>
-  <d-confirm-dialog style="width: 21.75rem"></d-confirm-dialog>
 </template>
 
 <script setup lang="ts">
@@ -110,6 +109,7 @@ import type { IUpdateUserRequest } from '@/lib/api/DataforceApi.interfaces'
 import { userSettingResolver } from '@/utils/forms/resolvers'
 import { userProfileUpdateSuccessToast } from '@/lib/primevue/data/toasts'
 import { storeToRefs } from 'pinia'
+import { deleteAccountConfirmOptions } from '@/lib/primevue/data/confirm'
 
 const userStore = useUserStore()
 const { getUserFullName, getUserEmail, isUserLoggedWithSSO } = storeToRefs(userStore)
@@ -149,23 +149,12 @@ const showSuccess = (detail?: string) => {
 }
 
 const deleteAccountConfirm = () => {
-  confirm.require({
-    message: 'Deleting your account is permanent and irreversible. ',
-    header: 'Are you sure?',
-    rejectProps: {
-      label: 'cancel',
-    },
-    acceptProps: {
-      label: 'delete account',
-      severity: 'warn',
-      outlined: true,
-    },
-    accept: async () => {
-      await userStore.deleteAccount()
+  const accept = async () => {
+    await userStore.deleteAccount()
+    router.push({ name: 'sign-up' })
+  }
 
-      router.push({ name: 'sign-up' })
-    },
-  })
+  confirm.require(deleteAccountConfirmOptions(accept))
 }
 
 const onAvatarChange = (payload: File | null) => {

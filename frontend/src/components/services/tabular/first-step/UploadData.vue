@@ -143,15 +143,15 @@ async function selectSample() {
 
 <style scoped>
 .wrapper {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
 }
 
 .headings {
-  margin-bottom: 1rem;
+  margin-bottom: 3rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .area {
@@ -159,7 +159,7 @@ async function selectSample() {
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
   box-shadow: var(--card-shadow);
-  padding: 2rem;
+  padding: 3rem;
   gap: 16px;
   display: grid;
   grid-template-columns: 1fr 227px;

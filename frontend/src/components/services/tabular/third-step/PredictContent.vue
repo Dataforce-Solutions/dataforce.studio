@@ -97,6 +97,8 @@ const downloadPredictBlob = ref<Blob | null>(null)
 const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
 
 async function onManualSubmit() {
+  predictionText.value = ''
+
   const data = prepareManualData()
 
   const predictRequest = { data, model_id: props.modelId }
@@ -122,16 +124,13 @@ function prepareManualData() {
   const data: any = {}
 
   for (const key in manualValues.value) {
-    const value = manualValues.value[key]
+    const value = manualValues.value[key].trim()
 
     if (!value) continue
 
-    const array = value.split(',').map((item) => {
-      item = item.trim()
-      return isNaN(Number(item)) ? item : Number(item)
-    })
+    const formattedValue = isNaN(Number(value)) ? value : Number(value)
 
-    data[key] = array
+    data[key] = [formattedValue]
   }
 
   return data

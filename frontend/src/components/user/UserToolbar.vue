@@ -142,6 +142,8 @@ const onChangePasswordSuccess = () => {
   --menu-item-color: #334155;
 }
 .user-open-button {
+  font-size: 1.125rem;
+  font-weight: 500;
   padding: 8px;
   display: flex;
   color: var(--color-text);

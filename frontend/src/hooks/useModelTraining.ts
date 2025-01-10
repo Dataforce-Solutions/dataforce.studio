@@ -19,6 +19,7 @@ export const useModelTraining = () => {
   const modelsIdList = ref<string[]>([])
   const trainingModelId = ref<string | null>(null)
   const modelBlob = ref<Blob | null>(null)
+  const currentTaskName = ref('')
 
   const getTotalScore = computed(() =>
     trainingData.value ? toPercent(trainingData.value.test_metrics.SC_SCORE) : 0,
@@ -56,6 +57,7 @@ export const useModelTraining = () => {
         modelsIdList.value.push(result.model_id)
         saveModel(result.model)
         isTrainingSuccess.value = true
+        currentTaskName.value = data.task
       } else {
         throw new Error(result?.error_message || 'Unknown error')
       }
@@ -90,13 +92,16 @@ export const useModelTraining = () => {
     modelBlob.value = new Blob([modelBytes])
   }
 
-  function downloadModel(fileName: string) {
+  function downloadModel() {
     if (!modelBlob.value) throw new Error('There is no model to download')
+
+    const timestamp = Date.now()
+    const filename = `${currentTaskName.value}_${timestamp}.dfs`
 
     const url = URL.createObjectURL(modelBlob.value)
     const a = document.createElement('a')
     a.href = url
-    a.download = fileName
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

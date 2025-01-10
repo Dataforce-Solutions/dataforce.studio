@@ -3,7 +3,7 @@
     <header class="card-header">
       <h3 class="card-title">
         Detailed view
-        <info v-if="isTrainMode" width="20" height="20" v-tooltip.bottom="`Warning`" />
+        <info v-if="isTrainMode" width="20" height="20" />
       </h3>
       <div class="detailed-actions">
         <!--<div class="highlight-toggle-wrapper">

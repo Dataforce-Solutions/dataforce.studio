@@ -9,7 +9,7 @@
         >{{ step.text }}</Step
       >
     </StepList>
-    <StepPanels>
+    <StepPanels class="steppanels">
       <StepPanel v-slot="{ activateCallback }" :value="1">
         <upload-data
           v-if="currentStep === 1"
@@ -27,7 +27,7 @@
           </d-button>
         </div>
       </StepPanel>
-      <StepPanel v-slot="{ activateCallback }" :value="2" :style="{ margin: '0 -90px 0 -60px' }">
+      <StepPanel v-slot="{ activateCallback }" :value="2" :style="{ margin: '0 -80px 0 -80px' }">
         <table-view
           v-if="currentStep === 2 && columnsCount && rowsCount && viewValues"
           :columns-count="columnsCount"
@@ -178,6 +178,14 @@ async function startTraining() {
 </script>
 
 <style scoped>
+.stepper {
+  padding-top: 1rem;
+}
+
+.steppanels {
+  padding: 0;
+}
+
 .navigation {
   display: flex;
   gap: 24px;
@@ -192,13 +200,13 @@ async function startTraining() {
     background-color: var(--p-content-background);
     padding-top: 4px;
     padding-bottom: 44px;
-    padding-right: 100px;
+    padding-right: 105px;
     width: 100%;
     z-index: 5;
   }
 }
 
-@media (max-height: 950px) {
+@media (max-height: 1050px) {
   .navigation {
     position: fixed;
     bottom: 0;
@@ -206,7 +214,7 @@ async function startTraining() {
     background-color: var(--p-content-background);
     padding-top: 4px;
     padding-bottom: 44px;
-    padding-right: 100px;
+    padding-right: 105px;
     width: 100%;
     z-index: 5;
   }

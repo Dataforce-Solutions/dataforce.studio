@@ -85,7 +85,7 @@ import type { IPostSignInRequest } from '@/lib/api/DataforceApi.interfaces'
 import { ref, watch } from 'vue'
 
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
-import MainImage from '@/assets/img/sign-up.png'
+import MainImage from '@/assets/img/form-bg.webp'
 
 import { signInInitialValues } from '@/utils/forms/initialValues'
 import { signInResolver } from '@/utils/forms/resolvers'

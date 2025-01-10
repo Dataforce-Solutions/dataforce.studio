@@ -15,11 +15,11 @@
           <span>predict</span>
           <wand-sparkles width="14" height="14" />
         </d-button>
-        <d-button severity="secondary" @click="downloadModelCallback('dataforce-model')">
+        <d-button severity="secondary" @click="downloadModelCallback()">
           <span>download</span>
           <cloud-download width="14" height="14" />
         </d-button>
-        <d-button label="finish" @click="$router.push({ name: 'home' })" />
+        <d-button label="finish" @click="finishConfirm" />
       </div>
     </header>
     <div class="body">
@@ -29,6 +29,7 @@
           <info
             width="20"
             height="20"
+            class="info-icon"
             v-tooltip.bottom="
               `Track your model's effectiveness through performance metrics. Higher scores indicate better predictions and generalization to new data`
             "
@@ -53,10 +54,11 @@
       </div>
       <div class="features card">
         <header class="card-header">
-          <h3 class="card-title">Top 5 features</h3>
+          <h3 class="card-title">Top {{ features.length }} features</h3>
           <info
             width="20"
             height="20"
+            class="info-icon"
             v-tooltip.bottom="
               `Understand which features play the biggest role in your model's outcomes to guide further data analysis`
             "
@@ -94,6 +96,11 @@ import DetailedTable from './DetailedTable.vue'
 import PredictContent from './PredictContent.vue'
 import { table } from 'arquero'
 
+import { useConfirm } from 'primevue/useconfirm'
+import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
+
+import { useRouter } from 'vue-router'
+
 type Props = {
   predictionFields: string[]
   totalScore: number
@@ -107,6 +114,17 @@ type Props = {
 }
 
 const props = defineProps<Props>()
+
+const router = useRouter()
+const confirm = useConfirm()
+
+const finishConfirm = () => {
+  const accept = async () => {
+    router.push({ name: 'home' })
+  }
+
+  confirm.require(dashboardFinishConfirmOptions(accept))
+}
 
 const totalScoreOptions = ref(getRadialBarOptions())
 const isPredictVisible = ref(false)
@@ -216,5 +234,9 @@ onBeforeMount(() => {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.info-icon {
+  color: var(--p-icon-muted-color);
 }
 </style>

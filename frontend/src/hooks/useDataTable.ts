@@ -1,6 +1,8 @@
 import { DataTableArquero, type SelectTableEvent } from '@/lib/data-table/DataTableArquero'
 import type { FilterItem } from '@/lib/data-table/interfaces'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useToast } from 'primevue'
+import { incorrectGroupWarning, incorrectTargetWarning } from '@/lib/primevue/data/toasts'
 
 type StartedColumnData = {
   fileSize: number
@@ -14,6 +16,8 @@ type StartedColumnData = {
 export type ColumnType = 'number' | 'string' | 'date'
 
 export const useDataTable = (validator: Function) => {
+  const toast = useToast()
+
   const dataTable = new DataTableArquero()
 
   const startedTableData = ref<StartedColumnData | null>()
@@ -94,10 +98,18 @@ export const useDataTable = (validator: Function) => {
     }
   }
   function setTarget(column: string) {
-    if (!getGroup.value.includes(column)) target.value = column
+    if (getGroup.value.includes(column)) {
+      toast.add(incorrectTargetWarning)
+      return
+    }
+
+    target.value = column
   }
   function changeGroup(column: string) {
-    if (target.value === column) return
+    if (target.value === column) {
+      toast.add(incorrectGroupWarning)
+      return
+    }
 
     group.value.includes(column)
       ? (group.value = group.value.filter((item) => item !== column))
@@ -107,7 +119,7 @@ export const useDataTable = (validator: Function) => {
     viewValues.value = dataTable.getObjects()
   }
   function downloadCSV() {
-    dataTable.downloadCSV('dataforce')
+    dataTable.downloadCSV(`dfs-${startedTableData.value?.fileName}`)
   }
   function setSelectedColumns(columns: string[]) {
     dataTable.setSelectedColumns(columns)
@@ -158,6 +170,6 @@ export const useDataTable = (validator: Function) => {
     setSelectedColumns,
     downloadCSV,
     setFilters,
-    getDataForTraining
+    getDataForTraining,
   }
 }

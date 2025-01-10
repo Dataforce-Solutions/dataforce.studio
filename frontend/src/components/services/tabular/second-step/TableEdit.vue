@@ -1,5 +1,11 @@
 <template>
-  <d-button severity="secondary" rounded variant="outlined" @click="togglePopover">
+  <d-overlay-badge v-if="hideColumnsCount" :value="hideColumnsCount">
+    <d-button severity="secondary" rounded variant="outlined" @click="togglePopover">
+      <span>Edit columns</span>
+      <PenLine width="14" height="14" />
+    </d-button>
+  </d-overlay-badge>
+  <d-button v-else severity="secondary" rounded variant="outlined" @click="togglePopover">
     <span>Edit columns</span>
     <PenLine width="14" height="14" />
   </d-button>
@@ -36,7 +42,7 @@
 
 <script setup lang="ts">
 import { PenLine, Target } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed, onUpdated, ref, watch } from 'vue'
 
 type Column = {
   selected: boolean
@@ -67,6 +73,11 @@ const visibleColumns = computed(() => {
       column.name.includes(searchValue.value.trim()),
     )
   return selectedColumnsCurrent.value
+})
+const hideColumnsCount = computed(() => {
+  if (!props.selectedColumns.length) return 0
+
+  return props.columns.length - props.selectedColumns.length
 })
 
 function fillSelectedColumns(allColumns: string[], selectedColumns: string[]) {

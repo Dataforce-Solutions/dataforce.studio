@@ -1,5 +1,6 @@
 <template>
   <d-toast style="top: 105px" />
+  <d-confirm-dialog style="width: 21.75rem" />
   <app-template>
     <RouterView />
   </app-template>

@@ -21,7 +21,7 @@
         />
         <table-edit
           :columns="allColumns"
-          :selected-columns="[]"
+          :selected-columns="selectedColumns"
           :target="target"
           @edit="(event) => $emit('edit', event)"
         />
@@ -124,6 +124,7 @@ const dataForFilters = computed(() => {
 .wrapper {
   padding: 12px 12px 0 12px;
   background-color: var(--p-card-background);
+  margin-top: 2.25rem;
   margin-bottom: 16px;
   border-radius: 8px;
   overflow: hidden;

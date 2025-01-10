@@ -3,7 +3,7 @@ export const getMetricsCards = (testValues: number[], trainingValues: number[]) 
 
   return titles.map((title, index) => ({
     title,
-    items: [{ value: testValues[index] }, { value: trainingValues[index] }],
+    items: [{ value: testValues[index].toFixed(2) }, { value: trainingValues[index].toFixed(2) }],
   }))
 }
 

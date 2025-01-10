@@ -34,7 +34,9 @@
         </div>
       </div>
     </div>
-    <img :src="image" alt="dataforce.studio" class="img" />
+    <div class="image">
+      <img :src="image" alt="dataforce.studio" class="img" />
+    </div>
   </div>
 </template>
 
@@ -101,6 +103,7 @@ onBeforeMount(async () => {
   background-color: var(--color-card-background);
   border-radius: 16px;
   max-width: 1360px;
+  min-height: 746px;
   margin: 0 auto;
   overflow: hidden;
   box-shadow: var(--card-shadow);
@@ -197,7 +200,14 @@ onBeforeMount(async () => {
   color: var(--color-text-muted);
 }
 
+.image {
+  position: relative;
+}
+
 .img {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;

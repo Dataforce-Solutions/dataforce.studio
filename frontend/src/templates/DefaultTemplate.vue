@@ -22,7 +22,7 @@ const sidebarWidth = ref(0)
 function calcSidebarWidth() {
   if (!sidebarRef.value) return
 
-  sidebarWidth.value = sidebarRef.value.$el.clientWidth
+  sidebarWidth.value = sidebarRef.value.$el.offsetWidth
 }
 
 let resizeObserver: ResizeObserver
@@ -30,10 +30,8 @@ let resizeObserver: ResizeObserver
 onMounted(() => {
   calcSidebarWidth()
 
-  resizeObserver = new ResizeObserver((entries) => {
-    for (let entry of entries) {
-      sidebarWidth.value = entry.contentRect.width
-    }
+  resizeObserver = new ResizeObserver(() => {
+    calcSidebarWidth()
   })
 
   if (sidebarRef.value) {
