@@ -94,6 +94,7 @@ import { ExternalLink, X, Check } from 'lucide-vue-next'
 import CSVIcon from '@/assets/img/icons/csv.svg'
 
 import FileInput from '@/components/ui/FileInput.vue'
+import { Tasks } from '@/lib/data-processing/interfaces'
 
 type Props = {
   isTableExist: boolean
@@ -106,6 +107,7 @@ type Props = {
     name?: string
     size?: number
   }
+  task: Tasks
 }
 
 type Emits = {
@@ -130,12 +132,14 @@ const hasError = computed(() => {
 })
 
 async function selectSample() {
-  const fileUrl = new URL('@/assets/data/iris.csv', import.meta.url).href
+  const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv';
+  const filePath =  `../../../../assets/data/${fileName}`
+  const fileUrl = new URL(filePath, import.meta.url).href
 
   const response = await fetch(fileUrl)
   const text = await response.text()
 
-  const file = new File([text], 'iris.csv', { type: 'text/csv' })
+  const file = new File([text], fileName, { type: 'text/csv' })
 
   if (file) emit('selectFile', file)
 }

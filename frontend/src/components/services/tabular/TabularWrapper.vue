@@ -16,6 +16,7 @@
           :errors="uploadDataErrors"
           :is-table-exist="isTableExist"
           :file="fileData"
+          :task="task"
           @selectFile="onSelectFile"
           @removeFile="onRemoveFile"
         />
@@ -61,10 +62,11 @@
           :test-metrics="getTestMetrics"
           :training-metrics="getTrainingMetrics"
           :features="getTop5Feature"
-          :predicted-data="getPredictedData as Record<string, []>"
+          :predicted-data="(getPredictedData as Record<string, []>)"
           :is-train-mode="isTrainMode"
           :download-model-callback="downloadModel"
           :training-model-id="trainingModelId"
+          :current-task="currentTask"
         />
       </StepPanel>
     </StepPanels>
@@ -101,9 +103,10 @@ type TProps = {
     id: number
     text: string
   }[]
+  task: Tasks
 }
 
-defineProps<TProps>()
+const props = defineProps<TProps>()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
@@ -147,6 +150,7 @@ const {
   getPredictedData,
   isTrainMode,
   trainingModelId,
+  currentTask,
   downloadModel,
 } = useModelTraining()
 
@@ -168,7 +172,7 @@ async function startTraining() {
   const data = getDataForTraining()
   const target = getTarget.value
   const groups = getGroup.value
-  const task = Tasks.TABULAR_CLASSIFICATION
+  const task = props.task
   await startModelTraining({ data, target, task, groups })
 
   if (isTrainingSuccess.value) {

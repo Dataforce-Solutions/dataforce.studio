@@ -1,9 +1,53 @@
-export const getMetricsCards = (testValues: number[], trainingValues: number[]) => {
-  const titles = ['Balanced accuracy', 'Precision', 'Recall', 'F1 score']
+import {
+  Tasks,
+  type ClassificationMetrics,
+  type RegressionMetrics,
+  type TrainingData,
+} from '@/lib/data-processing/interfaces'
+
+export const getMetrics = (
+  data: TrainingData<ClassificationMetrics | RegressionMetrics>,
+  task: Tasks,
+  metricsType: 'test_metrics' | 'train_metrics',
+) => {
+  if (task === Tasks.TABULAR_CLASSIFICATION) {
+    const metrics = data?.[metricsType] as ClassificationMetrics
+    return [
+      metrics?.ACC ? fixNumber(metrics.ACC, 2).toFixed(2) : '0',
+      metrics?.PRECISION ? fixNumber(metrics.PRECISION, 2).toFixed(2) : '0',
+      metrics?.RECALL ? fixNumber(metrics.RECALL, 2).toFixed(2) : '0',
+      metrics?.F1 ? fixNumber(metrics.F1, 2).toFixed(2) : '0',
+    ]
+  } else {
+    const metrics = data?.[metricsType] as RegressionMetrics
+    return [
+      metrics?.MSE ? getFormattedMetric(metrics.MSE) : '0',
+      metrics?.RMSE ? getFormattedMetric(metrics.RMSE) : '0',
+      metrics?.MAE ? getFormattedMetric(metrics.MAE) : '0',
+      metrics?.R2 ? getFormattedMetric(metrics.R2) : '0',
+    ]
+  }
+}
+
+const getFormattedMetric = (num: number) => {
+  if (Math.log10(Math.abs(num)) > 5) return formatNumberScientific(num)
+  else if (Math.log10(Math.abs(num)) > 2) return num.toFixed()
+
+  return num.toFixed(2)
+}
+
+export const getMetricsCards = (testValues: string[], trainingValues: string[], task: Tasks) => {
+  let titles: string[] = []
+
+  if (task === Tasks.TABULAR_CLASSIFICATION) {
+    titles = ['Balanced accuracy', 'Precision', 'Recall', 'F1 score']
+  } else {
+    titles = ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R² Score']
+  }
 
   return titles.map((title, index) => ({
     title,
-    items: [{ value: testValues[index].toFixed(2) }, { value: trainingValues[index].toFixed(2) }],
+    items: [{ value: testValues[index] }, { value: trainingValues[index] }],
   }))
 }
 
@@ -23,4 +67,11 @@ export const convertObjectToCsvBlob = (data: object): Blob => {
 
   const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+}
+
+export const formatNumberScientific = (num: number, significantDigits = 3) => {
+  return new Intl.NumberFormat('en', {
+    notation: 'scientific',
+    maximumSignificantDigits: significantDigits,
+  }).format(num)
 }

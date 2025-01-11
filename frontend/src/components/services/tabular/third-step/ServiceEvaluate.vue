@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ClassificationMetrics, TrainingImportance } from '@/lib/data-processing/interfaces'
+import type { Tasks, TrainingImportance } from '@/lib/data-processing/interfaces'
 
 import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
@@ -104,13 +104,14 @@ import { useRouter } from 'vue-router'
 type Props = {
   predictionFields: string[]
   totalScore: number
-  testMetrics: Omit<ClassificationMetrics, 'SC_SCORE'>
-  trainingMetrics: Omit<ClassificationMetrics, 'SC_SCORE'>
+  testMetrics: string[]
+  trainingMetrics: string[]
   features: TrainingImportance[]
   predictedData: Record<string, []>
   isTrainMode: boolean
   downloadModelCallback: Function
   trainingModelId: string
+  currentTask: Tasks | null
 }
 
 const props = defineProps<Props>()
@@ -130,17 +131,17 @@ const totalScoreOptions = ref(getRadialBarOptions())
 const isPredictVisible = ref(false)
 const detailedView = ref<any>([])
 
-const metricCardsData = computed(() =>
-  getMetricsCards(Object.values(props.testMetrics), Object.values(props.trainingMetrics)),
-)
+const metricCardsData = computed(() => props.currentTask ? getMetricsCards(props.testMetrics, props.trainingMetrics, props.currentTask) : [])
 const featuresData = computed(() => {
   const data = props.features.map((feature) => (feature.scaled_importance * 100).toFixed())
   return [{ data }]
 })
 const featuresOptions = computed(() =>
   getBarOptions(
-    props.features.map(
-      (feature) => `${feature.feature_name} (${(feature.scaled_importance * 100).toFixed()}%)`,
+    props.features.map((feature) => {
+      const name = feature.feature_name.length > 12 ? feature.feature_name.slice(0, 12) + '...' : feature.feature_name;
+      return `${name} (${(feature.scaled_importance * 100).toFixed()}%)`
+    }
     ),
   ),
 )

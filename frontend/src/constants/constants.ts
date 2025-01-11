@@ -53,7 +53,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Tabular Regression',
     description: 'Technique for categorizing table-structured data by labeled classes.',
     btnText: 'next',
-    linkName: 'home',
+    linkName: 'regression',
     tooltipData:
       'Works best for structured datasets, ideal for fields like finance, healthcare, real estate, and energy, where precise value predictions are crucial',
     isAvailable: true,

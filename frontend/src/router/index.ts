@@ -65,6 +65,11 @@ const router = createRouter({
       name: 'classification',
       component: () => import('../pages/ClassificationPage.vue'),
     },
+    {
+      path: '/regression',
+      name: 'regression',
+      component: () => import('../pages/RegressionPage.vue'),
+    },
   ],
 })
 

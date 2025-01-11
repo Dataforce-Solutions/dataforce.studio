@@ -1,5 +1,5 @@
 <template>
-  <tabular-wrapper :steps="steps" :task="Tasks.TABULAR_CLASSIFICATION"></tabular-wrapper>
+  <tabular-wrapper :steps="steps" :task="Tasks.TABULAR_REGRESSION"></tabular-wrapper>
 </template>
 
 <script setup lang="ts">

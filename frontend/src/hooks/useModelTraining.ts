@@ -1,6 +1,8 @@
 import {
+  Tasks,
   type ClassificationMetrics,
   type PredictRequestData,
+  type RegressionMetrics,
   type TaskPayload,
   type TrainingData,
 } from './../lib/data-processing/interfaces'
@@ -8,34 +10,40 @@ import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { predictErrorToast, trainingErrorToast } from '@/lib/primevue/data/toasts'
-import { fixNumber, toPercent } from '@/helpers/helpers'
+import { getMetrics, toPercent } from '@/helpers/helpers'
 
 export const useModelTraining = () => {
   const toast = useToast()
 
   const isLoading = ref(false)
   const isTrainingSuccess = ref(false)
-  const trainingData = ref<TrainingData<ClassificationMetrics> | null>(null)
+  const trainingData = ref<TrainingData<ClassificationMetrics | RegressionMetrics> | null>(null)
   const modelsIdList = ref<string[]>([])
   const trainingModelId = ref<string | null>(null)
   const modelBlob = ref<Blob | null>(null)
-  const currentTaskName = ref('')
+  const currentTask = ref<Tasks | null>(null)
 
   const getTotalScore = computed(() =>
     trainingData.value ? toPercent(trainingData.value.test_metrics.SC_SCORE) : 0,
   )
-  const getTestMetrics = computed(() => ({
-    ACC: trainingData.value ? fixNumber(trainingData.value.test_metrics.ACC, 2) : 0,
-    PRECISION: trainingData.value ? fixNumber(trainingData.value.test_metrics.PRECISION, 2) : 0,
-    RECALL: trainingData.value ? fixNumber(trainingData.value.test_metrics.RECALL, 2) : 0,
-    F1: trainingData.value ? fixNumber(trainingData.value.test_metrics.F1, 2) : 0,
-  }))
-  const getTrainingMetrics = computed(() => ({
-    ACC: trainingData.value ? fixNumber(trainingData.value?.train_metrics.ACC, 2) : 0,
-    PRECISION: trainingData.value ? fixNumber(trainingData.value?.train_metrics.PRECISION, 2) : 0,
-    RECALL: trainingData.value ? fixNumber(trainingData.value?.train_metrics.RECALL, 2) : 0,
-    F1: trainingData.value ? fixNumber(trainingData.value?.train_metrics.F1, 2) : 0,
-  }))
+  const getTestMetrics = computed(() => {
+    if (!trainingData.value) return [];
+
+    if (currentTask.value === Tasks.TABULAR_CLASSIFICATION) {
+      return getMetrics(trainingData.value, Tasks.TABULAR_CLASSIFICATION, 'test_metrics')
+    } else {
+      return getMetrics(trainingData.value, Tasks.TABULAR_REGRESSION, 'test_metrics')
+    }
+  })
+  const getTrainingMetrics = computed(() => {
+    if (!trainingData.value) return [];
+
+    if (currentTask.value === Tasks.TABULAR_CLASSIFICATION) {
+      return getMetrics(trainingData.value, Tasks.TABULAR_CLASSIFICATION, 'train_metrics')
+    } else {
+      return getMetrics(trainingData.value, Tasks.TABULAR_REGRESSION, 'train_metrics')
+    }
+  })
   const getTop5Feature = computed(
     () => trainingData.value?.importances.filter((item, index) => index < 5) || [],
   )
@@ -57,7 +65,7 @@ export const useModelTraining = () => {
         modelsIdList.value.push(result.model_id)
         saveModel(result.model)
         isTrainingSuccess.value = true
-        currentTaskName.value = data.task
+        currentTask.value = data.task
       } else {
         throw new Error(result?.error_message || 'Unknown error')
       }
@@ -96,7 +104,7 @@ export const useModelTraining = () => {
     if (!modelBlob.value) throw new Error('There is no model to download')
 
     const timestamp = Date.now()
-    const filename = `${currentTaskName.value}_${timestamp}.dfs`
+    const filename = `${currentTask.value}_${timestamp}.dfs`
 
     const url = URL.createObjectURL(modelBlob.value)
     const a = document.createElement('a')
@@ -126,6 +134,7 @@ export const useModelTraining = () => {
     isTrainMode,
     getPredictedData,
     trainingModelId,
+    currentTask,
     startTraining,
     downloadModel,
     startPredict,

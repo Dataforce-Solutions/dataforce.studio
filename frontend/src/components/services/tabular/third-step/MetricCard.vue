@@ -37,6 +37,11 @@ defineProps<Props>()
 .metric-title {
   margin-bottom: 16px;
 }
+@media (max-width: 991.98px) {
+  .metric-title {
+    font-size: 1rem;
+  }
+}
 .results {
   display: flex;
   gap: 52px;
