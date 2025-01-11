@@ -3,7 +3,7 @@
     <header class="card-header">
       <h3 class="card-title">
         Detailed view
-        <info v-if="isTrainMode" width="20" height="20" />
+        <info v-if="isTrainMode" width="20" height="20" class="warning-icon"/>
       </h3>
       <div class="detailed-actions">
         <!--<div class="highlight-toggle-wrapper">
@@ -128,5 +128,9 @@ const currentColumns = computed(() => Object.keys(props.values[0]))
 
 .table {
   font-size: 14px;
+}
+
+.warning-icon {
+  color: var(--p-tag-warn-color);
 }
 </style>

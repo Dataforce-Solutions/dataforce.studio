@@ -49,19 +49,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const checkIsLoggedId = async () => {
-    const refresh_token = localStorage.getItem('refreshToken')
-
-    if (!refresh_token) return
-
-    const { access_token, refresh_token: newRefreshToken } = await dataforceApi.refreshToken({
-      refresh_token,
-    })
-
-    saveTokens(access_token, newRefreshToken)
+    await usersStore.loadUser()
 
     isAuth.value = true
-
-    await usersStore.loadUser()
   }
 
   const saveTokens = (token: string, refreshToken?: string) => {

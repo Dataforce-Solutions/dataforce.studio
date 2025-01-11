@@ -31,14 +31,14 @@
         </d-button>
       </div>
     </header>
-    <div style="height: 39.62rem">
+    <div :style="{ height: tableHeight + 'px' }">
       <DataTable
         v-if="value.length"
         :value="value"
         showGridlines
         stripedRows
         scrollable
-        scrollHeight="39.62rem"
+        :scrollHeight="tableHeight + 'px'"
         :multiSortMeta="multiSortMeta"
         sortMode="multiple"
         :virtualScrollerOptions="{ itemSize: 46 }"
@@ -79,7 +79,7 @@ import TableColumnHeader from './TableColumnHeader.vue'
 
 import { CloudDownload } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 type Props = {
   columnsCount: number
@@ -105,6 +105,7 @@ const props = defineProps<Props>()
 defineEmits<Emits>()
 
 const multiSortMeta = ref([])
+const tableHeight = ref(0)
 
 const currentColumns = computed(() => (props.value.length ? Object.keys(props.value[0]) : []))
 const dataForFilters = computed(() => {
@@ -117,6 +118,19 @@ const dataForFilters = computed(() => {
     })
   }
   return data
+})
+
+function calcTableHeight() {
+  tableHeight.value = document.documentElement.clientHeight - 390
+}
+
+onMounted(() => {
+  calcTableHeight()
+  window.addEventListener('resize', calcTableHeight)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', calcTableHeight)
 })
 </script>
 

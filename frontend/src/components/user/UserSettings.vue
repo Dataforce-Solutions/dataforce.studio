@@ -123,7 +123,7 @@ type Emits = {
   (e: 'close'): void
 }
 
-defineEmits<Emits>()
+const emit = defineEmits<Emits>()
 
 const initialValues = ref({
   username: getUserFullName.value || '',
@@ -173,12 +173,16 @@ const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
 
   if (newAvatar.value) data.photo = newAvatar.value
 
-  if (!Object.keys(data).length) return
+  if (!Object.keys(data).length) {
+    emit('close')
+    return
+  }
 
   try {
     const response = await userStore.updateUser(data)
 
     showSuccess(response.detail)
+    emit('close')
   } catch (e: any) {
     formResponseError.value = e.response.data.detail || 'Form is invalid'
   }

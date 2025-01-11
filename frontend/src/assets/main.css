@@ -73,3 +73,11 @@
 .p-datatable-tbody .p-row-even {
   background-color: var(--p-card-background);
 }
+
+.p-dialog-mask:has(.modal-transparent-mask) {
+  background-color: transparent !important;
+}
+
+.p-tooltip {
+  font-size: 14px;
+}

@@ -39,6 +39,9 @@ const authStore = useAuthStore()
   gap: 40px;
   background-color: var(--color-primary);
 }
+.p-overflow-hidden .header {
+  padding-right: calc(var(--p-scrollbar-width) + 16px);
+}
 .logo {
 }
 .logo-img {

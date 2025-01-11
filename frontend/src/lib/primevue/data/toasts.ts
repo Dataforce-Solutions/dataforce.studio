@@ -63,3 +63,10 @@ export const incorrectGroupWarning: ToastMessageOptions = {
   detail: 'Target cannot be part of a group',
   life: 3000,
 }
+
+export const unknownErrorToast: ToastMessageOptions = {
+  severity: 'error',
+  summary: 'Error',
+  detail: 'An unknown error has occurred',
+  life: 3000,
+}

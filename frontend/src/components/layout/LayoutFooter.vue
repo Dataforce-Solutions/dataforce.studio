@@ -17,4 +17,8 @@
   font-weight: 300;
   line-height: 1.2;
 }
+
+.p-overflow-hidden .footer {
+  padding-right: calc(var(--p-scrollbar-width) + 8px);
+}
 </style>

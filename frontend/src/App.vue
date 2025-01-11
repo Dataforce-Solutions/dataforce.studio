@@ -13,11 +13,13 @@ import { onBeforeMount } from 'vue'
 
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
+import { useAppScrollbarFix } from './hooks/useAppScrollbarFix'
 
 import { DataProcessingWorker } from './lib/data-processing/DataProcessingWorker'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+useAppScrollbarFix()
 
 onBeforeMount(() => {
   DataProcessingWorker.initPyodide()

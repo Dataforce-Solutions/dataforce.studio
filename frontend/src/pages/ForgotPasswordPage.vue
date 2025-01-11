@@ -53,7 +53,7 @@ import { useAuthStore } from '@/stores/auth'
 
 import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
 import { forgotPasswordResolver } from '@/utils/forms/resolvers'
-import { emailSentVerifyToast } from '@/lib/primevue/data/toasts'
+import { emailSentVerifyToast, unknownErrorToast } from '@/lib/primevue/data/toasts'
 
 const toast = useToast()
 const authStore = useAuthStore()
@@ -68,9 +68,12 @@ const showSuccess = () => {
 const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
   if (!valid) return
 
-  await authStore.forgotPassword(initialValues.value.email)
-
-  showSuccess()
+  try {
+    await authStore.forgotPassword(initialValues.value.email)
+    showSuccess()
+  } catch (e) {
+    toast.add(unknownErrorToast)
+  }
 }
 </script>
 

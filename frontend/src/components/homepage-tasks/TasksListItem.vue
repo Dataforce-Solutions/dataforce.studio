@@ -2,7 +2,7 @@
   <div class="card">
     <div class="header">
       <img alt="user header" :src="task.icon" />
-      <div v-tooltip.left="task.tooltipData">
+      <div v-tooltip.left="task.tooltipData" autoHide="false">
         <circle-help />
       </div>
     </div>

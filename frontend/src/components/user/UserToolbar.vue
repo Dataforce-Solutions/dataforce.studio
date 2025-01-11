@@ -5,40 +5,42 @@
       <span>{{ mainButtonLabel }}</span>
       <chevron-down :size="14" />
     </d-button>
-    <d-menu ref="menu" :model="menuItems" :popup="true" style="padding: 24px 16px; width: 260px">
-      <template #start>
-        <header class="header">
-          <d-avatar :image="getUserAvatar" shape="circle" size="large"></d-avatar>
-          <div class="user-info">
-            <div class="user-name">{{ getUserFullName }}</div>
-            <div class="user-email">{{ getUserEmail }}</div>
-          </div>
-        </header>
-      </template>
-      <template #item="{ item, props }">
-        <div v-if="item.themeToggle" class="appearance">
-          <span>{{ item.label }}</span>
-          <div class="custom-toggle">
-            <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
-              <div class="custom-toggle-item custom-toggle-item-active">
-                <sun :size="14" />
-              </div>
-              <div class="custom-toggle-item">
-                <moon :size="14" />
+    <d-dialog v-model:visible="isDialogVisible" position="topright" :closable="false" :draggable="false" modal dismissableMask :style="{ marginTop: '85px'}" class="modal-transparent-mask">
+       <template #header>
+          <header class="header">
+            <d-avatar :image="getUserAvatar" shape="circle" size="large"></d-avatar>
+            <div class="user-info">
+              <div class="user-name">{{ getUserFullName }}</div>
+              <div class="user-email">{{ getUserEmail }}</div>
+            </div>
+          </header>
+        </template>
+      <d-menu :model="menuItems" :style="{backgroundColor:'transparent',border:'none',padding:'0',minWidth:'228px'}">
+        <template #item="{ item, props }">
+          <div v-if="item.themeToggle" class="appearance">
+            <span>{{ item.label }}</span>
+            <div class="custom-toggle">
+              <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
+                <div class="custom-toggle-item custom-toggle-item-active">
+                  <sun :size="14" />
+                </div>
+                <div class="custom-toggle-item">
+                  <moon :size="14" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
-          <span>{{ item.label }}</span>
-        </button>
-      </template>
-      <template #end>
-        <footer class="footer">
-          <button type="button" class="logout-button" @click="onButtonLogoutClick">Log out</button>
-        </footer>
-      </template>
-    </d-menu>
+          <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
+            <span>{{ item.label }}</span>
+          </button>
+        </template>
+      </d-menu>
+      <template #footer>
+          <footer class="footer">
+            <button type="button" class="logout-button" @click="onButtonLogoutClick">Log out</button>
+          </footer>
+        </template>
+    </d-dialog>
   </div>
   <d-dialog v-model:visible="isSettingsPopupVisible" modal :style="{ width: '37rem' }">
     <template #header>
@@ -85,7 +87,7 @@ const { getUserEmail, getUserFullName, getUserAvatar } = storeToRefs(userStore)
 
 const mainButtonLabel = computed(() => getUserFullName.value || 'Account')
 
-const menu = ref()
+const isDialogVisible = ref(false);
 const menuItems = ref([
   {
     label: 'Account',
@@ -114,8 +116,8 @@ const menuItems = ref([
 const isSettingsPopupVisible = ref(false)
 const isChangePasswordPopupVisible = ref(false)
 
-const toggleMenu = (event: MouseEvent) => {
-  menu.value.toggle(event)
+const toggleMenu = () => {
+  isDialogVisible.value = !isDialogVisible.value
 }
 
 const onButtonLogoutClick = async () => {
@@ -169,12 +171,12 @@ const onChangePasswordSuccess = () => {
 }
 
 .header {
+  width: 100%;
   display: flex;
   gap: 12px;
   align-items: center;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--color-divider-border);
-  margin-bottom: 24px;
 }
 
 .user-info-avatar {
@@ -208,7 +210,6 @@ const onChangePasswordSuccess = () => {
   padding: 7px;
   gap: 5px;
   align-items: center;
-  background-color: var(--p-menu-background);
 }
 
 .custom-toggle {
@@ -242,7 +243,7 @@ const onChangePasswordSuccess = () => {
 }
 
 .footer {
-  margin-top: 24px;
+  width: 100%;
   padding-top: 24px;
   border-top: 1px solid var(--color-divider-border);
 }

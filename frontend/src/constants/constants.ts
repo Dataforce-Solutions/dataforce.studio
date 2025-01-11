@@ -44,7 +44,7 @@ const appTasks: IAppTaskData[] = [
     btnText: 'next',
     linkName: 'classification',
     tooltipData:
-      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi sint minima labore ab tempora minus dolores repudiandae, tempore voluptate tenetur illo obcaecati, recusandae quae ipsa excepturi ad quia perspiciatis autem?',
+      'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
     isAvailable: true,
   },
   {
@@ -55,7 +55,7 @@ const appTasks: IAppTaskData[] = [
     btnText: 'next',
     linkName: 'home',
     tooltipData:
-      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi sint minima labore ab tempora minus dolores repudiandae, tempore voluptate tenetur illo obcaecati, recusandae quae ipsa excepturi ad quia perspiciatis autem?',
+      'Works best for structured datasets, ideal for fields like finance, healthcare, real estate, and energy, where precise value predictions are crucial',
     isAvailable: true,
   },
   {
@@ -64,7 +64,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Forecasting',
     description: 'Process of predicting future values based on historical data and trends.',
     tooltipData:
-      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi sint minima labore ab tempora minus dolores repudiandae, tempore voluptate tenetur illo obcaecati, recusandae quae ipsa excepturi ad quia perspiciatis autem?',
+      'Ideal for time-series data, commonly used in finance, retail, energy, and weather prediction to anticipate future trends or demands',
     isAvailable: false,
   },
   {
@@ -73,7 +73,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Conversational QA',
     description: 'An interactive system answering questions through dialogue.',
     tooltipData:
-      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi sint minima labore ab tempora minus dolores repudiandae, tempore voluptate tenetur illo obcaecati, recusandae quae ipsa excepturi ad quia perspiciatis autem?',
+      'Used in customer service to resolve inquiries, education for tutoring, healthcare for symptom checks, and e-commerce for guiding purchases',
     isAvailable: false,
   },
 ]
