@@ -133,8 +133,7 @@ const hasError = computed(() => {
 
 async function selectSample() {
   const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv';
-  const filePath =  `../../../../assets/data/${fileName}`
-  const fileUrl = new URL(filePath, import.meta.url).href
+  const fileUrl = props.task === Tasks.TABULAR_CLASSIFICATION ? new URL('@/assets/data/iris.csv', import.meta.url).href : new URL('@/assets/data/insurance.csv', import.meta.url).href;
 
   const response = await fetch(fileUrl)
   const text = await response.text()
