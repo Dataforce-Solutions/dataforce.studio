@@ -85,7 +85,7 @@ export const getBarOptions = (categories: string[]): ApexOptions => ({
     },
     labels: {
       align: 'left',
-      offsetX: -24,
+      offsetX: -12,
       style: {
         fontSize: '16px',
         cssClass: 'bar-label',
