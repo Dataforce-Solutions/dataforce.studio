@@ -1,12 +1,12 @@
 <template>
   <d-overlay-badge v-if="filters.length" :value="filters.length">
     <d-button severity="secondary" rounded variant="outlined" @click="toggleFilter">
-      <span>Filter</span>
+      <span class="fz-14 fw-500">Filter</span>
       <Filter width="14" height="14" />
     </d-button>
   </d-overlay-badge>
   <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleFilter">
-    <span>Filter</span>
+    <span class="fz-14 fw-500">Filter</span>
     <Filter width="14" height="14" />
   </d-button>
   <d-popover ref="filterPopover">

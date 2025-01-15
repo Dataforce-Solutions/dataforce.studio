@@ -26,7 +26,7 @@
           @edit="(event) => $emit('edit', event)"
         />
         <d-button severity="secondary" rounded variant="outlined" @click="exportCallback">
-          <span>Export</span>
+          <span class="fz-14 fw-500">Export</span>
           <CloudDownload width="14" height="14" />
         </d-button>
       </div>
@@ -42,6 +42,7 @@
         :multiSortMeta="multiSortMeta"
         sortMode="multiple"
         :virtualScrollerOptions="{ itemSize: 46 }"
+        size="small"
       >
         <Column
           v-for="column in currentColumns"

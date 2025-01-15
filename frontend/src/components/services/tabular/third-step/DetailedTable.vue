@@ -2,8 +2,7 @@
   <div>
     <header class="card-header">
       <h3 class="card-title">
-        Detailed view
-        <info v-if="isTrainMode" width="20" height="20" class="warning-icon"/>
+        Detailed view <triangle-alert v-if="isTrainMode" width="20" height="20" class="warning-icon"/>
       </h3>
       <div class="detailed-actions">
         <!--<div class="highlight-toggle-wrapper">
@@ -26,6 +25,7 @@
       scrollHeight="19rem"
       :virtualScrollerOptions="{ itemSize: 33 }"
       class="table"
+      size="small"
     >
       <Column
         v-for="column in currentColumns"
@@ -68,6 +68,7 @@
         scrollHeight="calc(100vh - 120px)"
         :virtualScrollerOptions="{ itemSize: 46 }"
         class="table"
+        size="small"
       >
         <Column
           v-for="column in currentColumns"
@@ -86,7 +87,7 @@ import { computed, ref } from 'vue'
 
 import { ToggleSwitch, DataTable, Column, Dialog } from 'primevue'
 
-import { Maximize2, Minimize2, Info } from 'lucide-vue-next'
+import { Maximize2, Minimize2, TriangleAlert } from 'lucide-vue-next'
 
 type Props = {
   values: object[]
@@ -131,6 +132,6 @@ const currentColumns = computed(() => Object.keys(props.values[0]))
 }
 
 .warning-icon {
-  color: var(--p-tag-warn-color);
+  color: var(--p-badge-danger-background);
 }
 </style>

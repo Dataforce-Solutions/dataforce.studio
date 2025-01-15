@@ -1,12 +1,12 @@
 <template>
   <d-overlay-badge v-if="multiSortMeta.length" :value="multiSortMeta.length">
     <d-button severity="secondary" rounded variant="outlined" @click="toggleSort">
-      <span>Sort</span>
+      <span class="fz-14 fw-500">Sort</span>
       <ArrowDownUp width="14" height="14" />
     </d-button>
   </d-overlay-badge>
   <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleSort">
-    <span>Sort</span>
+    <span class="fz-14 fw-500">Sort</span>
     <ArrowDownUp width="14" height="14" />
   </d-button>
   <d-popover ref="sortPopover">
