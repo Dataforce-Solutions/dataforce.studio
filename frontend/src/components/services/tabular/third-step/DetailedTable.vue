@@ -23,9 +23,10 @@
       stripedRows
       scrollable
       scrollHeight="19rem"
-      :virtualScrollerOptions="{ itemSize: 33 }"
+      :virtualScrollerOptions="{ itemSize: 31 }"
       class="table"
       size="small"
+      :style="{fontSize: '14px'}"
     >
       <Column
         v-for="column in currentColumns"
@@ -66,9 +67,10 @@
         stripedRows
         scrollable
         scrollHeight="calc(100vh - 120px)"
-        :virtualScrollerOptions="{ itemSize: 46 }"
+        :virtualScrollerOptions="{ itemSize: 31 }"
         class="table"
         size="small"
+        :style="{fontSize: '14px'}"
       >
         <Column
           v-for="column in currentColumns"

@@ -41,8 +41,9 @@
         :scrollHeight="tableHeight + 'px'"
         :multiSortMeta="multiSortMeta"
         sortMode="multiple"
-        :virtualScrollerOptions="{ itemSize: 46 }"
+        :virtualScrollerOptions="{ itemSize: 31 }"
         size="small"
+        :style="{fontSize: '14px'}"
       >
         <Column
           v-for="column in currentColumns"
