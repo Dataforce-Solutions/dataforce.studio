@@ -26,7 +26,7 @@
           @edit="(event) => $emit('edit', event)"
         />
         <d-button severity="secondary" rounded variant="outlined" @click="exportCallback">
-          <span class="fz-14 fw-500">Export</span>
+          <span>Export</span>
           <CloudDownload width="14" height="14" />
         </d-button>
       </div>

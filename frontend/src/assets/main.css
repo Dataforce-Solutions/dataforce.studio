@@ -82,10 +82,7 @@
   font-size: 14px;
 }
 
-.fz-14 {
-  font-size: 14px;
-}
-
-.fw-500 {
+.p-button {
+  font-size: 14px !important;
   font-weight: 500;
 }
