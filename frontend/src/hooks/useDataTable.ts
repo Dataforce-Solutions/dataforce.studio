@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useToast } from 'primevue'
 import { incorrectGroupWarning, incorrectTargetWarning } from '@/lib/primevue/data/toasts'
 
-type StartedColumnData = {
+type InitialTableData = {
   fileSize: number
   fileName: string
   columnsCount: number
@@ -12,23 +12,34 @@ type StartedColumnData = {
   columnNames: string[]
   values: object[]
 }
-
 export type ColumnType = 'number' | 'string' | 'date'
+
+const initialState = {
+  startedTableData: null,
+  columnsCount: undefined,
+  rowsCount: undefined,
+  target: '',
+  group: [],
+  selectedColumns: [],
+  filters: [],
+  viewValues: null,
+  columnTypes: {},
+}
 
 export const useDataTable = (validator: Function) => {
   const toast = useToast()
 
   const dataTable = new DataTableArquero()
 
-  const startedTableData = ref<StartedColumnData | null>()
-  const columnsCount = ref<number | undefined>()
-  const rowsCount = ref<number | undefined>()
-  const target = ref('')
-  const group = ref<string[]>([])
-  const selectedColumns = ref<string[]>([])
-  const filters = ref<FilterItem[]>([])
-  const viewValues = ref<object[] | null>(null)
-  const columnTypes = ref<Record<string, ColumnType>>({})
+  const startedTableData = ref<InitialTableData | null>(initialState.startedTableData)
+  const columnsCount = ref<number | undefined>(initialState.columnsCount)
+  const rowsCount = ref<number | undefined>(initialState.rowsCount)
+  const target = ref(initialState.target)
+  const group = ref<string[]>(initialState.group)
+  const selectedColumns = ref<string[]>(initialState.selectedColumns)
+  const filters = ref<FilterItem[]>(initialState.filters)
+  const viewValues = ref<object[] | null>(initialState.viewValues)
+  const columnTypes = ref<Record<string, ColumnType>>(initialState.columnTypes)
 
   const isTableExist = computed(() => !!startedTableData.value)
   const fileData = computed(() => ({
@@ -56,12 +67,10 @@ export const useDataTable = (validator: Function) => {
 
   async function onSelectFile(file: File) {
     await dataTable.createFormCSV(file)
-    rewriteValues()
   }
   function onRemoveFile() {
     dataTable.clearTable()
-    viewValues.value = null
-    setColumnTypes({})
+    resetState()
   }
   function setColumnTypes(row: object) {
     for (const key in row) {
@@ -69,20 +78,16 @@ export const useDataTable = (validator: Function) => {
       else columnTypes.value[key] = 'string'
     }
   }
-  function onColumnsCountChanged(count: number | undefined) {
-    columnsCount.value = count
-  }
-  function onRowsCountChanged(count: number | undefined) {
-    rowsCount.value = count
-  }
   function onSelectTable(event: SelectTableEvent) {
-    if (!event) {
-      startedTableData.value = null
-    } else {
+    resetState()
+
+    if (event) {
       const columnsCount = dataTable.getColumnsCount()
       const rowsCount = dataTable.getRowsCount()
       const columnNames = dataTable.getColumnNames()
       const values = dataTable.getObjects()
+
+      viewValues.value = dataTable.getObjects()
 
       target.value = columnNames[columnNames.length - 1]
       setColumnTypes(values[0])
@@ -102,7 +107,6 @@ export const useDataTable = (validator: Function) => {
       toast.add(incorrectTargetWarning)
       return
     }
-
     target.value = column
   }
   function changeGroup(column: string) {
@@ -110,13 +114,9 @@ export const useDataTable = (validator: Function) => {
       toast.add(incorrectGroupWarning)
       return
     }
-
     group.value.includes(column)
       ? (group.value = group.value.filter((item) => item !== column))
       : group.value.push(column)
-  }
-  function rewriteValues() {
-    viewValues.value = dataTable.getObjects()
   }
   function downloadCSV() {
     dataTable.downloadCSV(`dfs-${startedTableData.value?.fileName}`)
@@ -124,21 +124,32 @@ export const useDataTable = (validator: Function) => {
   function setSelectedColumns(columns: string[]) {
     dataTable.setSelectedColumns(columns)
     selectedColumns.value = dataTable.getSelectedColumns()
-    rewriteValues()
-    onColumnsCountChanged(dataTable.getColumnsCount())
+    viewValues.value = dataTable.getObjects()
+    columnsCount.value = dataTable.getColumnsCount()
   }
   function setFilters(newFilters: FilterItem[]) {
     dataTable.setFilters(newFilters)
     filters.value = newFilters
-    rewriteValues()
+    viewValues.value = dataTable.getObjects()
   }
   function getDataForTraining() {
     return dataTable.getDataForTraining()
   }
+  function resetState() {
+    startedTableData.value = initialState.startedTableData
+    columnsCount.value = initialState.columnsCount
+    rowsCount.value = initialState.rowsCount
+    target.value = initialState.target
+    group.value = initialState.group
+    selectedColumns.value = initialState.selectedColumns
+    filters.value = initialState.filters
+    viewValues.value = initialState.viewValues
+    columnTypes.value = initialState.columnTypes
+  }
 
   watch(startedTableData, (value) => {
-    onColumnsCountChanged(value?.columnsCount)
-    onRowsCountChanged(value?.rowsCount)
+    columnsCount.value = value?.columnsCount
+    rowsCount.value = value?.rowsCount
   })
 
   onMounted(() => {

@@ -52,6 +52,7 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
   }
 
   async createFormCSV(file: File) {
+    this.resetData()
     this.dataTable = fromCSV(await file.text())
 
     this.emit('SELECT_TABLE', { name: file.name, size: file.size })
@@ -82,8 +83,7 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
   }
 
   clearTable(): void {
-    this.dataTable = null
-
+    this.resetData()
     this.emit('SELECT_TABLE', null)
   }
 
@@ -121,5 +121,11 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
       return acc
     }, {} as any)
     return data
+  }
+
+  resetData() {
+    this.dataTable = null
+    this.selectedColumns = []
+    this.filters = []
   }
 }

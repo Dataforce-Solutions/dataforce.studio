@@ -139,7 +139,7 @@ const featuresData = computed(() => {
 const featuresOptions = computed(() =>
   getBarOptions(
     props.features.map((feature) => {
-      const name = feature.feature_name.length > 12 ? feature.feature_name.slice(0, 12) + '...' : feature.feature_name;
+      const name = feature.feature_name.length > 12 ? feature.feature_name.slice(0, 10) + '...' : feature.feature_name;
       return `${name} (${(feature.scaled_importance * 100).toFixed()}%)`
     }
     ),
