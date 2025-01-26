@@ -88,12 +88,10 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
 @auth_router.post("/forgot-password")
 async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
     try:
-        link = await auth_handler.send_password_reset_email(email)
-        link = link if link else "account doesn't exist"
-        # temp returning token for testing
+        await auth_handler.send_password_reset_email(email)
     except AuthError as e:
         raise handle_auth_error(e) from e
-    return {"detail": "Password reset email has been sent", "link_from_email": link}
+    return {"detail": "Password reset email has been sent"}
 
 
 @auth_router.get("/users/me", response_model=User)

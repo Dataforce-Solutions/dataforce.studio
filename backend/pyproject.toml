@@ -12,6 +12,7 @@ dependencies = [
     "passlib[bcrypt]==1.7.4",
     "psycopg==3.2.3",
     "pyjwt==2.9.0",
+    "sendgrid==6.11.0",
     "sqlalchemy[asyncio]==2.0.36",
     "uvicorn==0.32.0",
 ]
