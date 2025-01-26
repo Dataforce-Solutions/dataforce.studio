@@ -2,6 +2,7 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.authentication import UnauthenticatedUser
 from starlette.responses import RedirectResponse
@@ -9,11 +10,15 @@ from starlette.responses import RedirectResponse
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.models.auth import Token, User
 from dataforce_studio.models.errors import AuthError
+from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-auth_handler = AuthHandler()
+auth_handler = AuthHandler(
+    secret_key=config.AUTH_SECRET_KEY,
+    pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto"),
+)
 
 
 def handle_auth_error(error: AuthError) -> HTTPException:
@@ -51,9 +56,8 @@ async def signin(
 @auth_router.get("/google/login")
 async def google_login() -> RedirectResponse:
     params = {
-        "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
-        "apps.googleusercontent.com",
-        "redirect_uri": "https://dev.dataforce.studio/sign-in",
+        "client_id": config.GOOGLE_CLIENT_ID,
+        "redirect_uri": config.GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -186,7 +190,7 @@ async def confirm_email(
 ) -> RedirectResponse:
     try:
         await auth_handler.handle_email_confirmation(confirmation_token)
-        return RedirectResponse("http://localhost:5173/email-confirmed")
+        return RedirectResponse(config.CONFIRM_EMAIL_REDIRECT_URL)
     except AuthError as e:
         raise handle_auth_error(e) from e
 

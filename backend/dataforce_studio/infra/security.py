@@ -1,14 +1,19 @@
+from passlib.context import CryptContext
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.models.auth import AuthUser
 from dataforce_studio.models.errors import AuthError
+from dataforce_studio.settings import config
 
 
 class JWTAuthenticationBackend(AuthenticationBackend):
     def __init__(self) -> None:
-        self.auth_handler = AuthHandler()
+        self.auth_handler = AuthHandler(
+            secret_key=config.AUTH_SECRET_KEY,
+            pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto"),
+        )
 
     async def authenticate(
         self,

@@ -13,29 +13,32 @@ from dataforce_studio.models.auth import (
 from dataforce_studio.models.errors import AuthError
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.settings import config
 
 
 class AuthHandler:
-    __secret_key = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-    __pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     __user_repository = UserRepository()
     __token_black_list_repository = TokenBlackListRepository()
 
     def __init__(
         self,
+        secret_key: str,
+        pwd_context: CryptContext,
         algorithm: str = "HS256",
         access_token_expire: int = 10800,  # 3 hours
         refresh_token_expire: int = 604800,  # 7 days
     ) -> None:
+        self.secret_key = secret_key
         self.algorithm = algorithm
         self.access_token_expire = access_token_expire
         self.refresh_token_expire = refresh_token_expire
+        self.pwd_context = pwd_context
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.__pwd_context.verify(plain_password, hashed_password)
+        return self.pwd_context.verify(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
-        return self.__pwd_context.hash(password)
+        return self.pwd_context.hash(password)
 
     async def authenticate_user(self, email: str, password: str) -> User:
         service_user = await self.__user_repository.get_user(email)
@@ -53,7 +56,7 @@ class AuthHandler:
         to_encode = data.copy()
         expire = int(time()) + expires_delta
         to_encode.update({"exp": expire})
-        return jwt.encode(to_encode, self.__secret_key, algorithm=self.algorithm)
+        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
 
     def create_tokens(self, user_email: str) -> Token:
         access_token = self.create_token(
@@ -73,7 +76,7 @@ class AuthHandler:
     def verify_token(self, token: str) -> str:
         """Verify a token and return the user email"""
         try:
-            payload = jwt.decode(token, self.__secret_key, algorithms=[self.algorithm])
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             email: str = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 401)
@@ -113,7 +116,7 @@ class AuthHandler:
         }
 
     def _get_email_confirmation_link(self, token: str) -> str:
-        return f"https://dev-api.dataforce.studio/auth/confirm-email?confirmation_token={token}"
+        return config.CONFIRM_EMAIL_URL + token
 
     def send_confirmation_email(self, email: str, confirmation_token: str) -> None:
         pass
@@ -127,7 +130,7 @@ class AuthHandler:
         """Handle token refresh process"""
         try:
             payload = jwt.decode(
-                refresh_token, self.__secret_key, algorithms=[self.algorithm]
+                refresh_token, self.secret_key, algorithms=[self.algorithm]
             )
 
             if payload.get("type") != "refresh":
@@ -144,6 +147,8 @@ class AuthHandler:
 
             if service_user := await self.__user_repository.get_user(email) is None:
                 raise AuthError("User not found", 404)
+
+            exp = int(payload.get("exp"))
 
             await self.__token_black_list_repository.add_token(refresh_token, exp)
 
@@ -200,14 +205,14 @@ class AuthHandler:
         """Handle logout process"""
         try:
             payload = jwt.decode(
-                refresh_token, self.__secret_key, algorithms=[self.algorithm]
+                refresh_token, self.secret_key, algorithms=[self.algorithm]
             )
             exp = payload.get("exp")
 
             if access_token:
                 try:
                     access_payload = jwt.decode(
-                        access_token, self.__secret_key, algorithms=[self.algorithm]
+                        access_token, self.secret_key, algorithms=[self.algorithm]
                     )
                     exp = access_payload.get("exp")
                     await self.__token_black_list_repository.add_token(
@@ -224,10 +229,9 @@ class AuthHandler:
     async def handle_google_auth(self, code: str) -> Token:
         data = {
             "code": code,
-            "client_id": "1005997792037-17lj55mpmh2c43b7db51jr159bneqhqr."
-            "apps.googleusercontent.com",
-            "client_secret": "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",
-            "redirect_uri": "https://dev.dataforce.studio/sign-in",
+            "client_id": config.GOOGLE_CLIENT_ID,
+            "client_secret": config.GOOGLE_CLIENT_SECRET,
+            "redirect_uri": config.GOOGLE_REDIRECT_URI,
             "grant_type": "authorization_code",
         }
 
@@ -265,6 +269,7 @@ class AuthHandler:
                 auth_provider=AuthProvider.GOOGLE,
                 email_verified=True,
                 hashed_password="reset",
+                photo=photo_url,
             )
         if not service_user:
             service_user = await self.__user_repository.create_user(
@@ -275,6 +280,9 @@ class AuthHandler:
                 auth_method=AuthProvider.GOOGLE,
                 photo=photo_url,
             )
+
+        if photo_url != service_user.photo:
+            await self.__user_repository.update_user(email, photo=photo_url)
 
         return self.create_tokens(service_user.email)
 
@@ -299,11 +307,11 @@ class AuthHandler:
         return link  # return link for testing
 
     def _get_password_reset_link(self, token: str) -> str:
-        return f"http://localhost:5173/change-password?token={token}"
+        return config.CHANGE_PASSWORD_URL + token
 
     async def handle_email_confirmation(self, token: str) -> None:
         try:
-            payload = jwt.decode(token, self.__secret_key, algorithms=[self.algorithm])
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             email: str = payload.get("sub")
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err
@@ -322,7 +330,7 @@ class AuthHandler:
 
     async def handle_reset_password(self, token: str, new_password: str) -> None:
         try:
-            payload = jwt.decode(token, self.__secret_key, algorithms=[self.algorithm])
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             email: str = payload.get("sub")
             exp = payload.get("exp")
             if exp is None or exp < time():
