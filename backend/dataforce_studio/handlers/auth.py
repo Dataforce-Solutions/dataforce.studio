@@ -5,6 +5,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
+from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.models.auth import (
     AuthProvider,
     Token,
@@ -19,6 +20,7 @@ from dataforce_studio.settings import config
 class AuthHandler:
     __user_repository = UserRepository()
     __token_black_list_repository = TokenBlackListRepository()
+    __emails_handler = EmailHandler()
 
     def __init__(
         self,
@@ -108,18 +110,12 @@ class AuthHandler:
                 photo=None,
             )
         confirmation_token = self._generate_email_confirmation_token(email)
-        self.send_confirmation_email(email, confirmation_token)
-        link = self._get_email_confirmation_link(confirmation_token)
-        return {
-            "detail": "Please confirm your email address",
-            "link_from_email": link,
-        }
+        confirmation_link = self._get_email_confirmation_link(confirmation_token)
+        self.__emails_handler.send_activation_email(email, confirmation_link, full_name)
+        return {"detail": "Please confirm your email address"}
 
     def _get_email_confirmation_link(self, token: str) -> str:
         return config.CONFIRM_EMAIL_URL + token
-
-    def send_confirmation_email(self, email: str, confirmation_token: str) -> None:
-        pass
 
     async def handle_signin(self, email: str, password: str) -> Token:
         """Handle user signin process"""
@@ -300,11 +296,10 @@ class AuthHandler:
 
     async def send_password_reset_email(self, email: str) -> None:
         if not (service_user := await self.__user_repository.get_user(email)):
-            return None
+            return
         token = self._generate_password_reset_token(service_user.email)
         link = self._get_password_reset_link(token)
-        # send email
-        return link  # return link for testing
+        self.__emails_handler.send_password_reset_email(email, link)
 
     def _get_password_reset_link(self, token: str) -> str:
         return config.CHANGE_PASSWORD_URL + token
