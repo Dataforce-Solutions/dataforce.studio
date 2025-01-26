@@ -68,5 +68,6 @@ jobs:
             docker run -d \
               --restart always \
               --name $IMAGE_NAME \
+              --env-file .env \
               -p 8000:8000 \
               $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}
