@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     CONFIRM_EMAIL_URL: str
     CHANGE_PASSWORD_URL: str
 
+    SENDGRID_API_KEY: str
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
