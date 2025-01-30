@@ -61,11 +61,11 @@ defineProps<Props>()
 }
 
 .primary {
-  color: var(--color-primary);
+  color: var(--p-primary-color);
 }
 
 .primary .label {
-  color: var(--color-primary);
+  color: var(--p-primary-color);
 }
 
 .primary .value {

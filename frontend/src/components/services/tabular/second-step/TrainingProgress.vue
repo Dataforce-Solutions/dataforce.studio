@@ -40,12 +40,13 @@ defineProps<Props>()
   padding: 80px;
 }
 .title {
-  margin-bottom: 1rem;
-  font-size: 2rem;
+  margin-bottom: 12px;
+  font-size: 24px;
 }
 .text {
-  margin-bottom: 2rem;
+  margin-bottom: 28px;
   color: var(--p-text-muted-color);
+  line-height: 1.18;
 }
 .info {
   margin-top: 0.5rem;

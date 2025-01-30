@@ -1,9 +1,9 @@
 <template>
   <div class="card">
     <div class="header">
-      <img alt="user header" :src="task.icon" />
+      <img class="image" alt="" :src="task.icon" width="48" height="48" />
       <div v-tooltip.left="task.tooltipData" autoHide="false">
-        <circle-help />
+        <circle-help :size="20" class="tooltip-icon"/>
       </div>
     </div>
     <div class="content">
@@ -55,7 +55,11 @@ function onButtonClick() {
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 16px;
-  color: var(--color-icon-muted);
+  color: var(--p-icon-muted-color);
+}
+.image {
+  width: 48px;
+  height: 48px;
 }
 .content {
   display: flex;
@@ -71,12 +75,16 @@ function onButtonClick() {
   margin-bottom: 8px;
 }
 .text {
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
   font-size: 14px;
   line-height: 1.42;
 }
-.footer {
-}
-.w-full {
+@media (max-width: 768px) {
+  .tooltip-icon {
+    display: none;
+  }
+  .card {
+    padding: 15px;
+  }
 }
 </style>

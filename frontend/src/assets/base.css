@@ -1,36 +1,7 @@
 :root {
-  --color-content-background: #f8fafc;
-  --color-card-background: #ffffff;
-
-  --color-divider-border: #e2e8f0;
-
-  --color-text: #334155;
-  --color-text-muted: #64748b;
-  --color-text-link: #2673fd;
-
-  --color-primary: #2673fd;
-
-  --color-icon-muted: #64748b;
-
-  --p-card-background: #fff;
   --card-shadow: 0px 32px 9px 0px rgba(28, 43, 64, 0), 0px 21px 8px 0px rgba(28, 43, 64, 0),
     0px 12px 7px 0px rgba(28, 43, 64, 0.01), 0px 5px 5px 0px rgba(28, 43, 64, 0.02),
     0px 1px 3px 0px rgba(28, 43, 64, 0.02);
-}
-
-:root[data-theme='dark'] {
-  --color-content-background: #0a0a0a;
-  --color-card-background: #18181b;
-
-  --color-divider-border: #27272a;
-
-  --color-text: #ffffff;
-  --color-text-muted: #a1a1aa;
-  --color-text-link: #2563eb;
-
-  --color-primary: #1e3a8a;
-
-  --p-card-background: #18181b;
 }
 
 html {
@@ -39,8 +10,9 @@ html {
 
 body {
   min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-content-background);
+  min-width: 360px;
+  color: var(--p-text-color);
+  background: var(--p-content-background);
   font-family:
     Inter,
     -apple-system,

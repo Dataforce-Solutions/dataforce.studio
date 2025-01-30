@@ -161,12 +161,12 @@ onBeforeMount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding-top: 24px;
-  margin-bottom: 24px;
+  padding-top: 32px;
+  margin-bottom: 20px;
 }
 
 .title {
-  font-size: 2rem;
+  font-size: 24px;
 }
 
 .buttons {
@@ -199,11 +199,11 @@ onBeforeMount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 16px;
 }
 
 .card-title {
-  font-size: 1.5rem;
+  font-size: 20px;
 }
 
 .metric-cards {
@@ -239,5 +239,20 @@ onBeforeMount(() => {
 
 .info-icon {
   color: var(--p-icon-muted-color);
+}
+
+@media (max-width:768px){
+  .header {
+    padding-top: 8px;
+  }
+  .card {
+    padding: 16px;
+  }
+  .metric-cards {
+    grid-template-columns: 1fr;
+  }
+  .info-icon {
+    display: none;
+  }
 }
 </style>

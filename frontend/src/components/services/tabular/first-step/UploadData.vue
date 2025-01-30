@@ -132,8 +132,11 @@ const hasError = computed(() => {
 })
 
 async function selectSample() {
-  const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv';
-  const fileUrl = props.task === Tasks.TABULAR_CLASSIFICATION ? new URL('@/assets/data/iris.csv', import.meta.url).href : new URL('@/assets/data/insurance.csv', import.meta.url).href;
+  const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv'
+  const fileUrl =
+    props.task === Tasks.TABULAR_CLASSIFICATION
+      ? new URL('@/assets/data/iris.csv', import.meta.url).href
+      : new URL('@/assets/data/insurance.csv', import.meta.url).href
 
   const response = await fetch(fileUrl)
   const text = await response.text()
@@ -146,15 +149,15 @@ async function selectSample() {
 
 <style scoped>
 .wrapper {
-  padding-top: 3rem;
-  padding-bottom: 3rem;
+  padding-top: 32px;
+  padding-bottom: 32px;
 }
 
 .headings {
-  margin-bottom: 3rem;
+  margin-bottom: 24px;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 12px;
 }
 
 .area {
@@ -162,7 +165,7 @@ async function selectSample() {
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
   box-shadow: var(--card-shadow);
-  padding: 3rem;
+  padding: 36px;
   gap: 16px;
   display: grid;
   grid-template-columns: 1fr 227px;
@@ -209,6 +212,7 @@ async function selectSample() {
   color: var(--p-text-muted-color);
   font-weight: 500;
   padding-right: 10px;
+  max-width: 200px;
 }
 
 .sample {
@@ -247,6 +251,19 @@ async function selectSample() {
 
   .info {
     order: 3;
+  }
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    padding-top: 16px;
+    padding-bottom: 40px;
+  }
+  .info {
+    padding: 8px;
+  }
+  .area {
+    padding: 16px;
   }
 }
 </style>

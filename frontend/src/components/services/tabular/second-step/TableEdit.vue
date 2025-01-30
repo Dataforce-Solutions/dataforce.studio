@@ -1,12 +1,12 @@
 <template>
   <d-overlay-badge v-if="hideColumnsCount" :value="hideColumnsCount">
     <d-button severity="secondary" rounded variant="outlined" @click="togglePopover">
-      <span>Edit columns</span>
+      <span class="button-label">Edit columns</span>
       <PenLine width="14" height="14" />
     </d-button>
   </d-overlay-badge>
   <d-button v-else severity="secondary" rounded variant="outlined" @click="togglePopover">
-    <span>Edit columns</span>
+    <span class="button-label">Edit columns</span>
     <PenLine width="14" height="14" />
   </d-button>
   <d-popover ref="popover">
@@ -158,5 +158,11 @@ watch(isShowAll, (value) => {
 
 .divider {
   margin-top: 0;
+}
+
+@media (max-width: 768px) {
+  .button-label {
+    display: none;
+  }
 }
 </style>

@@ -9,10 +9,10 @@
 <style scoped>
 .footer {
   padding: 8px;
-  background-color: var(--color-content-background);
-  border-top: 1px solid var(--color-divider-border);
+  background-color: var(--p-content-background);
+  border-top: 1px solid var(--p-divider-border-color);
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
   font-size: 10px;
   font-weight: 300;
   line-height: 1.2;

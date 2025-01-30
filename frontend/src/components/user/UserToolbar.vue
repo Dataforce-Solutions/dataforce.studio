@@ -146,14 +146,14 @@ const onChangePasswordSuccess = () => {
 .user-open-button {
   font-size: 0.875rem;
   font-weight: 500;
-  padding: 8px;
+  padding: 7px 8px;
   display: flex;
-  color: var(--color-text);
+  color: var(--p-text-color);
 }
 
 @media (any-hover: hover) {
   .user-open-button:not(:disabled):hover {
-    color: var(--color-text);
+    color: var(--p-text-color);
   }
 }
 
@@ -176,7 +176,7 @@ const onChangePasswordSuccess = () => {
   gap: 12px;
   align-items: center;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-divider-border);
+  border-bottom: 1px solid var(--p-divider-border-color);
 }
 
 .user-info-avatar {
@@ -189,7 +189,7 @@ const onChangePasswordSuccess = () => {
   gap: 4px;
 }
 .user-email {
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
   font-size: 14px;
 }
 
@@ -245,7 +245,7 @@ const onChangePasswordSuccess = () => {
 .footer {
   width: 100%;
   padding-top: 24px;
-  border-top: 1px solid var(--color-divider-border);
+  border-top: 1px solid var(--p-divider-border-color);
 }
 
 .logout-button {

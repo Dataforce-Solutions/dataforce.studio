@@ -95,7 +95,7 @@
       "$type": "color"
     },
     "color": {
-      "$value": "{blue.900}",
+      "$value": "{blue.700}",
       "$type": "color"
     },
     "contrast": {
@@ -106,25 +106,25 @@
     },
     "hover": {
       "color": {
-        "$value": "{primary.800}",
+        "$value": "{primary.600}",
         "$type": "color"
       }
     },
     "active": {
       "color": {
-        "$value": "{primary.600}",
+        "$value": "{primary.500}",
         "$type": "color"
       }
     }
   },
   "highlight": {
     "background": {
-      "$value": "#34d39929",
+      "$value": "#2673fd40",
       "$type": "color"
     },
     "focus": {
       "background": {
-        "$value": "#34d3993d",
+        "$value": "#2673fd4d",
         "$type": "color"
       },
       "color": {
@@ -1086,13 +1086,13 @@
       "primary": {
         "hover": {
           "background": {
-            "$value": "#34d3990a",
+            "$value": "#2673fd0a",
             "$type": "color"
           }
         },
         "active": {
           "background": {
-            "$value": "#34d39929",
+            "$value": "#2673fd29",
             "$type": "color"
           }
         },
@@ -1304,13 +1304,13 @@
       "primary": {
         "hover": {
           "background": {
-            "$value": "#34d3990a",
+            "$value": "#2673fd0a",
             "$type": "color"
           }
         },
         "active": {
           "background": {
-            "$value": "#34d39929",
+            "$value": "#2673fd29",
             "$type": "color"
           }
         },
@@ -1510,11 +1510,11 @@
     },
     "padding": {
       "x": {
-        "$value": "{form.field.padding.x}",
+        "$value": 20,
         "$type": "number"
       },
       "y": {
-        "$value": "{form.field.padding.y}",
+        "$value": 10,
         "$type": "number"
       }
     },
@@ -2339,7 +2339,7 @@
   "tag": {
     "primary": {
       "background": {
-        "$value": "#10b98129",
+        "$value": "#2673fd29",
         "$type": "color"
       },
       "color": {
@@ -3678,7 +3678,7 @@
         "selected": {
           "border": {
             "color": {
-              "$value": "{primary.900}",
+              "$value": "{primary.700}",
               "$type": "color"
             }
           }
@@ -4110,7 +4110,7 @@
         "selected": {
           "border": {
             "color": {
-              "$value": "{primary.900}",
+              "$value": "{primary.700}",
               "$type": "color"
             }
           }
@@ -11397,7 +11397,7 @@
         },
         "font": {
           "size": {
-            "$value": 16.00200080871582,
+            "$value": 16.002,
             "$type": "number"
           },
           "weight": {
