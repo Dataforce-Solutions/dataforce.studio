@@ -19,13 +19,13 @@
             v-model="filter.column"
           />
           <d-select
-            placeholder="Type"
+            placeholder="Operator"
             :options="getFilterTypeSelectOptions(filter.column)"
             v-model="filter.filterType"
           />
           <d-input-text
             class="input"
-            placeholder="Parameter"
+            placeholder="Value"
             v-model="filter.parameter"
             :type="getInputType(filter.column)"
           />

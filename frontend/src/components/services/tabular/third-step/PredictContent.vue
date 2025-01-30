@@ -11,7 +11,7 @@
               :id="field"
               fluid
             />
-            <label class="label" :for="field">{{ field }}</label>
+            <label class="label" :for="field">{{ cutStringOnMiddle(field, 24) }}</label>
           </d-float-label>
         </div>
       </div>
@@ -33,18 +33,16 @@
         :successMessageOnly="predictReadyForDownload ? 'Success! You can download the file.' : ''"
         @selectFile="onSelectFile"
       />
+      <template v-if="predictReadyForDownload">
+        <!--<d-button label="Reset" type="reset" fluid @click="onRemoveFile" />-->
+        <d-button label="Download" type="submit" fluid @click="downloadPredict" />
+      </template>
       <d-button
-        v-if="predictReadyForDownload"
-        label="Download"
-        type="submit"
-        fluid
-        @click="downloadPredict"
-      />
-      <d-button
-        v-else="predictReadyForDownload"
+        v-else
         label="Predict"
         type="submit"
         fluid
+        :disabled="isPredictButtonDisabled"
         @click="onFileSubmit"
       />
     </div>
@@ -63,6 +61,8 @@ import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
 import { convertObjectToCsvBlob } from '@/helpers/helpers'
 
+import { cutStringOnMiddle } from '@/helpers/helpers'
+
 const { startPredict, isLoading } = useModelTraining()
 
 type Props = {
@@ -75,7 +75,7 @@ const props = defineProps<Props>()
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {}
 }
-const { isUploadWithErrors, fileData, onSelectFile, getDataForTraining } =
+const { isUploadWithErrors, fileData, onSelectFile, getDataForTraining, onRemoveFile } =
   useDataTable(tableValidator)
 
 const selectValue = ref<'Manual' | 'Upload file'>('Manual')
@@ -95,6 +95,7 @@ const filePredictWithError = ref(false)
 const downloadPredictBlob = ref<Blob | null>(null)
 
 const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
+const isPredictButtonDisabled = computed(() => !fileData.value.name || isUploadWithErrors.value)
 
 async function onManualSubmit() {
   predictionText.value = ''
@@ -135,14 +136,13 @@ function prepareManualData() {
 
   return data
 }
-
 function downloadPredict() {
   if (!downloadPredictBlob.value) return
 
   const url = URL.createObjectURL(downloadPredictBlob.value)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'dataforce-predict'
+  a.download = 'dfs-predictions'
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

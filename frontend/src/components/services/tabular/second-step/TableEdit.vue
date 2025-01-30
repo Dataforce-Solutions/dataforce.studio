@@ -12,12 +12,12 @@
   <d-popover ref="popover">
     <div class="popover-wrapper">
       <div class="main">
-        <d-input-text placeholder="Parameter" v-model="searchValue" />
+        <d-input-text placeholder="Column" v-model="searchValue" />
         <div class="list">
           <label v-for="column in visibleColumns" :key="column.name" class="column">
             <d-toggle-switch v-model="column.selected" :disabled="column.name === target" />
             <div class="item-title">
-              <span class="label">{{ column.name }}</span>
+              <span class="label">{{ cutStringOnMiddle(column.name, 24) }}</span>
               <Target
                 v-if="column.name === target"
                 width="16"
@@ -42,7 +42,9 @@
 
 <script setup lang="ts">
 import { PenLine, Target } from 'lucide-vue-next'
-import { computed, onUpdated, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+
+import { cutStringOnMiddle } from '@/helpers/helpers'
 
 type Column = {
   selected: boolean

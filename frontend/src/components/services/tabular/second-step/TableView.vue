@@ -54,7 +54,7 @@
           <template #header>
             <table-column-header
               :values="value"
-              :column="column"
+              :column="cutStringOnMiddle(column)"
               :group="group"
               :target="target"
               :column-type="columnTypes[column]"
@@ -82,6 +82,8 @@ import TableColumnHeader from './TableColumnHeader.vue'
 import { CloudDownload } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+import { cutStringOnMiddle } from '@/helpers/helpers'
 
 type Props = {
   columnsCount: number

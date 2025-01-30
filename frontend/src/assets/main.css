@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900&display=swap');
 @import './null.css';
 @import './theme/light-theme.css';
 @import './theme/dark-theme.css';
@@ -85,4 +86,12 @@
 .p-button {
   font-size: 14px !important;
   font-weight: 500;
+}
+
+.p-inputtext {
+  font-size: 16px;
+}
+
+.bar-label {
+  fill: var(--p-text-color);
 }

@@ -32,7 +32,7 @@
         v-for="column in currentColumns"
         :id="column"
         :field="column"
-        :header="column === '<=PREDICTED=>' ? 'Prediction' : column"
+        :header="column === '<=PREDICTED=>' ? 'Prediction' : cutStringOnMiddle(column)"
       >
       </Column>
     </DataTable>
@@ -76,7 +76,7 @@
           v-for="column in currentColumns"
           :id="column"
           :field="column"
-          :header="column === '<=PREDICTED=>' ? 'Prediction' : column"
+          :header="column === '<=PREDICTED=>' ? 'Prediction' : cutStringOnMiddle(column)"
         >
         </Column>
       </DataTable>
@@ -90,6 +90,8 @@ import { computed, ref } from 'vue'
 import { ToggleSwitch, DataTable, Column, Dialog } from 'primevue'
 
 import { Maximize2, Minimize2, TriangleAlert } from 'lucide-vue-next'
+
+import { cutStringOnMiddle } from '@/helpers/helpers'
 
 type Props = {
   values: object[]
