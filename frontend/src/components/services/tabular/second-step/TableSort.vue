@@ -1,16 +1,16 @@
 <template>
   <d-overlay-badge v-if="multiSortMeta.length" :value="multiSortMeta.length">
     <d-button severity="secondary" rounded variant="outlined" @click="toggleSort">
-      <span>Sort</span>
+      <span class="button-label">Sort</span>
       <ArrowDownUp width="14" height="14" />
     </d-button>
   </d-overlay-badge>
   <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleSort">
-    <span>Sort</span>
+    <span class="button-label">Sort</span>
     <ArrowDownUp width="14" height="14" />
   </d-button>
   <d-popover ref="sortPopover">
-    <div class="popover-wrapper" :style="{ width: '36.8rem' }">
+    <div class="popover-wrapper">
       <div class="sort-list">
         <div v-for="sortItem in sortData" :key="sortItem.id" class="sort-item">
           <d-select
@@ -162,6 +162,8 @@ function isOptionDisabled(option: string, id: number) {
 <style scoped>
 .popover-wrapper {
   padding: 1.5rem;
+  width: 639px;
+  max-width: calc(100vw - 24px);
 }
 
 .popover-footer {
@@ -198,5 +200,20 @@ function isOptionDisabled(option: string, id: number) {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .button-label {
+    display: none;
+  }
+  .popover-wrapper {
+    padding: 0;
+    padding-top: 8px;
+  }
+  .radio {
+    flex-direction: column;
+    gap: 0;
+  }
 }
 </style>

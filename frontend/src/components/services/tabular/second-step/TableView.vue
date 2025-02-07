@@ -26,7 +26,7 @@
           @edit="(event) => $emit('edit', event)"
         />
         <d-button severity="secondary" rounded variant="outlined" @click="exportCallback">
-          <span>Export</span>
+          <span class="button-label">Export</span>
           <CloudDownload width="14" height="14" />
         </d-button>
       </div>
@@ -43,7 +43,7 @@
         sortMode="multiple"
         :virtualScrollerOptions="{ itemSize: 31 }"
         size="small"
-        :style="{fontSize: '14px'}"
+        :style="{ fontSize: '14px' }"
       >
         <Column
           v-for="column in currentColumns"
@@ -125,7 +125,13 @@ const dataForFilters = computed(() => {
 })
 
 function calcTableHeight() {
-  tableHeight.value = document.documentElement.clientHeight - 390
+  let minusValue = 0
+  if (document.documentElement.clientWidth > 992) minusValue = 305
+  else if (document.documentElement.clientWidth > 768) minusValue = 345
+  else {
+    minusValue = 300
+  }
+  tableHeight.value = document.documentElement.clientHeight - minusValue
 }
 
 onMounted(() => {
@@ -140,12 +146,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wrapper {
-  padding: 12px 12px 0 12px;
+  padding: 12px;
+  padding-bottom: 0;
+  margin-bottom: 12px;
   background-color: var(--p-card-background);
-  margin-top: 2.25rem;
-  margin-bottom: 16px;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid var(--p-content-border-color);
 }
 
 .header {
@@ -211,6 +218,21 @@ onBeforeUnmount(() => {
   .header-right {
     align-self: flex-end;
     flex-wrap: wrap;
+  }
+}
+
+@media (min-width: 768px) {
+  .wrapper {
+    margin: 0 -80px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-info {
+    padding: 5px;
+  }
+  .button-label {
+    display: none;
   }
 }
 </style>

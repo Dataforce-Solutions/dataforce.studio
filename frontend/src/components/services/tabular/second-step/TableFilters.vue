@@ -1,23 +1,19 @@
 <template>
   <d-overlay-badge v-if="filters.length" :value="filters.length">
     <d-button severity="secondary" rounded variant="outlined" @click="toggleFilter">
-      <span>Filter</span>
+      <span class="button-label">Filter</span>
       <Filter width="14" height="14" />
     </d-button>
   </d-overlay-badge>
   <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleFilter">
-    <span>Filter</span>
+    <span class="button-label">Filter</span>
     <Filter width="14" height="14" />
   </d-button>
   <d-popover ref="filterPopover">
     <div class="popover-wrapper" :style="{ width: '39.9rem' }">
       <div class="filters-list">
         <div v-for="filter in currentFilters" :key="filter.id" class="filter-item">
-          <d-select
-            placeholder="Column"
-            :options="columnSelectOptions"
-            v-model="filter.column"
-          />
+          <d-select placeholder="Column" :options="columnSelectOptions" v-model="filter.column" />
           <d-select
             placeholder="Operator"
             :options="getFilterTypeSelectOptions(filter.column)"
@@ -173,6 +169,8 @@ function apply() {
 <style scoped>
 .popover-wrapper {
   padding: 1.5rem;
+  width: 639px;
+  max-width: calc(100vw - 24px);
 }
 
 .popover-footer {
@@ -200,5 +198,31 @@ function apply() {
 
 .input {
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .button-label {
+    display: none;
+  }
+  .popover-wrapper {
+    padding: 0;
+    padding-top: 8px;
+  }
+  .filter-item {
+    grid-template-columns: 35px 1fr 1fr 35px;
+  }
+  .filter-item:not(:last-child) {
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--p-divider-border-color);
+  }
+  .filter-item > *:nth-child(1) {
+    grid-column: span 2;
+  }
+  .filter-item > *:nth-child(2) {
+    grid-column: span 2;
+  }
+  .filter-item > *:nth-child(3) {
+    grid-column: span 3;
+  }
 }
 </style>

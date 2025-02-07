@@ -15,13 +15,23 @@
           </d-float-label>
         </div>
       </div>
-      <d-button label="Predict" type="submit" fluid @click="onManualSubmit" />
-      <div class="input-wrapper">
-        <d-float-label variant="on">
-          <Textarea v-model="predictionText" id="prediction" fluid rows="4" />
-          <label class="label" for="prediction">Prediction</label>
-        </d-float-label>
-      </div>
+      <d-button
+        label="Predict"
+        type="submit"
+        fluid
+        :disabled="isManualPredictButtonDisabled"
+        @click="onManualSubmit"
+      />
+      <Textarea
+        class="prediction"
+        v-model="predictionText"
+        id="prediction"
+        fluid
+        rows="4"
+        :style="{ resize: 'none' }"
+        disabled
+        placeholder="Prediction"
+      />
     </div>
     <div v-else class="upload">
       <file-input
@@ -30,11 +40,12 @@
         :error="isUploadWithErrors || filePredictWithError"
         :loading="isLoading"
         loading-message="Loading prediction..."
-        :successMessageOnly="predictReadyForDownload ? 'Success! You can download the file.' : ''"
-        @selectFile="onSelectFile"
+        :success-message-only="predictReadyForDownload ? 'Success! You can download the file.' : ''"
+        success-remove-text="Upload new dataset"
+        @select-file="onSelectFile"
+        @remove-file="onRemoveFile"
       />
       <template v-if="predictReadyForDownload">
-        <!--<d-button label="Reset" type="reset" fluid @click="onRemoveFile" />-->
         <d-button label="Download" type="submit" fluid @click="downloadPredict" />
       </template>
       <d-button
@@ -96,6 +107,12 @@ const downloadPredictBlob = ref<Blob | null>(null)
 
 const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
 const isPredictButtonDisabled = computed(() => !fileData.value.name || isUploadWithErrors.value)
+const isManualPredictButtonDisabled = computed(() => {
+  for (const input in manualValues.value) {
+    if (!manualValues.value[input]) return true
+  }
+  return false
+})
 
 async function onManualSubmit() {
   predictionText.value = ''
@@ -161,35 +178,46 @@ watch(
 
 <style scoped>
 .text {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
   color: var(--p-text-muted-color);
 }
 
 .manual {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 28px;
 }
 
 .upload {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  margin-top: 2rem;
+  gap: 28px;
+  margin-top: 28px;
 }
 
 .inputs {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  max-height: 316px;
+  gap: 16px;
+  max-height: 306px;
   overflow-y: auto;
-  padding-top: 1rem;
-  margin-top: 1rem;
+  padding-top: 14px;
+  margin-top: 14px;
 }
 
 .disabled {
   opacity: 0.6;
   pointer-events: none;
+}
+
+.prediction:disabled {
+  background-color: var(--p-textarea-background) !important;
+  color: var(--p-textarea-color);
+}
+
+.prediction.p-filled {
+  border: 1px solid var(--p-textarea-focus-border-color);
+  background-color: var(--p-textarea-filled-background) !important;
+  font-weight: 500 !important;
 }
 </style>

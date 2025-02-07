@@ -70,9 +70,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sidebar {
-  padding: 108px 16px 70px;
-  background-color: var(--color-content-background);
-  border-right: 1px solid var(--color-divider-border);
+  padding: 96px 16px 70px;
+  background-color: var(--p-content-background);
+  border-right: 1px solid var(--p-divider-border-color);
   width: 180px;
   position: relative;
   transition: width 0.3s;
@@ -97,7 +97,7 @@ onBeforeUnmount(() => {
   color: var(--p-surface-400);
   text-decoration: none;
   font-weight: 500;
-  height: 30px;
+  height: 32px;
   white-space: nowrap;
   overflow: hidden;
   width: 100%;
@@ -164,6 +164,21 @@ onBeforeUnmount(() => {
     color: var(--p-surface-400);
     box-shadow: none;
     cursor: default;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100% !important;
+  }
+  .list {
+    align-items: center;
+  }
+  .menu-link {
+    width: auto !important;
+  }
+  .toggle-width-button {
+    display: none;
   }
 }
 </style>

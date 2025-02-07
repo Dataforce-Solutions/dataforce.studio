@@ -17,7 +17,10 @@
       <div class="content">
         <template v-if="currentState === 'success'">
           <div class="file-info">
-            <div v-if="successMessageOnly">{{ successMessageOnly }}</div>
+            <div v-if="successMessageOnly">
+              {{ successMessageOnly }} <br>
+              <button v-if="successRemoveText" type="button" class="link" @click="removeFile">{{ successRemoveText }}</button>
+            </div>
             <template v-else>
               <span class="file-name">{{ file.name }}</span>
               <span class="file-size">{{ sizeText }}</span>
@@ -38,7 +41,7 @@
         </template>
         <template v-else>
           <div class="title">
-            Drag and drop or <label :for="id" class="accent">upload CSV</label>
+            <span class="drag-drop-text">Drag and drop or </span> <label :for="id" class="accent">upload CSV</label>
           </div>
           <div class="help-text">Accepts .csv file type</div>
         </template>
@@ -74,6 +77,7 @@ type Props = {
   loading?: boolean
   loadingMessage?: string
   successMessageOnly?: string
+  successRemoveText?: string
 }
 
 const props = defineProps<Props>()
@@ -243,5 +247,15 @@ input[type='file'] {
   align-items: center;
   text-align: center;
   font-weight: 500;
+}
+
+@media (max-width:768px){
+  .dropzone {
+    padding: 16px;
+    gap: 16px;
+  }
+  .drag-drop-text {
+    display: none;
+  }
 }
 </style>

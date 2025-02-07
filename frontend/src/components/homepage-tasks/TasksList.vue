@@ -22,7 +22,9 @@ defineProps<TaskList>()
   gap: 24px;
 }
 .sub-title {
-  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 24px;
 }
 
 @media (max-width: 1920px) {
@@ -40,6 +42,15 @@ defineProps<TaskList>()
 @media (max-width: 968px) {
   .items {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .items {
+    gap: 15px;
+  }
+  .sub-title {
+    margin-bottom: 10px;
   }
 }
 </style>

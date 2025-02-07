@@ -21,12 +21,17 @@ import LayoutHeader from '@/components/layout/LayoutHeader.vue'
 }
 
 .page {
-  padding: 160px 40px 20px;
+  min-height: 100svh;
+  padding: 100px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 @media (max-width: 768px) {
   .page {
-    padding: 120px 20px 20px;
+    padding: 80px 15px 15px;
   }
 }
 </style>

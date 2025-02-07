@@ -100,24 +100,21 @@ onBeforeMount(async () => {
 .wrapper {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  background-color: var(--color-card-background);
+  background-color: var(--p-card-background);
   border-radius: 16px;
-  max-width: 1360px;
-  min-height: 746px;
+  width: 100%;
+  max-width: 990px;
   margin: 0 auto;
   overflow: hidden;
   box-shadow: var(--card-shadow);
 }
 
 .body {
-  padding: 48px 64px;
+  padding: 28px 48px;
   align-self: center;
-}
-
-.content {
-  max-width: 399px;
-  width: 100%;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .form-wrapper {
@@ -125,7 +122,7 @@ onBeforeMount(async () => {
 }
 
 .headings {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -133,10 +130,11 @@ onBeforeMount(async () => {
 
 .main-title {
   font-weight: 600;
+  font-size: 28px;
 }
 
 .sub-title {
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
   font-size: 16px;
 }
 
@@ -151,13 +149,13 @@ onBeforeMount(async () => {
   align-items: center;
   line-height: 1;
   margin-bottom: 24px;
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
 
   &::before,
   &::after {
     content: '';
     height: 1px;
-    background-color: var(--color-divider-border);
+    background-color: var(--p-divider-border-color);
   }
 }
 
@@ -165,7 +163,7 @@ onBeforeMount(async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .button-plain {
@@ -197,7 +195,7 @@ onBeforeMount(async () => {
 
 .footer {
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--p-text-muted-color);
 }
 
 .image {
@@ -218,11 +216,14 @@ onBeforeMount(async () => {
     max-width: 527px;
     display: block;
   }
+}
 
-  img {
-    display: none;
+@media (min-width:768px){
+  .body {
+    min-height: 640px;
   }
 }
+
 
 @media (max-width: 768px) {
   .body {

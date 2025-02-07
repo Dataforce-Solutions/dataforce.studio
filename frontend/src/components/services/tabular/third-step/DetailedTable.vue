@@ -2,16 +2,21 @@
   <div>
     <header class="card-header">
       <h3 class="card-title">
-        Detailed view <triangle-alert v-if="isTrainMode" width="20" height="20" class="warning-icon"/>
+        Detailed view <triangle-alert v-if="isTrainMode" :size="20" class="warning-icon" />
       </h3>
       <div class="detailed-actions">
         <!--<div class="highlight-toggle-wrapper">
           <ToggleSwitch v-model="highlightIncorrect" />
           <span>highlight incorrect</span>
         </div>-->
-        <d-button variant="text" severity="secondary" @click="maximizeTable = true">
+        <d-button
+          variant="text"
+          severity="secondary"
+          @click="maximizeTable = true"
+          :style="{ width: '20px', height: '20px' }"
+        >
           <template #icon>
-            <Maximize2 width="20" height="20" />
+            <Maximize2 :size="20" />
           </template>
         </d-button>
       </div>
@@ -26,7 +31,7 @@
       :virtualScrollerOptions="{ itemSize: 31 }"
       class="table"
       size="small"
-      :style="{fontSize: '14px'}"
+      :style="{ fontSize: '14px' }"
     >
       <Column
         v-for="column in currentColumns"
@@ -41,7 +46,6 @@
       blockScroll
       header="Detailed view"
       class="p-dialog-maximized"
-      :breakpoints="{ '1199px': '75vw', '575px': '90vw' }"
     >
       <template #header>
         <header
@@ -70,7 +74,7 @@
         :virtualScrollerOptions="{ itemSize: 31 }"
         class="table"
         size="small"
-        :style="{fontSize: '14px'}"
+        :style="{ fontSize: '14px' }"
       >
         <Column
           v-for="column in currentColumns"
@@ -111,11 +115,11 @@ const currentColumns = computed(() => Object.keys(props.values[0]))
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .card-title {
-  font-size: 1.5rem;
+  font-size: 20px;
 }
 
 .detailed-actions {
@@ -129,6 +133,7 @@ const currentColumns = computed(() => Object.keys(props.values[0]))
   align-items: center;
   gap: 12px;
   color: var(--p-primary-color);
+  font-weight: 500;
 } */
 
 .table {

@@ -6,14 +6,14 @@
 
 .divider {
   height: 1px;
-  background-color: var(--color-divider-border);
+  background-color: var(--p-divider-border-color);
 }
 
 .main-title {
   font-weight: 500;
-  font-size: 32px;
-  line-height: 1.12;
-  letter-spacing: -0.64px;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.48px;
 }
 
 .title {
@@ -31,7 +31,7 @@
 }
 
 .link {
-  color: var(--color-text-link);
+  color: var(--p-text-link-color);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -94,4 +94,23 @@
 
 .bar-label {
   fill: var(--p-text-color);
+}
+
+.p-toast {
+  top: 105px !important;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+
+  .main-title {
+    font-size: 22px;
+  }
+
+  .p-toast {
+    top: 80px !important;
+    right: 5px !important;
+  }
 }

@@ -1,7 +1,18 @@
 <template>
   <div class="wrapper" :style="`padding-left:${sidebarWidth}px`">
-    <layout-header class="header" />
-    <layout-sidebar class="sidebar" ref="sidebarRef" @change-width="calcSidebarWidth" />
+    <layout-header
+      class="header"
+      :is-burger-open="isBurgerOpen"
+      @burger-click="() => (isBurgerOpen = !isBurgerOpen)"
+    />
+    <transition>
+      <layout-sidebar
+        v-if="isBurgerAvailable ? isBurgerOpen : true"
+        class="sidebar"
+        ref="sidebarRef"
+        @change-width="calcSidebarWidth"
+      />
+    </transition>
     <layout-footer class="footer" :style="`left:${sidebarWidth}px`" />
     <main class="page">
       <slot />
@@ -14,10 +25,12 @@ import LayoutHeader from '@/components/layout/LayoutHeader.vue'
 import LayoutSidebar from '@/components/layout/LayoutSidebar.vue'
 import LayoutFooter from '@/components/layout/LayoutFooter.vue'
 
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const sidebarRef = ref<InstanceType<typeof LayoutSidebar> | null>(null)
 const sidebarWidth = ref(0)
+const isBurgerAvailable = ref(false)
+const isBurgerOpen = ref(false)
 
 function calcSidebarWidth() {
   if (!sidebarRef.value) return
@@ -25,11 +38,23 @@ function calcSidebarWidth() {
   sidebarWidth.value = sidebarRef.value.$el.offsetWidth
 }
 
+function checkIsBurgerAvailable() {
+  isBurgerAvailable.value = document.documentElement.clientWidth < 768
+
+  if (document.documentElement.clientWidth > 768 && sidebarRef.value) {
+    resizeObserver.observe(sidebarRef.value.$el)
+  }
+}
+
 let resizeObserver: ResizeObserver
 
-onMounted(() => {
-  calcSidebarWidth()
+onBeforeMount(() => {
+  checkIsBurgerAvailable()
 
+  window.addEventListener('resize', checkIsBurgerAvailable)
+})
+
+onMounted(() => {
   resizeObserver = new ResizeObserver(() => {
     calcSidebarWidth()
   })
@@ -43,14 +68,16 @@ onBeforeUnmount(() => {
   if (resizeObserver && sidebarRef.value) {
     resizeObserver.unobserve(sidebarRef.value.$el)
   }
+
+  window.removeEventListener('resize', checkIsBurgerAvailable)
 })
 </script>
 
 <style scoped>
 .wrapper {
   min-height: 100svh;
-  padding-top: 100px;
-  padding-bottom: 100px;
+  padding-top: 64px;
+  padding-bottom: 60px;
 }
 .header {
   position: fixed;
@@ -74,5 +101,27 @@ onBeforeUnmount(() => {
   bottom: 0;
   right: 0;
   z-index: 80;
+}
+
+.v-enter-active,
+.v-leave-active {
+  transition: left 0.5s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+  left: -100%;
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    padding-left: 0 !important;
+  }
+  .footer {
+    left: 0 !important;
+  }
+  .page {
+    padding: 0 15px;
+  }
 }
 </style>

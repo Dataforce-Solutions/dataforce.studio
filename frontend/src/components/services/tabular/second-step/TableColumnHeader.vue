@@ -30,9 +30,10 @@
       aria-haspopup="true"
       aria-controls="overlay_menu"
       @click="toggleMenu"
+      :style="{ width: '30px', height: '31px' }"
     >
       <template #icon>
-        <EllipsisVertical />
+        <EllipsisVertical :size="14"/>
       </template>
     </d-button>
     <Menu :model="menuItems" :popup="true" ref="menu">

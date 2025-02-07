@@ -46,13 +46,22 @@ onMounted(() => {
 }
 
 .content {
-  padding-top: 28px;
+  padding-top: 32px;
 }
 
 .headings {
-  margin-bottom: 44px;
+  margin-bottom: 40px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .body {
+    gap: 15px;
+  }
+  .headings {
+    margin-bottom: 20px;
+  }
 }
 </style>

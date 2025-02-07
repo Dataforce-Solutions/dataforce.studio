@@ -6,8 +6,11 @@
         :key="step.id"
         :value="step.id"
         :disabled="!isStepAvailable(step.id)"
-        >{{ step.text }}</Step
       >
+        <span class="step-label">
+          {{ step.text }}
+        </span>
+      </Step>
     </StepList>
     <StepPanels class="steppanels">
       <StepPanel v-slot="{ activateCallback }" :value="1">
@@ -28,7 +31,7 @@
           </d-button>
         </div>
       </StepPanel>
-      <StepPanel v-slot="{ activateCallback }" :value="2" :style="{ margin: '0 -80px 0 -80px' }">
+      <StepPanel v-slot="{ activateCallback }" :value="2">
         <table-view
           v-if="currentStep === 2 && columnsCount && rowsCount && viewValues"
           :columns-count="columnsCount"
@@ -62,7 +65,7 @@
           :test-metrics="getTestMetrics"
           :training-metrics="getTrainingMetrics"
           :features="getTop5Feature"
-          :predicted-data="(getPredictedData as Record<string, []>)"
+          :predicted-data="getPredictedData as Record<string, []>"
           :is-train-mode="isTrainMode"
           :download-model-callback="downloadModel"
           :training-model-id="trainingModelId"
@@ -183,7 +186,7 @@ async function startTraining() {
 
 <style scoped>
 .stepper {
-  padding-top: 1rem;
+  padding-top: 32px;
 }
 
 .steppanels {
@@ -194,6 +197,20 @@ async function startTraining() {
   display: flex;
   gap: 24px;
   justify-content: flex-end;
+}
+
+@media (max-height: 1050px) {
+  .navigation {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    background-color: var(--p-content-background);
+    padding-top: 4px;
+    padding-bottom: 44px;
+    padding-right: 105px;
+    width: 100%;
+    z-index: 5;
+  }
 }
 
 @media (max-width: 968px) {
@@ -210,17 +227,15 @@ async function startTraining() {
   }
 }
 
-@media (max-height: 1050px) {
+@media (max-width: 768px) {
+  .stepper {
+    padding-top: 16px;
+  }
+  .step-label {
+    display: none;
+  }
   .navigation {
-    position: fixed;
-    bottom: 0;
-    right: 0;
-    background-color: var(--p-content-background);
-    padding-top: 4px;
-    padding-bottom: 44px;
-    padding-right: 105px;
-    width: 100%;
-    z-index: 5;
+    padding-right: 15px;
   }
 }
 </style>
