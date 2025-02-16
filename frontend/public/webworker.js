@@ -2,13 +2,13 @@
 //for debug only
 DRY_RUN = false;
 
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
 
 const MESSAGES = {
     LOAD_PYODIDE: "LOAD_PYODIDE",
 };
 
-async function loadFalcon() {
+async function initPyWorker() {
     if (DRY_RUN) {
         return true;
     }
@@ -41,11 +41,11 @@ async function loadFalcon() {
 
     await pyodide.loadPackage("/falcon_ml-0.8.0-py3-none-any.whl");
 
-    await micropip.install(
+    await pyodide.loadPackage(
         "/onnx-1.16.2-cp312-cp312-pyodide_2024_0_wasm32.whl"
     );
 
-    await pyodide.loadPackage("/falcon_wrapper-0.1.0-py3-none-any.whl");
+    await pyodide.loadPackage("/dfs_webworker-0.1.0-py3-none-any.whl");
 
 
     await micropip.install("scipy");
@@ -55,31 +55,38 @@ async function loadFalcon() {
     return true;
 }
 
-self.pyodideReadyPromise = loadFalcon();
+self.pyodideReadyPromise = initPyWorker();
 
 
 async function pingPython() {
-    const fjs = self.pyodide.pyimport("falcon_wrapper");
-    const res = await fjs.ping();
+    const dfw = self.pyodide.pyimport("dfs_webworker");
+    const res = await dfw.ping();
 }
 
+async function invokeRoute(route, data) {
+    const dfw = self.pyodide.pyimport("dfs_webworker");
+    const res = (await dfw.invoke(route, data)).toJs();
+    return JSON.parse(JSON.stringify(res));
+}
+
+
+// LEGACY ROUTES HANDLED DIRECTLY IN THE WORKER
+
 async function tabularTrain(task, data, target, groups) {
-    const fjs = self.pyodide.pyimport("falcon_wrapper");
+    
     // TODO: groups
-    const model = (await fjs.tabular_train(task, data, target)).toJs();
-    return JSON.parse(JSON.stringify(model));
+    const payload = { "data": data, "target": target, "task": task};
+    return await invokeRoute("/tabular/train", payload)
 }
 
 async function tabularPredict(model_id, data) {
-    const fjs = self.pyodide.pyimport("falcon_wrapper");
-    const result = (await fjs.tabular_predict(model_id, data)).toJs();
-    return JSON.parse(JSON.stringify(result));
+    const payload = { "model_id": model_id, "data": data };
+    return await invokeRoute("/tabular/predict", payload);
 }
 
 async function tabularDeallocate(model_id) {
-    const fjs = self.pyodide.pyimport("falcon_wrapper");
-    const result = await fjs.tabular_deallocate(model_id).toJs();
-    return JSON.parse(JSON.stringify(result));
+    const payload = { "model_id": model_id };
+    return await invokeRoute("/tabular/deallocate", payload);
 }
 
 
@@ -91,7 +98,7 @@ self.onmessage = async (event) => {
             if (pyodideReady) {
                 self.postMessage({ message: m.message, id: m.id, payload: true });
             }
-            // если pyodide не загрузился, надо как-то коммуницировать это обратно в main thread
+            // TODO: if an error occurs here, it has to be handled in the frontend
             break;
         case "tabular_train":
             const tabularResult = await tabularTrain(m.payload.task, m.payload.data, m.payload.target, m.payload.groups);
@@ -104,6 +111,10 @@ self.onmessage = async (event) => {
         case "tabular_deallocate":
             const tabularDeallocateResult = await tabularDeallocate(m.payload.model_id);
             self.postMessage({ message: m.message, id: m.id, payload: tabularDeallocateResult });
+            break;
+        case "invokeRoute":
+            const result = await invokeRoute(m.payload.route, m.payload.data);
+            self.postMessage({ message: m.message, id: m.id, payload: result });
             break;
     }
 };
