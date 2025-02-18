@@ -299,7 +299,9 @@ class AuthHandler:
             return
         token = self._generate_password_reset_token(service_user.email)
         link = self._get_password_reset_link(token)
-        self.__emails_handler.send_password_reset_email(email, link)
+        self.__emails_handler.send_password_reset_email(
+            email, link, service_user.full_name
+        )
 
     def _get_password_reset_link(self, token: str) -> str:
         return config.CHANGE_PASSWORD_URL + token
