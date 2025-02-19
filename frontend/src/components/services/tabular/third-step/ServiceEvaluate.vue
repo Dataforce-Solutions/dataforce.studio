@@ -4,8 +4,7 @@
       v-model:visible="isPredictVisible"
       modal
       header="Predict"
-      :style="{ width: '31.25rem' }"
-    >
+      :style="{ width: '31.25rem' }">
       <predict-content :manual-fields="predictionFields" :model-id="trainingModelId" />
     </d-dialog>
     <header class="header">
@@ -30,26 +29,21 @@
             width="20"
             height="20"
             class="info-icon"
-            v-tooltip.bottom="
-              `Track your model's effectiveness through performance metrics. Higher scores indicate better predictions and generalization to new data`
-            "
-          />
+            v-tooltip.bottom="`Track your model's effectiveness through performance metrics. Higher scores indicate better predictions and generalization to new data`"/>
         </header>
         <div class="radialbar-wrapper">
           <apexchart
             type="radialBar"
             :series="[totalScore]"
             :options="totalScoreOptions"
-            :style="{ pointerEvents: 'none', marginTop: '-30px', height: '135px' }"
-          />
+            :style="{ pointerEvents: 'none', marginTop: '-30px', height: '135px' }"/>
         </div>
         <div class="metric-cards">
           <metric-card
             v-for="card in metricCardsData"
             :key="card.title"
             :title="card.title"
-            :items="card.items"
-          />
+            :items="card.items"/>
         </div>
       </div>
       <div class="features card">
@@ -59,10 +53,7 @@
             width="20"
             height="20"
             class="info-icon"
-            v-tooltip.bottom="
-              `Understand which features play the biggest role in your model's outcomes to guide further data analysis`
-            "
-          />
+            v-tooltip.bottom="`Understand which features play the biggest role in your model's outcomes to guide further data analysis`"/>
         </header>
         <div :style="{ maxWidth: '725px' }">
           <apexchart
@@ -71,8 +62,7 @@
             :series="featuresData"
             :height="barChartHeight"
             width="100%"
-            :style="{ pointerEvents: 'none', margin: '-30px 0' }"
-          />
+            :style="{ pointerEvents: 'none', margin: '-30px 0' }"/>
         </div>
       </div>
       <div class="detailed card">
@@ -84,21 +74,16 @@
 
 <script setup lang="ts">
 import type { Tasks, TrainingImportance } from '@/lib/data-processing/interfaces'
-
 import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
-
 import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
 import { getMetricsCards } from '@/helpers/helpers'
-
-import MetricCard from './MetricCard.vue'
+import MetricCard from '../../../ui/MetricCard.vue'
 import DetailedTable from './DetailedTable.vue'
 import PredictContent from './PredictContent.vue'
 import { table } from 'arquero'
-
 import { useConfirm } from 'primevue/useconfirm'
 import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
-
 import { useRouter } from 'vue-router'
 
 type Props = {
@@ -123,7 +108,6 @@ const finishConfirm = () => {
   const accept = async () => {
     router.push({ name: 'home' })
   }
-
   confirm.require(dashboardFinishConfirmOptions(accept))
 }
 

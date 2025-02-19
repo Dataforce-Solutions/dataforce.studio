@@ -17,9 +17,7 @@ export const sidebarMenu = [
     id: 2,
     label: 'Run time',
     icon: CirclePlay,
-    route: 'sign-up',
-    disabled: true,
-    tooltipMessage: 'Coming soon!',
+    route: 'runtime',
   },
   {
     id: 3,

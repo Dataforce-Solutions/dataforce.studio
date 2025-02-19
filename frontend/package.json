@@ -25,7 +25,9 @@
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
     "vue3-apexcharts": "^1.8.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@fnnx/common": "file:./fnnx-common-0.1.0.tgz",
+    "@fnnx/web": "file:./fnnx-web-0.1.0.tgz"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.0",

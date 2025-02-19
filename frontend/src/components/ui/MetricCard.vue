@@ -6,8 +6,7 @@
         class="result"
         v-for="(item, index) in items"
         :key="index"
-        :class="{ primary: index === 0 }"
-      >
+        :class="{ primary: index === 0 }">
         <h4 class="label">{{ index === 0 ? 'Eval' : 'Training' }}</h4>
         <div class="value">{{ item.value }}</div>
       </div>
@@ -33,9 +32,12 @@ defineProps<Props>()
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-content-background);
   box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
 }
 .metric-title {
   margin-bottom: 16px;
+  flex: 1 1 auto;
 }
 @media (max-width: 991.98px) {
   .metric-title {

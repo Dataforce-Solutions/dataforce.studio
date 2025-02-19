@@ -11,9 +11,11 @@
         id="table"
         :file
         :error="hasError"
+        :accept="['text/csv']"
+        accept-text="Accepts .csv file type"
+        upload-text="upload CSV"
         @select-file="(e) => $emit('selectFile', e)"
-        @remove-file="$emit('removeFile')"
-      />
+        @remove-file="$emit('removeFile')"/>
       <div class="info">
         <h3 class="info-title">File parameters</h3>
         <ul class="info-list">
@@ -88,11 +90,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-
 import { ExternalLink, X, Check } from 'lucide-vue-next'
-
 import CSVIcon from '@/assets/img/icons/csv.svg'
-
 import FileInput from '@/components/ui/FileInput.vue'
 import { Tasks } from '@/lib/data-processing/interfaces'
 
@@ -116,33 +115,23 @@ type Emits = {
 }
 
 const emit = defineEmits<Emits>()
-
 const props = defineProps<Props>()
 
 const hasError = computed(() => {
   const errors = props.errors
-
   if (!errors) return false
-
   for (const key in errors) {
     if (errors[key as keyof typeof errors]) return true
   }
-
   return false
 })
 
 async function selectSample() {
   const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv'
-  const fileUrl =
-    props.task === Tasks.TABULAR_CLASSIFICATION
-      ? new URL('@/assets/data/iris.csv', import.meta.url).href
-      : new URL('@/assets/data/insurance.csv', import.meta.url).href
-
+  const fileUrl = props.task === Tasks.TABULAR_CLASSIFICATION ? new URL('@/assets/data/iris.csv', import.meta.url).href : new URL('@/assets/data/insurance.csv', import.meta.url).href;
   const response = await fetch(fileUrl)
   const text = await response.text()
-
   const file = new File([text], fileName, { type: 'text/csv' })
-
   if (file) emit('selectFile', file)
 }
 </script>
