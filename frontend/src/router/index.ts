@@ -70,6 +70,11 @@ const router = createRouter({
       name: 'regression',
       component: () => import('../pages/RegressionPage.vue'),
     },
+    {
+      path: '/runtime',
+      name: 'runtime',
+      component: () => import('../pages/RuntimePage.vue'),
+    }
   ],
 })
 

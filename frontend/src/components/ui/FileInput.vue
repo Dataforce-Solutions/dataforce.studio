@@ -6,8 +6,7 @@
     @dragenter="onDragenter"
     @dragover.prevent="onDragover"
     @dragleave.prevent="onDragleave"
-    @drop.prevent="onDrop"
-  >
+    @drop.prevent="onDrop">
     <div v-if="loading" class="loading-view">
       <progress-spinner style="width: 48px; height: 48px" />
       <div>{{ loadingMessage ? loadingMessage : 'Loading' }}</div>
@@ -18,8 +17,10 @@
         <template v-if="currentState === 'success'">
           <div class="file-info">
             <div v-if="successMessageOnly">
-              {{ successMessageOnly }} <br>
-              <button v-if="successRemoveText" type="button" class="link" @click="removeFile">{{ successRemoveText }}</button>
+              {{ successMessageOnly }} <br />
+              <button v-if="successRemoveText" type="button" class="link" @click="removeFile">
+                {{ successRemoveText }}
+              </button>
             </div>
             <template v-else>
               <span class="file-name">{{ file.name }}</span>
@@ -41,9 +42,10 @@
         </template>
         <template v-else>
           <div class="title">
-            <span class="drag-drop-text">Drag and drop or </span> <label :for="id" class="accent">upload CSV</label>
+            <span class="drag-drop-text">Drag and drop or </span>
+            <label :for="id" class="accent">{{ uploadText }}</label>
           </div>
-          <div class="help-text">Accepts .csv file type</div>
+          <div class="help-text">{{ acceptText }}</div>
         </template>
         <input ref="inputRef" :id="id" type="file" @change="inputChange" />
       </div>
@@ -53,10 +55,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-
 import { Download, BadgeCheck, BadgeX, Trash2 } from 'lucide-vue-next'
 import { ProgressSpinner } from 'primevue'
-
 import { useToast } from 'primevue'
 import { incorrectFileTypeErrorToast } from '@/lib/primevue/data/toasts'
 
@@ -66,7 +66,6 @@ type Emits = {
   selectFile: [File]
   removeFile: []
 }
-
 type Props = {
   file: {
     name?: string
@@ -74,6 +73,9 @@ type Props = {
   }
   error: boolean
   id: string
+  acceptText: string
+  uploadText: string
+  accept?: string[]
   loading?: boolean
   loadingMessage?: string
   successMessageOnly?: string
@@ -81,7 +83,6 @@ type Props = {
 }
 
 const props = defineProps<Props>()
-
 const emit = defineEmits<Emits>()
 
 const dropzoneRef = ref()
@@ -105,10 +106,8 @@ const iconComponent = computed(() => {
       return Download
   }
 })
-
 const sizeText = computed(() => {
   if (!props.file.size) return `0 KB`
-
   if (props.file.size < 1024 * 1024) return `${(props.file.size / 1024).toFixed(3)} KB`
   else return `${(props.file.size / (1024 * 1024)).toFixed(3)} MB`
 })
@@ -116,44 +115,29 @@ const sizeText = computed(() => {
 function onDragenter() {
   dropzoneActive.value = true
 }
-
 function onDragleave(e: DragEvent) {
   if (dropzoneRef.value && !dropzoneRef.value.contains(e.relatedTarget)) {
     dropzoneActive.value = false
   }
 }
-
 function onDragover(e: DragEvent) {}
-
 function onDrop(e: DragEvent) {
   dropzoneActive.value = false
-
   const file = e.dataTransfer?.files?.[0]
-
   if (file) selectFile(file)
 }
-
 function inputChange(e: Event) {
   const target = e.target as HTMLInputElement
-
   const file = target.files?.[0]
-
   if (file) selectFile(file)
 }
-
 function selectFile(file: File) {
-  if (file.type === 'text/csv') {
-    emit('selectFile', file)
-  } else {
-    toast.add(incorrectFileTypeErrorToast)
-  }
+  if (props.accept && !props.accept.includes(file.type)) toast.add(incorrectFileTypeErrorToast)
+  else emit('selectFile', file)
 }
-
 function removeFile() {
   emit('removeFile')
-
   const input = inputRef.value
-
   if (input) input.value = ''
 }
 </script>
@@ -228,6 +212,7 @@ input[type='file'] {
 .file-info {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   padding: 7px 0;
 }
 
@@ -249,7 +234,7 @@ input[type='file'] {
   font-weight: 500;
 }
 
-@media (max-width:768px){
+@media (max-width: 768px) {
   .dropzone {
     padding: 16px;
     gap: 16px;

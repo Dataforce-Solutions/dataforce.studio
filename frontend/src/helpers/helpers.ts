@@ -1,9 +1,4 @@
-import {
-  Tasks,
-  type ClassificationMetrics,
-  type RegressionMetrics,
-  type TrainingData,
-} from '@/lib/data-processing/interfaces'
+import { Tasks, type ClassificationMetrics, type RegressionMetrics, type TrainingData } from '@/lib/data-processing/interfaces'
 
 export const getMetrics = (
   data: TrainingData<ClassificationMetrics | RegressionMetrics>,
@@ -29,22 +24,19 @@ export const getMetrics = (
   }
 }
 
-const getFormattedMetric = (num: number) => {
+export const getFormattedMetric = (num: number) => {
   if (Math.log10(Math.abs(num)) > 5) return formatNumberScientific(num)
   else if (Math.log10(Math.abs(num)) > 2) return num.toFixed()
-
   return num.toFixed(2)
 }
 
 export const getMetricsCards = (testValues: string[], trainingValues: string[], task: Tasks) => {
   let titles: string[] = []
-
   if (task === Tasks.TABULAR_CLASSIFICATION) {
     titles = ['Balanced accuracy', 'Precision', 'Recall', 'F1 score']
   } else {
     titles = ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R² Score']
   }
-
   return titles.map((title, index) => ({
     title,
     items: [{ value: testValues[index] }, { value: trainingValues[index] }],
@@ -55,16 +47,14 @@ export const toPercent = (float: number) => Number((float * 100).toFixed())
 
 export const fixNumber = (float: number, decimals: number) => Number(float.toFixed(decimals))
 
-export const convertObjectToCsvBlob = (data: object): Blob => {
+export const convertObjectToCsvBlob = (data: object) => {
   const headers = Object.keys(data)
-
   const rows = []
   const maxLength = Math.max(...headers.map((key) => (data[key as keyof typeof data] as []).length))
   for (let i = 0; i < maxLength; i++) {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-
   const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
 }
@@ -78,9 +68,29 @@ export const formatNumberScientific = (num: number, significantDigits = 3) => {
 
 export const cutStringOnMiddle = (string: string, length = 20) => {
   if (string.length < length) return string
-
   const startSubstring = string.slice(0, Math.floor(length / 2))
   const endSubstring = string.slice(Math.floor(-length / 2))
-  
   return `${startSubstring}...${endSubstring}`
+}
+
+export const prepareRuntimeMetrics = (metrics: ClassificationMetrics | RegressionMetrics, task: Tasks) => {
+  if (task === Tasks.TABULAR_CLASSIFICATION) {
+    const currentMetrics = metrics as ClassificationMetrics
+    return [
+      currentMetrics.ACC ? fixNumber(currentMetrics.ACC, 2).toFixed(2) : '0',
+      currentMetrics.PRECISION ? fixNumber(currentMetrics.PRECISION, 2).toFixed(2) : '0',
+      currentMetrics.RECALL ? fixNumber(currentMetrics.RECALL, 2).toFixed(2) : '0',
+      currentMetrics.F1 ? fixNumber(currentMetrics.F1, 2).toFixed(2) : '0',
+    ]
+  } else if (task === Tasks.TABULAR_REGRESSION) {
+    const currentMetrics = metrics as RegressionMetrics
+    return [
+      currentMetrics.MSE ? getFormattedMetric(currentMetrics.MSE) : '0',
+      currentMetrics.RMSE ? getFormattedMetric(currentMetrics.RMSE) : '0',
+      currentMetrics.MAE ? getFormattedMetric(currentMetrics.MAE) : '0',
+      currentMetrics.R2 ? getFormattedMetric(currentMetrics.R2) : '0',
+    ]
+  } else {
+    return []
+  }
 }

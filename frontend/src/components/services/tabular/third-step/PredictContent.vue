@@ -9,8 +9,7 @@
             <d-input-text
               v-model="manualValues[field as keyof typeof manualValues]"
               :id="field"
-              fluid
-            />
+              fluid/>
             <label class="label" :for="field">{{ cutStringOnMiddle(field, 24) }}</label>
           </d-float-label>
         </div>
@@ -20,8 +19,7 @@
         type="submit"
         fluid
         :disabled="isManualPredictButtonDisabled"
-        @click="onManualSubmit"
-      />
+        @click="onManualSubmit"/>
       <Textarea
         class="prediction"
         v-model="predictionText"
@@ -30,8 +28,7 @@
         rows="4"
         :style="{ resize: 'none' }"
         disabled
-        placeholder="Prediction"
-      />
+        placeholder="Prediction"></Textarea>
     </div>
     <div v-else class="upload">
       <file-input
@@ -42,9 +39,11 @@
         loading-message="Loading prediction..."
         :success-message-only="predictReadyForDownload ? 'Success! You can download the file.' : ''"
         success-remove-text="Upload new dataset"
+        :accept="['text/csv']"
+        accept-text="Accepts .csv file type"
+        upload-text="upload CSV"
         @select-file="onSelectFile"
-        @remove-file="onRemoveFile"
-      />
+        @remove-file="onRemoveFile"/>
       <template v-if="predictReadyForDownload">
         <d-button label="Download" type="submit" fluid @click="downloadPredict" />
       </template>
@@ -54,24 +53,19 @@
         type="submit"
         fluid
         :disabled="isPredictButtonDisabled"
-        @click="onFileSubmit"
-      />
+        @click="onFileSubmit"/>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-
 import SelectButton from 'primevue/selectbutton'
 import { Textarea } from 'primevue'
-
 import FileInput from '@/components/ui/FileInput.vue'
-
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
 import { convertObjectToCsvBlob } from '@/helpers/helpers'
-
 import { cutStringOnMiddle } from '@/helpers/helpers'
 
 const { startPredict, isLoading } = useModelTraining()
@@ -116,23 +110,17 @@ const isManualPredictButtonDisabled = computed(() => {
 
 async function onManualSubmit() {
   predictionText.value = ''
-
   const data = prepareManualData()
-
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)
-
   if (result) predictionText.value = result.predictions?.join(', ')
 }
 async function onFileSubmit() {
   const data: any = getDataForTraining()
-
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)
-
   if (result) {
     data.prediction = result.predictions
-
     downloadPredictBlob.value = convertObjectToCsvBlob(data)
   } else {
     filePredictWithError.value = true
@@ -140,22 +128,16 @@ async function onFileSubmit() {
 }
 function prepareManualData() {
   const data: any = {}
-
   for (const key in manualValues.value) {
     const value = manualValues.value[key].trim()
-
-    if (!value) continue
-
+    if (!value) continue;
     const formattedValue = isNaN(Number(value)) ? value : Number(value)
-
     data[key] = [formattedValue]
   }
-
   return data
 }
 function downloadPredict() {
   if (!downloadPredictBlob.value) return
-
   const url = URL.createObjectURL(downloadPredictBlob.value)
   const a = document.createElement('a')
   a.href = url
@@ -166,13 +148,10 @@ function downloadPredict() {
   URL.revokeObjectURL(url)
 }
 
-watch(
-  fileData,
-  () => {
+watch(fileData, () => {
     filePredictWithError.value = false
     downloadPredictBlob.value = null
-  },
-  { deep: true },
+  }, { deep: true },
 )
 </script>
 
