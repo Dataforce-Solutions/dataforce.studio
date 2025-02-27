@@ -47,6 +47,8 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
           error.config.headers.Authorization = `Bearer ${newToken}`
           return api.request(error.config)
         } catch (refreshError) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
           console.error('Failed to refresh token:', refreshError)
         }
       }
