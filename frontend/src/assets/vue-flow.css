@@ -1,0 +1,79 @@
+.vue-flow__pane.connecting .vue-flow__handle {
+  opacity: 1;
+}
+
+.vue-flow__node {
+  background-color: var(--p-card-background);
+  padding: 0 12px 0;
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: var(--card-shadow);
+  border-radius: 8px;
+  color: var(--p-text-color);
+  transition: border-color 0.3s;
+}
+
+.vue-flow__node:hover,
+.vue-flow__node.selected {
+  border-color: var(--p-primary-color);
+}
+
+.vue-flow__handle {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.vue-flow__handle::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  background-color: var(--p-primary-color);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform .2s;
+}
+
+.vue-flow__handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5.34781 2.56511C5.34781 2.37301 5.19208 2.21729 4.99999 2.21729C4.80789 2.21729 4.65216 2.37301 4.65216 2.56511V4.65207H2.5652C2.3731 4.65207 2.21738 4.80779 2.21738 4.99989C2.21738 5.19199 2.3731 5.34772 2.5652 5.34772H4.65216V7.43468C4.65216 7.62678 4.80789 7.7825 4.99999 7.7825C5.19208 7.7825 5.34781 7.62678 5.34781 7.43468V5.34772H7.43477C7.62687 5.34772 7.78259 5.19199 7.78259 4.99989C7.78259 4.80779 7.62687 4.65207 7.43477 4.65207H5.34781V2.56511Z" fill="%23F8FAFC"/></svg>') center /contain no-repeat;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  transition: transform .2s;
+}
+
+.vue-flow__handle:hover::before,
+.vue-flow__handle:hover::after {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.vue-flow__node:hover .vue-flow__handle {
+  opacity: 1;
+}
+
+.vue-flow__handle-right {
+  transform: translate(calc(50% + 0.5px), -50%);
+}
+
+.vue-flow__handle-left {
+  transform: translate(calc(-50% - 0.5px), -50%);
+}
+
+.vue-flow__edge-path {
+  stroke-width: 2px;
+}
+
+.vue-flow__edge-path {
+  stroke: var(--p-organizationchart-connector-color);
+}
+
+.vue-flow__edge.selected .vue-flow__edge-path {
+  stroke: var(--p-primary-color);
+}

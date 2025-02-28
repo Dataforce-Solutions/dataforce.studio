@@ -74,7 +74,12 @@ const router = createRouter({
       path: '/runtime',
       name: 'runtime',
       component: () => import('../pages/RuntimePage.vue'),
-    }
+    },
+    {
+      path: '/prompt-fusion',
+      name: 'prompt-fusion',
+      component: () => import('../pages/PromptFusionPage.vue'),
+    },
   ],
 })
 

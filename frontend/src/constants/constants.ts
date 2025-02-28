@@ -74,6 +74,17 @@ const appTasks: IAppTaskData[] = [
       'Used in customer service to resolve inquiries, education for tutoring, healthcare for symptom checks, and e-commerce for guiding purchases',
     isAvailable: false,
   },
+  {
+    id: 5,
+    icon: TabularClassificationIcon,
+    title: 'Prompt Fusion',
+    description: 'Technique for categorizing table-structured data by labeled classes.',
+    btnText: 'next',
+    linkName: 'prompt-fusion',
+    tooltipData:
+      'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
+    isAvailable: true,
+  }
 ]
 
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
