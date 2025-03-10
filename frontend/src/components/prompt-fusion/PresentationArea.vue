@@ -6,7 +6,6 @@
     :min-zoom="0.2"
     :max-zoom="4"
     :isValidConnection="isValidConnection"
-    fit-view-on-init
   >
     <template #node-custom="props">
       <custom-node :id="props.id" :data="props.data" @duplicate="duplicateNode(props.id)" @delete="removeNodes(props.id)"/>
@@ -28,7 +27,7 @@ import { Background } from '@vue-flow/background'
 import { onBeforeMount, onBeforeUnmount } from 'vue';
 import CustomEdge from './CustomEdge.vue';
 
-const { nodes, onConnect, addEdges, removeNodes, addNodes, removeEdges, getSelectedEdges } = useVueFlow()
+const { nodes, onConnect, addEdges, removeNodes, addNodes, removeEdges, onInit, fitView, getSelectedEdges } = useVueFlow()
 
 function duplicateNode(id: string) {
   const node = nodes.value.find(node => node.id === id)
@@ -56,6 +55,9 @@ function onBackspaceClick(e: KeyboardEvent) {
   }
 }
 
+onInit(() => {
+  fitView()
+})
 onConnect((connection) => {
   addEdges({...connection, type: 'custom'})
 })
@@ -68,4 +70,8 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped></style>
+<style scoped>
+.basic-flow {
+  height: calc(100% + 31px);
+}
+</style>

@@ -78,6 +78,7 @@ onBeforeUnmount(() => {
   min-height: 100svh;
   padding-top: 64px;
   padding-bottom: 60px;
+  overflow-x: hidden;
 }
 .header {
   position: fixed;
