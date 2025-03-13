@@ -18,7 +18,10 @@
     </header>
     <div class="field-body">
       <d-select v-model="data.type" :options="options" option-label="name" option-value="value" size="small" placeholder="Data type" class="select"/>
-      <d-input-text v-model="data.value" placeholder="Field name" size="small" class="input"/>
+      <div class="input-wrapper">
+        <d-input-text v-model="data.value" placeholder="Field name" size="small" class="input" :invalid="isDuplicate"/>
+        <d-message v-if="isDuplicate" severity="error" size="small" variant="simple" class="error">Not a unique name</d-message>
+      </div>
     </div>
   </div>
 </template>
@@ -30,6 +33,7 @@ import { PromptFieldTypeEnum, type NodeField } from '../interfaces';
 type Props = {
   data: NodeField
   typeLabel?: string
+  isDuplicate: boolean
 }
 type Emits = {
   delete: []
@@ -87,12 +91,21 @@ function onTrashClick() {
 }
 .field-body {
   display: flex;
+  align-items: flex-start;
   gap: 4px;
 }
 .select {
   flex: 0 0 111px;
 }
-.input {
+.input-wrapper {
   flex: 1 1 auto;
+}
+.input {
+  width: 100%;
+}
+.error {
+  font-size: 12px;
+  padding-top: 7px;
+  line-height: 1.75;
 }
 </style>
