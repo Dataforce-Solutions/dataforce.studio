@@ -2,7 +2,7 @@
   <div class="wrapper">
     <presentation-area />
     <Transition>
-      <sidebar v-if="activeNode" :data="activeNode.data" class="sidebar" @close="removeSelectedNodes([activeNode])"/>
+      <sidebar v-if="activeNode" :data="activeNode.data" class="sidebar" @close="closeSidebar" />
     </Transition>
   </div>
 </template>
@@ -10,12 +10,23 @@
 <script setup lang="ts">
 import PresentationArea from '@/components/prompt-fusion/PresentationArea.vue'
 import Sidebar from '@/components/prompt-fusion/sidebar/index.vue'
-import { useVueFlow } from '@vue-flow/core';
-import { computed } from 'vue';
+import { useVueFlow, type GraphNode } from '@vue-flow/core'
+import { ref } from 'vue'
 
-const { getSelectedNodes, removeSelectedNodes } = useVueFlow()
+const { onNodeClick, onPaneClick } = useVueFlow()
 
-const activeNode = computed(() => getSelectedNodes.value[getSelectedNodes.value.length - 1])
+const activeNode = ref<GraphNode | null>(null)
+
+function closeSidebar() {
+  activeNode.value = null
+}
+
+onNodeClick(({ node }) => {
+  activeNode.value = node
+})
+onPaneClick(() => {
+  activeNode.value = null
+})
 </script>
 
 <style scoped>
