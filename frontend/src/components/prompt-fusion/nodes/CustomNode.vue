@@ -6,19 +6,19 @@
         <h3 class="header-title">{{ data.label }}</h3>
       </div>
       <template v-if="data.showMenu">
-        <d-button ref="toggleMenuButton" severity="secondary" variant="text" rounded class="button" @click="toggleMenu">
+        <d-button ref="toggleMenuButton" severity="secondary" variant="text" rounded class="button" @click.stop="toggleMenu">
           <template #icon>
             <ellipsis width="20" height="20" />
           </template>
         </d-button>
         <on-click-outside v-if="isMenuOpen" :options="{ ignore: [toggleMenuButton] }" class="menu" :style="{left: `${menuPosition.left}px`, top: `${menuPosition.top}px`}" @trigger="onMenuOutsideClick">
-          <button class="menu-item" @click="onDuplicateClick">Duplicate</button>
+          <button class="menu-item" @click.stop="onDuplicateClick">Duplicate</button>
           <d-divider :style="{ margin: '2px 0' }" />
-          <button class="menu-item" @click="onDeleteClick">Delete</button>
+          <button class="menu-item" @click.stop="onDeleteClick">Delete</button>
         </on-click-outside>
       </template>
     </header>
-    <div v-if="data.fields.length" class="all-fields">
+    <div class="all-fields" :key="data.fields.length">
       <div v-if="inputFields.length" class="fields input-fields">
         <node-field v-for="field in inputFields" :key="field.id" :field="field" />
       </div>
@@ -27,7 +27,7 @@
         <node-field v-for="field in outputFields" :key="field.id" :field="field" />
       </div>
       <div v-if="conditionFields.length" class="fields condition-fields">
-        <node-field v-for="field in conditionFields" :key="field.id" :field="field" />
+        <node-field v-for="(field, index) in conditionFields" :index="index + 1" :key="field.id" :field="field" />
       </div>
     </div>
   </div>
@@ -131,6 +131,7 @@ function onMenuOutsideClick() {
   border-radius: var(--p-menu-border-radius);
   padding: 4px;
   box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.10), 0px 2px 4px -2px rgba(0, 0, 0, 0.10);
+  z-index: 10;
 }
 .menu-item {
   padding: 8px 12px;
@@ -140,6 +141,7 @@ function onMenuOutsideClick() {
   border-radius: var(--p-menu-item-border-radius);
   cursor: pointer;
   text-align: left;
+  font-size: 12px;
 }
 .menu-item:hover {
   background-color: var(--p-menu-item-focus-background);

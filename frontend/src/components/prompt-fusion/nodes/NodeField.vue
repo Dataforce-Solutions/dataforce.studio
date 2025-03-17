@@ -1,7 +1,7 @@
 <template>
   <div ref="fieldRef" class="field" :class="{ [variantClass]: field.variant }">
     <div class="content">
-      <div v-if="field.label" class="label">{{ field.label }}</div>
+      <div v-if="label" class="label">{{ label }}</div>
       <span class="text">{{ field.value }}</span>
     </div>
     <div v-if="field.type || field.variadic" class="icons">
@@ -14,7 +14,7 @@
         />
       </div>
       <div v-if="field.variadic" class="icon">
-        <list width="16" height="16" color="var(--p-icon-muted-color)" />
+        <brackets width="16" height="16" color="var(--p-icon-muted-color)" />
       </div>
     </div>
   </div>
@@ -33,13 +33,14 @@ import type { NodeField } from '../interfaces'
 import { computed, onMounted, ref } from 'vue'
 import { PROMPT_FIELDS_ICONS } from '../interfaces'
 import { Handle, Position } from '@vue-flow/core'
-import { List } from 'lucide-vue-next'
+import { Brackets } from 'lucide-vue-next'
 import { useVueFlow } from '@vue-flow/core'
 
 const { edges } = useVueFlow()
 
 type Props = {
   field: NodeField
+  index?: number
 }
 
 const props = defineProps<Props>()
@@ -55,6 +56,7 @@ const connectingHandles = computed(() => {
     return acc
   }, new Set() as Set<string>)
 })
+const label = computed(() => props.index ? `CONDITION ${props.index}` : null)
 
 function calcHandlePosition() {
   if (!fieldRef.value) return
@@ -76,9 +78,12 @@ onMounted(() => {
   border-radius: 4px;
   background-color: var(--p-highlight-background);
   white-space: nowrap;
+  min-height: 28px;
 }
 .field.condition {
   background-color: var(--p-skeleton-background);
+  min-height: 42px;
+  align-items: flex-start;
 }
 .content {
   font-size: 12px;

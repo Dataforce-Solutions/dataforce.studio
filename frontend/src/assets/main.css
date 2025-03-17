@@ -46,10 +46,6 @@
   }
 }
 
-.p-filled {
-  background-color: var(--p-inputtext-filled-background) !important;
-}
-
 .p-filled:disabled {
   background-color: var(--p-inputtext-disabled-background) !important;
 }
@@ -116,4 +112,8 @@
     top: 80px !important;
     right: 5px !important;
   }
+}
+
+.p-select-list-container {
+  font-size: 14px;
 }

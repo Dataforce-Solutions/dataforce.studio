@@ -3,7 +3,6 @@
     :path="path[0]"
     :marker-end="`url(#${markerId})`"
     :marker-start="`url(#${markerId})`"
-    label-bg-style="fill: whitesmoke"
   />
   <custom-marker :id="markerId" :stroke="markerColor" :fill="markerColor"/>
 </template>
