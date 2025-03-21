@@ -18,16 +18,21 @@
 </template>
 
 <script setup lang="ts">
-import type { NodeField, PromptNode } from './interfaces'
+import type { NodeField, PromptNode } from '../interfaces'
 import { VueFlow, useVueFlow, type Connection } from '@vue-flow/core'
-import { initialNodes } from '@/constants/prompt-fusion'
 import CustomNode from './nodes/CustomNode.vue'
 import { v4 as uuidv4 } from 'uuid';
 import { Background } from '@vue-flow/background'
 import { onBeforeMount, onBeforeUnmount } from 'vue';
-import CustomEdge from './CustomEdge.vue';
+import CustomEdge from '@/components/ui/vue-flow/CustomEdge.vue';
 
-const { nodes, onConnect, addEdges, removeNodes, addNodes, removeEdges, onInit, fitView, getSelectedEdges } = useVueFlow()
+type Props = {
+  initialNodes: PromptNode[]
+}
+
+defineProps<Props>()
+
+const { nodes, onConnect, addEdges, removeNodes, addNodes, removeEdges, getSelectedEdges } = useVueFlow()
 
 function duplicateNode(id: string) {
   const node = nodes.value.find(node => node.id === id)
@@ -55,9 +60,6 @@ function onBackspaceClick(e: KeyboardEvent) {
   }
 }
 
-onInit(() => {
-  fitView()
-})
 onConnect((connection) => {
   addEdges({...connection, type: 'custom'})
 })

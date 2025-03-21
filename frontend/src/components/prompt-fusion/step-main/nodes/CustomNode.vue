@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { PROMPT_NODES_ICONS, type NodeData } from '../interfaces'
+import { PROMPT_NODES_ICONS, type NodeData } from '../../interfaces'
 import { Ellipsis } from 'lucide-vue-next'
 import NodeField from './NodeField.vue'
 import { computed, ref } from 'vue'

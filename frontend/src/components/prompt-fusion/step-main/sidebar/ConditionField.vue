@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import type { NodeField } from '../interfaces';
+import type { NodeField } from '../../interfaces';
 import { Trash } from 'lucide-vue-next';
 import CustomTextarea from '@/components/ui/CustomTextarea.vue';
 

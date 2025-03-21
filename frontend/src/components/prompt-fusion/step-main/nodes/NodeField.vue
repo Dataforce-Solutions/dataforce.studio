@@ -29,9 +29,9 @@
 </template>
 
 <script setup lang="ts">
-import type { NodeField } from '../interfaces'
+import type { NodeField } from '../../interfaces'
 import { computed, onMounted, ref } from 'vue'
-import { PROMPT_FIELDS_ICONS } from '../interfaces'
+import { PROMPT_FIELDS_ICONS } from '../../interfaces'
 import { Handle, Position } from '@vue-flow/core'
 import { Brackets } from 'lucide-vue-next'
 import { useVueFlow } from '@vue-flow/core'

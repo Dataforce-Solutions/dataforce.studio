@@ -76,7 +76,7 @@ const router = createRouter({
       component: () => import('../pages/RuntimePage.vue'),
     },
     {
-      path: '/prompt-fusion',
+      path: '/prompt-fusion/:mode?',
       name: 'prompt-fusion',
       component: () => import('../pages/PromptFusionPage.vue'),
     },

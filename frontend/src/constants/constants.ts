@@ -1,6 +1,6 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
 
-import { FolderDot, CirclePlay, Zap } from 'lucide-vue-next'
+import { FolderDot, CirclePlay, Zap, File } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
@@ -27,6 +27,15 @@ export const sidebarMenu = [
     disabled: true,
     tooltipMessage: 'Coming soon!',
   },
+]
+
+export const sidebarMenuBottom = [
+  {
+    id: 1,
+    label: 'Documentation',
+    icon: File,
+    link: 'https://google.com',
+  }
 ]
 
 type IAppTaskData = TaskData & {
@@ -76,11 +85,10 @@ const appTasks: IAppTaskData[] = [
   },
   {
     id: 5,
-    icon: TabularClassificationIcon,
-    title: 'Prompt Fusion',
+    icon: ConversationalQAIcon,
+    title: 'LLM Flow',
     description: 'Technique for categorizing table-structured data by labeled classes.',
     btnText: 'next',
-    linkName: 'prompt-fusion',
     tooltipData:
       'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
     isAvailable: true,
@@ -89,3 +97,33 @@ const appTasks: IAppTaskData[] = [
 
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
 export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
+
+export const tabularResources = [
+  {
+    label: 'How to format your file',
+    link: 'https://google.com',
+  },
+  {
+    label: 'Accepted field formats',
+    link: '#',
+  },
+  {
+    label: 'How to get your CSV',
+    link: '#',
+  },
+]
+
+export const promptFusionResources = [
+  {
+    label: 'How to format your file',
+    link: '#',
+  },
+  {
+    label: 'Accepted field formats',
+    link: '#',
+  },
+  {
+    label: 'How to get your CSV',
+    link: '#',
+  },
+]

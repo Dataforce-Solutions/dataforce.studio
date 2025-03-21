@@ -77,3 +77,11 @@
 .vue-flow__edge.selected .vue-flow__edge-path {
   stroke: var(--p-primary-color);
 }
+
+.vue-flow__node.selectable:focus {
+  border-color: var(--p-primary-color) ;
+}
+
+a.p-button {
+  text-decoration: none;
+}

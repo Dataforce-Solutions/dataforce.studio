@@ -48,9 +48,9 @@
 </template>
 
 <script setup lang="ts">
-import type { NodeData, FieldVariant, NodeField } from '../interfaces';
+import type { NodeData, FieldVariant, NodeField } from '../../interfaces';
 import { computed } from 'vue';
-import { PROMPT_NODES_ICONS, NodeTypeEnum } from '../interfaces';
+import { PROMPT_NODES_ICONS, NodeTypeEnum } from '../../interfaces';
 import { v4 as uuidv4 } from 'uuid';
 import { Position } from '@vue-flow/core';
 import { X, Plus } from 'lucide-vue-next'

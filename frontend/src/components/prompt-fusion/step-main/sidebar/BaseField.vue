@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 import { Brackets, Trash } from 'lucide-vue-next'
-import { PromptFieldTypeEnum, type NodeField } from '../interfaces';
+import { PromptFieldTypeEnum, type NodeField } from '../../interfaces';
 
 type Props = {
   data: NodeField

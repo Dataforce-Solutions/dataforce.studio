@@ -19,7 +19,9 @@
           :errors="uploadDataErrors"
           :is-table-exist="isTableExist"
           :file="fileData"
-          :task="task"
+          :min-columns-count="3"
+          :resources="tabularResources"
+          :sample-file-name="sampleFileName"
           @selectFile="onSelectFile"
           @removeFile="onRemoveFile"
         />
@@ -83,23 +85,20 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-
 import { Tasks } from '@/lib/data-processing/interfaces'
-
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
 import StepPanels from 'primevue/steppanels'
 import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
 import { ArrowRight } from 'lucide-vue-next'
-
-import UploadData from './first-step/UploadData.vue'
+import UploadData from '../../ui/UploadData.vue'
 import ServiceEvaluate from './third-step/ServiceEvaluate.vue'
 import TableView from './second-step/TableView.vue'
 import TrainingProgress from './second-step/TrainingProgress.vue'
-
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
+import { tabularResources } from '@/constants/constants'
 
 type TProps = {
   steps: {
@@ -158,6 +157,7 @@ const {
 } = useModelTraining()
 
 const currentStep = ref(1)
+const sampleFileName = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv')
 
 const isStepAvailable = computed(() => (id: number) => {
   if (currentStep.value === 3) return

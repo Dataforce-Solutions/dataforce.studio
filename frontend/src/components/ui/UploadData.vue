@@ -2,9 +2,7 @@
   <div class="wrapper">
     <div class="headings">
       <h1 class="main-title">Upload your data for model training</h1>
-      <p class="sub-title">
-        Drag and drop your file here, or choose one of our sample datasets to get started.
-      </p>
+      <p class="sub-title">Drag and drop your file here, or choose one of our sample datasets to get started.</p>
     </div>
     <div class="area">
       <file-input
@@ -30,7 +28,7 @@
           </li>
           <li class="info-item">
             <div class="info-item-body">
-              <span>Columns: more than 3</span>
+              <span>Columns: more than {{ minColumnsCount }}</span>
               <template v-if="isTableExist">
                 <x width="20" height="20" class="danger" v-if="errors.columns" />
                 <check width="20" height="20" class="success" v-if="!errors.columns" />
@@ -64,21 +62,9 @@
       <div class="info">
         <h3 class="info-title">Resources</h3>
         <ul class="info-list">
-          <li class="info-item">
-            <a href="#" class="info-item-body link">
-              <span>How to format your file</span>
-              <external-link width="14" height="14" />
-            </a>
-          </li>
-          <li class="info-item">
-            <a href="#" class="info-item-body link">
-              <span>Accepted field formats</span>
-              <external-link width="14" height="14" />
-            </a>
-          </li>
-          <li class="info-item">
-            <a href="#" class="info-item-body link">
-              <span>How to get your CSV</span>
+          <li v-for="resource in resources" class="info-item">
+            <a :href="resource.link" target="_blank" class="info-item-body link">
+              <span>{{ resource.label }}</span>
               <external-link width="14" height="14" />
             </a>
           </li>
@@ -93,7 +79,6 @@ import { computed } from 'vue'
 import { ExternalLink, X, Check } from 'lucide-vue-next'
 import CSVIcon from '@/assets/img/icons/csv.svg'
 import FileInput from '@/components/ui/FileInput.vue'
-import { Tasks } from '@/lib/data-processing/interfaces'
 
 type Props = {
   isTableExist: boolean
@@ -106,7 +91,9 @@ type Props = {
     name?: string
     size?: number
   }
-  task: Tasks
+  minColumnsCount: number
+  resources: { label: string, link: string }[]
+  sampleFileName: string
 }
 
 type Emits = {
@@ -127,11 +114,10 @@ const hasError = computed(() => {
 })
 
 async function selectSample() {
-  const fileName = props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv'
-  const fileUrl = props.task === Tasks.TABULAR_CLASSIFICATION ? new URL('@/assets/data/iris.csv', import.meta.url).href : new URL('@/assets/data/insurance.csv', import.meta.url).href;
+  const fileUrl = `/data/${props.sampleFileName}`;
   const response = await fetch(fileUrl)
   const text = await response.text()
-  const file = new File([text], fileName, { type: 'text/csv' })
+  const file = new File([text], props.sampleFileName, { type: 'text/csv' })
   if (file) emit('selectFile', file)
 }
 </script>

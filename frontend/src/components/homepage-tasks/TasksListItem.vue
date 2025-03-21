@@ -19,15 +19,16 @@
     <div class="footer" v-if="task.btnText">
       <d-button :label="task.btnText" severity="secondary" class="w-full" @click="onButtonClick" />
     </div>
+    <task-modal v-if="isPromptFusionTask" v-model="isPopupVisible"/>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TaskData } from './interfaces'
-
 import { CircleHelp } from 'lucide-vue-next'
-
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import TaskModal from '../prompt-fusion/TaskModal.vue'
 
 type TProps = {
   task: TaskData
@@ -37,8 +38,14 @@ const props = defineProps<TProps>()
 
 const router = useRouter()
 
+const isPopupVisible = ref(false)
+const isPromptFusionTask = computed(() => props.task.id === 5)
+
 function onButtonClick() {
   if (props.task.linkName) router.push({ name: props.task.linkName })
+  else if (isPromptFusionTask.value) {
+    isPopupVisible.value = true
+  }
 }
 </script>
 
