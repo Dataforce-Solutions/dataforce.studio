@@ -55,7 +55,6 @@
 
 <script setup lang="ts">
 import type { ColumnType } from '@/hooks/useDataTable'
-
 import { computed, ref } from 'vue'
 import { FilterType, type FilterItem } from '@/lib/data-table/interfaces'
 import { Filter, Plus, Trash2 } from 'lucide-vue-next'

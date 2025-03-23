@@ -27,7 +27,7 @@
               <span class="file-size">{{ sizeText }}</span>
               <d-button severity="danger" rounded variant="text" @click="removeFile">
                 <template #icon>
-                  <trash-2 width="14" height="14" />
+                  <trash2 width="14" height="14" />
                 </template>
               </d-button>
             </template>

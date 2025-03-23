@@ -2,21 +2,6 @@ import { NodeTypeEnum, type PromptNode } from '@/components/prompt-fusion/interf
 import { Position } from '@vue-flow/core'
 import { v4 as uuidv4 } from 'uuid'
 
-export const emptyInputNode: PromptNode = {
-  id: uuidv4(),
-  type: 'custom',
-  data: {
-    label: 'Input',
-    icon: 'input',
-    iconColor: 'var(--p-primary-color)',
-    fields: [{ id: uuidv4(), value: '', handlePosition: Position.Right, variant: 'input' }],
-    showMenu: false,
-    type: NodeTypeEnum.input,
-  },
-  position: { x: 20, y: 20 },
-  selected: false,
-}
-
 export const emptyGateNode: PromptNode = {
   id: uuidv4(),
   type: 'custom',
@@ -56,27 +41,60 @@ export const emptyProcessorNode: PromptNode = {
   selected: false,
 }
 
-export const emptyOutputNode: PromptNode = {
-  id: uuidv4(),
-  type: 'custom',
-  data: {
-    label: 'Output',
-    icon: 'output',
-    iconColor: 'var(--p-primary-color)',
-    fields: [{ id: uuidv4(), value: '', handlePosition: Position.Left, variant: 'output' }],
-    showMenu: false,
-    type: NodeTypeEnum.output,
-  },
-  position: { x: 20, y: 20 },
-  selected: false,
+export const getInputNode = (fields?: string[]): PromptNode => {
+  return {
+    id: uuidv4(),
+    type: 'custom',
+    data: {
+      label: 'Input',
+      icon: 'input',
+      iconColor: 'var(--p-primary-color)',
+      fields: fields
+        ? fields.map((field) => ({
+            id: uuidv4(),
+            value: field,
+            handlePosition: Position.Right,
+            variant: 'input',
+          }))
+        : [{ id: uuidv4(), value: '', handlePosition: Position.Right, variant: 'input' }],
+      showMenu: false,
+      type: NodeTypeEnum.input,
+    },
+    position: { x: 20, y: 20 },
+    selected: false,
+  }
 }
 
-const getInitialNodes = () => {
-  const inputNode = structuredClone(emptyInputNode)
-  const outputNode = structuredClone(emptyOutputNode)
+export const getOutputNode = (fields?: string[]): PromptNode => {
+  return {
+    id: uuidv4(),
+    type: 'custom',
+    data: {
+      label: 'Output',
+      icon: 'output',
+      iconColor: 'var(--p-primary-color)',
+      fields: fields
+        ? fields.map((field) => ({
+            id: uuidv4(),
+            value: field,
+            handlePosition: Position.Left,
+            variant: 'output',
+          }))
+        : [{ id: uuidv4(), value: '', handlePosition: Position.Left, variant: 'output' }],
+      showMenu: false,
+      type: NodeTypeEnum.output,
+    },
+    position: { x: 20, y: 20 },
+    selected: false,
+  }
+}
+
+export const getInitialNodes = (inputFields?: string[], outputFields?: string[]) => {
+  const inputNode = structuredClone(getInputNode(inputFields))
+  const outputNode = structuredClone(getOutputNode(outputFields))
   inputNode.position = { x: 100, y: 200 }
   outputNode.position = { x: 1000, y: 200 }
-  return [ inputNode, outputNode ]
+  return [inputNode, outputNode]
 }
 
 export const initialNodes: PromptNode[] = getInitialNodes()

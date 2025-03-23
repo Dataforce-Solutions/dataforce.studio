@@ -12,8 +12,10 @@
         </div>
       </div>
       <div class="header-right">
+        <table-input-outputs v-if="inputsOutputsColumns" :columns="inputsOutputsColumns" :column-types="columnTypes" :selected-columns="selectedColumns"/>
         <table-sort :columns="currentColumns" v-model:multiSortMeta="multiSortMeta" />
         <table-filters
+          v-if="filters"
           :data="dataForFilters"
           :filters="filters"
           :column-types="columnTypes"
@@ -58,6 +60,8 @@
               :group="group"
               :target="target"
               :column-type="columnTypes[column]"
+              :show-menu="showColumnHeaderMenu"
+              :inputs-outputs-columns="inputsOutputsColumns"
               @change-group="(event) => $emit('changeGroup', event)"
               @set-target="(event) => $emit('setTarget', event)"
             />
@@ -72,16 +76,15 @@
 <script setup lang="ts">
 import type { FilterDataItem } from './TableFilters.vue'
 import type { FilterItem } from '@/lib/data-table/interfaces'
-import type { ColumnType } from '@/hooks/useDataTable'
-
+import type { ColumnType, PromptFusionColumn } from '@/hooks/useDataTable'
 import TableSort from './TableSort.vue'
 import TableFilters from './TableFilters.vue'
 import TableEdit from './TableEdit.vue'
 import TableColumnHeader from './TableColumnHeader.vue'
-
+import TableInputOutputs from './TableInputOutputs.vue'
 import { CloudDownload } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 
 import { cutStringOnMiddle } from '@/helpers/helpers'
 
@@ -90,12 +93,14 @@ type Props = {
   rowsCount: number
   allColumns: string[]
   value: object[]
-  target: string
-  group: string[]
+  target?: string
+  group?: string[]
   selectedColumns: string[]
   exportCallback: Function
-  filters: FilterItem[]
+  filters?: FilterItem[]
   columnTypes: Record<string, ColumnType>
+  showColumnHeaderMenu: boolean
+  inputsOutputsColumns?: PromptFusionColumn[]
 }
 
 type Emits = {
@@ -134,7 +139,7 @@ function calcTableHeight() {
   tableHeight.value = document.documentElement.clientHeight - minusValue
 }
 
-onMounted(() => {
+onBeforeMount(() => {
   calcTableHeight()
   window.addEventListener('resize', calcTableHeight)
 })

@@ -46,6 +46,7 @@
           :export-callback="downloadCSV"
           :filters="getFilters"
           :columnTypes="columnTypes"
+          show-column-header-menu
           @set-target="setTarget"
           @change-group="changeGroup"
           @edit="setSelectedColumns"
@@ -94,7 +95,7 @@ import StepPanel from 'primevue/steppanel'
 import { ArrowRight } from 'lucide-vue-next'
 import UploadData from '../../ui/UploadData.vue'
 import ServiceEvaluate from './third-step/ServiceEvaluate.vue'
-import TableView from './second-step/TableView.vue'
+import TableView from '@/components/table-view/index.vue'
 import TrainingProgress from './second-step/TrainingProgress.vue'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
@@ -112,7 +113,7 @@ const props = defineProps<TProps>()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
-    size: !!(size && size > 1024 * 1024),
+    size: !!(size && size > 50 * 1024 * 1024),
     columns: !!(columns && columns <= 3),
     rows: !!(rows && rows <= 100),
   }

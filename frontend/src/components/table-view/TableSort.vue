@@ -77,11 +77,9 @@ type Props = {
   columns: string[]
   multiSortMeta: any[]
 }
-
 type Emits = {
   (event: 'update:multiSortMeta', sortMeta: any[]): void
 }
-
 type SortItem = {
   id: number
   selectedColumn: string

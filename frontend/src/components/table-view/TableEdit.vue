@@ -43,7 +43,6 @@
 <script setup lang="ts">
 import { PenLine, Target } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-
 import { cutStringOnMiddle } from '@/helpers/helpers'
 
 type Column = {
@@ -51,7 +50,7 @@ type Column = {
   name: string
 }
 type Props = {
-  target: string
+  target?: string
   columns: string[]
   selectedColumns: string[]
 }
