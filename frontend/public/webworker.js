@@ -33,6 +33,8 @@ async function initPyWorker() {
     await pyodide.loadPackage("/skl2onnx-1.17.0-py2.py3-none-any.whl");
     await pyodide.loadPackage("/imbalanced_learn-0.12.3-py3-none-any.whl");
     await pyodide.loadPackage("/onnxconverter_common-1.14.0-py2.py3-none-any.whl");
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/httpx-0.28.1-py3-none-any.whl");
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/ssl-1.0.0-py2.py3-none-any.whl");
 
     //////////////////////////////////////////
 
@@ -90,7 +92,6 @@ async function tabularDeallocate(model_id) {
     const payload = { "model_id": model_id };
     return await invokeRoute("/tabular/deallocate", payload);
 }
-
 
 self.onmessage = async (event) => {
     const m = event.data;

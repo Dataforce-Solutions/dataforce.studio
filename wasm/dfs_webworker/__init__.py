@@ -1,4 +1,5 @@
 from dfs_webworker.tabular import tabular_deallocate, tabular_predict, tabular_train
+from dfs_webworker.llm import openai_chat, ollama_chat
 from dfs_webworker.types import FakeJsProxy
 
 
