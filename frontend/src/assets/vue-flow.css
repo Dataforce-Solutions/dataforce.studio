@@ -85,3 +85,8 @@
 a.p-button {
   text-decoration: none;
 }
+
+.p-select-header .p-select-filter {
+  padding: 6px 31px 6px 10px;
+  font-size: var(--p-inputtext-sm-font-size);
+}

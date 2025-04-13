@@ -78,13 +78,13 @@ import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
 import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
 import { getMetricsCards } from '@/helpers/helpers'
-import MetricCard from '../../../ui/MetricCard.vue'
-import DetailedTable from './DetailedTable.vue'
-import PredictContent from './PredictContent.vue'
 import { table } from 'arquero'
 import { useConfirm } from 'primevue/useconfirm'
 import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useRouter } from 'vue-router'
+import MetricCard from '../../../ui/MetricCard.vue'
+import DetailedTable from './DetailedTable.vue'
+import PredictContent from '@/components/predict/index.vue'
 
 type Props = {
   predictionFields: string[]

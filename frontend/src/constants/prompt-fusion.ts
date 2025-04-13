@@ -1,8 +1,8 @@
-import { NodeTypeEnum, type PromptNode } from '@/components/prompt-fusion/interfaces'
+import { NodeTypeEnum, type PromptNode } from '@/components/services/prompt-fusion/interfaces'
 import { Position } from '@vue-flow/core'
 import { v4 as uuidv4 } from 'uuid'
 
-export const emptyGateNode: PromptNode = {
+export const getEmptyGateNode = (): PromptNode => ({
   id: uuidv4(),
   type: 'custom',
   data: {
@@ -20,9 +20,9 @@ export const emptyGateNode: PromptNode = {
   },
   position: { x: 20, y: 20 },
   selected: false,
-}
+})
 
-export const emptyProcessorNode: PromptNode = {
+export const getEmptyProcessorNode = (): PromptNode => ({
   id: uuidv4(),
   type: 'custom',
   data: {
@@ -39,7 +39,7 @@ export const emptyProcessorNode: PromptNode = {
   },
   position: { x: 20, y: 20 },
   selected: false,
-}
+})
 
 export const getInputNode = (fields?: string[]): PromptNode => {
   return {

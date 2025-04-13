@@ -26,3 +26,16 @@ export const deleteAccountConfirmOptions = (accept: () => void): ConfirmationOpt
   },
   accept,
 })
+
+export const runOptimizationConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: "Please confirm that you've reviewed all settings before proceeding.",
+  header: 'Ready to start optimization?',
+  rejectProps: {
+    label: 'cancel',
+    severity: 'secondary',
+  },
+  acceptProps: {
+    label: 'confirm and run',
+  },
+  accept,
+})

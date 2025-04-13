@@ -34,14 +34,15 @@
 <script setup lang="ts">
 import { onBeforeMount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import StepMain from '@/components/prompt-fusion/step-main/index.vue'
-import UploadData from '@/components/ui/UploadData.vue'
 import { useDataTable } from '@/hooks/useDataTable'
 import { promptFusionResources } from '@/constants/constants'
-import FirstStepNavigation from '@/components/prompt-fusion/step-upload/Navigation.vue'
 import { initialNodes as defaultInitialNodes, getInitialNodes } from '@/constants/prompt-fusion'
+import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
+import FirstStepNavigation from '@/components/services/prompt-fusion/step-upload/Navigation.vue'
 import TableView from '@/components/table-view/index.vue'
-import StepEdit from '@/components/prompt-fusion/step-edit/StepEdit.vue'
+import StepEdit from '@/components/services/prompt-fusion/step-edit/StepEdit.vue'
+import StepMain from '@/components/services/prompt-fusion/step-main/index.vue'
+import UploadData from '@/components/ui/UploadData.vue'
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
@@ -71,10 +72,10 @@ const {
   onRemoveFile,
   setSelectedColumns,
   downloadCSV,
+  getDataForTraining,
 } = useDataTable(tableValidator)
 
 const step = ref<number>()
-
 const initialNodes = ref(defaultInitialNodes)
 
 function backFromMain() {
@@ -83,6 +84,7 @@ function backFromMain() {
 }
 function goToMainStep() {
   initialNodes.value = getInitialNodes(getInputsColumns.value, getOutputsColumns.value)
+  promptFusionService.saveTrainingData(getDataForTraining())
   step.value = 3
 }
 

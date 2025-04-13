@@ -28,7 +28,7 @@ import type { TaskData } from './interfaces'
 import { CircleHelp } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import TaskModal from '../prompt-fusion/TaskModal.vue'
+import TaskModal from '@/components/services/prompt-fusion/TaskModal.vue'
 
 type TProps = {
   task: TaskData

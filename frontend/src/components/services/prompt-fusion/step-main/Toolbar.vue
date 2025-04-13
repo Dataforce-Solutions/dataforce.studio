@@ -56,7 +56,7 @@ import { useVueFlow } from '@vue-flow/core'
 import { computed, ref, watch } from 'vue'
 import { NodeTypeEnum, PROMPT_NODES_ICONS } from '../interfaces'
 import { OnClickOutside } from '@vueuse/components'
-import { emptyGateNode, emptyProcessorNode } from '@/constants/prompt-fusion'
+import { getEmptyGateNode, getEmptyProcessorNode } from '@/constants/prompt-fusion'
 
 const { zoomIn: zoomInFunction, zoomOut: zoomOutFunction, zoomTo, viewport, addNodes, panOnDrag } = useVueFlow()
 
@@ -80,9 +80,9 @@ function onMenuOutsideClick() {
 function addNode(node: NodeTypeEnum) {
   isMenuOpen.value = false
   if (node === NodeTypeEnum.gate) {
-    addNodes(structuredClone(emptyGateNode))
+    addNodes(getEmptyGateNode())
   } else if (node === NodeTypeEnum.processor) {
-    addNodes(structuredClone(emptyProcessorNode))
+    addNodes(getEmptyProcessorNode())
   }
 }
 

@@ -64,9 +64,23 @@ export const incorrectGroupWarning: ToastMessageOptions = {
   life: 3000,
 }
 
+export const selectProviderErrorToast: ToastMessageOptions = {
+  severity: 'error',
+  summary: 'Provider Error',
+  detail: 'The provider must be connected',
+  life: 3000,
+}
+
 export const unknownErrorToast: ToastMessageOptions = {
   severity: 'error',
   summary: 'Error',
   detail: 'An unknown error has occurred',
   life: 3000,
 }
+
+export const simpleSuccessToast = (detail: string): ToastMessageOptions => ({
+  severity: 'success',
+  summary: 'Success',
+  detail: detail,
+  life: 3000,
+})

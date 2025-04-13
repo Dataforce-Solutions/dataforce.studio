@@ -57,7 +57,7 @@
 <script setup lang="ts">
 import type { MenuItem } from 'primevue/menuitem'
 import type { LucideIcon } from 'lucide-vue-next'
-import { PROMPT_NODES_ICONS } from '../prompt-fusion/interfaces'
+import { PROMPT_NODES_ICONS } from '@/components/services/prompt-fusion/interfaces'
 import { Blocks, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 'lucide-vue-next'
 import { Menu } from 'primevue'
 import { computed, ref } from 'vue'

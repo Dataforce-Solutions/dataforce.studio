@@ -6,29 +6,13 @@
       <div class="inputs">
         <div v-for="field in Object.keys(manualValues)" class="input-wrapper">
           <d-float-label variant="on">
-            <d-input-text
-              v-model="manualValues[field as keyof typeof manualValues]"
-              :id="field"
-              fluid/>
+            <d-input-text v-model="manualValues[field as keyof typeof manualValues]" :id="field" fluid/>
             <label class="label" :for="field">{{ cutStringOnMiddle(field, 24) }}</label>
           </d-float-label>
         </div>
       </div>
-      <d-button
-        label="Predict"
-        type="submit"
-        fluid
-        :disabled="isManualPredictButtonDisabled"
-        @click="onManualSubmit"/>
-      <Textarea
-        class="prediction"
-        v-model="predictionText"
-        id="prediction"
-        fluid
-        rows="4"
-        :style="{ resize: 'none' }"
-        disabled
-        placeholder="Prediction"></Textarea>
+      <d-button label="Predict" type="submit" fluid :disabled="isManualPredictButtonDisabled" @click="onManualSubmit"/>
+      <Textarea class="prediction" v-model="predictionText" id="prediction" fluid rows="4" :style="{ resize: 'none' }" disabled placeholder="Prediction"></Textarea>
     </div>
     <div v-else class="upload">
       <file-input
@@ -47,26 +31,21 @@
       <template v-if="predictReadyForDownload">
         <d-button label="Download" type="submit" fluid @click="downloadPredict" />
       </template>
-      <d-button
-        v-else
-        label="Predict"
-        type="submit"
-        fluid
-        :disabled="isPredictButtonDisabled"
-        @click="onFileSubmit"/>
+      <d-button v-else label="Predict" type="submit" fluid :disabled="isPredictButtonDisabled" @click="onFileSubmit"/>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import SelectButton from 'primevue/selectbutton'
-import { Textarea } from 'primevue'
-import FileInput from '@/components/ui/FileInput.vue'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
 import { convertObjectToCsvBlob } from '@/helpers/helpers'
 import { cutStringOnMiddle } from '@/helpers/helpers'
+import { Textarea } from 'primevue'
+import SelectButton from 'primevue/selectbutton'
+import FileInput from '@/components/ui/FileInput.vue'
+
 
 const { startPredict, isLoading } = useModelTraining()
 
