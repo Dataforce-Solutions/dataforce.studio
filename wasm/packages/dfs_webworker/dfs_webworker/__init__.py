@@ -43,6 +43,12 @@ async def invoke(route: str, payload: FakeJsProxy):
             "error_type": type(e).__name__,
             "error_message": str(e),
         }
+    except KeyboardInterrupt:
+        return {
+            "status": "error",
+            "error_type": "KeyboardInterrupt",
+            "error_message": "Execution interrupted by user",
+        }
 
 
 def ping():

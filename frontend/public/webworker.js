@@ -33,6 +33,8 @@ async function initPyWorker() {
     await pyodide.loadPackage("/skl2onnx-1.17.0-py2.py3-none-any.whl");
     await pyodide.loadPackage("/imbalanced_learn-0.12.3-py3-none-any.whl");
     await pyodide.loadPackage("/onnxconverter_common-1.14.0-py2.py3-none-any.whl");
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/httpx-0.28.1-py3-none-any.whl");
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/ssl-1.0.0-py2.py3-none-any.whl");
 
     //////////////////////////////////////////
 
@@ -46,6 +48,7 @@ async function initPyWorker() {
     );
 
     await pyodide.loadPackage("/dfs_webworker-0.1.0-py3-none-any.whl");
+    await pyodide.loadPackage("/promptopt-0.1.0-py3-none-any.whl")
 
     await micropip.install("scipy==1.14.1");
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/28/09/c4d329f7969443cdd4d482048ca406b6f61cda3c8e99ace71feaec7c8734/optuna-4.2.1-py3-none-any.whl");
@@ -91,7 +94,6 @@ async function tabularDeallocate(model_id) {
     return await invokeRoute("/tabular/deallocate", payload);
 }
 
-
 self.onmessage = async (event) => {
     const m = event.data;
     const pyodideReady = await self.pyodideReadyPromise;
@@ -117,6 +119,11 @@ self.onmessage = async (event) => {
         case "invokeRoute":
             const result = await invokeRoute(m.payload.route, m.payload.data);
             self.postMessage({ message: m.message, id: m.id, payload: result });
+            break;
+        case "interrupt":
+            const interrupt = new Uint8Array(new SharedArrayBuffer(1));
+            interrupt[0] = 2;
+            self.pyodide.setInterruptBuffer(interrupt);
             break;
     }
 };
