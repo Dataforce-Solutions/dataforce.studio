@@ -1,0 +1,19 @@
+[build-system]
+
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+dependencies = [
+]
+name = "promptopt"
+version = "0.1.0"
+authors = [
+  { name="Oleh Kostromin", email="oleh@dataforce.solutions1" },
+]
+description = ""
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]

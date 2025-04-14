@@ -1,4 +1,4 @@
-dist/*
-dfs_webworker.egg-info/*
-*/__pycache__/*
-
+test.py
+**/__pycache__/
+**/dist/
+**/*.egg-info/

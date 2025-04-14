@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./packages/promptopt",
+        "./packages/dfs_webworker"
+    ]
+}
