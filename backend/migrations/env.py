@@ -46,14 +46,14 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection):
+def do_run_migrations(connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def run_async_migrations():
+async def run_async_migrations() -> None:
     """In this scenario we need to create an Engine
     and associate a connection with the context."""
 
@@ -69,7 +69,7 @@ async def run_async_migrations():
     await connectable.dispose()
 
 
-def run_migrations_online():
+def run_migrations_online() -> None:
     asyncio.run(run_async_migrations())
 
 
