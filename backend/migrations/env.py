@@ -1,12 +1,11 @@
 import asyncio
-
 from logging.config import fileConfig
+
 from alembic import context
 from dataforce_studio.models.orm import Base
+from dataforce_studio.settings import config as settings_config
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from dataforce_studio.settings import config as settings_config
-
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
