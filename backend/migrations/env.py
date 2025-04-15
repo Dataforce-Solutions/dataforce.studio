@@ -1,15 +1,12 @@
-import os
 import asyncio
 
 from logging.config import fileConfig
 from alembic import context
 from dataforce_studio.models.orm import Base
 from sqlalchemy import pool
-from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import async_engine_from_config
+from dataforce_studio.settings import config as settings_config
 
-
-load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,7 +20,7 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 target_metadata = Base.metadata
 
-config.set_main_option("sqlalchemy.url", os.environ.get("POSTGRESQL_DSN"))
+config.set_main_option("sqlalchemy.url", settings_config.POSTGRESQL_DSN)
 
 
 def run_migrations_offline() -> None:
