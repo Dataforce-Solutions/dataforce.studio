@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_config() -> BaseSettings:
+def get_config() -> Settings:
     return Settings()
 
 
