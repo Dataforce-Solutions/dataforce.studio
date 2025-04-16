@@ -137,10 +137,14 @@ dependencies = [
     { name = "httpx" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pyjwt" },
-    { name = "ruff" },
     { name = "sendgrid" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -151,11 +155,13 @@ requires-dist = [
     { name = "httpx", specifier = "==0.27.2" },
     { name = "passlib", extras = ["bcrypt"], specifier = "==1.7.4" },
     { name = "pyjwt", specifier = "==2.9.0" },
-    { name = "ruff", specifier = ">=0.11.5" },
     { name = "sendgrid", specifier = "==6.11.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.36" },
     { name = "uvicorn", specifier = "==0.32.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = "==0.11.5" }]
 
 [[package]]
 name = "dnspython"
