@@ -19,7 +19,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         self,
         conn: HTTPConnection,
     ) -> tuple[AuthCredentials, AuthUser] | None:
-        authorization: str = conn.headers.get("Authorization")
+        authorization: str | None = conn.headers.get("Authorization")
         if not authorization:
             return None
 

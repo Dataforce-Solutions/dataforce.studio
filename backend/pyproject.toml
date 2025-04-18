@@ -18,9 +18,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest==8.3.5",
-    "pytest-asyncio==0.26.0",
+    "mypy==1.15.0",
+    "mypy-extensions==1.0.0",
     "ruff==0.11.5",
+    "types-passlib==1.7.7.20250408",
 ]
 
 [tool.ruff]
@@ -66,8 +67,21 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[dependency-groups]
+dev = [
+    "ruff==0.11.5",
+]
+
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["dataforce"]
 split-on-trailing-comma = true
+
+
+[tool.mypy]
+python_version = "3.12"
+plugins = []
+files = "backend/dataforce_studio/**/*.py, backend/tests/**/*.py"
+exclude = ['.venv/']
+strict = true

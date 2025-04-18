@@ -7,7 +7,7 @@ from dataforce_studio.infra.security import JWTAuthenticationBackend
 
 
 class AppService(FastAPI):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, tags=["auth"])

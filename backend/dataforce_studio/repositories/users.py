@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import EmailStr
+from pydantic import EmailStr, HttpUrl
 from sqlalchemy import select
 
 from dataforce_studio.models.auth import (
@@ -13,14 +13,14 @@ from dataforce_studio.repositories.base import RepositoryBase
 
 class UserRepository(RepositoryBase):
     async def create_user(
-        self,
-        email: EmailStr,
-        full_name: str,
-        disabled: bool,
-        email_verified: bool,
-        auth_method: AuthProvider,
-        photo: str | None = None,
-        hashed_password: str | None = None,
+            self,
+            email: EmailStr,
+            full_name: str | None,
+            disabled: bool,
+            email_verified: bool,
+            auth_method: AuthProvider,
+            photo: str | None = None,
+            hashed_password: str | None = None,
     ) -> ServiceUser:
         async with self._get_session() as session:
             db_user = DBUser(
@@ -53,14 +53,14 @@ class UserRepository(RepositoryBase):
                 await session.commit()
 
     async def update_user(
-        self,
-        email: str,
-        full_name: str | None = None,
-        disabled: bool | None = None,
-        email_verified: bool | None = None,
-        auth_provider: AuthProvider | None = None,
-        photo: str | None = None,
-        hashed_password: str | None | Literal["reset"] = None,
+            self,
+            email: str,
+            full_name: str | None = None,
+            disabled: bool | None = None,
+            email_verified: bool | None = None,
+            auth_provider: AuthProvider | None = None,
+            photo: str | None = None,
+            hashed_password: str | None | Literal["reset"] = None,
     ) -> ServiceUser | None:
         async with self._get_session() as session:
             result = await session.execute(select(DBUser).filter(DBUser.email == email))
@@ -75,7 +75,7 @@ class UserRepository(RepositoryBase):
                 if auth_provider:
                     db_user.auth_method = auth_provider
                 if photo:
-                    db_user.photo = photo
+                    db_user.photo = HttpUrl(photo)
                 if hashed_password:
                     if hashed_password == "reset":
                         db_user.hashed_password = None

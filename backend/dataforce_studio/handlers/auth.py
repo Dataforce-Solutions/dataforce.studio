@@ -1,4 +1,5 @@
 from time import time
+from typing import Any
 
 import httpx
 import jwt
@@ -57,7 +58,7 @@ class AuthHandler:
             raise AuthError("Invalid auth method", 400)
         return service_user.to_user()
 
-    def create_token(self, data: dict, expires_delta: int) -> str:
+    def create_token(self, data: dict[str, Any], expires_delta: int) -> str:
         to_encode = data.copy()
         expire = int(time()) + expires_delta
         to_encode.update({"exp": expire})
@@ -91,7 +92,7 @@ class AuthHandler:
 
     async def handle_signup(
         self, email: str, password: str, full_name: str | None = None
-    ) -> dict:
+    ) -> dict[str, str]:
         """Handle user signup process"""
         if (
             user := await self.__user_repository.get_user(email)
@@ -144,7 +145,8 @@ class AuthHandler:
             ):
                 raise AuthError("Token has been revoked", 400)
 
-            if service_user := await self.__user_repository.get_user(email) is None:
+            service_user = await self.__user_repository.get_user(email)
+            if service_user is None:
                 raise AuthError("User not found", 404)
 
             exp = int(payload.get("exp"))
@@ -192,7 +194,8 @@ class AuthHandler:
 
     async def handle_get_current_user(self, email: str) -> User:
         """Handle getting current user information"""
-        if not (service_user := await self.__user_repository.get_user(email)):
+        service_user = await self.__user_repository.get_user(email)
+        if service_user is None:
             raise AuthError("User not found", 404)
 
         if service_user.disabled:
@@ -200,7 +203,7 @@ class AuthHandler:
 
         return service_user.to_user()
 
-    async def handle_logout(self, access_token: str, refresh_token: str) -> None:
+    async def handle_logout(self, access_token: str | None, refresh_token: str) -> None:
         """Handle logout process"""
         try:
             payload = jwt.decode(

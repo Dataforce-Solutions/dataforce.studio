@@ -35,7 +35,7 @@ async def signup(
     email: Annotated[EmailStr, Form()],
     password: Annotated[str, Form(min_length=8)],
     full_name: Annotated[str | None, Form()] = None,
-) -> dict:
+) -> dict[str, str]:
     try:
         return await auth_handler.handle_signup(email, password, full_name)
     except AuthError as e:
@@ -68,7 +68,7 @@ async def google_login() -> RedirectResponse:
 
 
 @auth_router.get("/google/callback")
-async def google_callback(request: Request, code: str = None) -> Token:
+async def google_callback(request: Request, code: str | None = None) -> Token:
     if not code:
         raise HTTPException(status_code=400, detail="Missing code in callback")
     try:
@@ -120,7 +120,7 @@ async def delete_account(
 @auth_router.patch("/users/me")
 async def update_user_profile(
     request: Request,
-    email: Annotated[EmailStr, Form()] = None,
+    email: Annotated[EmailStr | None, Form()] = None,
     full_name: Annotated[str | None, Form()] = None,
     current_password: Annotated[str | None, Form()] = None,
     new_password: Annotated[str | None, Form()] = None,
