@@ -80,6 +80,11 @@ const router = createRouter({
       name: 'prompt-fusion',
       component: () => import('../pages/PromptFusionPage.vue'),
     },
+    {
+      path: '/orbits',
+      name: 'orbits',
+      component: () => import('../pages/OrbitsPage.vue'),
+    },
   ],
 })
 

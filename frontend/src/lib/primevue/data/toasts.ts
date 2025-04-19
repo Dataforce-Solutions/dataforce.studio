@@ -78,9 +78,9 @@ export const unknownErrorToast: ToastMessageOptions = {
   life: 3000,
 }
 
-export const simpleSuccessToast = (detail: string): ToastMessageOptions => ({
+export const simpleSuccessToast = (detail: string, title?: string): ToastMessageOptions => ({
   severity: 'success',
-  summary: 'Success',
+  summary: title || 'Success',
   detail: detail,
   life: 3000,
 })

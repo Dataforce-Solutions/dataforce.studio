@@ -9,23 +9,21 @@ import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg
 export const sidebarMenu = [
   {
     id: 1,
-    label: 'Express task',
+    label: 'Express tasks',
     icon: Zap,
     route: 'home',
   },
   {
     id: 2,
-    label: 'Run time',
+    label: 'Runtime',
     icon: CirclePlay,
     route: 'runtime',
   },
   {
     id: 3,
-    label: 'Projects',
+    label: 'Orbits',
     icon: FolderDot,
-    route: 'sign-up',
-    disabled: true,
-    tooltipMessage: 'Coming soon!',
+    route: 'orbits',
   },
 ]
 
