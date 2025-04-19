@@ -45,47 +45,38 @@ const appTasks: IAppTaskData[] = [
     id: 1,
     icon: TabularClassificationIcon,
     title: 'Tabular Classification',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    description: 'Predict categories from table-structured data —ideal for tasks like customer segmentation, product classification, or fraud detection.',
     btnText: 'next',
     linkName: 'classification',
     tooltipData:
-      'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
+      'This task focuses on analyzing table-structured data to classify rows into predefined categories. Each row represents an observation, and the model uses the provided features (columns) to predict the target category.',
     isAvailable: true,
   },
   {
     id: 2,
     icon: TabularRegressionIcon,
     title: 'Tabular Regression',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    description: 'Predict continuous numerical values from table-structured data — perfect for tasks like pricing or demand estimation.',
     btnText: 'next',
     linkName: 'regression',
     tooltipData:
-      'Works best for structured datasets, ideal for fields like finance, healthcare, real estate, and energy, where precise value predictions are crucial',
+      'This task involves analyzing table-structured data to predict continuous numerical values. Each row represents an observation, and the model uses the features (columns) to estimate the target variable.',
     isAvailable: true,
   },
   {
     id: 3,
     icon: ForecastingIcon,
-    title: 'Forecasting',
-    description: 'Process of predicting future values based on historical data and trends.',
+    title: 'Time Series Forecasting',
+    description: 'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
     tooltipData:
-      'Ideal for time-series data, commonly used in finance, retail, energy, and weather prediction to anticipate future trends or demands',
-    isAvailable: false,
-  },
-  {
-    id: 4,
-    icon: ConversationalQAIcon,
-    title: 'Conversational QA',
-    description: 'An interactive system answering questions through dialogue.',
-    tooltipData:
-      'Used in customer service to resolve inquiries, education for tutoring, healthcare for symptom checks, and e-commerce for guiding purchases',
+      'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
     isAvailable: false,
   },
   {
     id: 5,
     icon: ConversationalQAIcon,
-    title: 'LLM Flow',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    title: 'Prompt Optimization',
+    description: 'Construct and optimize LLM flows using a no-code builder.',
     btnText: 'next',
     tooltipData:
       'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
@@ -96,17 +87,32 @@ const appTasks: IAppTaskData[] = [
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
 export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
 
-export const tabularResources = [
+export const classificationResources = [
   {
-    label: 'How to format your file',
+    label: 'Data Cleaning Essentials',
     link: 'https://google.com',
   },
   {
-    label: 'Accepted field formats',
+    label: 'Preparing Data for Classification',
     link: '#',
   },
   {
-    label: 'How to get your CSV',
+    label: 'Data Preparation Pitfalls',
+    link: '#',
+  },
+]
+
+export const regressionResources = [
+  {
+    label: 'Data Cleaning Essentials',
+    link: 'https://google.com',
+  },
+  {
+    label: 'Preparing Data for Regression',
+    link: '#',
+  },
+  {
+    label: 'Data Preparation Pitfalls',
     link: '#',
   },
 ]
@@ -123,5 +129,20 @@ export const promptFusionResources = [
   {
     label: 'How to get your CSV',
     link: '#',
+  },
+]
+
+export const tabularSteps = [
+  {
+    id: 1,
+    text: 'Data Upload',
+  },
+  {
+    id: 2,
+    text: 'Data Preparation',
+  },
+  {
+    id: 3,
+    text: 'Model Evaluation',
   },
 ]

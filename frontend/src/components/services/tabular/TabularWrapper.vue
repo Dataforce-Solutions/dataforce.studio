@@ -20,7 +20,7 @@
           :is-table-exist="isTableExist"
           :file="fileData"
           :min-columns-count="3"
-          :resources="tabularResources"
+          :resources="resources"
           :sample-file-name="sampleFileName"
           @selectFile="onSelectFile"
           @removeFile="onRemoveFile"
@@ -85,7 +85,7 @@ import { computed, ref } from 'vue'
 import { Tasks } from '@/lib/data-processing/interfaces'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
-import { tabularResources } from '@/constants/constants'
+import { classificationResources, regressionResources } from '@/constants/constants'
 import { ArrowRight } from 'lucide-vue-next'
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
@@ -155,7 +155,7 @@ const {
 
 const currentStep = ref(1)
 const sampleFileName = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv')
-
+const resources = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? classificationResources : regressionResources)
 const isStepAvailable = computed(() => (id: number) => {
   if (currentStep.value === 3) return
 

@@ -1,6 +1,6 @@
 <template>
   <div class="content" :class="{ disabled: isLoading }">
-    <p class="text">Get predictions by entering data manually or uploading a dataset</p>
+    <p class="text">Generate predictions by entering feature values manually or uploading a dataset — ensure that the columns match the features used during training.</p>
     <SelectButton v-model="selectValue" :options="selectOptions" />
     <div v-if="selectValue === 'Manual'" class="manual">
       <div class="inputs">
@@ -21,10 +21,10 @@
         :error="isUploadWithErrors || filePredictWithError"
         :loading="isLoading"
         loading-message="Loading prediction..."
-        :success-message-only="predictReadyForDownload ? 'Success! You can download the file.' : ''"
+        :success-message-only="predictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''"
         success-remove-text="Upload new dataset"
         :accept="['text/csv']"
-        accept-text="Accepts .csv file type"
+        accept-text="Supports CSV file format"
         upload-text="upload CSV"
         @select-file="onSelectFile"
         @remove-file="onRemoveFile"/>

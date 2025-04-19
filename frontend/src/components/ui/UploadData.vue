@@ -2,7 +2,7 @@
   <div class="wrapper">
     <div class="headings">
       <h1 class="main-title">Upload your data for model training</h1>
-      <p class="sub-title">Drag and drop your file here, or choose one of our sample datasets to get started.</p>
+      <p class="sub-title">Select a file to upload, or try our sample dataset to get started.</p>
     </div>
     <div class="area">
       <file-input
@@ -10,16 +10,16 @@
         :file
         :error="hasError"
         :accept="['text/csv']"
-        accept-text="Accepts .csv file type"
+        accept-text="Supports CSV file format"
         upload-text="upload CSV"
         @select-file="(e) => $emit('selectFile', e)"
         @remove-file="$emit('removeFile')"/>
       <div class="info">
-        <h3 class="info-title">File parameters</h3>
+        <h3 class="info-title">File Requirements</h3>
         <ul class="info-list">
           <li class="info-item">
             <div class="info-item-body">
-              <span>File size: up to 50 MB</span>
+              <span>File Size: Up to 50 MB</span>
               <template v-if="isTableExist">
                 <x width="20" height="20" class="danger" v-if="errors.size" />
                 <check width="20" height="20" class="success" v-if="!errors.size" />
@@ -28,7 +28,7 @@
           </li>
           <li class="info-item">
             <div class="info-item-body">
-              <span>Columns: more than {{ minColumnsCount }}</span>
+              <span>Columns: At least {{ minColumnsCount }}</span>
               <template v-if="isTableExist">
                 <x width="20" height="20" class="danger" v-if="errors.columns" />
                 <check width="20" height="20" class="success" v-if="!errors.columns" />
@@ -37,7 +37,7 @@
           </li>
           <li class="info-item">
             <div class="info-item-body">
-              <span>Rows: more than 100</span>
+              <span>Rows: At least 100</span>
               <template v-if="isTableExist">
                 <x width="20" height="20" class="danger" v-if="errors.rows" />
                 <check width="20" height="20" class="success" v-if="!errors.rows" />
@@ -51,21 +51,20 @@
       <div class="sample">
         <div class="sample-title">
           <img :src="CSVIcon" alt="CSV File" />
-          <span>Sample dataset</span>
+          <span>Sample Dataset</span>
         </div>
         <div class="sample-text">
-          Select our preloaded dataset to train your model and view the results in a detailed
-          dashboard.
+          Use our sample dataset to explore how the model training.
         </div>
         <d-button label="use sample" @click="selectSample" />
       </div>
       <div class="info">
-        <h3 class="info-title">Resources</h3>
+        <h3 class="info-title">Useful Resources:</h3>
         <ul class="info-list">
           <li v-for="resource in resources" class="info-item">
             <a :href="resource.link" target="_blank" class="info-item-body link">
               <span>{{ resource.label }}</span>
-              <external-link width="14" height="14" />
+              <external-link width="14" height="14" class="link-icon"/>
             </a>
           </li>
         </ul>
@@ -188,6 +187,10 @@ async function selectSample() {
   font-weight: 500;
   padding-right: 10px;
   max-width: 200px;
+}
+
+.link-icon {
+  flex: 0 0 auto;
 }
 
 .sample {

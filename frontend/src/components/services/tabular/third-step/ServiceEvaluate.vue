@@ -8,7 +8,7 @@
       <predict-content :manual-fields="predictionFields" :model-id="trainingModelId" />
     </d-dialog>
     <header class="header">
-      <h1 class="title">Model evaluation dashboard</h1>
+      <h1 class="title">Model Evaluation Dashboard</h1>
       <div class="buttons">
         <d-button severity="secondary" @click="isPredictVisible = true">
           <span>predict</span>
@@ -24,12 +24,12 @@
     <div class="body">
       <div class="performance card">
         <header class="card-header">
-          <h3 class="card-title">Model perfomance</h3>
+          <h3 class="card-title">Model performance</h3>
           <info
             width="20"
             height="20"
             class="info-icon"
-            v-tooltip.bottom="`Track your model's effectiveness through performance metrics. Higher scores indicate better predictions and generalization to new data`"/>
+            v-tooltip.bottom="`Model total score is a custom metric that provides a general estimate of overall model performance. A score around 50% typically indicates random performance, while higher values reflect better predictive ability.`"/>
         </header>
         <div class="radialbar-wrapper">
           <apexchart

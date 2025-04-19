@@ -42,7 +42,7 @@
         </template>
         <template v-else>
           <div class="title">
-            <span class="drag-drop-text">Drag and drop or </span>
+            <span class="drag-drop-text">Drag and drop, or </span>
             <label :for="id" class="accent">{{ uploadText }}</label>
           </div>
           <div class="help-text">{{ acceptText }}</div>

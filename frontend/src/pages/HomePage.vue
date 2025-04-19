@@ -1,16 +1,15 @@
 <template>
   <div class="content">
     <div class="headings">
-      <h1 class="main-title">Pick a machine learning task</h1>
+      <h1 class="main-title">Pick a Machine Learning Task</h1>
       <p class="sub-title">
-        Choose from a variety of tasks that best fit your needs, or explore them all to discover new
-        possibilities.
+        Select a task that aligns with your goals, or explore all options to find the best fit for your needs.
       </p>
     </div>
     <div class="body">
-      <tasks-list label="Now available" :tasks="availableTasks" />
+      <tasks-list label="Available tasks" :tasks="availableTasks" />
       <div class="divider"></div>
-      <tasks-list label="Coming soon" :tasks="notAvailableTasks" />
+      <tasks-list label="Coming Next" :tasks="notAvailableTasks" />
     </div>
   </div>
 </template>
