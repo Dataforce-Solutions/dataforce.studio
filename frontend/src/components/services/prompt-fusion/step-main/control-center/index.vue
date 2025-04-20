@@ -8,7 +8,7 @@
           <play :size="14" />
         </template>
       </d-button>
-      <d-button v-tooltip.left="'Download the model'" severity="secondary" variant="text">
+      <d-button v-tooltip.left="'Download the model'" severity="secondary" variant="text" @click="onDownloadClick">
         <template #icon>
           <cloud-download :size="14" />
         </template>
@@ -24,6 +24,7 @@ import { Play, CloudDownload } from 'lucide-vue-next'
 import ProvidersComponent from '@/components/services/prompt-fusion/step-main/control-center/providers/index.vue'
 import OptimizationComponent from '@/components/services/prompt-fusion/step-main/control-center/optimization/index.vue'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 const optimizationDisabled = ref(true)
 const isPredictAvailable = ref(false)
@@ -33,6 +34,9 @@ function onChangeSelectedProviders(providers: Set<ProvidersEnum>) {
 }
 function onChangeModelId(modelId: string) {
   isPredictAvailable.value = !!modelId
+}
+function onDownloadClick() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task: 'prompt_optimization' })
 }
 
 onBeforeMount(() => {

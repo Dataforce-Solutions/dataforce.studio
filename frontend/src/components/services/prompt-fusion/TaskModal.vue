@@ -9,14 +9,14 @@
         <h3 class="prompt-menu-item-title">Free-form Optimization</h3>
         <p class="prompt-menu-item-description">AI-powered prompt suggestions that maintain your creative control and original style.</p>
         <d-button asChild severity="secondary" v-slot="slotProps">
-          <router-link :to="{ name: 'prompt-fusion' }" class="prompt-menu-item-button" :class="slotProps.class">Select option</router-link>
+          <router-link :to="{ name: 'prompt-fusion' }" class="prompt-menu-item-button" :class="slotProps.class" @click="() => onLinkClick('free_form')">Select option</router-link>
         </d-button>
       </li>
       <li class="prompt-menu-item">
         <h3 class="prompt-menu-item-title">Data-Driven Optimization</h3>
         <p class="prompt-menu-item-description">Performance-based prompt optimization using historical data patterns for higher success rates.</p>
         <d-button asChild severity="secondary" v-slot="slotProps">
-          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button" :class="slotProps.class">Select option</router-link>
+          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button" :class="slotProps.class" @click="() => onLinkClick('data_driven')">Select option</router-link>
         </d-button>
       </li>
     </ul>
@@ -24,6 +24,8 @@
 </template>
 
 <script setup lang="ts">
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService';
+
 type Props = {
   modelValue: boolean
 }
@@ -33,6 +35,10 @@ type Emits = {
 
 defineProps<Props>()
 defineEmits<Emits>()
+
+function onLinkClick(option: string) {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.select_prompt_optimization, { option })
+}
 </script>
 
 <style scoped>

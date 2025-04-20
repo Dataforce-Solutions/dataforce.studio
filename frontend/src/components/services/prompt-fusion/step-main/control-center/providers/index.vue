@@ -1,5 +1,5 @@
 <template>
-  <d-button severity="secondary" @click="promptFusionService.openSettings()">
+  <d-button severity="secondary" @click="onProviderButtonClick">
     <span>provider</span>
     <brain :size="14" />
   </d-button>
@@ -28,6 +28,7 @@ import { selectProviderErrorToast } from '@/lib/primevue/data/toasts';
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService';
 import ProviderItem from './ProviderItem.vue';
 import ProviderSettings from './ProviderSettings.vue';
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService';
 
 const toast = useToast()
 
@@ -84,6 +85,10 @@ function onOpenProviderSettings(providerId: ProvidersEnum) {
 function onCloseProviderSettings() {
   isProviderSettingsOpened.value = false
   openedProvider.value = null
+  promptFusionService.openSettings()
+}
+function onProviderButtonClick() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.choose_provider, { task: 'prompt_optimization' })
   promptFusionService.openSettings()
 }
 

@@ -1,6 +1,6 @@
 <template>
   <d-dialog :visible="visible" modal header="Predict" :style="{ width: '31.25rem' }" @update:visible="promptFusionService.togglePredict()">
-    <predict-content v-if="modelId && fields" :manual-fields="fields" :model-id="modelId" />
+    <predict-content v-if="modelId && fields" :manual-fields="fields" :model-id="modelId" task="prompt_optimization"/>
     <h3 v-else>Predict not available...</h3>
   </d-dialog>
 </template>

@@ -6,6 +6,7 @@ export interface TaskData {
   btnText?: string
   linkName?: string
   tooltipData: string
+  analyticsTaskName: string
 }
 
 export interface TaskList {

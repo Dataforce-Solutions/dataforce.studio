@@ -31,6 +31,7 @@ export enum ProviderStatus {
 export enum EvaluationModesEnum {
   exactMatch = 'Exact match',
   llmBased = 'LLM-based',
+  none = 'None',
 }
 
 export interface ProviderSetting {

@@ -5,12 +5,13 @@
       <span>Back</span>
     </d-button>
     <d-button asChild severity="secondary" v-slot="slotProps">
-      <router-link :to="{ name: 'home' }" :class="slotProps.class"> Finish </router-link>
+      <router-link :to="{ name: 'home' }" :class="slotProps.class" @click="onFinishClick()">Finish</router-link>
     </d-button>
   </div>
 </template>
 
 <script setup lang="ts">
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService';
 import { ArrowLeft } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -29,6 +30,9 @@ function onBackClick() {
   } else {
     router.back()
   }
+}
+function onFinishClick() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
 }
 </script>
 

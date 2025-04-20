@@ -47,7 +47,7 @@
 import { onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { SlidersHorizontal, X } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
-import { ModelTypeEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
+import { EvaluationModesEnum, ModelTypeEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { useConfirm, useToast } from 'primevue'
 import { runOptimizationConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleSuccessToast, trainingErrorToast } from '@/lib/primevue/data/toasts'
@@ -55,6 +55,7 @@ import { useVueFlow } from '@vue-flow/core'
 import CustomTextarea from '@/components/ui/CustomTextarea.vue'
 import ModelSelect from './ModelSelect.vue'
 import EvaluationMetrics from './EvaluationMetrics.vue'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 const confirm = useConfirm()
 const toast = useToast()
@@ -85,6 +86,18 @@ function onRunOptimizationClick() {
   }
 }
 async function runOptimization() {
+  const teacher_model = promptFusionService.teacherModel as string
+  const student_model = promptFusionService.studentModel as string
+  let evaluation_metrics = ''
+  switch (promptFusionService.evaluationMode) {
+    case EvaluationModesEnum.exactMatch:
+      evaluation_metrics = 'exact_match'
+    case EvaluationModesEnum.llmBased:
+      evaluation_metrics = 'llm_based'
+    default:
+      evaluation_metrics = 'none'
+  }
+  AnalyticsService.track(AnalyticsTrackKeysEnum.run_optimization, { task: 'prompt_optimization', teacher_model, student_model, evaluation_metrics })
   try {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))

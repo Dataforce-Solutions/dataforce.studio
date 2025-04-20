@@ -29,6 +29,7 @@ import { CircleHelp } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import TaskModal from '@/components/services/prompt-fusion/TaskModal.vue'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 type TProps = {
   task: TaskData
@@ -42,6 +43,7 @@ const isPopupVisible = ref(false)
 const isPromptFusionTask = computed(() => props.task.id === 5)
 
 function onButtonClick() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.select_task, { task: props.task.analyticsTaskName })
   if (props.task.linkName) router.push({ name: props.task.linkName })
   else if (isPromptFusionTask.value) {
     isPopupVisible.value = true
@@ -56,6 +58,8 @@ function onButtonClick() {
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
   box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
 }
 .header {
   display: flex;
@@ -71,6 +75,7 @@ function onButtonClick() {
 .content {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
 }
 .content:not(:last-child) {
   margin-bottom: 24px;

@@ -1,5 +1,4 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
-
 import { FolderDot, CirclePlay, Zap, File } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
@@ -12,18 +11,27 @@ export const sidebarMenu = [
     label: 'Express tasks',
     icon: Zap,
     route: 'home',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'express_tasks',
   },
   {
     id: 2,
     label: 'Runtime',
     icon: CirclePlay,
     route: 'runtime',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'runtime',
   },
   {
     id: 3,
     label: 'Orbits',
     icon: FolderDot,
     route: 'orbits',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'orbits',
   },
 ]
 
@@ -51,6 +59,7 @@ const appTasks: IAppTaskData[] = [
     tooltipData:
       'This task focuses on analyzing table-structured data to classify rows into predefined categories. Each row represents an observation, and the model uses the provided features (columns) to predict the target category.',
     isAvailable: true,
+    analyticsTaskName: 'classification',
   },
   {
     id: 2,
@@ -62,6 +71,7 @@ const appTasks: IAppTaskData[] = [
     tooltipData:
       'This task involves analyzing table-structured data to predict continuous numerical values. Each row represents an observation, and the model uses the features (columns) to estimate the target variable.',
     isAvailable: true,
+    analyticsTaskName: 'regression',
   },
   {
     id: 3,
@@ -71,6 +81,7 @@ const appTasks: IAppTaskData[] = [
     tooltipData:
       'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
     isAvailable: false,
+    analyticsTaskName: '',
   },
   {
     id: 5,
@@ -81,6 +92,7 @@ const appTasks: IAppTaskData[] = [
     tooltipData:
       'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
     isAvailable: true,
+    analyticsTaskName: 'prompt_optimization',
   }
 ]
 

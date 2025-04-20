@@ -45,6 +45,7 @@ import { cutStringOnMiddle } from '@/helpers/helpers'
 import { Textarea } from 'primevue'
 import SelectButton from 'primevue/selectbutton'
 import FileInput from '@/components/ui/FileInput.vue'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 
 const { startPredict, isLoading } = useModelTraining()
@@ -52,6 +53,7 @@ const { startPredict, isLoading } = useModelTraining()
 type Props = {
   manualFields: string[]
   modelId: string
+  task: 'classification' | 'regression' | 'prompt_optimization'
 }
 
 const props = defineProps<Props>()
@@ -88,6 +90,7 @@ const isManualPredictButtonDisabled = computed(() => {
 })
 
 async function onManualSubmit() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: props.task })
   predictionText.value = ''
   const data = prepareManualData()
   const predictRequest = { data, model_id: props.modelId }
@@ -95,6 +98,7 @@ async function onManualSubmit() {
   if (result) predictionText.value = result.predictions?.join(', ')
 }
 async function onFileSubmit() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: props.task })
   const data: any = getDataForTraining()
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)

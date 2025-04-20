@@ -19,7 +19,7 @@
             <component :is="item.icon" :size="14" class="icon"></component>
             <span>{{ item.label }}</span>
           </div>
-          <router-link v-else :to="{ name: item.route }" class="menu-link">
+          <router-link v-else :to="{ name: item.route }" class="menu-link" @click="sendAnalytics(item.analyticsOption)">
             <component :is="item.icon" :size="14" class="icon"></component>
             <span>{{ item.label }}</span>
           </router-link>
@@ -56,23 +56,24 @@
 <script setup lang="ts">
 import { ArrowLeftToLine } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-
 import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 const isSidebarOpened = ref(true)
 
 const toggleSidebar = () => {
   isSidebarOpened.value = !isSidebarOpened.value
 }
-
 function windowResizeHandler() {
   if (document.documentElement.clientWidth < 992 && isSidebarOpened.value === true)
     isSidebarOpened.value = false
 }
+function sendAnalytics(option: string) {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.side_menu_select, { option })
+}
 
 onMounted(() => {
   windowResizeHandler()
-
   window.addEventListener('resize', windowResizeHandler)
 })
 
