@@ -234,7 +234,7 @@ async def prompt_optimization_train(task_spec: dict):
     return success(model_id=model_id, model="<TODO_BINARY_MODEL>")
 
 
-async def prompt_optimization_predict(model_id: str, data: list[dict]):
+async def prompt_optimization_predict(model_id: str, data: dict[str, list]):
     model = Store.get(model_id)
 
     if not isinstance(model, StoredGraph):
@@ -243,7 +243,10 @@ async def prompt_optimization_predict(model_id: str, data: list[dict]):
     graph = model.graph
     llm = model.llm
 
+    keys = list(data.keys())
+    values_list = [dict(zip(keys, v)) for v in zip(*data.values())]
+
     # TODO - parallelize this
-    predictions = [await graph.run(inputs=d, llm=llm) for d in data]
+    predictions = [await graph.run(inputs=d, llm=llm) for d in values_list]
 
     return success(predictions=predictions)
