@@ -1,4 +1,4 @@
-import { WebworkerMessage, type PredictRequestData, type TaskPayload } from './interfaces'
+import { WEBWORKER_ROUTES_ENUM, WebworkerMessage, type PredictRequestData, type PromptOptimizationData, type TaskPayload } from './interfaces'
 
 class DataProcessingWorkerClass {
   private callbacks: Function[] = []
@@ -6,17 +6,14 @@ class DataProcessingWorkerClass {
 
   constructor() {}
 
-  async sendMessage(message: WebworkerMessage, payload?: object): Promise<any> {
+  async sendMessage(message: WebworkerMessage, route?: WEBWORKER_ROUTES_ENUM, data?: any): Promise<any> {
     const callbackId = this.callbackId++
     return new Promise((resolve, reject) => {
       this.callbacks[callbackId] = (response: any) => {
         resolve(response)
       }
-      window.pyodideWorker.postMessage({
-        message: message,
-        id: callbackId,
-        payload: payload,
-      })
+      const options = { message, id: callbackId, payload: { route, data } }
+      window.pyodideWorker.postMessage(options)
     })
   }
 
@@ -25,7 +22,9 @@ class DataProcessingWorkerClass {
       return false
     }
     window.pyodideStartedLoading = true
-    window.pyodideWorker = new Worker('/webworker.js')
+    window.pyodideWorker = new Worker(new URL('@/workers/webworker.js', import.meta.url), {
+      type: 'module'
+    })
     window.pyodideWorker.onmessage = async (event) => {
       const m = event.data
       const callback = this.callbacks[m.id]
@@ -51,28 +50,27 @@ class DataProcessingWorkerClass {
     if (!pyodideReady) throw new Error('Webworker is not ready')
   }
 
-  async startTraining(data: TaskPayload) {
+  async startTraining(data: TaskPayload | PromptOptimizationData, route: WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN) {
     this.checkPyodideReady()
-
-    const result = await this.sendMessage(WebworkerMessage.TABULAR_TRAIN, data)
+    const result = await this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, data)
     return result
   }
 
-  async startPredict(data: PredictRequestData) {
+  async startPredict(data: PredictRequestData, route: WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT) {
     this.checkPyodideReady()
-
-    const predictResult = await this.sendMessage(WebworkerMessage.TABULAR_PREDICT, data)
+    const predictResult = await this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, data)
     return predictResult
   }
 
-  async deallocateModels(models: string[]) {
-    const promises = models.map((model) =>
-      this.sendMessage(WebworkerMessage.TABULAR_DEALLOCATE, {
-        model_id: model,
-      }),
+  async deallocateModels(models: string[], route: WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE | WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE) {
+    const promises = models.map((model_id) =>
+      this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, {  model_id }),
     )
-
     return Promise.all(promises)
+  }
+
+  async interrupt() {
+    await this.sendMessage(WebworkerMessage.INTERRUPT)
   }
 }
 

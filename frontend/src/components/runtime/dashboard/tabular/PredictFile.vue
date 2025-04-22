@@ -6,10 +6,10 @@
       :error="isUploadWithErrors || filePredictWithError"
       :loading="isLoading"
       loading-message="Loading prediction..."
-      :success-message-only="isPredictReadyForDownload ? 'Success! You can download the file.' : ''"
+      :success-message-only="isPredictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''"
       success-remove-text="Upload new dataset"
       :accept="['text/csv']"
-      accept-text="Accepts .csv file type"
+      accept-text="Supports CSV file format"
       upload-text="upload CSV"
       @select-file="onSelectFile"
       @remove-file="onRemoveFile"/>

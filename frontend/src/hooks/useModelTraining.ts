@@ -1,5 +1,6 @@
 import {
   Tasks,
+  WEBWORKER_ROUTES_ENUM,
   type ClassificationMetrics,
   type PredictRequestData,
   type RegressionMetrics,
@@ -12,7 +13,7 @@ import { useToast } from 'primevue/usetoast'
 import { predictErrorToast, trainingErrorToast } from '@/lib/primevue/data/toasts'
 import { getMetrics, toPercent } from '@/helpers/helpers'
 
-export const useModelTraining = () => {
+export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => {
   const toast = useToast()
 
   const isLoading = ref(false)
@@ -57,6 +58,7 @@ export const useModelTraining = () => {
     try {
       const result: TrainingData<ClassificationMetrics> = await DataProcessingWorker.startTraining(
         JSON.parse(JSON.stringify(data)),
+        WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN,
       )
 
       if (result.status === 'success') {
@@ -79,9 +81,9 @@ export const useModelTraining = () => {
 
   async function startPredict(request: PredictRequestData) {
     isLoading.value = true
-
+    const route = service === 'tabular' ? WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT : WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT
     try {
-      const result = await DataProcessingWorker.startPredict(JSON.parse(JSON.stringify(request)))
+      const result = await DataProcessingWorker.startPredict(JSON.parse(JSON.stringify(request)), route)
 
       if (result.status === 'success') {
         return result
@@ -117,7 +119,8 @@ export const useModelTraining = () => {
   }
 
   async function deleteModels() {
-    await DataProcessingWorker.deallocateModels(modelsIdList.value)
+    const route = service === 'prompt_optimization' ? WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE : WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE
+    await DataProcessingWorker.deallocateModels(modelsIdList.value, route)
   }
 
   onBeforeUnmount(() => {

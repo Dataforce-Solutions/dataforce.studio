@@ -5,16 +5,16 @@
       modal
       header="Predict"
       :style="{ width: '31.25rem' }">
-      <predict-content :manual-fields="predictionFields" :model-id="trainingModelId" />
+      <predict-content :manual-fields="predictionFields" :model-id="trainingModelId" :task="predictTask" />
     </d-dialog>
     <header class="header">
-      <h1 class="title">Model evaluation dashboard</h1>
+      <h1 class="title">Model Evaluation Dashboard</h1>
       <div class="buttons">
         <d-button severity="secondary" @click="isPredictVisible = true">
           <span>predict</span>
           <wand-sparkles width="14" height="14" />
         </d-button>
-        <d-button severity="secondary" @click="downloadModelCallback()">
+        <d-button severity="secondary" @click="onDownloadClick">
           <span>download</span>
           <cloud-download width="14" height="14" />
         </d-button>
@@ -24,12 +24,12 @@
     <div class="body">
       <div class="performance card">
         <header class="card-header">
-          <h3 class="card-title">Model perfomance</h3>
+          <h3 class="card-title">Model performance</h3>
           <info
             width="20"
             height="20"
             class="info-icon"
-            v-tooltip.bottom="`Track your model's effectiveness through performance metrics. Higher scores indicate better predictions and generalization to new data`"/>
+            v-tooltip.bottom="`Model total score is a custom metric that provides a general estimate of overall model performance. A score around 50% typically indicates random performance, while higher values reflect better predictive ability.`"/>
         </header>
         <div class="radialbar-wrapper">
           <apexchart
@@ -73,18 +73,19 @@
 </template>
 
 <script setup lang="ts">
-import type { Tasks, TrainingImportance } from '@/lib/data-processing/interfaces'
+import { Tasks, type TrainingImportance } from '@/lib/data-processing/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, CloudDownload, Info } from 'lucide-vue-next'
 import { getBarOptions, getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
 import { getMetricsCards } from '@/helpers/helpers'
-import MetricCard from '../../../ui/MetricCard.vue'
-import DetailedTable from './DetailedTable.vue'
-import PredictContent from './PredictContent.vue'
 import { table } from 'arquero'
 import { useConfirm } from 'primevue/useconfirm'
 import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useRouter } from 'vue-router'
+import MetricCard from '../../../ui/MetricCard.vue'
+import DetailedTable from './DetailedTable.vue'
+import PredictContent from '@/components/predict/index.vue'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 type Props = {
   predictionFields: string[]
@@ -105,6 +106,10 @@ const router = useRouter()
 const confirm = useConfirm()
 
 const finishConfirm = () => {
+  if (props.currentTask) {
+    const task = props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression';
+    AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task })
+  }
   const accept = async () => {
     router.push({ name: 'home' })
   }
@@ -133,6 +138,15 @@ const barChartHeight = computed(() => {
   const featuresCount = props.features.length
   return 45 * featuresCount + 60 + 'px'
 })
+const predictTask = computed(() => props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression')
+
+function onDownloadClick() {
+  props.downloadModelCallback()
+  if (props.currentTask) {
+    const task = props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression';
+    AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task })
+  }
+}
 
 onBeforeMount(() => {
   detailedView.value = table(props.predictedData).objects()

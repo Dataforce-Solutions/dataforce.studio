@@ -1,6 +1,5 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
-
-import { FolderDot, CirclePlay, Zap } from 'lucide-vue-next'
+import { FolderDot, CirclePlay, Zap, File } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
@@ -9,24 +8,40 @@ import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg
 export const sidebarMenu = [
   {
     id: 1,
-    label: 'Express task',
+    label: 'Express tasks',
     icon: Zap,
     route: 'home',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'express_tasks',
   },
   {
     id: 2,
-    label: 'Run time',
+    label: 'Runtime',
     icon: CirclePlay,
     route: 'runtime',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'runtime',
   },
   {
     id: 3,
-    label: 'Projects',
+    label: 'Orbits',
     icon: FolderDot,
-    route: 'sign-up',
-    disabled: true,
-    tooltipMessage: 'Coming soon!',
+    route: 'orbits',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'orbits',
   },
+]
+
+export const sidebarMenuBottom = [
+  {
+    id: 1,
+    label: 'Documentation',
+    icon: File,
+    link: 'https://google.com',
+  }
 ]
 
 type IAppTaskData = TaskData & {
@@ -38,54 +53,108 @@ const appTasks: IAppTaskData[] = [
     id: 1,
     icon: TabularClassificationIcon,
     title: 'Tabular Classification',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    description: 'Predict categories from table-structured data —ideal for tasks like customer segmentation, product classification, or fraud detection.',
     btnText: 'next',
     linkName: 'classification',
     tooltipData:
-      'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
+      'This task focuses on analyzing table-structured data to classify rows into predefined categories. Each row represents an observation, and the model uses the provided features (columns) to predict the target category.',
     isAvailable: true,
+    analyticsTaskName: 'classification',
   },
   {
     id: 2,
     icon: TabularRegressionIcon,
     title: 'Tabular Regression',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    description: 'Predict continuous numerical values from table-structured data — perfect for tasks like pricing or demand estimation.',
     btnText: 'next',
     linkName: 'regression',
     tooltipData:
-      'Works best for structured datasets, ideal for fields like finance, healthcare, real estate, and energy, where precise value predictions are crucial',
+      'This task involves analyzing table-structured data to predict continuous numerical values. Each row represents an observation, and the model uses the features (columns) to estimate the target variable.',
     isAvailable: true,
+    analyticsTaskName: 'regression',
   },
   {
     id: 3,
     icon: ForecastingIcon,
-    title: 'Forecasting',
-    description: 'Process of predicting future values based on historical data and trends.',
+    title: 'Time Series Forecasting',
+    description: 'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
     tooltipData:
-      'Ideal for time-series data, commonly used in finance, retail, energy, and weather prediction to anticipate future trends or demands',
+      'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
     isAvailable: false,
-  },
-  {
-    id: 4,
-    icon: ConversationalQAIcon,
-    title: 'Conversational QA',
-    description: 'An interactive system answering questions through dialogue.',
-    tooltipData:
-      'Used in customer service to resolve inquiries, education for tutoring, healthcare for symptom checks, and e-commerce for guiding purchases',
-    isAvailable: false,
+    analyticsTaskName: '',
   },
   {
     id: 5,
-    icon: TabularClassificationIcon,
-    title: 'Prompt Fusion',
-    description: 'Technique for categorizing table-structured data by labeled classes.',
+    icon: ConversationalQAIcon,
+    title: 'Prompt Optimization',
+    description: 'Construct and optimize LLM flows using a no-code builder.',
     btnText: 'next',
-    linkName: 'prompt-fusion',
     tooltipData:
       'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
     isAvailable: true,
+    analyticsTaskName: 'prompt_optimization',
   }
 ]
 
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
 export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
+
+export const classificationResources = [
+  {
+    label: 'Data Cleaning Essentials',
+    link: 'https://google.com',
+  },
+  {
+    label: 'Preparing Data for Classification',
+    link: '#',
+  },
+  {
+    label: 'Data Preparation Pitfalls',
+    link: '#',
+  },
+]
+
+export const regressionResources = [
+  {
+    label: 'Data Cleaning Essentials',
+    link: 'https://google.com',
+  },
+  {
+    label: 'Preparing Data for Regression',
+    link: '#',
+  },
+  {
+    label: 'Data Preparation Pitfalls',
+    link: '#',
+  },
+]
+
+export const promptFusionResources = [
+  {
+    label: 'How to format your file',
+    link: '#',
+  },
+  {
+    label: 'Accepted field formats',
+    link: '#',
+  },
+  {
+    label: 'How to get your CSV',
+    link: '#',
+  },
+]
+
+export const tabularSteps = [
+  {
+    id: 1,
+    text: 'Data Upload',
+  },
+  {
+    id: 2,
+    text: 'Data Preparation',
+  },
+  {
+    id: 3,
+    text: 'Model Evaluation',
+  },
+]
