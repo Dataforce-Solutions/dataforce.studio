@@ -27,7 +27,7 @@ class EmailHandler:
         self._email_client.send(message)
 
     def send_password_reset_email(
-            self, email: str, reset_password_link: str, name: str | None
+        self, email: str, reset_password_link: str, name: str | None
     ) -> None:
         message = Mail(
             from_email=self.sender_email,
