@@ -96,5 +96,3 @@ export const getInitialNodes = (inputFields?: string[], outputFields?: string[])
   outputNode.position = { x: 1000, y: 200 }
   return [inputNode, outputNode]
 }
-
-export const initialNodes: PromptNode[] = getInitialNodes()

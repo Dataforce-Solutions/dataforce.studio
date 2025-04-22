@@ -8,7 +8,7 @@
       <h2 class="dialog-title">Model Provider</h2>
     </template>
     <div class="providers">
-      <provider-item v-for="provider in providers" :provider="provider" :selected="selectedProviders.has(provider.id)" @click="() => onProviderClick(provider.id)"/>
+      <provider-item v-for="provider in providers" :provider="provider" :selected="selectedProviders.has(provider.id)" @click="() => !provider.disabled && onProviderClick(provider.id)"/>
     </div>
     <template #footer>
       <d-button label="Save" @click="onSave"/>
@@ -48,6 +48,11 @@ function selectProvider(providerId: ProvidersEnum) {
 }
 function saveSettings(settings: ProviderSetting[]) {
   if (!openedProvider.value) return
+  const newStatus = settings.reduce((acc: ProviderStatus, setting) => {
+    if (setting.required && !setting.value) return ProviderStatus.disconnected
+    return acc
+  }, ProviderStatus.connected)
+  openedProvider.value.status = newStatus
   openedProvider.value.settings = settings
   const settingsInStorage = LocalStorageService.getProviderSettings()
   const isNeedToSaveData = settingsInStorage.saveApiKeys

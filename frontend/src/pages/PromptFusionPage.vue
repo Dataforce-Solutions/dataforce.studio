@@ -32,17 +32,20 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, ref } from 'vue'
+import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDataTable } from '@/hooks/useDataTable'
 import { promptFusionResources } from '@/constants/constants'
-import { initialNodes as defaultInitialNodes, getInitialNodes } from '@/constants/prompt-fusion'
+import { getInitialNodes } from '@/constants/prompt-fusion'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
+import { useVueFlow } from '@vue-flow/core'
 import FirstStepNavigation from '@/components/services/prompt-fusion/step-upload/Navigation.vue'
 import TableView from '@/components/table-view/index.vue'
 import StepEdit from '@/components/services/prompt-fusion/step-edit/StepEdit.vue'
 import StepMain from '@/components/services/prompt-fusion/step-main/index.vue'
 import UploadData from '@/components/ui/UploadData.vue'
+
+const { $reset } = useVueFlow()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
@@ -76,7 +79,7 @@ const {
 } = useDataTable(tableValidator)
 
 const step = ref<number>()
-const initialNodes = ref(defaultInitialNodes)
+const initialNodes = ref(getInitialNodes())
 
 function backFromMain() {
   if (route.params.mode === 'data-driven') step.value = 2
@@ -84,12 +87,16 @@ function backFromMain() {
 }
 function goToMainStep() {
   initialNodes.value = getInitialNodes(getInputsColumns.value, getOutputsColumns.value)
-  promptFusionService.saveTrainingData(getDataForTraining())
+  promptFusionService.saveTrainingData(getDataForTraining(), getInputsColumns.value, getOutputsColumns.value)
   step.value = 3
 }
 
 onBeforeMount(() => {
   step.value = route.params.mode === 'data-driven' ? 1 : 3
+})
+onBeforeUnmount(() => {
+  $reset()
+  promptFusionService.resetState()
 })
 </script>
 

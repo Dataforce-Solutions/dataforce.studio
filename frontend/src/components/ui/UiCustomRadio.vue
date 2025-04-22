@@ -1,7 +1,7 @@
 <template>
   <div class="app-custom-radio">
     <label v-for="option in options" :for="id + option" class="app-custom-radio-label">
-      <input type="radio" :name="id" :id="id + option" :value="option" :checked="option === modelValue" class="app-custom-radio-input" @change="$emit('update:modelValue', option)">
+      <input type="radio" :name="id" :id="id + option" :value="option" :disabled="disabled.includes(option)" :checked="option === modelValue" class="app-custom-radio-input" @change="$emit('update:modelValue', option)">
       <span class="app-custom-radio-value">{{ option }}</span>
     </label>
   </div>
@@ -15,12 +15,15 @@ const id = useId()
 type Props = {
   modelValue: any
   options: string[]
+  disabled?: string[]
 }
 type Emits = {
   'update:modelValue': [string]
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  disabled: () => [],
+})
 defineEmits<Emits>()
 </script>
 
@@ -34,6 +37,10 @@ defineEmits<Emits>()
 .app-custom-radio-label {
   position: relative;
   cursor: pointer;
+}
+.app-custom-radio-label:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 .app-custom-radio-input {
   position: absolute;

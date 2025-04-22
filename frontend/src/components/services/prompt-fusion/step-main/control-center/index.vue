@@ -8,7 +8,7 @@
           <play :size="14" />
         </template>
       </d-button>
-      <d-button v-tooltip.left="'Download the model'" severity="secondary" variant="text" @click="onDownloadClick">
+      <d-button v-tooltip.left="'Download the model'" disabled severity="secondary" variant="text" @click="onDownloadClick">
         <template #icon>
           <cloud-download :size="14" />
         </template>

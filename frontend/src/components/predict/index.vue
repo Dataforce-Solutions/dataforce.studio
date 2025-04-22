@@ -47,9 +47,6 @@ import SelectButton from 'primevue/selectbutton'
 import FileInput from '@/components/ui/FileInput.vue'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
-
-const { startPredict, isLoading } = useModelTraining()
-
 type Props = {
   manualFields: string[]
   modelId: string
@@ -57,6 +54,8 @@ type Props = {
 }
 
 const props = defineProps<Props>()
+
+const { startPredict, isLoading } = useModelTraining(props.task === 'prompt_optimization' ? 'prompt_optimization' : 'tabular')
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {}
@@ -95,7 +94,12 @@ async function onManualSubmit() {
   const data = prepareManualData()
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)
-  if (result) predictionText.value = result.predictions?.join(', ')
+  if (!result?.predictions) return
+  if (typeof result.predictions[0] === 'string' || typeof result.predictions[0] === 'number') {
+    predictionText.value = result.predictions.join(', ')
+  } else if (typeof result.predictions[0] === 'object') {
+    predictionText.value = JSON.stringify(result.predictions);
+  }
 }
 async function onFileSubmit() {
   AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: props.task })

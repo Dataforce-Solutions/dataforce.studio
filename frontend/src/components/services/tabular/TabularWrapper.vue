@@ -151,7 +151,7 @@ const {
   trainingModelId,
   currentTask,
   downloadModel,
-} = useModelTraining()
+} = useModelTraining('tabular')
 
 const currentStep = ref(1)
 const sampleFileName = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv')
@@ -171,9 +171,9 @@ const getPredictionFields = computed(() => {
 async function startTraining() {
   const data = getDataForTraining()
   const target = getTarget.value
-  const groups = getGroup.value
+  // const groups = getGroup.value
   const task = props.task
-  await startModelTraining({ data, target, task, groups })
+  await startModelTraining({ data, target, task })
 
   if (isTrainingSuccess.value) {
     currentStep.value = 3

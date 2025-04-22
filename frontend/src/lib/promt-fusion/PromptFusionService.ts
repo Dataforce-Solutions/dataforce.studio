@@ -1,10 +1,12 @@
 import type { FlowExportObject } from '@vue-flow/core'
 import type { NodeData } from '@/components/services/prompt-fusion/interfaces'
-import type { PayloadData, PayloadNode, PromptFusionPayload, ProviderModelsEnum, ProvidersEnum, ProviderWithModels } from './prompt-fusion.interfaces'
+import type { PayloadData, PayloadNode, PromptFusionPayload, ProviderModelsEnum, ProvidersEnum, ProviderWithModels, TrainingData } from './prompt-fusion.interfaces'
 import { Observable } from '@/utils/observable/Observable'
 import { EvaluationModesEnum } from './prompt-fusion.interfaces'
 import { allModels, getProviders } from './prompt-fusion.data'
 import { parseProviderSettingsToObject } from '@/helpers/helpers'
+import { DataProcessingWorker } from '../data-processing/DataProcessingWorker'
+import { WEBWORKER_ROUTES_ENUM } from '../data-processing/interfaces'
 
 type Events = {
   CHANGE_SETTINGS_STATUS: boolean
@@ -27,7 +29,7 @@ const initialState = {
   isOptimizationOpened: false,
   teacherModel: null,
   studentModel: null,
-  evaluationMode: EvaluationModesEnum.llmBased,
+  evaluationMode: EvaluationModesEnum.none,
   evaluationCriteriaList: [],
   nodesData: null,
   payload: null,
@@ -56,7 +58,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   isPredictVisible = initialState.isPredictVisible
   modelId: string | null = initialState.modelId
   taskDescription = initialState.taskDescription
-  trainingData: object | null = initialState.trainingData
+  trainingData: TrainingData | null = initialState.trainingData
   predictionFields: string[] | null = initialState.predictionFields
 
   constructor() {
@@ -125,15 +127,23 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.isTrainingActive = true
     this.changeOptimizationState(false)
     this.emit('CHANGE_TRAINING_STATE', this.isTrainingActive)
-    const promise = new Promise((res) => {
-      setTimeout(() => {
-        res('ok')
-      }, 3000);
-    })
-    await promise
-    this.setModelId('model123')
-    this.savePredictionFields()
-    this.endTraining()
+    const result = await DataProcessingWorker.startTraining({ task_spec: this.payload! }, WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN)
+    if (result.status === 'success' && result.model_id) {
+      this.setModelId(result.model_id)
+      this.savePredictionFields()
+      this.endTraining()
+    } else {
+      console.log(result);
+      this.endTraining()
+      throw new Error('Training failed')
+    }
+    // const promise = new Promise((res) => {
+    //   setTimeout(() => {
+    //     res('ok')
+    //   }, 3000);
+    // })
+    // await promise
+
   }
 
   prepareData(object: FlowExportObject) {
@@ -148,7 +158,6 @@ class PromptFusionServiceClass extends Observable<Events> {
     }
     const payload = { data: this.nodesData as PayloadData, settings: optimizationSettings, trainingData: this.trainingData }
     this.payload = payload
-    console.log(payload)
   }
 
   endTraining() {
@@ -161,8 +170,8 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.emit('CHANGE_PREDICT_VISIBLE', this.isPredictVisible)
   }
 
-  saveTrainingData(data: object) {
-    this.trainingData = data;
+  saveTrainingData(data: object, inputFields: string[], outputFields: string[]) {
+    this.trainingData = { data, inputFields, outputFields };
   }
 
   resetState() {
@@ -187,12 +196,10 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   private haveDuplicatedFields() {
-    const allFields = this.nodesData?.nodes.reduce((acc: string[], node) => {
-      acc.push(...node.data.fields.map(field => field.value));
-      return acc
-    }, [])
-    if (!allFields) return false
-    return allFields.length !== new Set(allFields).size
+    return this.nodesData?.nodes.find(node => {
+      const values = node.data.fields.map(field => field.value)
+      return values.length !== new Set(values).size
+    })
   }
 
   private prepareNodesData(object: FlowExportObject) {
@@ -203,6 +210,7 @@ class PromptFusionServiceClass extends Observable<Events> {
         fields: this.getFieldsDataFromNodeData(nodeData),
         hint: nodeData.hint,
         type: nodeData.type,
+        label: nodeData.label,
       }
       return { id: node.id, data }
     })
@@ -225,7 +233,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       value: field.value,
       variant: field.variant,
       type: field.type!,
-      variadic: field.variadic,
+      variadic: !!field.variadic,
     }))
   }
 

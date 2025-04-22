@@ -17,6 +17,7 @@ import type { PromptNode } from '../interfaces'
 import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useVueFlow, type GraphNode } from '@vue-flow/core'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
+import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
 import PresentationArea from '@/components/services/prompt-fusion/step-main/PresentationArea.vue'
 import Sidebar from '@/components/services/prompt-fusion/step-main/sidebar/index.vue'
 import Navigation from '@/components/services/prompt-fusion/step-main/Navigation.vue'
@@ -43,7 +44,8 @@ const isTrainingActive = ref(false)
 function closeSidebar() {
   activeNode.value = null
 }
-function cancelTraining() {
+async function cancelTraining() {
+  DataProcessingWorker.interrupt()
   promptFusionService.endTraining()
 }
 function onChangeTrainingState(value: boolean) {

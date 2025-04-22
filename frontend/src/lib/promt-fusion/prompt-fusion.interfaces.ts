@@ -6,6 +6,7 @@ export interface BaseProviderInfo {
   name: string
   status: ProviderStatus
   settings: ProviderSetting[]
+  disabled?: boolean
 }
 
 export enum ProvidersEnum {
@@ -14,8 +15,19 @@ export enum ProvidersEnum {
 }
 
 export enum ProviderModelsEnum {
-  gpt = 'gpt',
-  llama = 'llama',
+  gpt4o = 'gpt4o',
+  gpt4o_mini = 'gpt4o-mini',
+  gpt4_1 = 'gpt4.1',
+  gpt4_1_mini = 'gpt4.1-mini',
+  gpt4_1_nano = 'gpt4.1-nano',
+  gemma3_4b = 'gemma3:4b',
+  llama3_1_8b = 'llama3.1:8b',
+  llama3_2_3b = 'llama3.2:3b',
+  llama3_3_70b = 'llama3.3:70b',
+  mistral_small3_1_24b = 'mistral-small3.1:24b',
+  qwen2_5_7b = 'qwen2.5:7b',
+  phi4_14b = 'phi4:14b',
+  phi4_mini_3_8b = 'phi4-mini:3.8b',
 }
 
 export enum ModelTypeEnum {
@@ -57,7 +69,7 @@ export interface ProviderWithModels {
 export interface PromptFusionPayload {
   data: PayloadData
   settings: PayloadSettings
-  trainingData: object | null
+  trainingData: TrainingData | null
 }
 
 export interface PayloadData {
@@ -81,6 +93,7 @@ export interface PayloadNode {
 export interface PayloadNodeData {
   fields: PayloadNodeField[]
   type: NodeTypeEnum
+  label: string
   hint?: string
 }
 
@@ -89,7 +102,7 @@ export interface PayloadNodeField {
   value: string
   variant: FieldVariant
   type: PromptFieldTypeEnum
-  variadic?: boolean
+  variadic: boolean
 }
 
 export interface PayloadSettings {
@@ -104,4 +117,10 @@ export interface PayloadProviderData {
   providerId: ProvidersEnum
   modelId: ProviderModelsEnum
   providerSettings: Record<string, string>
+}
+
+export interface TrainingData {
+  data: object
+  inputFields: string[]
+  outputFields: string[]
 }

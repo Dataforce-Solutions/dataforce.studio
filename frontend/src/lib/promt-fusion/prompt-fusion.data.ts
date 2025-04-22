@@ -9,12 +9,12 @@ export const getProviders = (): BaseProviderInfo[] => {
   const settings = LocalStorageService.getProviderSettings()
   const savedOpenAiSettings = settings[ProvidersEnum.openAi]
   const savedOllamaSettings = settings[ProvidersEnum.ollama]
-  return [
+  const data = [
     {
       id: ProvidersEnum.openAi,
       image: OpenAi,
       name: 'OpenAI',
-      status: ProviderStatus.connected,
+      status: ProviderStatus.disconnected,
       settings: [
         {
           id: 'apiKey',
@@ -24,18 +24,11 @@ export const getProviders = (): BaseProviderInfo[] => {
           value: savedOpenAiSettings?.apiKey || '',
         },
         {
-          id: 'organization',
-          label: 'Organization',
-          required: false,
-          placeholder: 'Enter your Organization ID',
-          value: savedOpenAiSettings?.organization || '',
-        },
-        {
           id: 'apiBase',
           label: 'API Base',
           required: false,
           placeholder: 'Enter your API Base',
-          value: savedOpenAiSettings?.apiBase || '',
+          value: savedOpenAiSettings?.apiBase || 'https://api.openai.com',
         },
       ],
     },
@@ -43,38 +36,101 @@ export const getProviders = (): BaseProviderInfo[] => {
       id: ProvidersEnum.ollama,
       image: Ollama,
       name: 'Ollama',
-      status: ProviderStatus.connected,
+      status: ProviderStatus.disconnected,
+      disabled: true,
       settings: [
         {
-          id: 'apiKey',
-          label: 'API Key',
-          required: true,
-          placeholder: 'Enter your API Key',
-          value: savedOllamaSettings?.apiKey || '',
+          id: 'apiBase',
+          label: 'API Base',
+          required: false,
+          placeholder: 'Enter your API Base',
+          value: savedOllamaSettings?.apiBase || 'http://localhost:11434',
         },
       ],
     },
   ]
+  return data.map(provider => ({
+    ...provider,
+    status: provider.settings.reduce((acc: ProviderStatus, setting) => {
+      if (setting.required && !setting.value) return ProviderStatus.disconnected;
+      return acc
+    }, ProviderStatus.connected),
+  }))
 }
 
 export const openAiModels: ProviderModel[] = [
   {
-    id: ProviderModelsEnum.gpt,
-    label: 'gpt-3.5-turbo-0125',
+    id: ProviderModelsEnum.gpt4o,
+    label: 'gpt-4o',
+    icon: GptModel,
+  },
+  {
+    id: ProviderModelsEnum.gpt4o_mini,
+    label: 'gpt-4o-mini',
+    icon: GptModel,
+  },
+  {
+    id: ProviderModelsEnum.gpt4_1,
+    label: 'gpt-4.1',
+    icon: GptModel,
+  },
+  {
+    id: ProviderModelsEnum.gpt4_1_mini,
+    label: 'gpt-4.1-mini',
+    icon: GptModel,
+  },
+  {
+    id: ProviderModelsEnum.gpt4_1_nano,
+    label: 'gpt-4.1-nano',
     icon: GptModel,
   },
 ]
 
 export const ollamaModels: ProviderModel[] = [
   {
-    id: ProviderModelsEnum.llama,
-    label: 'Llama 3.1',
+    id: ProviderModelsEnum.gemma3_4b,
+    label: 'gemma-3:4b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.llama3_1_8b,
+    label: 'llama-3.1:8b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.llama3_2_3b,
+    label: 'llama-3.2:3b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.llama3_3_70b,
+    label: 'llama-3.3:70b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.mistral_small3_1_24b,
+    label: 'mistral-small-3.1:24b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.qwen2_5_7b,
+    label: 'qwen-2.5:7b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.phi4_14b,
+    label: 'phi-4:14b',
+    icon: OllamaModel,
+  },
+  {
+    id: ProviderModelsEnum.phi4_mini_3_8b,
+    label: 'phi-4-mini-3:8b',
     icon: OllamaModel,
   },
 ]
 
 export const getAllModels = (): ProviderWithModels[] => {
-  const openAi = { label: 'OpenAi', providerId: ProvidersEnum.openAi, items: openAiModels }
+  const openAi = { label: 'OpenAI', providerId: ProvidersEnum.openAi, items: openAiModels }
   const ollama = { label: 'Ollama', providerId: ProvidersEnum.ollama, items: ollamaModels }
   return [openAi, ollama]
 }

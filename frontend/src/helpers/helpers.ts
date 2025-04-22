@@ -56,7 +56,9 @@ export const convertObjectToCsvBlob = (data: object) => {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
+  const csvContent = [headers.join(','), ...rows.map((row) => {
+    return row.map(item => typeof item === 'object' ? JSON.stringify(item) : item)
+  })].join('\n')
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
 }
 

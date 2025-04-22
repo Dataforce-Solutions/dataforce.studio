@@ -82,6 +82,7 @@ function onRunOptimizationClick() {
     confirm.require(runOptimizationConfirmOptions(runOptimization))
   } catch (e: unknown) {
     const error = e as Error
+    promptFusionService.endTraining()
     toast.add(trainingErrorToast(error.message as string))
   }
 }

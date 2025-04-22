@@ -1,10 +1,10 @@
 <template>
-  <div class="item" :class="{ selected: selected }">
+  <div class="item" :class="{ selected: selected, disabled: provider.disabled }">
     <div class="left">
       <img class="image" :src="provider.image" :alt="provider.name" />
       <h3 class="title">{{ provider.name }}</h3>
     </div>
-    <div class="right">
+    <div v-if="!provider.disabled" class="right">
       <div class="status" :class="{connected: provider.status === ProviderStatus.connected}">{{ provider.status }}</div>
       <d-button severity="secondary" variant="text" rounded @click.stop="promptFusionService.openProviderSettings(provider.id)">
         <template #icon>
@@ -43,6 +43,10 @@ const props = defineProps<Props>()
 }
 .item.selected {
   border-color: var(--p-primary-color);
+}
+.item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .left {
   display: flex;

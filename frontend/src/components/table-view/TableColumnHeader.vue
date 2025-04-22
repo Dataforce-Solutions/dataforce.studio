@@ -85,6 +85,7 @@ const menuItems: MenuItem[] = [
   {
     label: 'Set as group',
     iconComponent: Blocks,
+    disabled: true,
     command() {
       emit('changeGroup', props.column)
     },
