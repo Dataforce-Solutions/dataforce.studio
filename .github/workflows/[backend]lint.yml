@@ -23,12 +23,14 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade uv
-          uv sync --only-dev
+          uv sync --group dev
 
       - name: Lint with Ruff
+        working-directory: backend
         run: |
-          uv run ruff check dataforce_studio
+          uv run ruff check backend/dataforce_studio
 
       - name: Check formatting with Ruff
+        working-directory: backend
         run: |
-          uv run ruff format --check dataforce_studio
+          uv run ruff format --check backend/dataforce_studio
