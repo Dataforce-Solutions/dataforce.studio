@@ -28,9 +28,9 @@ jobs:
       - name: Lint with Ruff
         working-directory: backend
         run: |
-          uv run ruff check backend/dataforce_studio
+          uv run ruff check dataforce_studio
 
       - name: Check formatting with Ruff
         working-directory: backend
         run: |
-          uv run ruff format --check backend/dataforce_studio
+          uv run ruff format --check dataforce_studio
