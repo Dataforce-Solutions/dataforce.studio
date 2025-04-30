@@ -2,7 +2,6 @@ import uuid
 from enum import StrEnum
 
 from pydantic import BaseModel, HttpUrl
-
 from dataforce_studio.models.base import BaseOrmConfig
 
 
