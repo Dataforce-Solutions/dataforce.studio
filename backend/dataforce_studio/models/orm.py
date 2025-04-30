@@ -1,12 +1,11 @@
+import datetime
+
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, Enum, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.user import AuthProvider, User
-
-
-class Base(DeclarativeBase):
-    pass
+from dataforce_studio.models.base import Base
 
 
 class UserOrm(Base):
@@ -23,6 +22,14 @@ class UserOrm(Base):
     )
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC)
+    )
+
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=lambda: datetime.datetime.now(datetime.UTC)
+    )
 
     def __repr__(self) -> str:
         return f"User(email={self.email!r}, full_name={self.full_name!r}"
