@@ -3,7 +3,7 @@ import uuid
 from enum import StrEnum
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base
@@ -37,7 +37,9 @@ class DBOrganization(Base):
 
 class DBOrganizationMember(Base):
     __tablename__ = "organization_members"
-    __table_args__ = {UniqueConstraint("organization_id", "user", name="org_member")}
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user", name="org_member"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, unique=True, nullable=False, default=uuid.uuid4
@@ -46,7 +48,7 @@ class DBOrganizationMember(Base):
         String, ForeignKey("users.email", ondelete="CASCADE"), nullable=False
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        String, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
     joined_at: Mapped[datetime.datetime] = mapped_column(

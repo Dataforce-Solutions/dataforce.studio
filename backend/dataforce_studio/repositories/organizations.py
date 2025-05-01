@@ -15,3 +15,4 @@ class OrganizationRepository(RepositoryBase):
             session.add(db_organization)
             await session.commit()
         return db_organization
+

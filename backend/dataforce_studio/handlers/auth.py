@@ -20,15 +20,20 @@ from dataforce_studio.models.user import (
     UpdateUserIn,
     User,
 )
+from dataforce_studio.repositories.organization_members import OrganizationMemberRepository
+from dataforce_studio.repositories.organizations import OrganizationRepository
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
+from dataforce_studio.utils.organizations import generate_organization_name
 
 engine = create_async_engine(config.POSTGRESQL_DSN)
 
 
 class AuthHandler:
     __user_repository = UserRepository(engine)
+    __organization_repository = OrganizationRepository()
+    __organization_member_repository = OrganizationMemberRepository()
     __token_black_list_repository = TokenBlackListRepository(engine)
     __emails_handler = EmailHandler()
 
@@ -110,6 +115,14 @@ class AuthHandler:
         await self.__user_repository.create_user(
             user=user,
         )
+
+        user_organization = await self.__organization_repository.create_organization(
+            generate_organization_name(create_user.email, create_user.full_name)
+        )
+        await self.__organization_member_repository.create_owner(
+            create_user.email, user_organization.id
+        )
+
         confirmation_token = self._generate_email_confirmation_token(create_user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
         self.__emails_handler.send_activation_email(
