@@ -3,11 +3,7 @@ import uuid
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import select
 
-from dataforce_studio.models.organization import (
-    Organization,
-    OrganizationMember,
-    OrgRole,
-)
+from dataforce_studio.models.organization import OrgRole, Organization, OrganizationMember
 from dataforce_studio.models.orm.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
