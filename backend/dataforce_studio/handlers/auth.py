@@ -25,7 +25,6 @@ from dataforce_studio.repositories.organizations import OrganizationRepository
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
-from dataforce_studio.utils.organizations import generate_organization_name
 
 engine = create_async_engine(config.POSTGRESQL_DSN)
 

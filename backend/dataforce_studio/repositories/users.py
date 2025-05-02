@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import EmailStr
+from pydantic import EmailStr, HttpUrl
 from sqlalchemy import select
 
 from dataforce_studio.models.user import (
@@ -13,10 +13,6 @@ from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.utils.organizations import generate_organization_name
 
 
-class HttpUrl:
-    pass
-
-
 class UserRepository(RepositoryBase):
     async def create_user(
             self,
@@ -25,6 +21,7 @@ class UserRepository(RepositoryBase):
         async with self._get_session() as session:
             db_user = UserOrm.from_user(user)
             session.add(db_user)
+            await session.flush()
 
             db_organization = DBOrganization(
                 name=generate_organization_name(user.email, user.full_name)
@@ -33,13 +30,14 @@ class UserRepository(RepositoryBase):
             await session.flush()
 
             db_organization_member = DBOrganizationMember(
-                user=user.email, organization_id=db_organization.id, role=OrgRole.OWNER
+                user_id=db_user.id,
+                organization_id=db_organization.id,
+                role=OrgRole.OWNER
             )
             session.add(db_organization_member)
 
-            user = db_user.to_user()
             await session.commit()
-        return user
+            return db_user.to_user()
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
@@ -96,13 +94,12 @@ class UserRepository(RepositoryBase):
         return db_organization
 
     ## Organization Member ########################################
-
     async def create_organization_member(
-            self, user: str, organization_id: uuid.UUID, role: OrgRole
+            self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
     ) -> DBOrganizationMember:
         async with self._get_session() as session:
             db_organization_member = DBOrganizationMember(
-                user=user,
+                user_id=user_id,
                 organization_id=organization_id,
                 role=role
             )
@@ -111,8 +108,8 @@ class UserRepository(RepositoryBase):
         return db_organization_member
 
     async def create_owner(
-            self, user: str, organization_id: uuid.UUID
+            self, user_id: uuid.UUID, organization_id: uuid.UUID
     ) -> DBOrganizationMember:
         return await self.create_organization_member(
-            user, organization_id, OrgRole.OWNER
+            user_id, organization_id, OrgRole.OWNER
         )

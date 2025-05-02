@@ -1,19 +1,20 @@
-import datetime
+import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String
+from sqlalchemy import Boolean, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.user import AuthProvider, User
-from dataforce_studio.models.base import Base
+from dataforce_studio.models.base import Base, TimestampMixin
 
 
-class UserOrm(Base):
+class UserOrm(TimestampMixin, Base):
     __tablename__ = "users"
 
-    email: Mapped[EmailStr] = mapped_column(
-        String, primary_key=True, unique=True, nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
     )
+    email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -22,14 +23,6 @@ class UserOrm(Base):
     )
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
-
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC)
-    )
-
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), onupdate=lambda: datetime.datetime.now(datetime.UTC)
-    )
 
     def __repr__(self) -> str:
         return f"User(email={self.email!r}, full_name={self.full_name!r}"
