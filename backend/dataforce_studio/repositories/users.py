@@ -26,7 +26,9 @@ class UserRepository(RepositoryBase):
         async with self._get_session() as session:
             db_user = UserOrm.from_user(create_user)
             session.add(db_user)
+            user = db_user.to_user()
             await session.flush()
+            await session.refresh(db_user)
 
             db_organization = OrganizationOrm(
                 name=generate_organization_name(
@@ -42,7 +44,7 @@ class UserRepository(RepositoryBase):
                 role=OrgRole.OWNER,
             )
             session.add(db_organization_member)
-            user = db_user.to_user()
+
             await session.commit()
             return user
 
