@@ -1,22 +1,42 @@
+import uuid
+
 from pydantic import EmailStr
 from sqlalchemy import select
 
-from dataforce_studio.models.orm import UserOrm
 from dataforce_studio.models.user import (
     UpdateUser,
     User,
 )
+from dataforce_studio.models.organization import DBOrganization, DBOrganizationMember, OrgRole
+from dataforce_studio.models.orm import UserOrm
 from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.utils.organizations import generate_organization_name
+
+
+class HttpUrl:
+    pass
 
 
 class UserRepository(RepositoryBase):
     async def create_user(
-        self,
-        user: User,
-    ) -> User:
+            self,
+            user: User,
+            ) -> User:
         async with self._get_session() as session:
             db_user = UserOrm.from_user(user)
             session.add(db_user)
+
+            db_organization = DBOrganization(
+                name=generate_organization_name(user.email, user.full_name)
+            )
+            session.add(db_organization)
+            await session.flush()
+
+            db_organization_member = DBOrganizationMember(
+                user=user.email, organization_id=db_organization.id, role=OrgRole.OWNER
+            )
+            session.add(db_organization_member)
+
             user = db_user.to_user()
             await session.commit()
         return user
@@ -41,9 +61,9 @@ class UserRepository(RepositoryBase):
                 await session.commit()
 
     async def update_user(
-        self,
-        update_user: UpdateUser,
-    ) -> bool:
+            self,
+            update_user: UpdateUser,
+            ) -> bool:
         async with self._get_session() as session:
             changed = False
             result = await session.execute(
@@ -62,3 +82,37 @@ class UserRepository(RepositoryBase):
             if changed:
                 await session.commit()
         return changed
+
+    ## Organization ###############################################
+    async def create_organization(
+            self,
+            name: str,
+            logo: HttpUrl | None = None
+    ) -> DBOrganization:
+        async with self._get_session() as session:
+            db_organization = DBOrganization(name=name, logo=logo)
+            session.add(db_organization)
+            await session.commit()
+        return db_organization
+
+    ## Organization Member ########################################
+
+    async def create_organization_member(
+            self, user: str, organization_id: uuid.UUID, role: OrgRole
+    ) -> DBOrganizationMember:
+        async with self._get_session() as session:
+            db_organization_member = DBOrganizationMember(
+                user=user,
+                organization_id=organization_id,
+                role=role
+            )
+            session.add(db_organization_member)
+            await session.commit()
+        return db_organization_member
+
+    async def create_owner(
+            self, user: str, organization_id: uuid.UUID
+    ) -> DBOrganizationMember:
+        return await self.create_organization_member(
+            user, organization_id, OrgRole.OWNER
+        )

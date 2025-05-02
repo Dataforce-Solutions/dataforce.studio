@@ -32,8 +32,6 @@ engine = create_async_engine(config.POSTGRESQL_DSN)
 
 class AuthHandler:
     __user_repository = UserRepository(engine)
-    __organization_repository = OrganizationRepository()
-    __organization_member_repository = OrganizationMemberRepository()
     __token_black_list_repository = TokenBlackListRepository(engine)
     __emails_handler = EmailHandler()
 
@@ -117,13 +115,11 @@ class AuthHandler:
         )
 
         user_organization = await self.__organization_repository.create_organization(
-            generate_organization_name(create_user.email, create_user.full_name)
+            generate_organization_name(email, full_name)
         )
-        await self.__organization_member_repository.create_owner(
-            create_user.email, user_organization.id
-        )
+        await self.__organization_member_repository.create_owner(email, user_organization.id)
 
-        confirmation_token = self._generate_email_confirmation_token(create_user.email)
+        confirmation_token = self._generate_email_confirmation_token(email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
         self.__emails_handler.send_activation_email(
             create_user.email, confirmation_link, create_user.full_name
