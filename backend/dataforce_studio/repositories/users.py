@@ -1,20 +1,10 @@
-from pydantic import EmailStr
-import uuid
-from typing import Literal
-
-from sqlalchemy import select
 import uuid
 
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import func, select
 
-from dataforce_studio.models.organization import (
-    Organization,
-    OrganizationMember,
-    OrgRole,
-)
-from dataforce_studio.models.organization import DBOrganization, DBOrganizationMember, OrgRole
-from dataforce_studio.models.orm import DBUser
+
+from dataforce_studio.models.organization import OrgRole
 from dataforce_studio.models.orm.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
@@ -22,6 +12,8 @@ from dataforce_studio.models.orm.organization import (
 from dataforce_studio.models.orm.user import UserOrm
 from dataforce_studio.models.user import CreateUser, UpdateUser, User
 from dataforce_studio.repositories.base import RepositoryBase
+
+
 from dataforce_studio.utils.organizations import generate_organization_name
 
 
@@ -56,7 +48,8 @@ class UserRepository(RepositoryBase):
             await session.commit()
         return user_response
 
-    async def get_user(self, email: EmailStr) -> User | None:
+
+    async def get_user(self, email: str) -> User | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(UserOrm).filter(UserOrm.email == email)
