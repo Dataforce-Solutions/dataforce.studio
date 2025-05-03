@@ -4,6 +4,7 @@ import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.models.auth import (
@@ -16,10 +17,12 @@ from dataforce_studio.repositories.token_blacklist import TokenBlackListReposito
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
 
+engine = create_async_engine(config.POSTGRESQL_DSN)
+
 
 class AuthHandler:
-    __user_repository = UserRepository()
-    __token_black_list_repository = TokenBlackListRepository()
+    __user_repository = UserRepository(engine)
+    __token_black_list_repository = TokenBlackListRepository(engine)
     __emails_handler = EmailHandler()
 
     def __init__(
