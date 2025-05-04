@@ -32,7 +32,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
                 return None
 
             try:
-                email = self.auth_handler.verify_token(token)
+                email = self.auth_handler._verify_token(token)
             except AuthError:
                 return None
 

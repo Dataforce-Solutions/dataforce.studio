@@ -1,6 +1,6 @@
 import pytest
-from models.auth import AuthProvider
-from repositories.users import UserRepository
+from dataforce_studio.models.user import AuthProvider, User
+from dataforce_studio.repositories.users import UserRepository
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
@@ -8,10 +8,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 async def test_create_user(create_database_and_apply_migrations) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
-    email = "test@test.com"
-
-    created_user = await repo.create_user(
-        email=email,
+    user = User(
+        email="test@email.com",
         full_name="Test User",
         disabled=False,
         email_verified=True,
@@ -20,6 +18,8 @@ async def test_create_user(create_database_and_apply_migrations) -> None:
         hashed_password="hashed_password",
     )
 
-    fetched_user = await repo.get_user(email)
+    created_user = await repo.create_user(user)
+
+    fetched_user = await repo.get_user(user.email)
 
     assert created_user == fetched_user

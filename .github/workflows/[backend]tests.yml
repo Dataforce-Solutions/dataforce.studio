@@ -1,4 +1,4 @@
-name: Backend Lint
+name: Backend Tests
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,12 @@ jobs:
           python -m pip install --upgrade uv
           uv sync --group dev
 
-      - name: Run pytest
+      - name: Lint with Ruff
         working-directory: backend
         run: |
-          uv run ruff format --check dataforce_studio
+          uv run ruff check dataforce_studio
+
+      - name: Check formatting with Ruff
+        working-directory: backend
+        run: |
+          uv run pytest

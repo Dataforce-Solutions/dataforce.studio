@@ -1,36 +1,5 @@
-from enum import Enum
-from typing import Literal
-
-from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel, EmailStr
 from starlette.authentication import BaseUser
-
-
-class AuthProvider(str, Enum):
-    EMAIL = "EMAIL"
-    GOOGLE = "GOOGLE"
-
-
-class User(BaseModel):
-    email: EmailStr
-    full_name: str | None = None
-    disabled: bool | None = None
-    email_verified: bool = False
-    auth_method: AuthProvider
-    photo: HttpUrl | None = None
-
-
-class ServiceUser(User):
-    hashed_password: str | None | Literal["reset"] = None
-
-    def to_user(self) -> User:
-        return User(
-            email=self.email,
-            full_name=self.full_name,
-            disabled=self.disabled,
-            email_verified=self.email_verified,
-            auth_method=self.auth_method,
-            photo=self.photo,
-        )
 
 
 class Token(BaseModel):
@@ -42,7 +11,7 @@ class Token(BaseModel):
 class AuthUser(BaseUser):
     def __init__(
         self,
-        email: str,
+        email: EmailStr,
         full_name: str | None = None,
         disabled: bool | None = None,
     ) -> None:
@@ -55,5 +24,5 @@ class AuthUser(BaseUser):
         return True
 
     @property
-    def display_name(self) -> str:
+    def display_name(self) -> EmailStr:
         return self.email

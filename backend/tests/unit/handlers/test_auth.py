@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from handlers.auth import AuthHandler
+from dataforce_studio.handlers.auth import AuthHandler
 from passlib.context import CryptContext
 
 handler = AuthHandler(
@@ -16,5 +16,5 @@ def test_get_password_hash(patched_hash):
     hashed_password = "$2b$12$rr/FMTnWz0BGDTiG//l.YuzZe9ZIpZTPZD5FeAVDDdqgchIDUyD66"
     patched_hash.return_value = hashed_password
 
-    hashed_password_from_auth_handler = handler.get_password_hash(password)
+    hashed_password_from_auth_handler = handler._get_password_hash(password)
     assert hashed_password == hashed_password_from_auth_handler
