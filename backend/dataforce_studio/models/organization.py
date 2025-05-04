@@ -1,8 +1,8 @@
 import uuid
 from enum import StrEnum
 
-from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, UUID
+from pydantic import HttpUrl
+from sqlalchemy import UUID, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -24,6 +24,10 @@ class DBOrganization(TimestampMixin, Base):
     logo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
 
     members: Mapped[list["DBOrganizationMember"]] = relationship(
+        back_populates="organization", cascade="all, delete, delete-orphan"
+    )
+
+    invites: Mapped[list["DBOrganizationInvite"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
@@ -52,4 +56,26 @@ class DBOrganizationMember(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return (f"OrganizationMember(id={self.id!r}, user={self.user!r}, "
-                f"organization={self.organization!r})")
+                f"organization={self.organization.id!r})")
+
+
+class DBOrganizationInvite(TimestampMixin, Base):
+    __tablename__ = "organization_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("users.id"), nullable=False
+    )
+
+    organization: Mapped["DBOrganization"] = relationship(back_populates="invites")
+
+    def __repr__(self) -> str:
+        return (f"OrganizationInvite(id={self.id!r}, email={self.email!r}, "
+                f"role={self.role!r}, organization={self.organization.id!r})")
