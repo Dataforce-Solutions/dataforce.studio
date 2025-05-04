@@ -166,8 +166,7 @@ class AuthHandler:
         update_user = UpdateUser(
             **update_user.model_dump(exclude_unset=True), email=email
         )
-        changed, _ = await self.__user_repository.update_user(update_user)
-        return changed
+        return await self.__user_repository.update_user(update_user)
 
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)

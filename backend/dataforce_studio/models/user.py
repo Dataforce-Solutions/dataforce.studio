@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel, EmailStr
 
 from dataforce_studio.models.base import BaseOrmConfig
 
@@ -16,7 +16,7 @@ class _UserBase(BaseModel):
     disabled: bool | None = None
     email_verified: bool = False
     auth_method: AuthProvider
-    photo: HttpUrl | None = None
+    photo: str | None = None
     hashed_password: str | None = None
 
 
@@ -27,7 +27,7 @@ class CreateUserIn(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
-    photo: HttpUrl | None = None
+    photo: str | None = None
 
 
 class UpdateUserIn(BaseModel):
@@ -35,7 +35,7 @@ class UpdateUserIn(BaseModel):
     full_name: str | None = None
     disabled: bool | None = None
     auth_method: AuthProvider | None = None
-    photo: HttpUrl | None = None
+    photo: str | None = None
 
 
 class UpdateUser(UpdateUserIn):

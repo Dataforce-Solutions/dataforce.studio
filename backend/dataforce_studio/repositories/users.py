@@ -43,7 +43,7 @@ class UserRepository(RepositoryBase):
     async def update_user(
         self,
         update_user: UpdateUser,
-    ) -> tuple[bool, User | None]:
+    ) -> bool:
         async with self._get_session() as session:
             changed = False
             result = await session.execute(
@@ -51,7 +51,7 @@ class UserRepository(RepositoryBase):
             )
 
             if not (db_user := result.scalars().first()):
-                return False, None
+                return False
 
             fields_to_update = update_user.model_dump(exclude_unset=True)
 
@@ -59,4 +59,6 @@ class UserRepository(RepositoryBase):
                 setattr(db_user, field, value)
                 changed = True
 
-        return changed, db_user.to_user()
+            if changed:
+                await session.commit()
+        return changed
