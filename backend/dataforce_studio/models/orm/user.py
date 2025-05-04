@@ -1,11 +1,11 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, Enum, Integer, String
+from sqlalchemy import Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from dataforce_studio.models.user import AuthProvider, User
-from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.orm.base import Base, TimestampMixin
+from dataforce_studio.models.user import AuthProvider, CreateUser, User
 
 
 class UserOrm(TimestampMixin, Base):
@@ -33,15 +33,7 @@ class UserOrm(TimestampMixin, Base):
         return User.model_validate(self)
 
     @classmethod
-    def from_user(cls, user: User) -> "UserOrm":
+    def from_user(cls, user: CreateUser) -> "UserOrm":
         return UserOrm(
             **user.model_dump(),
         )
-
-
-class TokenBlackListOrm(Base):
-    __tablename__ = "token_black_list"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    token: Mapped[str] = mapped_column(String, nullable=False)
-    expire_at: Mapped[int] = mapped_column(Integer, nullable=False)

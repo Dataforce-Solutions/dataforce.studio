@@ -2,9 +2,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from dataforce_studio.models import orm
-from dataforce_studio.models import organization
-from dataforce_studio.models.base import Base
+from dataforce_studio.models.orm.base import Base
 from dataforce_studio.settings import config as settings_config
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine.base import Connection

@@ -1,3 +1,4 @@
+import uuid
 from enum import Enum
 
 from pydantic import BaseModel, EmailStr
@@ -20,7 +21,11 @@ class _UserBase(BaseModel):
     hashed_password: str | None = None
 
 
-class User(_UserBase, BaseOrmConfig): ...
+class CreateUser(_UserBase): ...
+
+
+class User(_UserBase, BaseOrmConfig):
+    id: uuid.UUID
 
 
 class CreateUserIn(BaseModel):
