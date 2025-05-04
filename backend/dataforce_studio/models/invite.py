@@ -1,0 +1,31 @@
+import datetime
+import uuid
+
+from pydantic import BaseModel, EmailStr
+
+from dataforce_studio.models.organization import OrgRole
+from typing import List
+
+
+class CreateOrganizationInvite(BaseModel):
+    email: EmailStr
+    role: OrgRole
+    organization_id: uuid.UUID
+    invited_by: uuid.UUID
+
+
+class OrganizationInvite(BaseModel):
+    id: uuid.UUID
+    email: EmailStr
+    role: OrgRole
+    organization_id: uuid.UUID
+    invited_by: uuid.UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+        arbitrary_types_allowed = True
+
+
+class OrganizationInvites(BaseModel):
+    notes: List[OrganizationInvite]
