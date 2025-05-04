@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,12 +19,15 @@ class Settings(BaseSettings):
 
     SENDGRID_API_KEY: str
 
-    model_config = SettingsConfigDict(env_file=".env")
+    # quickfix, to be refactored later
+    model_config = SettingsConfigDict(
+        env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env"
+    )
 
 
 @lru_cache
 def get_config() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]
 
 
 config = get_config()

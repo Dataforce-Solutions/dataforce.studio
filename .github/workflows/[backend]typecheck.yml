@@ -1,0 +1,31 @@
+name: Backend TypeCheck
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  typecheking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies with uv
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade uv
+          uv sync
+
+      - name: Type check with Mypy
+        working-directory: backend
+        run: |
+          uv run mypy dataforce_studio

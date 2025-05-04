@@ -1,18 +1,25 @@
 from time import time
+from typing import Any
 
 import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
+from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.models.auth import (
-    AuthProvider,
     Token,
-    User,
 )
 from dataforce_studio.models.errors import AuthError
+from dataforce_studio.models.user import (
+    AuthProvider,
+    CreateUserIn,
+    UpdateUser,
+    UpdateUserIn,
+    User,
+)
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
@@ -39,36 +46,38 @@ class AuthHandler:
         self.refresh_token_expire = refresh_token_expire
         self.pwd_context = pwd_context
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(plain_password, hashed_password)
 
-    def get_password_hash(self, password: str) -> str:
+    def _get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)
 
-    async def authenticate_user(self, email: str, password: str) -> User:
-        service_user = await self.__user_repository.get_user(email)
-        if not service_user or not self.verify_password(
-            password, service_user.hashed_password
-        ):
+    async def _authenticate_user(self, email: EmailStr, password: str) -> User:
+        user = await self.__user_repository.get_user(email)
+        if user is None:
             raise AuthError("Invalid email or password", 400)
-        if not service_user.email_verified:
-            raise AuthError("Email not verified", 400)
-        if service_user.auth_method != AuthProvider.EMAIL:
+        if user.auth_method != AuthProvider.EMAIL:
             raise AuthError("Invalid auth method", 400)
-        return service_user.to_user()
+        if user.hashed_password is None:
+            raise AuthError("Password is invalid", 400)
+        if not user or not self._verify_password(password, user.hashed_password):
+            raise AuthError("Invalid email or password", 400)
+        if not user.email_verified:
+            raise AuthError("Email not verified", 400)
+        return user
 
-    def create_token(self, data: dict, expires_delta: int) -> str:
+    def _create_token(self, data: dict[str, Any], expires_delta: int) -> str:
         to_encode = data.copy()
         expire = int(time()) + expires_delta
         to_encode.update({"exp": expire})
         return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
 
-    def create_tokens(self, user_email: str) -> Token:
-        access_token = self.create_token(
+    def _create_tokens(self, user_email: EmailStr) -> Token:
+        access_token = self._create_token(
             data={"sub": user_email},
             expires_delta=self.access_token_expire,
         )
-        refresh_token = self.create_token(
+        refresh_token = self._create_token(
             data={"sub": user_email, "type": "refresh"},
             expires_delta=self.refresh_token_expire,
         )
@@ -78,55 +87,44 @@ class AuthHandler:
             token_type="bearer",
         )
 
-    def verify_token(self, token: str) -> str:
-        """Verify a token and return the user email"""
+    def _verify_token(self, token: str) -> EmailStr:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            email: str = payload.get("sub")
+            email: EmailStr = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 401)
             return email
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 401) from err
 
-    async def handle_signup(
-        self, email: str, password: str, full_name: str | None = None
-    ) -> dict:
-        """Handle user signup process"""
-        if (
-            user := await self.__user_repository.get_user(email)
-        ) and user.email_verified:
+    async def handle_signup(self, create_user: CreateUserIn) -> dict[str, str]:
+        if await self.__user_repository.get_user(create_user.email):
             raise AuthError("Email already registered", 400)
-        if not user:
-            if not password:
-                raise AuthError("Password is required", 400)
 
-            hashed_password = self.get_password_hash(password)
-
-            await self.__user_repository.create_user(
-                email=email,
-                full_name=full_name,
-                disabled=False,
-                email_verified=False,
-                hashed_password=hashed_password,
-                auth_method=AuthProvider.EMAIL,
-                photo=None,
-            )
-        confirmation_token = self._generate_email_confirmation_token(email)
+        hashed_password = self._get_password_hash(create_user.password)
+        user = User(
+            **create_user.model_dump(exclude={"password"}),
+            hashed_password=hashed_password,
+            auth_method=AuthProvider.EMAIL,
+        )
+        await self.__user_repository.create_user(
+            user=user,
+        )
+        confirmation_token = self._generate_email_confirmation_token(create_user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
-        self.__emails_handler.send_activation_email(email, confirmation_link, full_name)
+        self.__emails_handler.send_activation_email(
+            create_user.email, confirmation_link, create_user.full_name
+        )
         return {"detail": "Please confirm your email address"}
 
     def _get_email_confirmation_link(self, token: str) -> str:
         return config.CONFIRM_EMAIL_URL + token
 
-    async def handle_signin(self, email: str, password: str) -> Token:
-        """Handle user signin process"""
-        user = await self.authenticate_user(email, password)
-        return self.create_tokens(user.email)
+    async def handle_signin(self, email: EmailStr, password: str) -> Token:
+        user = await self._authenticate_user(email, password)
+        return self._create_tokens(user.email)
 
     async def handle_refresh_token(self, refresh_token: str) -> Token:
-        """Handle token refresh process"""
         try:
             payload = jwt.decode(
                 refresh_token, self.secret_key, algorithms=[self.algorithm]
@@ -135,7 +133,7 @@ class AuthHandler:
             if payload.get("type") != "refresh":
                 raise AuthError("Invalid token type", 400)
 
-            email: str = payload.get("sub")
+            email: EmailStr = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 400)
 
@@ -144,64 +142,47 @@ class AuthHandler:
             ):
                 raise AuthError("Token has been revoked", 400)
 
-            if service_user := await self.__user_repository.get_user(email) is None:
+            service_user = await self.__user_repository.get_user(email)
+            if service_user is None:
                 raise AuthError("User not found", 404)
 
             exp = int(payload.get("exp"))
 
             await self.__token_black_list_repository.add_token(refresh_token, exp)
 
-            return self.create_tokens(service_user.email)
+            return self._create_tokens(service_user.email)
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    async def handle_change_password(
+    async def update_user(
         self,
-        email: str,
-        current_password: str,
-        new_password: str,
-    ) -> dict[str, str]:
-        """Handle password change process"""
-        if not (service_user := await self.__user_repository.get_user(email)):
+        email: EmailStr,
+        update_user: UpdateUserIn,
+    ) -> bool:
+        if not await self.__user_repository.get_user(email):
             raise AuthError("User not found", 404)
 
-        if not self.verify_password(current_password, service_user.hashed_password):
-            raise AuthError("Invalid current password", 400)
-
-        await self.__user_repository.update_user(
-            email,
-            hashed_password=self.get_password_hash(new_password),
+        update_user = UpdateUser(
+            **update_user.model_dump(exclude_unset=True), email=email
         )
-        return {"detail": "Password changed successfully"}
+        changed, _ = await self.__user_repository.update_user(update_user)
+        return changed
 
-    async def handle_change_name(
-        self,
-        email: str,
-        new_name: str,
-    ) -> None:
-        """Handle password change process"""
-        if not (service_user := await self.__user_repository.get_user(email)):
-            raise AuthError("User not found", 404)
-
-        await self.__user_repository.update_user(service_user.email, full_name=new_name)
-
-    async def handle_delete_account(self, email: str) -> None:
-        """Handle account deletion process"""
+    async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: str) -> User:
-        """Handle getting current user information"""
-        if not (service_user := await self.__user_repository.get_user(email)):
+    async def handle_get_current_user(self, email: EmailStr) -> User:
+        user = await self.__user_repository.get_user(email)
+        if user is None:
             raise AuthError("User not found", 404)
 
-        if service_user.disabled:
+        if user.disabled:
             raise AuthError("Account is disabled", 400)
 
-        return service_user.to_user()
+        return user
 
-    async def handle_logout(self, access_token: str, refresh_token: str) -> None:
-        """Handle logout process"""
+    async def handle_logout(self, access_token: str | None, refresh_token: str) -> None:
         try:
             payload = jwt.decode(
                 refresh_token, self.secret_key, algorithms=[self.algorithm]
@@ -261,43 +242,43 @@ class AuthHandler:
         if not email:
             raise AuthError("Failed to retrieve user email", 400)
 
-        service_user = await self.__user_repository.get_user(email)
-        if service_user and service_user.auth_method != AuthProvider.GOOGLE:
+        user = await self.__user_repository.get_user(email)
+        if user and user.auth_method != AuthProvider.GOOGLE:
             await self.__user_repository.update_user(
-                email,
-                auth_provider=AuthProvider.GOOGLE,
-                email_verified=True,
-                hashed_password="reset",
-                photo=photo_url,
+                UpdateUser(email=email, auth_method=AuthProvider.GOOGLE)
             )
-        if not service_user:
-            service_user = await self.__user_repository.create_user(
-                email=email,
-                full_name=full_name,
-                disabled=False,
-                email_verified=True,
-                auth_method=AuthProvider.GOOGLE,
-                photo=photo_url,
+        if not user:
+            user = await self.__user_repository.create_user(
+                User(
+                    email=email,
+                    full_name=full_name,
+                    photo=photo_url,
+                    email_verified=True,
+                    auth_method=AuthProvider.GOOGLE,
+                    hashed_password=None,
+                )
             )
 
-        if photo_url != service_user.photo:
-            await self.__user_repository.update_user(email, photo=photo_url)
+        if photo_url != user.photo:
+            await self.__user_repository.update_user(
+                UpdateUser(email=email, photo=photo_url)
+            )
 
-        return self.create_tokens(service_user.email)
+        return self._create_tokens(user.email)
 
-    def _generate_email_confirmation_token(self, email: str) -> str:
-        return self.create_token(
+    def _generate_email_confirmation_token(self, email: EmailStr) -> str:
+        return self._create_token(
             data={"sub": email, "type": "email_confirmation"},
             expires_delta=86400,  # 24 hours
         )
 
-    def _generate_password_reset_token(self, email: str) -> str:
-        return self.create_token(
+    def _generate_password_reset_token(self, email: EmailStr) -> str:
+        return self._create_token(
             data={"sub": email, "type": "password_reset"},
             expires_delta=3600,  # 1 hour
         )
 
-    async def send_password_reset_email(self, email: str) -> None:
+    async def send_password_reset_email(self, email: EmailStr) -> None:
         if not (service_user := await self.__user_repository.get_user(email)):
             return
         token = self._generate_password_reset_token(service_user.email)
@@ -312,7 +293,7 @@ class AuthHandler:
     async def handle_email_confirmation(self, token: str) -> None:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            email: str = payload.get("sub")
+            email: EmailStr = payload.get("sub")
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err
         if email is None:
@@ -325,24 +306,26 @@ class AuthHandler:
             raise AuthError("Email already verified", 400)
 
         await self.__user_repository.update_user(
-            service_user.email, email_verified=True
+            UpdateUser(email=email, email_verified=True)
         )
 
     async def handle_reset_password(self, token: str, new_password: str) -> None:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            email: str = payload.get("sub")
+            email: EmailStr = payload.get("sub")
             exp = payload.get("exp")
             if exp is None or exp < time():
                 raise AuthError("Token expired", 400)
             if email is None:
                 raise AuthError("Invalid token", 400)
 
-            if (service_user := await self.__user_repository.get_user(email)) is None:
+            if (await self.__user_repository.get_user(email)) is None:
                 raise AuthError("User not found", 404)
 
             await self.__user_repository.update_user(
-                service_user.email, hashed_password=self.get_password_hash(new_password)
+                UpdateUser(
+                    email=email, hashed_password=self._get_password_hash(new_password)
+                )
             )
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err
