@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.authentication import UnauthenticatedUser
@@ -41,8 +41,8 @@ async def signup(create_user: CreateUserIn) -> dict[str, str]:
 
 @auth_router.post("/signin", response_model=Token)
 async def signin(
-    email: Annotated[EmailStr, Form()],
-    password: Annotated[str, Form(min_length=8)],
+    email: Annotated[EmailStr, Body()],
+    password: Annotated[str, Body(min_length=8)],
 ) -> Token:
     try:
         return await auth_handler.handle_signin(email, password)
@@ -75,7 +75,7 @@ async def google_callback(request: Request, code: str | None = None) -> Token:
 
 
 @auth_router.post("/refresh", response_model=Token)
-async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
+async def refresh(refresh_token: Annotated[str, Body()]) -> Token:
     try:
         return await auth_handler.handle_refresh_token(refresh_token)
     except AuthError as e:
@@ -83,7 +83,7 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
 
 
 @auth_router.post("/forgot-password")
-async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
+async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
     try:
         await auth_handler.send_password_reset_email(email)
     except AuthError as e:
@@ -134,7 +134,7 @@ async def update_user_profile(
 @auth_router.post("/logout")
 async def logout(
     request: Request,
-    refresh_token: Annotated[str, Form()],
+    refresh_token: Annotated[str, Body()],
 ) -> dict[str, str]:
     try:
         auth_header = request.headers.get("Authorization")
@@ -158,8 +158,8 @@ async def confirm_email(
 
 @auth_router.post("/reset-password")
 async def reset_password(
-    reset_token: Annotated[str, Form()],
-    new_password: Annotated[str, Form(min_length=8)],
+    reset_token: Annotated[str, Body()],
+    new_password: Annotated[str, Body(min_length=8)],
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_reset_password(reset_token, new_password)
