@@ -8,11 +8,8 @@
       <h2 class="dialog-title">Model Provider</h2>
     </template>
     <div class="providers">
-      <provider-item v-for="provider in providers" :provider="provider" :selected="selectedProviders.has(provider.id)" @click="() => !provider.disabled && onProviderClick(provider.id)"/>
+      <provider-item v-for="provider in providers" :provider="provider"/>
     </div>
-    <template #footer>
-      <d-button label="Save" @click="onSave"/>
-    </template>
   </d-dialog>
   <provider-settings v-if="openedProvider" v-model="isProviderSettingsOpened" :settings="openedProvider.settings" :provider-name="openedProvider.name" @save="saveSettings"/>
 </template>
@@ -23,29 +20,16 @@ import { onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
 import { getProviders } from '@/lib/promt-fusion/prompt-fusion.data';
 import { Brain } from 'lucide-vue-next';
 import { LocalStorageService } from '@/utils/services/LocalStorageService';
-import { useToast } from 'primevue';
-import { selectProviderErrorToast } from '@/lib/primevue/data/toasts';
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService';
 import ProviderItem from './ProviderItem.vue';
 import ProviderSettings from './ProviderSettings.vue';
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService';
 
-const toast = useToast()
-
 const providers = ref(getProviders())
 const visible = ref(false)
-const selectedProviders = ref<Set<ProvidersEnum>>(new Set())
 const openedProvider = ref<BaseProviderInfo | null>(null)
 const isProviderSettingsOpened = ref(false)
 
-function onProviderClick(providerId: ProvidersEnum) {
-  selectedProviders.value.has(providerId) ? selectedProviders.value.delete(providerId) : selectProvider(providerId)
-}
-function selectProvider(providerId: ProvidersEnum) {
-  const providerStatus = providers.value.find(provider => provider.id === providerId)?.status
-  if (providerStatus === ProviderStatus.connected) selectedProviders.value.add(providerId)
-  else toast.add(selectProviderErrorToast)
-}
 function saveSettings(settings: ProviderSetting[]) {
   if (!openedProvider.value) return
   const newStatus = settings.reduce((acc: ProviderStatus, setting) => {
@@ -55,6 +39,7 @@ function saveSettings(settings: ProviderSetting[]) {
   openedProvider.value.status = newStatus
   openedProvider.value.settings = settings
   const settingsInStorage = LocalStorageService.getProviderSettings()
+  promptFusionService.updateProviderSettings(openedProvider.value.id, settings)
   const isNeedToSaveData = settingsInStorage.saveApiKeys
   if (isNeedToSaveData) {
     settingsInStorage[openedProvider.value.id] = settings.reduce((acc: Record<string, string>, setting) => {
@@ -70,16 +55,10 @@ function showSettings(provider: BaseProviderInfo) {
   promptFusionService.closeSettings()
   isProviderSettingsOpened.value = true
 }
-function onSave() {
-  promptFusionService.updateSelectedProviders(selectedProviders.value)
-  promptFusionService.closeSettings()
-}
 function onChangeSettingsStatus(open: boolean) {
   if (open) {
-    promptFusionService.selectedProviders.forEach(value => selectedProviders.value.add(value))
     visible.value = true
   } else {
-    selectedProviders.value.clear()
     visible.value = false
   }
 }

@@ -1,8 +1,9 @@
 <template>
-  <div class="item" :class="{ selected: selected, disabled: provider.disabled }">
+  <div class="item" :class="{ disabled: provider.disabled }">
     <div class="left">
       <img class="image" :src="provider.image" :alt="provider.name" />
       <h3 class="title">{{ provider.name }}</h3>
+      <span v-if="provider.disabled" class="disabled-label">(Not Available)</span>
     </div>
     <div v-if="!provider.disabled" class="right">
       <div class="status" :class="{connected: provider.status === ProviderStatus.connected}">{{ provider.status }}</div>
@@ -22,15 +23,13 @@ import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 
 type Props = {
   provider: BaseProviderInfo
-  selected: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 </script>
 
 <style scoped>
 .item {
-  cursor: pointer;
   padding: 16px 12px;
   display: flex;
   align-items: center;
@@ -98,5 +97,11 @@ const props = defineProps<Props>()
 .status.connected::before {
   background-color: var(--p-badge-success-background);
   box-shadow: 0px 2px 8px 0px rgba(34, 197, 94, 0.50);
+}
+.disabled-label {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--p-text-muted-color);
+  margin-left: 8px;
 }
 </style>

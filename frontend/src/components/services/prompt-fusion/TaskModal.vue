@@ -16,7 +16,7 @@
         <h3 class="prompt-menu-item-title">Data-Driven Optimization</h3>
         <p class="prompt-menu-item-description">Performance-based prompt optimization using historical data patterns for higher success rates.</p>
         <d-button asChild severity="secondary" v-slot="slotProps">
-          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button" :class="slotProps.class" @click="() => onLinkClick('data_driven')">Select option</router-link>
+          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button button-disabled" :class="slotProps.class" @click="() => onLinkClick('data_driven')">Select option</router-link>
         </d-button>
       </li>
     </ul>
@@ -75,5 +75,9 @@ function onLinkClick(option: string) {
 }
 .prompt-menu-item-button {
   align-self: flex-end;
+}
+.button-disabled {
+  opacity: 0.7;
+  pointer-events: none;
 }
 </style>

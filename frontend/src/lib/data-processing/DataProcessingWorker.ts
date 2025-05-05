@@ -22,9 +22,7 @@ class DataProcessingWorkerClass {
       return false
     }
     window.pyodideStartedLoading = true
-    window.pyodideWorker = new Worker(new URL('@/workers/webworker.js', import.meta.url), {
-      type: 'module'
-    })
+    window.pyodideWorker = new Worker('webworker.js')
     window.pyodideWorker.onmessage = async (event) => {
       const m = event.data
       const callback = this.callbacks[m.id]

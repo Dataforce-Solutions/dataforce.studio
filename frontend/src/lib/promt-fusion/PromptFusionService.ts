@@ -1,8 +1,8 @@
 import type { FlowExportObject } from '@vue-flow/core'
 import type { NodeData } from '@/components/services/prompt-fusion/interfaces'
-import type { PayloadData, PayloadNode, PromptFusionPayload, ProviderModelsEnum, ProvidersEnum, ProviderWithModels, TrainingData } from './prompt-fusion.interfaces'
+import type { PayloadData, PayloadNode, PromptFusionPayload, ProviderModelsEnum, ProvidersEnum, ProviderSetting, ProviderWithModels, TrainingData } from './prompt-fusion.interfaces'
 import { Observable } from '@/utils/observable/Observable'
-import { EvaluationModesEnum } from './prompt-fusion.interfaces'
+import { EvaluationModesEnum, ProviderStatus } from './prompt-fusion.interfaces'
 import { allModels, getProviders } from './prompt-fusion.data'
 import { parseProviderSettingsToObject } from '@/helpers/helpers'
 import { DataProcessingWorker } from '../data-processing/DataProcessingWorker'
@@ -13,13 +13,13 @@ type Events = {
   CHANGE_OPTIMIZATION_STATE: boolean
   OPEN_PROVIDER_SETTINGS: ProvidersEnum
   CLOSE_PROVIDER_SETTINGS: void
-  CHANGE_SELECTED_PROVIDERS: Set<ProvidersEnum>
   CHANGE_TEACHER_MODEL: ProviderModelsEnum | null
   CHANGE_STUDENT_MODEL: ProviderModelsEnum | null
   CHANGE_TRAINING_STATE: boolean
   CHANGE_PREDICT_VISIBLE: boolean
   CHANGE_MODEL_ID: string
   CHANGE_PREDICTION_FIELDS: string[] | null
+  CHANGE_AVAILABLE_MODELS: ProviderWithModels[]
 }
 
 const initialState = {
@@ -42,7 +42,6 @@ const initialState = {
 }
 
 class PromptFusionServiceClass extends Observable<Events> {
-  selectedProviders = new Set<ProvidersEnum>()
   providers = getProviders()
   availableModels: ProviderWithModels[] = initialState.availableModels
   isSettingsOpened = initialState.isSettingsOpened
@@ -65,14 +64,6 @@ class PromptFusionServiceClass extends Observable<Events> {
     super()
   }
 
-  updateSelectedProviders(providers: Set<ProvidersEnum>) {
-    this.selectedProviders.clear()
-    providers.forEach((provider) => this.selectedProviders.add(provider))
-    this.changeAvailableModels(providers)
-    if (!providers.size && this.isOptimizationOpened) this.changeOptimizationState(false)
-    this.emit('CHANGE_SELECTED_PROVIDERS', this.selectedProviders)
-  }
-
   openSettings() {
     this.isSettingsOpened = true
     this.emit('CHANGE_SETTINGS_STATUS', true)
@@ -88,6 +79,14 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.emit('OPEN_PROVIDER_SETTINGS', this.openedProviderSettings)
   }
 
+  updateProviderSettings(provider: ProvidersEnum, settings: ProviderSetting[]) {
+    const currentProvider = this.providers.find(prov => prov.id === provider)
+    if (!currentProvider) return
+    currentProvider.settings = settings
+    currentProvider.status = settings.filter(setting => setting.required && !setting.value).length ? ProviderStatus.disconnected : ProviderStatus.connected
+    this.changeAvailableModels()
+  }
+
   closeProviderSettings() {
     this.openedProviderSettings = null
     this.emit('CLOSE_PROVIDER_SETTINGS')
@@ -98,8 +97,9 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.emit('CHANGE_OPTIMIZATION_STATE', isOpen)
   }
 
-  changeAvailableModels(providers: Set<ProvidersEnum>) {
-    this.availableModels = allModels.filter(item => providers.has(item.providerId))
+  changeAvailableModels() {
+    this.availableModels = allModels.filter(model => this.getConnectedProviders().find(provider => provider.id === model.providerId))
+    this.emit('CHANGE_AVAILABLE_MODELS', this.availableModels)
   }
 
   updateTeacherModel(model: ProviderModelsEnum | null) {
@@ -133,17 +133,9 @@ class PromptFusionServiceClass extends Observable<Events> {
       this.savePredictionFields()
       this.endTraining()
     } else {
-      console.log(result);
       this.endTraining()
       throw new Error('Training failed')
     }
-    // const promise = new Promise((res) => {
-    //   setTimeout(() => {
-    //     res('ok')
-    //   }, 3000);
-    // })
-    // await promise
-
   }
 
   prepareData(object: FlowExportObject) {
@@ -175,7 +167,6 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   resetState() {
-    this.selectedProviders = new Set<ProvidersEnum>()
     this.providers = getProviders()
     this.availableModels = initialState.availableModels
     this.isSettingsOpened = initialState.isSettingsOpened
@@ -193,6 +184,13 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.taskDescription = initialState.taskDescription
     this.trainingData = initialState.trainingData
     this.predictionFields = initialState.predictionFields
+  }
+
+  getConnectedProviders() {
+    return this.providers.filter(provider => {
+      if (provider.disabled) return false;
+      return provider.status === ProviderStatus.connected;
+    })
   }
 
   private haveDuplicatedFields() {
