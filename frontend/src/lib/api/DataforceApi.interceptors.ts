@@ -1,4 +1,4 @@
-import type { AxiosInstance, AxiosResponse } from 'axios'
+import type { AxiosInstance } from 'axios'
 import type { IPostRefreshTokenRequest, IPostRefreshTokenResponse } from './DataforceApi.interfaces'
 
 export const installDataforceInterceptors = (api: AxiosInstance) => {
@@ -34,9 +34,6 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
           const { data: responseData } = await api.post<IPostRefreshTokenResponse>(
             '/auth/refresh',
             data,
-            {
-              isJSON: true,
-            },
           )
 
           const newToken = responseData.access_token
@@ -56,23 +53,4 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
       return Promise.reject(error)
     },
   )
-
-  api.interceptors.request.use((config) => {
-    if (
-      config.data &&
-      !config.isJSON &&
-      typeof config.data === 'object' &&
-      !(config.data instanceof FormData)
-    ) {
-      const formData = new FormData()
-      for (const key in config.data) {
-        if (Object.prototype.hasOwnProperty.call(config.data, key)) {
-          formData.append(key, config.data[key])
-        }
-      }
-      config.data = formData
-      config.headers['Content-Type'] = 'multipart/form-data'
-    }
-    return config
-  })
 }
