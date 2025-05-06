@@ -4,7 +4,6 @@ import uuid
 from pydantic import BaseModel, EmailStr
 
 from dataforce_studio.models.organization import OrgRole
-from typing import List
 
 
 class CreateOrganizationInvite(BaseModel):
@@ -28,4 +27,4 @@ class OrganizationInvite(BaseModel):
 
 
 class OrganizationInvites(BaseModel):
-    notes: List[OrganizationInvite]
+    notes: list[OrganizationInvite]

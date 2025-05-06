@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 
 from dataforce_studio.api.auth import auth_router
+from dataforce_studio.api.organization import organization_router
 from dataforce_studio.infra.security import JWTAuthenticationBackend
 
 
@@ -11,6 +12,7 @@ class AppService(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, tags=["auth"])
+        self.include_router(router=organization_router, tags=["organization"])
         self.include_authentication()
 
         self.add_middleware(

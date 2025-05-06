@@ -1,7 +1,7 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from dataforce_studio.models.organization import OrgRole, Organization, OrganizationMember
 from dataforce_studio.models.orm.organization import (

@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 
+from dataforce_studio.models.invite import OrganizationInvite
 from dataforce_studio.models.organization import DBOrganizationInvite
 from dataforce_studio.repositories.base import RepositoryBase
 
@@ -14,6 +15,7 @@ class InviteRepository(RepositoryBase):
         async with self._get_session() as session:
             session.add(invite)
             await session.commit()
+            await session.refresh(invite)
         return invite
 
     async def delete_organization_invite(self, invite_id: uuid.UUID) -> None:
@@ -26,3 +28,12 @@ class InviteRepository(RepositoryBase):
 
             if invite:
                 await session.delete(invite)
+
+    async def get_invites_where(self, *where_conditions) -> list[OrganizationInvite]:
+        async with self._get_session() as session, session.begin():
+            result = await session.execute(
+                select(DBOrganizationInvite).where(*where_conditions)
+            )
+            invites = result.scalars().all()
+
+            return [OrganizationInvite.model_validate(invite) for invite in invites]

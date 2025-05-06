@@ -44,5 +44,5 @@ class EmailHandler:
         self._email_client.send(message)
 
     # TODO implement method
-    def send_organization_invite_email(self):
+    def send_organization_invite_email(self) -> None:
         pass
