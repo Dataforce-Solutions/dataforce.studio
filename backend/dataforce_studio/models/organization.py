@@ -55,7 +55,7 @@ class DBOrganizationMember(TimestampMixin, Base):
     organization: Mapped["DBOrganization"] = relationship(back_populates="members")
 
     def __repr__(self) -> str:
-        return (f"OrganizationMember(id={self.id!r}, user={self.user!r}, "
+        return (f"OrganizationMember(id={self.id!r}, user_id={self.user_id!r}, "
                 f"organization={self.organization.id!r})")
 
 
