@@ -72,6 +72,11 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   .form {
     flex-direction: column;
     align-items: stretch;
+    position: relative;
+  }
+  
+  .input-wrapper {
+    position: static;
   }
 }
 </style>

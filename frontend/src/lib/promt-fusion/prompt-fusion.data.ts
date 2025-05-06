@@ -37,25 +37,27 @@ export const getProviders = (): BaseProviderInfo[] => {
       image: Ollama,
       name: 'Ollama',
       status: ProviderStatus.disconnected,
-      disabled: true,
+      disabled: true, // Ollama is currently not working
       settings: [
         {
           id: 'apiBase',
           label: 'API Base',
-          required: false,
-          placeholder: 'Enter your API Base',
-          value: savedOllamaSettings?.apiBase || 'http://localhost:11434',
+          required: true,
+          placeholder: 'http://localhost:11434',
+          value: savedOllamaSettings?.apiBase || '',
         },
       ],
     },
   ]
-  return data.map(provider => ({
-    ...provider,
-    status: provider.settings.reduce((acc: ProviderStatus, setting) => {
-      if (setting.required && !setting.value) return ProviderStatus.disconnected;
-      return acc
-    }, ProviderStatus.connected),
-  }))
+  return data.map(provider => {
+    return {
+      ...provider,
+      status: provider.disabled ? ProviderStatus.disconnected : provider.settings.reduce((acc: ProviderStatus, setting) => {
+        if (setting.required && !setting.value) return ProviderStatus.disconnected;
+        return acc;
+      }, ProviderStatus.connected),
+    };
+  });
 }
 
 export const openAiModels: ProviderModel[] = [

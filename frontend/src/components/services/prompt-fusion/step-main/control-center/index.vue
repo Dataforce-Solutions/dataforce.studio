@@ -18,7 +18,6 @@
 </template>
 
 <script setup lang="ts">
-import type { ProvidersEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { Play, CloudDownload } from 'lucide-vue-next'
 import ProvidersComponent from '@/components/services/prompt-fusion/step-main/control-center/providers/index.vue'
@@ -29,8 +28,9 @@ import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/Analyt
 const optimizationDisabled = ref(true)
 const isPredictAvailable = ref(false)
 
-function onChangeSelectedProviders(providers: Set<ProvidersEnum>) {
-  optimizationDisabled.value = !providers.size
+function setOptimizationState() {
+  promptFusionService.changeAvailableModels()
+  optimizationDisabled.value = !promptFusionService.getConnectedProviders().length
 }
 function onChangeModelId(modelId: string) {
   isPredictAvailable.value = !!modelId
@@ -40,11 +40,12 @@ function onDownloadClick() {
 }
 
 onBeforeMount(() => {
-  promptFusionService.on('CHANGE_SELECTED_PROVIDERS', onChangeSelectedProviders)
+  setOptimizationState()
+  promptFusionService.on('CLOSE_PROVIDER_SETTINGS', setOptimizationState)
   promptFusionService.on('CHANGE_MODEL_ID', onChangeModelId)
 })
 onBeforeUnmount(() => {
-  promptFusionService.off('CHANGE_SELECTED_PROVIDERS', onChangeSelectedProviders)
+  promptFusionService.off('CLOSE_PROVIDER_SETTINGS', setOptimizationState)
   promptFusionService.off('CHANGE_MODEL_ID', onChangeModelId)
 })
 </script>

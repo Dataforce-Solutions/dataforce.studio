@@ -2,8 +2,8 @@
 //for debug only
 // DRY_RUN = false;
 
-// importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
-import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs";
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
+//import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs";
 
 // let pyodide = null;
 // let micropip = null;

@@ -24,8 +24,10 @@
 import LayoutHeader from '@/components/layout/LayoutHeader.vue'
 import LayoutSidebar from '@/components/layout/LayoutSidebar.vue'
 import LayoutFooter from '@/components/layout/LayoutFooter.vue'
-
 import { onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const sidebarRef = ref<InstanceType<typeof LayoutSidebar> | null>(null)
 const sidebarWidth = ref(0)
@@ -39,15 +41,18 @@ function calcSidebarWidth() {
 }
 
 function checkIsBurgerAvailable() {
-  isBurgerAvailable.value = document.documentElement.clientWidth < 768
+  isBurgerAvailable.value = document.documentElement.clientWidth <= 768
 
-  if (document.documentElement.clientWidth > 768 && sidebarRef.value) {
+  if (document.documentElement.clientWidth >= 768 && sidebarRef.value) {
     resizeObserver.observe(sidebarRef.value.$el)
   }
 }
 
 let resizeObserver: ResizeObserver
 
+router.afterEach(() => {
+  isBurgerOpen.value = false
+})
 onBeforeMount(() => {
   checkIsBurgerAvailable()
 

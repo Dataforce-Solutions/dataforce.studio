@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { ModelTypeEnum, ProviderModelsEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
+import { ModelTypeEnum, ProviderModelsEnum, type ProviderWithModels } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { Bolt } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
@@ -51,8 +51,8 @@ const selectedModel = ref<ProviderModelsEnum | null>(null)
 
 const isTeacherModel = computed(() => props.modelType === ModelTypeEnum.teacher)
 
-function onChangeSelectedProviders() {
-  options.value = promptFusionService.availableModels
+function changeOptions(models: ProviderWithModels[]) {
+  options.value = models
 }
 
 watch(selectedModel, (value) => {
@@ -64,10 +64,10 @@ watch(selectedModel, (value) => {
 
 onBeforeMount(() => {
   selectedModel.value = isTeacherModel.value ? promptFusionService.teacherModel : promptFusionService.studentModel
-  promptFusionService.on('CHANGE_SELECTED_PROVIDERS', onChangeSelectedProviders)
+  promptFusionService.on('CHANGE_AVAILABLE_MODELS', changeOptions)
 })
 onBeforeUnmount(() => {
-  promptFusionService.off('CHANGE_SELECTED_PROVIDERS', onChangeSelectedProviders)
+  promptFusionService.off('CHANGE_AVAILABLE_MODELS', changeOptions)
 })
 </script>
 

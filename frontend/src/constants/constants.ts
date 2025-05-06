@@ -1,5 +1,5 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
-import { FolderDot, CirclePlay, Zap, File } from 'lucide-vue-next'
+import { CirclePlay, Zap, File, Orbit } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
@@ -27,7 +27,7 @@ export const sidebarMenu = [
   {
     id: 3,
     label: 'Orbits',
-    icon: FolderDot,
+    icon: Orbit,
     route: 'orbits',
     disabled: false,
     tooltipMessage: null,
@@ -86,7 +86,7 @@ const appTasks: IAppTaskData[] = [
   {
     id: 5,
     icon: ConversationalQAIcon,
-    title: 'Prompt Optimization',
+    title: 'Prompt Optimization (Pre-release)',
     description: 'Construct and optimize LLM flows using a no-code builder.',
     btnText: 'next',
     tooltipData:

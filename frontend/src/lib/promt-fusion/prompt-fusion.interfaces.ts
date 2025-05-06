@@ -15,11 +15,11 @@ export enum ProvidersEnum {
 }
 
 export enum ProviderModelsEnum {
-  gpt4o = 'gpt4o',
-  gpt4o_mini = 'gpt4o-mini',
-  gpt4_1 = 'gpt4.1',
-  gpt4_1_mini = 'gpt4.1-mini',
-  gpt4_1_nano = 'gpt4.1-nano',
+  gpt4o = 'gpt-4o',
+  gpt4o_mini = 'gpt-4o-mini',
+  gpt4_1 = 'gpt-4.1',
+  gpt4_1_mini = 'gpt-4.1-mini',
+  gpt4_1_nano = 'gpt-4.1-nano',
   gemma3_4b = 'gemma3:4b',
   llama3_1_8b = 'llama3.1:8b',
   llama3_2_3b = 'llama3.2:3b',
