@@ -1,13 +1,16 @@
 import datetime
-from pydantic import BaseModel, ConfigDict
-from pydantic import ConfigDict
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class BaseOrmConfig:
     model_config = ConfigDict(from_attributes=True)
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class TimestampMixin:

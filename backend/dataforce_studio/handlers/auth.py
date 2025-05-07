@@ -20,6 +20,7 @@ from dataforce_studio.models.user import (
     UpdateUser,
     UpdateUserIn,
     User,
+    UserResponse,
 )
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -51,7 +52,7 @@ class AuthHandler:
     def _get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)
 
-    async def _authenticate_user(self, email: EmailStr, password: str) -> User:
+    async def _authenticate_user(self, email: EmailStr, password: str) -> UserResponse:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("Invalid email or password", 400)
@@ -171,7 +172,7 @@ class AuthHandler:
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> User:
+    async def handle_get_current_user(self, email: EmailStr) -> UserResponse:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("User not found", 404)

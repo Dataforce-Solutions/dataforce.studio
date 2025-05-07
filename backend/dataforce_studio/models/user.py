@@ -40,6 +40,10 @@ class UserResponse(_UserBase):
         arbitrary_types_allowed = True
 
 
+class UserResponse(_UserBase):
+    id: uuid.UUID
+
+
 class CreateUserIn(BaseModel):
     email: EmailStr
     password: str

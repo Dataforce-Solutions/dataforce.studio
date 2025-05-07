@@ -1,9 +1,13 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
+from sqlalchemy import Boolean, Enum, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Boolean, Enum, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
+from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.user import AuthProvider, User, UserResponse
 from dataforce_studio.models.orm.base import Base, TimestampMixin
 from dataforce_studio.models.user import AuthProvider, CreateUser, User
 
