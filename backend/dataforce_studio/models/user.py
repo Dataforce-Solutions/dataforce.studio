@@ -28,6 +28,10 @@ class User(_UserBase, BaseOrmConfig):
     id: uuid.UUID
 
 
+class UserResponse(_UserBase):
+    id: uuid.UUID
+
+
 class CreateUserIn(BaseModel):
     email: EmailStr
     password: str

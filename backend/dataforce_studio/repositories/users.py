@@ -26,9 +26,10 @@ class UserRepository(RepositoryBase):
         async with self._get_session() as session:
             db_user = UserOrm.from_user(create_user)
             session.add(db_user)
-            user = db_user.to_user()
+
             await session.flush()
             await session.refresh(db_user)
+            user_response = db_user.to_user()
 
             db_organization = OrganizationOrm(
                 name=generate_organization_name(
@@ -46,7 +47,7 @@ class UserRepository(RepositoryBase):
             session.add(db_organization_member)
 
             await session.commit()
-            return user
+        return user_response
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
@@ -98,6 +99,17 @@ class UserRepository(RepositoryBase):
             session.add(db_organization)
             await session.commit()
         return db_organization
+
+    async def get_organization_members_count(
+        self, organization_id: uuid.UUID
+    ) -> int | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(OrganizationMemberOrm)
+                .where(OrganizationMemberOrm.organization_id == organization_id)
+            )
+        return result.scalar_one_or_none()
 
     async def create_organization_member(
         self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole

@@ -43,10 +43,11 @@ def upgrade() -> None:
 
     for (email,) in users:
         conn.execute(
-            sa.text("UPDATE users SET id = :id, created_at = :now, updated_at = :now WHERE email = :email"),
+            sa.text(
+                "UPDATE users SET id = :id, created_at = :now, updated_at = :now WHERE email = :email"
+            ),
             {"id": str(uuid.uuid4()), "now": now, "email": email},
         )
-
 
     op.drop_constraint("users_pkey", "users", type_="primary")
     op.create_primary_key("users_pkey", "users", ["id"])
@@ -160,9 +161,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(None, 'users', type_='unique')
-    op.drop_column('users', 'updated_at')
-    op.drop_column('users', 'created_at')
-    op.drop_column('users', 'id')
-    op.drop_table('organization_members')
-    op.drop_table('organizations')
+    op.drop_constraint(None, "users", type_="unique")
+    op.drop_column("users", "updated_at")
+    op.drop_column("users", "created_at")
+    op.drop_column("users", "id")
+    op.drop_table("organization_members")
+    op.drop_table("organizations")
