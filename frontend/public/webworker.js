@@ -1,17 +1,21 @@
 // webworker
 //for debug only
-DRY_RUN = false;
+// DRY_RUN = false;
 
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
+//import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs";
+
+// let pyodide = null;
+// let micropip = null;
 
 const MESSAGES = {
     LOAD_PYODIDE: "LOAD_PYODIDE",
 };
 
 async function initPyWorker() {
-    if (DRY_RUN) {
-        return true;
-    }
+    // if (DRY_RUN) {
+    //     return true;
+    // }
     const pyodide = await loadPyodide();
     await pyodide.loadPackage("micropip");
 
@@ -48,7 +52,9 @@ async function initPyWorker() {
     );
 
     await pyodide.loadPackage("/dfs_webworker-0.1.0-py3-none-any.whl");
+
     await pyodide.loadPackage("/promptopt-0.1.0-py3-none-any.whl")
+
 
     await micropip.install("scipy==1.14.1");
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/28/09/c4d329f7969443cdd4d482048ca406b6f61cda3c8e99ace71feaec7c8734/optuna-4.2.1-py3-none-any.whl");

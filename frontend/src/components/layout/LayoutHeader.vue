@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   .burger-button {
     display: none;
   }

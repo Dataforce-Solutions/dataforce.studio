@@ -1,0 +1,81 @@
+<template>
+  <d-dialog :visible="modelValue" modal :closable="false" :closeOnEscape="false" @update:visible="(event: boolean) => $emit('update:modelValue', event)">
+    <template #container>
+      <div class="wrapper">
+        <div class="loader">
+          <ui-loader />
+        </div>
+        <div class="content">
+          <h2 class="title">Training in progress...</h2>
+          <div class="text">
+            Training duration may vary depending on the volume of data, typically ranging from 1 to
+            10 minutes.
+          </div>
+          <progress-bar mode="indeterminate" style="height: 6px" />
+          <div class="info">Estimated loading time: {{ time }}m</div>
+          <d-button v-if="isCancelAvailable" label="cancel" @click="$emit('cancel')" />
+        </div>
+      </div>
+    </template>
+  </d-dialog>
+</template>
+
+<script setup lang="ts">
+import { ProgressBar } from 'primevue'
+import UiLoader from '@/components/ui/UiLoader.vue'
+
+type Props = {
+  modelValue: boolean
+  time: number
+  isCancelAvailable?: boolean
+}
+type Emits = {
+  cancel: void
+  'update:modelValue': [boolean]
+}
+
+defineProps<Props>()
+defineEmits<Emits>()
+</script>
+
+<style scoped>
+.wrapper {
+  padding: 48px;
+  display: flex;
+  align-items: center;
+  gap: 60px;
+  max-width: 901px;
+  width: 100%;
+}
+.loader {
+  padding: 80px;
+}
+.title {
+  margin-bottom: 12px;
+  font-size: 24px;
+}
+.text {
+  margin-bottom: 28px;
+  color: var(--p-text-muted-color);
+  line-height: 1.18;
+}
+.info {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+.info:not(:last-child) {
+  margin-bottom: 32px;
+}
+
+@media (max-width: 992px) {
+  .wrapper {
+    flex-direction: column;
+    gap: 36px;
+    max-width: 600px;
+  }
+  .loader {
+    padding: 48px;
+  }
+}
+</style>

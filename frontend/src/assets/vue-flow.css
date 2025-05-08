@@ -77,3 +77,16 @@
 .vue-flow__edge.selected .vue-flow__edge-path {
   stroke: var(--p-primary-color);
 }
+
+.vue-flow__node.selectable:focus {
+  border-color: var(--p-primary-color) ;
+}
+
+a.p-button {
+  text-decoration: none;
+}
+
+.p-select-header .p-select-filter {
+  padding: 6px 31px 6px 10px;
+  font-size: var(--p-inputtext-sm-font-size);
+}

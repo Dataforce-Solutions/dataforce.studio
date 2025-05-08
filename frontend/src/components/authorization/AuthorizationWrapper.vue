@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { AnalyticsService } from '@/lib/analytics/AnalyticsService'
 import type { IAuthorizationService, TAuthorizationWrapperProps } from './interfaces'
 
 import GoogleIcon from '@/assets/img/authorization-services/google.svg'
@@ -48,10 +49,12 @@ import GoogleIcon from '@/assets/img/authorization-services/google.svg'
 // import GitHubIcon from '@/assets/img/authorization-services/github.svg'
 
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import { onBeforeMount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const userStore = useUserStore()
 const router = useRouter()
 
 defineProps<TAuthorizationWrapperProps>()
@@ -83,12 +86,12 @@ const services: IAuthorizationService[] = [
 onBeforeMount(async () => {
   const urlParams = new URLSearchParams(window.location.search)
   const code = urlParams.get('code')
-
   if (!code) return
-
   try {
     await authStore.loginWithGoogle(code)
-
+    await userStore.loadUser()
+    const email = userStore.getUserEmail
+    email && AnalyticsService.identify(email)
     router.push({ name: 'home' })
   } catch (e) {
     console.error(e)
