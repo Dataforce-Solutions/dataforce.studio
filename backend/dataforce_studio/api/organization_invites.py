@@ -12,7 +12,7 @@ from dataforce_studio.models.invite import (
 )
 from dataforce_studio.models.organization import DBOrganizationInvite
 
-invites_router = APIRouter(prefix="/invites", tags=["invites"])
+invites_router = APIRouter(prefix="/invites", tags=["organization-invites"])
 
 organization_handler = OrganizationHandler()
 
