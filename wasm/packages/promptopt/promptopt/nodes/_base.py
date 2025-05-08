@@ -7,6 +7,8 @@ class BaseNode(ABC):
     _injected_node_name: str = ""
     _instruction: str | None = None
     _examples: list[LLMExample] | None = None
+    _frozen_id: int | None = None
+    hint: str | None = None
 
     @property
     @abstractmethod

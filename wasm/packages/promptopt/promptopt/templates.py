@@ -26,4 +26,5 @@ NODE_LLM_REPR_TEMPLATE = """ID: {id}
 Type: {type}
 Inputs: {inputs}
 Outputs: {outputs}
+{hint}
 """

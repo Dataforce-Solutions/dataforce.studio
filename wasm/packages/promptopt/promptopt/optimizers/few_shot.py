@@ -1,5 +1,5 @@
 from promptopt.optimizers._base import BaseOptimizer
-from promptopt.dataclasses import Exmaple
+from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.trace import Trace
 from promptopt.llm import LLM
@@ -15,15 +15,13 @@ class RandomFewShotOptimizer(BaseOptimizer):
         max_examples_per_node: int,
         llm: LLM,
     ) -> None:
-        super().__init__(graph)
-
         self.graph = graph
         self.llm = llm
 
         self.max_training_examples = max_training_examples
         self.max_examples_per_node = max_examples_per_node
 
-    async def optimize(self, examples: list[Exmaple]) -> None:
+    async def optimize(self, examples: list[Example]) -> None:
         if len(examples) > self.max_training_examples:
             training_examples = random.sample(examples, self.max_training_examples)
         else:

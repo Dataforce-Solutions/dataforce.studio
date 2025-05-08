@@ -1,8 +1,5 @@
 from dataclasses import dataclass
 
-from promptopt.dataclasses import Field as NativeField
-from promptopt.graph import Graph, BaseNode, InputNode, OutputNode, Processor, Gate
-
 
 @dataclass
 class Field:
@@ -64,16 +61,20 @@ class Settings:
     student: Provider
     evaluation_mode: str
     criteria_list: list[str]
+    inputs: list[str]
+    outputs: list[str]
 
 
 @dataclass
 class JsData:
     data: GraphData
     settings: Settings
-    dataset: None = None  # TODO
+    dataset: dict[str, list] | None = None  # TODO
 
     @classmethod
     def from_dict(cls, raw: dict) -> "JsData":
+        print("Parsing JS data")
+
         def parse_field(field: dict) -> Field:
             return Field(**field)
 
@@ -132,70 +133,12 @@ class JsData:
                 student=parse_provider(settings["student"]),
                 evaluation_mode=settings["evaluationMode"],
                 criteria_list=settings["criteriaList"],
+                inputs=settings["inputs"],
+                outputs=settings["outputs"],
             )
 
         return cls(
             data=parse_graph_data(raw["data"]),
             settings=parse_settings(raw["settings"]),
+            dataset=raw["trainingData"],
         )
-
-
-def convert_js_field(js_field) -> NativeField:
-    return NativeField(
-        name=js_field.value,
-        type=js_field.type,
-        is_variadic=js_field.variadic,
-        allowed_values=None,
-    )
-
-
-def jsdata_to_graph(js_data: JsData) -> Graph:
-    graph = Graph()
-    node_map: dict[str, BaseNode] = {}
-
-    for node in js_data.data.nodes:
-        node_type = node.data.type.lower()
-        fields = node.data.fields
-
-        if node_type == "input":
-            node_obj = InputNode([convert_js_field(f) for f in fields])
-
-        elif node_type == "output":
-            node_obj = OutputNode([convert_js_field(f) for f in fields])
-
-        elif node_type == "processor":
-            input_fields = [convert_js_field(f) for f in fields if f.variant == "input"]
-            output_fields = [
-                convert_js_field(f) for f in fields if f.variant == "output"
-            ]
-            node_obj = Processor(input_fields, output_fields)
-
-        elif node_type == "gate":
-            classification_fields = [
-                convert_js_field(f) for f in fields if f.variant == "output"
-            ]
-            if len(classification_fields) != 1:
-                raise ValueError(
-                    f"Gate node {node.id} must have exactly one classification field"
-                )
-            output_classes = [f.value for f in fields if f.variant == "condition"]
-            node_obj = Gate(
-                classification_field=classification_fields[0],
-                output_classes=output_classes,
-            )
-
-        else:
-            raise ValueError(f"Unknown node type: {node.data.type}")
-
-        print("adding node", node.id, node_type)
-        graph.add_node(node_obj, node_name=node.id)
-        node_map[node.id] = node_obj
-
-    for edge in js_data.data.edges:
-        lhs_node = node_map[edge.source_node]
-        rhs_node = node_map[edge.target_node]
-        graph.connect(
-            lhs_node, edge.source_field_name, rhs_node, edge.target_field_name
-        )
-
-    return graph

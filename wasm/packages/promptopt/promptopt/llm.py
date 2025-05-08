@@ -8,13 +8,21 @@ class LLM(ABC):
     async def generate(self, messages: list, out_schema) -> str:
         pass
 
+    @abstractmethod
+    async def batch_generate(
+        self,
+        messages: list,
+        temperature: float = 0.0,
+        n_responses: int = 1,
+    ) -> list[str]:
+        pass
+
     async def chat(
         self,
         model: str,
         messages: list[dict[str, str]],
         temperature: float = 1.0,
         response_format: dict | None = None,
-        stream: bool = False,
         **kwargs,
     ) -> dict[str, str]:
         raise NotImplementedError()
@@ -83,6 +91,28 @@ class OpenAIProvider(LLM):
         )
 
         return out["choices"][0]["message"]["content"]  # type: ignore
+
+    async def batch_generate(
+        self, messages: list, temperature: float = 0, n_responses: int = 1
+    ):
+        out = await self.chat(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            n=n_responses,
+        )
+
+        print(
+            [
+                out["choices"][i]["message"]["content"]  # type: ignore
+                for i in range(len(out["choices"]))
+            ]
+        )
+
+        return [
+            out["choices"][i]["message"]["content"]  # type: ignore
+            for i in range(len(out["choices"]))
+        ]
 
 
 # class OllamaProvider(LLM):

@@ -117,6 +117,6 @@ class LLMExample:
 
 
 @dataclass
-class Exmaple:
+class Example:
     input: dict
     output: dict

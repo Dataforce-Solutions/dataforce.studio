@@ -1,4 +1,4 @@
-from promptopt.dataclasses import Exmaple
+from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from abc import ABC, abstractmethod
 
@@ -8,5 +8,5 @@ class BaseOptimizer(ABC):
         self.geraph = graph
 
     @abstractmethod
-    async def optimize(self, examples: list[Exmaple]) -> None:
+    async def optimize(self, examples: list[Example]) -> None:
         pass

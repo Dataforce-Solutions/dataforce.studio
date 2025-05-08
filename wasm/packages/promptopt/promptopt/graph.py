@@ -213,6 +213,7 @@ class Graph:
                     type=node.__class__.__name__,
                     inputs=str(node.input_names),
                     outputs=str(node.output_names),
+                    hint=f"Hint: {node.hint}" if node.hint else "",
                 )
             )
 
