@@ -1,20 +1,19 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from passlib.context import CryptContext
 from pydantic import EmailStr
-from starlette.authentication import UnauthenticatedUser
 from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.models.auth import Token
+from dataforce_studio.infra.dependencies import get_current_user
+from dataforce_studio.models.auth import AuthUser, Token
 from dataforce_studio.models.errors import AuthError
 from dataforce_studio.models.user import CreateUserIn, UpdateUserIn, User, UserResponse
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
-
 
 auth_handler = AuthHandler(
     secret_key=config.AUTH_SECRET_KEY,
@@ -40,8 +39,8 @@ async def signup(create_user: CreateUserIn) -> dict[str, str]:
 
 @auth_router.post("/signin", response_model=Token)
 async def signin(
-    email: Annotated[EmailStr, Body()],
-    password: Annotated[str, Body(min_length=8)],
+        email: Annotated[EmailStr, Body()],
+        password: Annotated[str, Body(min_length=8)],
 ) -> Token:
     try:
         return await auth_handler.handle_signin(email, password)
@@ -91,20 +90,15 @@ async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
 
 
 @auth_router.get("/users/me", response_model=User)
-async def get_current_user(
-    request: Request,
+async def get_current_user_info(
+        user: Annotated[AuthUser, Depends(get_current_user)]
 ) -> UserResponse:
-    if isinstance(request.user, UnauthenticatedUser):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        return await auth_handler.handle_get_current_user(request.user.email)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    return await auth_handler.handle_get_current_user(user.email)
 
 
 @auth_router.delete("/users/me")
 async def delete_account(
-    request: Request,
+        request: Request,
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_delete_account(request.user.email)
@@ -115,25 +109,19 @@ async def delete_account(
 
 @auth_router.patch("/users/me")
 async def update_user_profile(
-    request: Request,
-    update_user: UpdateUserIn,
+        update_user: UpdateUserIn, user: Annotated[AuthUser, Depends(get_current_user)]
 ) -> dict[str, str]:
-    if isinstance(request.user, UnauthenticatedUser):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        return {
-            "detail": "User profile updated successfully"
-            if (await auth_handler.update_user(request.user.email, update_user))
-            else "No changes made to the user profile"
-        }
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    return {
+        "detail": "User profile updated successfully"
+        if (await auth_handler.update_user(user.email, update_user))
+        else "No changes made to the user profile"
+    }
 
 
 @auth_router.post("/logout")
 async def logout(
-    request: Request,
-    refresh_token: Annotated[str, Body()],
+        request: Request,
+        refresh_token: Annotated[str, Body()],
 ) -> dict[str, str]:
     try:
         auth_header = request.headers.get("Authorization")
@@ -146,7 +134,7 @@ async def logout(
 
 @auth_router.get("/confirm-email")
 async def confirm_email(
-    confirmation_token: str,
+        confirmation_token: str,
 ) -> RedirectResponse:
     try:
         await auth_handler.handle_email_confirmation(confirmation_token)
@@ -157,8 +145,8 @@ async def confirm_email(
 
 @auth_router.post("/reset-password")
 async def reset_password(
-    reset_token: Annotated[str, Body()],
-    new_password: Annotated[str, Body(min_length=8)],
+        reset_token: Annotated[str, Body()],
+        new_password: Annotated[str, Body(min_length=8)],
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_reset_password(reset_token, new_password)
