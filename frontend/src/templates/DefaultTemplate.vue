@@ -41,9 +41,9 @@ function calcSidebarWidth() {
 }
 
 function checkIsBurgerAvailable() {
-  isBurgerAvailable.value = document.documentElement.clientWidth <= 768
+  isBurgerAvailable.value = window.innerWidth <= 768
 
-  if (document.documentElement.clientWidth >= 768 && sidebarRef.value) {
+  if (window.innerWidth >= 768 && sidebarRef.value) {
     resizeObserver.observe(sidebarRef.value.$el)
   }
 }

@@ -2,12 +2,12 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 export const useAppScrollbarFix = () => {
   const resizeObserver = new ResizeObserver(() => {
-    calcSidebarWidth()
+    calcScrollbarWidth()
   })
 
   const bodyElement = ref<HTMLBodyElement | null>(null)
 
-  function calcSidebarWidth() {
+  function calcScrollbarWidth() {
     const root = document.documentElement
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
     root.style.setProperty('--p-scrollbar-width', scrollbarWidth + 'px')
@@ -20,13 +20,13 @@ export const useAppScrollbarFix = () => {
       resizeObserver.observe(bodyElement.value)
     }
 
-    window.addEventListener('resize', calcSidebarWidth)
+    window.addEventListener('resize', calcScrollbarWidth)
   })
 
   onBeforeUnmount(() => {
     if (bodyElement.value) {
       resizeObserver.unobserve(bodyElement.value)
     }
-    window.removeEventListener('resize', calcSidebarWidth)
+    window.removeEventListener('resize', calcScrollbarWidth)
   })
 }

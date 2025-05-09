@@ -65,7 +65,7 @@ const toggleSidebar = () => {
   isSidebarOpened.value = !isSidebarOpened.value
 }
 function windowResizeHandler() {
-  if (document.documentElement.clientWidth < 992 && isSidebarOpened.value === true)
+  if (window.innerWidth < 992 && isSidebarOpened.value === true)
     isSidebarOpened.value = false
 }
 function sendAnalytics(option: string) {

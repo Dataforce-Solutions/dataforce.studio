@@ -58,7 +58,7 @@ const authStore = useAuthStore()
 const mainLogo = ref(logo)
 
 function setLogo() {
-  mainLogo.value = document.documentElement.clientWidth > 768 ? logo : logoMobile
+  mainLogo.value = window.innerWidth > 768 ? logo : logoMobile
 }
 
 onBeforeMount(() => {

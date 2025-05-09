@@ -131,8 +131,8 @@ const dataForFilters = computed(() => {
 
 function calcTableHeight() {
   let minusValue = 0
-  if (document.documentElement.clientWidth > 992) minusValue = 305
-  else if (document.documentElement.clientWidth > 768) minusValue = 345
+  if (window.innerWidth > 992) minusValue = 305
+  else if (window.innerWidth > 768) minusValue = 345
   else {
     minusValue = 300
   }
