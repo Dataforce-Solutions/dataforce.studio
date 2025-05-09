@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 
 from dfs_webworker.utils import success
@@ -9,6 +10,7 @@ from dfs_webworker.prompt_optimization.utils import (
     data_to_examples,
 )
 from dfs_webworker.prompt_optimization.optimization import optimize
+from dfs_webworker.prompt_optimization.serialization import serialize
 from promptopt.graph import Graph
 from promptopt.llm import LLM
 
@@ -49,7 +51,15 @@ async def prompt_optimization_train(task_spec: dict):
 
     model_id = Store.save(StoredGraph(graph=graph, llm=student))
 
-    return success(model_id=model_id, model="<TODO_BINARY_MODEL>")
+    fe_graph_def = task_spec["data"]
+    serialized_model = serialize(
+        graph=graph,
+        provider=student.provider_name,
+        model=data.settings.student.model_id,
+        fe_graph_def=fe_graph_def,
+    )
+
+    return success(model_id=model_id, model=serialized_model)
 
 
 async def prompt_optimization_predict(model_id: str, data: dict[str, list]):
@@ -64,7 +74,7 @@ async def prompt_optimization_predict(model_id: str, data: dict[str, list]):
     keys = list(data.keys())
     values_list = [dict(zip(keys, v)) for v in zip(*data.values())]
 
-    # TODO - parallelize this
-    predictions = [await graph.run(inputs=d, llm=llm) for d in values_list]
+    tasks = [graph.run(inputs=d, llm=llm) for d in values_list]
+    predictions = await asyncio.gather(*tasks)
 
     return success(predictions=predictions)

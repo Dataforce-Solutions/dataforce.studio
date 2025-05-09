@@ -1,3 +1,4 @@
+import asyncio
 from promptopt.optimizers._base import BaseOptimizer
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
@@ -29,9 +30,12 @@ class RandomFewShotOptimizer(BaseOptimizer):
 
         trace = Trace()
 
-        # TODO: parallelize and collect
-        for example in training_examples:
-            await self.graph.run(example.input, self.llm, trace)
+        async def process_example(example: Example):
+            return await self.graph.run(example.input, self.llm, trace)
+
+        await asyncio.gather(
+            *(process_example(example) for example in training_examples)
+        )
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:

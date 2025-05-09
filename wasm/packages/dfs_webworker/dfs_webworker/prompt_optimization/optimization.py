@@ -3,12 +3,13 @@ from dfs_webworker.prompt_optimization.jsdata import EvaluationModes
 from promptopt.graph import Graph
 from promptopt.llm import LLM
 from promptopt.dataclasses import Example
+from promptopt.optimizers.zero_shot import ZeroShotOptimizer
 from promptopt.optimizers.few_shot import RandomFewShotOptimizer
 from promptopt.optimizers.jedi import JEDIOptimizer
 from promptopt.optimizers._eval import BaseMetric, ExactMatch, LLMJudge
 
 
-SMALL_SIZE_THRESHOLD = 2
+SMALL_SIZE_THRESHOLD = 64
 
 
 async def _optimize_zero_shot(
@@ -18,8 +19,10 @@ async def _optimize_zero_shot(
     dataset: list[Example],
     task_description: str | None,
 ) -> None:
-    # TODO
-    return
+    optimizer = ZeroShotOptimizer(
+        graph=graph, llm=teacher, task_description=task_description
+    )
+    await optimizer.optimize(dataset)
 
 
 async def _optimize_small(
@@ -29,14 +32,17 @@ async def _optimize_small(
     dataset: list[Example],
     task_description: str | None,
 ) -> None:
-    # TODO: Optimize the instruction first -> then the examples
-    optimizer = RandomFewShotOptimizer(
+    optimizer1 = ZeroShotOptimizer(
+        graph=graph, llm=teacher, task_description=task_description
+    )
+    optimizer2 = RandomFewShotOptimizer(
         graph=graph,
         max_training_examples=64,
         max_examples_per_node=8,
         llm=student,
     )
-    await optimizer.optimize(dataset)
+    await optimizer1.optimize(dataset)
+    await optimizer2.optimize(dataset)
 
 
 async def _optimize_large(

@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 
 
 class LLM(ABC):
+    provider_name: str
+
     @abstractmethod
     async def generate(self, messages: list, out_schema) -> str:
         pass
@@ -29,6 +31,8 @@ class LLM(ABC):
 
 
 class OpenAIProvider(LLM):
+    provider_name = "openai"
+
     def __init__(
         self,
         api_key: str,
