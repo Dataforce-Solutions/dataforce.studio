@@ -15,6 +15,7 @@ from dataforce_studio.models.auth import (
 from dataforce_studio.models.errors import AuthError
 from dataforce_studio.models.user import (
     AuthProvider,
+    CreateUser,
     CreateUserIn,
     UpdateUser,
     UpdateUserIn,
@@ -102,15 +103,16 @@ class AuthHandler:
             raise AuthError("Email already registered", 400)
 
         hashed_password = self._get_password_hash(create_user.password)
-        user = User(
+
+        user = CreateUser(
             **create_user.model_dump(exclude={"password"}),
             hashed_password=hashed_password,
             auth_method=AuthProvider.EMAIL,
         )
-        await self.__user_repository.create_user(
-            user=user,
-        )
-        confirmation_token = self._generate_email_confirmation_token(create_user.email)
+
+        await self.__user_repository.create_user(create_user=user)
+
+        confirmation_token = self._generate_email_confirmation_token(user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
         self.__emails_handler.send_activation_email(
             create_user.email, confirmation_link, create_user.full_name
@@ -248,7 +250,7 @@ class AuthHandler:
             )
         if not user:
             user = await self.__user_repository.create_user(
-                User(
+                CreateUser(
                     email=email,
                     full_name=full_name,
                     photo=photo_url,

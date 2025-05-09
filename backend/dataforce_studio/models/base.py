@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 
-class BaseOrmConfig(BaseModel):
+class BaseOrmConfig:
     model_config = ConfigDict(from_attributes=True)

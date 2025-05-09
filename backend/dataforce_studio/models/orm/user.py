@@ -1,20 +1,20 @@
+import uuid
+
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, Enum, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Boolean, Enum, String
+from sqlalchemy.orm import Mapped, mapped_column
 
-from dataforce_studio.models.user import AuthProvider, User
-
-
-class Base(DeclarativeBase):
-    pass
+from dataforce_studio.models.orm.base import Base, TimestampMixin
+from dataforce_studio.models.user import AuthProvider, CreateUser, User
 
 
-class UserOrm(Base):
+class UserOrm(TimestampMixin, Base):
     __tablename__ = "users"
 
-    email: Mapped[EmailStr] = mapped_column(
-        String, primary_key=True, unique=True, nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
     )
+    email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -33,15 +33,7 @@ class UserOrm(Base):
         return User.model_validate(self)
 
     @classmethod
-    def from_user(cls, user: User) -> "UserOrm":
+    def from_user(cls, user: CreateUser) -> "UserOrm":
         return UserOrm(
             **user.model_dump(),
         )
-
-
-class TokenBlackListOrm(Base):
-    __tablename__ = "token_black_list"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    token: Mapped[str] = mapped_column(String, nullable=False)
-    expire_at: Mapped[int] = mapped_column(Integer, nullable=False)

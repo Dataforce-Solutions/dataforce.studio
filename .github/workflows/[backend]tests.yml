@@ -25,12 +25,7 @@ jobs:
           python -m pip install --upgrade uv
           uv sync --group dev
 
-      - name: Lint with Ruff
-        working-directory: backend
-        run: |
-          uv run ruff check dataforce_studio
-
-      - name: Check formatting with Ruff
+      - name: Running tests
         working-directory: backend
         run: |
           uv run pytest

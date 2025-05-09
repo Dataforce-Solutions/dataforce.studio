@@ -23,7 +23,6 @@ auth_handler = AuthHandler(
 
 
 def handle_auth_error(error: AuthError) -> HTTPException:
-    """Convert AuthError to FastAPI HTTPException"""
     return HTTPException(
         status_code=error.status_code,
         detail=error.message,
