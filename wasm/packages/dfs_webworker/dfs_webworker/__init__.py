@@ -29,7 +29,7 @@ Router.add_route(
 Router.add_route("/store/deallocate", Store.delete, sync=True)
 
 
-async def invoke(route: str, payload: FakeJsProxy):
+async def invoke(route: str, payload: FakeJsProxy, debug: bool = False):
     try:
         unwrapped_payload = payload.to_py()
         if route in Router.sync_routes:
@@ -38,12 +38,16 @@ async def invoke(route: str, payload: FakeJsProxy):
             return await Router.async_routes[route](**unwrapped_payload)
         raise ValueError(f"Route {route} not found")
     except Exception as e:
+        if debug:
+            raise e
         return {
             "status": "error",
             "error_type": type(e).__name__,
             "error_message": str(e),
         }
     except KeyboardInterrupt:
+        if debug:
+            raise KeyboardInterrupt("Execution interrupted by user")
         return {
             "status": "error",
             "error_type": "KeyboardInterrupt",

@@ -1,4 +1,11 @@
 from dataclasses import dataclass
+from enum import Enum
+
+
+class EvaluationModes(str, Enum):
+    exact_match = "Exact match"
+    llm_based = "LLM-based"
+    none_ = "None"
 
 
 @dataclass
@@ -59,7 +66,7 @@ class Settings:
     task_description: str
     teacher: Provider
     student: Provider
-    evaluation_mode: str
+    evaluation_mode: EvaluationModes
     criteria_list: list[str]
     inputs: list[str]
     outputs: list[str]

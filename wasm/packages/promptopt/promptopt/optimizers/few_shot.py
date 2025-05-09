@@ -39,8 +39,3 @@ class RandomFewShotOptimizer(BaseOptimizer):
                 random.shuffle(examples)
                 examples = examples[: self.max_examples_per_node]
                 node.set_examples(node_examples)
-
-        print(trace)
-
-        for node_name, node in self.graph.nodes.items():
-            print(f"{node_name} -> ", node._examples)

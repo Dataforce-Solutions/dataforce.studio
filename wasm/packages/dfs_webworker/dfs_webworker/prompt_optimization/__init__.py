@@ -43,6 +43,8 @@ async def prompt_optimization_train(task_spec: dict):
             outputs=data.settings.outputs,
         ),
         task_description=data.settings.task_description,
+        evaluation_mode=data.settings.evaluation_mode,
+        criteria_list=data.settings.criteria_list,
     )
 
     model_id = Store.save(StoredGraph(graph=graph, llm=student))

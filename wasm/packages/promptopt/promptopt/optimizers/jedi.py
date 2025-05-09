@@ -1,3 +1,5 @@
+import asyncio
+from typing import Sequence
 from promptopt.optimizers._base import BaseOptimizer
 from promptopt.dataclasses import Example, LLMExample
 from promptopt.graph import Graph
@@ -5,6 +7,7 @@ from promptopt.trace import Trace
 from promptopt.llm import LLM
 from promptopt.optimizers._utils import split_dataset, freeze_graph_ids
 from promptopt.optimizers._instruction_proposal import propose_instructions
+from promptopt.optimizers._eval import BaseMetric
 from copy import deepcopy
 import random
 import optuna
@@ -18,6 +21,7 @@ class JEDIOptimizer(BaseOptimizer):
         graph: Graph,
         student: LLM,
         teacher: LLM,
+        metrics: Sequence[BaseMetric],
         train_fraction: float = 0.75,
         max_training_examples: int = 256,
         max_examples_per_node: int = 8,
@@ -27,9 +31,13 @@ class JEDIOptimizer(BaseOptimizer):
         n_trials: int = 5,
         task_description: str | None = None,
     ) -> None:
+        if len(metrics) == 0:
+            raise ValueError("At least one metric is required for optimization.")
+
         self.graph = graph
         self.student = student
         self.teacher = teacher
+        self.metrics = metrics
 
         self.train_fraction = train_fraction
         self.max_training_examples = max_training_examples
@@ -42,8 +50,12 @@ class JEDIOptimizer(BaseOptimizer):
 
     async def _collect_examples(self, training_examples: list[Example]) -> Trace:
         trace = Trace()
-        for example in training_examples:
-            await self.graph.run(example.input, self.teacher, trace)
+        await asyncio.gather(
+            *[
+                self.graph.run(example.input, self.teacher, trace)
+                for example in training_examples
+            ]
+        )
         return trace
 
     def _generate_demo_sets(
@@ -111,6 +123,23 @@ class JEDIOptimizer(BaseOptimizer):
                 instruction = params[f"{node_id}:::instruction"]
                 node.set_instruction(instruction)
 
+    async def _evaluate(self, val: list[Example], graph: Graph) -> float:
+        if len(val) > self.max_validation_batch_size:
+            val = random.sample(val, self.max_validation_batch_size)
+
+        predictions = await asyncio.gather(
+            *[graph.run(example.input, self.student) for example in val]
+        )
+
+        scores = await asyncio.gather(
+            *[
+                metric.score([v.output for v in val], predictions, llm=self.teacher)
+                for metric in self.metrics
+            ]
+        )
+
+        return sum(scores) / len(scores)
+
     async def _optimize_optuna(
         self,
         val: list[Example],
@@ -136,7 +165,11 @@ class JEDIOptimizer(BaseOptimizer):
                 demo_sets=demo_sets,
             )
 
-            score = random.uniform(0, 5)  # TODO: replace with actual score
+            score = await self._evaluate(
+                val=val,
+                graph=graph_copy,
+            )
+
             if score > best_score:
                 best_score = score
                 best_params = trial.params

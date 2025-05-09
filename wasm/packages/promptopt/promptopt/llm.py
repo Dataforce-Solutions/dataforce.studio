@@ -1,4 +1,4 @@
-# import asyncio
+import asyncio
 import httpx
 from abc import ABC, abstractmethod
 
@@ -34,10 +34,12 @@ class OpenAIProvider(LLM):
         api_key: str,
         base_url: str = "https://api.openai.com",
         model="gpt-4o-mini",
+        max_parallel_requests: int = 16,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
+        self._semaphore = asyncio.Semaphore(max_parallel_requests)
 
     async def chat(
         self,
@@ -63,18 +65,28 @@ class OpenAIProvider(LLM):
             **kwargs,
         }
 
-        print("Headers", headers)
-        print("Payload", payload)
-
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                print("Status Code:", e.response.status_code)
-                print("Response Text:", e.response.text)
-                raise
+        async with self._semaphore:
+            async with httpx.AsyncClient() as client:
+                retries = 3
+                for attempt in range(retries):
+                    try:
+                        response = await client.post(
+                            url, json=payload, headers=headers, timeout=60.0
+                        )
+                        response.raise_for_status()
+                        return response.json()
+                    except httpx.HTTPStatusError as e:
+                        print(
+                            "Attempt",
+                            attempt + 1,
+                            "failed with status code:",
+                            e.response.status_code,
+                        )
+                        if attempt >= retries - 1:
+                            print("Response Text:", e.response.text)
+                            raise
+                        await asyncio.sleep(delay=2**attempt)
+        raise RuntimeError("Failed to get a valid response after multiple attempts.")
 
     async def generate(self, messages: list, out_schema) -> str:
         response_format = {
@@ -100,13 +112,6 @@ class OpenAIProvider(LLM):
             messages=messages,
             temperature=temperature,
             n=n_responses,
-        )
-
-        print(
-            [
-                out["choices"][i]["message"]["content"]  # type: ignore
-                for i in range(len(out["choices"]))
-            ]
         )
 
         return [
