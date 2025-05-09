@@ -3,7 +3,7 @@ import uuid
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
-from dataforce_studio.models.organization import DBOrganizationInvite
+from dataforce_studio.models.orm.organization import DBOrganizationInvite
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
 

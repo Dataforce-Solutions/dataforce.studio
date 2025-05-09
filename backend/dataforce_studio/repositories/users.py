@@ -3,17 +3,17 @@ import uuid
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import func, select
 
-from dataforce_studio.models.organization import OrgRole, Organization, OrganizationMember
+from dataforce_studio.models.organization import (
+    Organization,
+    OrganizationMember,
+    OrgRole,
+)
 from dataforce_studio.models.orm.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
 from dataforce_studio.models.orm.user import UserOrm
-from dataforce_studio.models.user import (
-    CreateUser,
-    UpdateUser,
-    User,
-)
+from dataforce_studio.models.user import CreateUser, UpdateUser, User
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.utils.organizations import generate_organization_name
 

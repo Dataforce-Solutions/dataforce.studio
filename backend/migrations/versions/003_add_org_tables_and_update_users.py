@@ -33,11 +33,21 @@ def upgrade() -> None:
         ),
     )
     op.add_column(
-        "users", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True)
+        "users",
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            server_onupdate=sa.text("now()"),
+            nullable=True
+        )
     )
 
     now = datetime.datetime.now(datetime.UTC)
     conn = op.get_bind()
+
+    conn.execute(sa.text("UPDATE users SET updated_at = now() WHERE updated_at IS NULL"))
+    conn.execute(sa.text("UPDATE users SET created_at = now() WHERE created_at IS NULL"))
 
     users = conn.execute(sa.text("SELECT email FROM users")).fetchall()
 
@@ -53,8 +63,6 @@ def upgrade() -> None:
     op.create_primary_key("users_pkey", "users", ["id"])
     op.alter_column("users", "created_at", nullable=False)
     op.alter_column("users", "updated_at", nullable=False)
-
-
 
     op.create_table(
         "organizations",
@@ -101,30 +109,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("id", name="uq_organization_members_id"),
         sa.UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
     )
-    op.create_table('organizations',
-                    sa.Column('id', sa.Uuid(), nullable=False),
-                    sa.Column('name', sa.String(), nullable=False),
-                    sa.Column('logo', sa.String(), nullable=True),
-                    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-                    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-                    sa.PrimaryKeyConstraint('id'),
-                    sa.UniqueConstraint('id')
-                    )
-    op.create_table('organization_members',
-                    sa.Column('id', sa.Uuid(), nullable=False),
-                    sa.Column('user_id', sa.UUID(), nullable=False),
-                    sa.Column('organization_id', sa.UUID(), nullable=False),
-                    sa.Column('role', sa.Enum('OWNER', 'ADMIN', 'MEMBER', name='orgrole'), nullable=False),
-                    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-                    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-                    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
-                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-                    sa.PrimaryKeyConstraint('id'),
-                    sa.UniqueConstraint('id'),
-                    sa.UniqueConstraint('organization_id', 'user_id', name='org_member')
-                    )
-
-
 
     results = conn.execute(sa.text("SELECT id, email, full_name FROM users")).fetchall()
 

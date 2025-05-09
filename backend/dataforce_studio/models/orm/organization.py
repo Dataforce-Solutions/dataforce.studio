@@ -25,6 +25,10 @@ class OrganizationOrm(TimestampMixin, Base):
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
+    invites: Mapped[list["DBOrganizationInvite"]] = relationship(
+        back_populates="organization", cascade="all, delete, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"Organization(id={self.id!r}, name={self.name!r})"
 
@@ -61,3 +65,27 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 
     def to_organization_member(self) -> OrganizationMember:
         return OrganizationMember.model_validate(self)
+
+
+class DBOrganizationInvite(TimestampMixin, Base):
+    __tablename__ = "organization_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("users.id"), nullable=False
+    )
+
+    organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")
+
+    def __repr__(self) -> str:
+        return (
+            f"OrganizationInvite(id={self.id!r}, email={self.email!r}, "
+            f"role={self.role!r}, organization={self.organization.id!r})"
+        )

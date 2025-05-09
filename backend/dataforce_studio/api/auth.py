@@ -93,7 +93,7 @@ async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
 @auth_router.get("/users/me", response_model=User)
 async def get_current_user(
     request: Request,
-) -> UserResponse:
+) -> User:
     if isinstance(request.user, UnauthenticatedUser):
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:

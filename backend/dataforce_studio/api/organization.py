@@ -10,7 +10,7 @@ from dataforce_studio.models.invite import (
     CreateOrganizationInvite,
     OrganizationInvite,
 )
-from dataforce_studio.models.organization import DBOrganizationInvite
+from dataforce_studio.models.orm.organization import DBOrganizationInvite
 
 organization_router = APIRouter(prefix="/organization", tags=["organization"])
 

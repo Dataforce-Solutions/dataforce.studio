@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 
 from dataforce_studio.models.invite import OrganizationInvite
-from dataforce_studio.models.organization import DBOrganizationInvite
+from dataforce_studio.models.orm.organization import DBOrganizationInvite
 from dataforce_studio.repositories.base import RepositoryBase
 
 
