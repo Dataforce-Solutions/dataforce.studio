@@ -13,7 +13,7 @@
     <template #edge-custom="edgeProps">
       <custom-edge v-bind="edgeProps" />
     </template>
-    <Background />
+    <Background pattern-color="var(--dots-color)"/>
   </VueFlow>
 </template>
 
@@ -74,6 +74,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .basic-flow {
+  --dots-color: #CDCDDB;
+
   height: calc(100% + 31px);
+}
+
+[data-theme='dark'] .basic-flow {
+  --dots-color: rgba(69, 69, 74, 0.70);
 }
 </style>

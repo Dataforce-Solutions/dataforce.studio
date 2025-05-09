@@ -1,5 +1,5 @@
 <template>
-  <d-dialog :visible="modelValue"  modal style="width:100%;max-width:604px;" dismissable-mask @update:visible="(value: boolean) => $emit('update:modelValue', value)">
+  <d-dialog :visible="modelValue" modal style="width: 100%; max-width: 604px; margin: 0 15px;" dismissable-mask @update:visible="(value: boolean) => $emit('update:modelValue', value)">
     <template #header>
       <h2 class="dialog-title">PROMPT OPTIMIZATION</h2>
     </template>

@@ -185,7 +185,6 @@ async function selectSample() {
   justify-content: space-between;
   color: var(--p-text-muted-color);
   font-weight: 500;
-  padding-right: 10px;
   max-width: 200px;
 }
 
