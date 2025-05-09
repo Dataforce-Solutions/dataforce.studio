@@ -19,7 +19,9 @@
           :errors="uploadDataErrors"
           :is-table-exist="isTableExist"
           :file="fileData"
-          :task="task"
+          :min-columns-count="3"
+          :resources="resources"
+          :sample-file-name="sampleFileName"
           @selectFile="onSelectFile"
           @removeFile="onRemoveFile"
         />
@@ -44,6 +46,7 @@
           :export-callback="downloadCSV"
           :filters="getFilters"
           :columnTypes="columnTypes"
+          show-column-header-menu
           @set-target="setTarget"
           @change-group="changeGroup"
           @edit="setSelectedColumns"
@@ -65,7 +68,7 @@
           :test-metrics="getTestMetrics"
           :training-metrics="getTrainingMetrics"
           :features="getTop5Feature"
-          :predicted-data="getPredictedData as Record<string, []>"
+          :predicted-data="(getPredictedData as Record<string, []>)"
           :is-train-mode="isTrainMode"
           :download-model-callback="downloadModel"
           :training-model-id="trainingModelId"
@@ -74,32 +77,25 @@
       </StepPanel>
     </StepPanels>
   </Stepper>
-  <d-dialog v-model:visible="isLoading" modal :closable="false" :closeOnEscape="false">
-    <template #container>
-      <training-progress :time="8" />
-    </template>
-  </d-dialog>
+  <ui-training v-model="isLoading" :time="8" />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-
 import { Tasks } from '@/lib/data-processing/interfaces'
-
+import { useDataTable } from '@/hooks/useDataTable'
+import { useModelTraining } from '@/hooks/useModelTraining'
+import { classificationResources, regressionResources } from '@/constants/constants'
+import { ArrowRight } from 'lucide-vue-next'
 import Stepper from 'primevue/stepper'
 import StepList from 'primevue/steplist'
 import StepPanels from 'primevue/steppanels'
 import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
-import { ArrowRight } from 'lucide-vue-next'
-
-import UploadData from './first-step/UploadData.vue'
+import UploadData from '../../ui/UploadData.vue'
 import ServiceEvaluate from './third-step/ServiceEvaluate.vue'
-import TableView from './second-step/TableView.vue'
-import TrainingProgress from './second-step/TrainingProgress.vue'
-
-import { useDataTable } from '@/hooks/useDataTable'
-import { useModelTraining } from '@/hooks/useModelTraining'
+import TableView from '@/components/table-view/index.vue'
+import UiTraining from '@/components/ui/UiTraining.vue'
 
 type TProps = {
   steps: {
@@ -113,7 +109,7 @@ const props = defineProps<TProps>()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
-    size: !!(size && size > 1024 * 1024),
+    size: !!(size && size > 50 * 1024 * 1024),
     columns: !!(columns && columns <= 3),
     rows: !!(rows && rows <= 100),
   }
@@ -155,10 +151,11 @@ const {
   trainingModelId,
   currentTask,
   downloadModel,
-} = useModelTraining()
+} = useModelTraining('tabular')
 
 const currentStep = ref(1)
-
+const sampleFileName = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? 'iris.csv' : 'insurance.csv')
+const resources = computed(() => props.task === Tasks.TABULAR_CLASSIFICATION ? classificationResources : regressionResources)
 const isStepAvailable = computed(() => (id: number) => {
   if (currentStep.value === 3) return
 
@@ -174,9 +171,9 @@ const getPredictionFields = computed(() => {
 async function startTraining() {
   const data = getDataForTraining()
   const target = getTarget.value
-  const groups = getGroup.value
+  // const groups = getGroup.value
   const task = props.task
-  await startModelTraining({ data, target, task, groups })
+  await startModelTraining({ data, target, task })
 
   if (isTrainingSuccess.value) {
     currentStep.value = 3

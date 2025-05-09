@@ -1,4 +1,5 @@
 import { Tasks, type ClassificationMetrics, type RegressionMetrics, type TrainingData } from '@/lib/data-processing/interfaces'
+import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 
 export const getMetrics = (
   data: TrainingData<ClassificationMetrics | RegressionMetrics>,
@@ -55,7 +56,9 @@ export const convertObjectToCsvBlob = (data: object) => {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
+  const csvContent = [headers.join(','), ...rows.map((row) => {
+    return row.map(item => typeof item === 'object' ? JSON.stringify(item) : item)
+  })].join('\n')
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
 }
 
@@ -93,4 +96,12 @@ export const prepareRuntimeMetrics = (metrics: ClassificationMetrics | Regressio
   } else {
     return []
   }
+}
+
+export const parseProviderSettingsToObject = (settings: ProviderSetting[] | null) => {
+  if (!settings) return {}
+  return settings.reduce((acc: Record<string, string>, setting) => {
+    acc[setting.id] = setting.value
+    return acc
+  }, {}) || {}
 }

@@ -13,6 +13,7 @@ type InitialTableData = {
   values: object[]
 }
 export type ColumnType = 'number' | 'string' | 'date'
+export type PromptFusionColumn = { name: string; variant: 'input' | 'output' }
 
 const initialState = {
   startedTableData: null,
@@ -24,6 +25,7 @@ const initialState = {
   filters: [],
   viewValues: null,
   columnTypes: {},
+  inputsOutputsColumns: [],
 }
 
 export const useDataTable = (validator: Function) => {
@@ -40,6 +42,7 @@ export const useDataTable = (validator: Function) => {
   const filters = ref<FilterItem[]>(initialState.filters)
   const viewValues = ref<object[] | null>(initialState.viewValues)
   const columnTypes = ref<Record<string, ColumnType>>(initialState.columnTypes)
+  const inputsOutputsColumns = ref<PromptFusionColumn[]>(initialState.inputsOutputsColumns)
 
   const isTableExist = computed(() => !!startedTableData.value)
   const fileData = computed(() => ({
@@ -64,6 +67,14 @@ export const useDataTable = (validator: Function) => {
   const getTarget = computed(() => target.value)
   const getGroup = computed(() => group.value)
   const getFilters = computed(() => filters.value)
+  const getInputsColumns = computed(() => inputsOutputsColumns.value.filter(column => {
+    const isColumnAvailable = selectedColumns.value.length ? selectedColumns.value.includes(column.name) : true
+    return isColumnAvailable && column.variant === 'input'
+  }).map(column => column.name))
+  const getOutputsColumns = computed(() => inputsOutputsColumns.value.filter(column => {
+    const isColumnAvailable = selectedColumns.value.length ? selectedColumns.value.includes(column.name) : true
+    return isColumnAvailable && column.variant === 'output'
+  }).map(column => column.name))
 
   async function onSelectFile(file: File) {
     await dataTable.createFormCSV(file)
@@ -91,6 +102,13 @@ export const useDataTable = (validator: Function) => {
 
       target.value = columnNames[columnNames.length - 1]
       setColumnTypes(values[0])
+      inputsOutputsColumns.value = columnNames.map((column, index, self) => {
+        if (index === self.length - 1) {
+          return { name: column, variant: 'output' }
+        } else {
+          return { name: column, variant: 'input' }
+        }
+      })
 
       startedTableData.value = {
         fileSize: event.size,
@@ -174,6 +192,9 @@ export const useDataTable = (validator: Function) => {
     selectedColumns,
     getFilters,
     columnTypes,
+    inputsOutputsColumns,
+    getInputsColumns,
+    getOutputsColumns,
     onSelectFile,
     onRemoveFile,
     setTarget,

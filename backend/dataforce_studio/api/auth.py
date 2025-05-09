@@ -1,15 +1,16 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, HTTPException, Request
 from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.authentication import UnauthenticatedUser
 from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.models.auth import Token, User
+from dataforce_studio.models.auth import Token
 from dataforce_studio.models.errors import AuthError
+from dataforce_studio.models.user import CreateUserIn, UpdateUserIn, User
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -31,21 +32,17 @@ def handle_auth_error(error: AuthError) -> HTTPException:
 
 
 @auth_router.post("/signup", response_model=dict)
-async def signup(
-    email: Annotated[EmailStr, Form()],
-    password: Annotated[str, Form(min_length=8)],
-    full_name: Annotated[str | None, Form()] = None,
-) -> dict:
+async def signup(create_user: CreateUserIn) -> dict[str, str]:
     try:
-        return await auth_handler.handle_signup(email, password, full_name)
+        return await auth_handler.handle_signup(create_user)
     except AuthError as e:
         raise handle_auth_error(e) from e
 
 
 @auth_router.post("/signin", response_model=Token)
 async def signin(
-    email: Annotated[EmailStr, Form()],
-    password: Annotated[str, Form(min_length=8)],
+    email: Annotated[EmailStr, Body()],
+    password: Annotated[str, Body(min_length=8)],
 ) -> Token:
     try:
         return await auth_handler.handle_signin(email, password)
@@ -68,7 +65,7 @@ async def google_login() -> RedirectResponse:
 
 
 @auth_router.get("/google/callback")
-async def google_callback(request: Request, code: str = None) -> Token:
+async def google_callback(request: Request, code: str | None = None) -> Token:
     if not code:
         raise HTTPException(status_code=400, detail="Missing code in callback")
     try:
@@ -78,7 +75,7 @@ async def google_callback(request: Request, code: str = None) -> Token:
 
 
 @auth_router.post("/refresh", response_model=Token)
-async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
+async def refresh(refresh_token: Annotated[str, Body()]) -> Token:
     try:
         return await auth_handler.handle_refresh_token(refresh_token)
     except AuthError as e:
@@ -86,7 +83,7 @@ async def refresh(refresh_token: Annotated[str, Form()]) -> Token:
 
 
 @auth_router.post("/forgot-password")
-async def forgot_password(email: Annotated[EmailStr, Form()]) -> dict[str, str]:
+async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
     try:
         await auth_handler.send_password_reset_email(email)
     except AuthError as e:
@@ -120,58 +117,24 @@ async def delete_account(
 @auth_router.patch("/users/me")
 async def update_user_profile(
     request: Request,
-    email: Annotated[EmailStr, Form()] = None,
-    full_name: Annotated[str | None, Form()] = None,
-    current_password: Annotated[str | None, Form()] = None,
-    new_password: Annotated[str | None, Form()] = None,
-    photo: Annotated[UploadFile | None, File()] = None,
+    update_user: UpdateUserIn,
 ) -> dict[str, str]:
     if isinstance(request.user, UnauthenticatedUser):
         raise HTTPException(status_code=401, detail="Not authenticated")
-
     try:
-        # if email:
-        #     await auth_handler.handle_update_email(email)
-
-        if full_name:
-            await auth_handler.handle_change_name(request.user.email, full_name)
-
-        if current_password and new_password:
-            await auth_handler.handle_change_password(
-                request.user.email, current_password, new_password
-            )
-
-        # if photo:
-        #     await auth_handler.handle_upload_photo(request.user.email, photo)
-
-        return {"detail": "User profile updated successfully"}
-
+        return {
+            "detail": "User profile updated successfully"
+            if (await auth_handler.update_user(request.user.email, update_user))
+            else "No changes made to the user profile"
+        }
     except AuthError as e:
         raise handle_auth_error(e) from e
-
-
-@auth_router.delete("/users/me/photo")
-async def delete_user_photo(
-    request: Request,
-) -> dict[str, str]:
-    """
-    Delete the user's current profile photo.
-    """
-    if isinstance(request.user, UnauthenticatedUser):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    # try:
-    #     return auth_handler.handle_delete_photo(request.user.email)
-    # except AuthError as e:
-    #     raise handle_auth_error(e) from e
-
-    return {"detail": "Photo successfully deleted"}
 
 
 @auth_router.post("/logout")
 async def logout(
     request: Request,
-    refresh_token: Annotated[str, Form()],
+    refresh_token: Annotated[str, Body()],
 ) -> dict[str, str]:
     try:
         auth_header = request.headers.get("Authorization")
@@ -195,8 +158,8 @@ async def confirm_email(
 
 @auth_router.post("/reset-password")
 async def reset_password(
-    reset_token: Annotated[str, Form()],
-    new_password: Annotated[str, Form(min_length=8)],
+    reset_token: Annotated[str, Body()],
+    new_password: Annotated[str, Body(min_length=8)],
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_reset_password(reset_token, new_password)

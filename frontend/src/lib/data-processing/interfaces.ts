@@ -1,8 +1,21 @@
+import type { PromptFusionPayload } from "../promt-fusion/prompt-fusion.interfaces"
+
 export enum WebworkerMessage {
   LOAD_PYODIDE = 'LOAD_PYODIDE',
-  TABULAR_PREDICT = 'tabular_predict',
-  TABULAR_TRAIN = 'tabular_train',
-  TABULAR_DEALLOCATE = 'tabular_deallocate',
+  // TABULAR_PREDICT = 'tabular_predict',
+  // TABULAR_TRAIN = 'tabular_train',
+  // TABULAR_DEALLOCATE = 'tabular_deallocate',
+  INVOKE_ROUTE = 'invokeRoute',
+  INTERRUPT = 'interrupt',
+}
+
+export enum WEBWORKER_ROUTES_ENUM {
+  TABULAR_TRAIN = '/tabular/train',
+  TABULAR_PREDICT = '/tabular/predict',
+  TABULAR_DEALLOCATE = '/tabular/deallocate',
+  PROMPT_OPTIMIZATION_TRAIN = '/prompt_optimization/train',
+  PROMPT_OPTIMIZATION_PREDICT = '/prompt_optimization/predict',
+  STORE_DEALLOCATE = '/store/deallocate',
 }
 
 export enum Tasks {
@@ -78,4 +91,8 @@ export interface RuntimeMetrics {
   permutation_feature_importance_train: {
     importances: TrainingImportance[]
   }
+}
+
+export interface PromptOptimizationData {
+  task_spec: PromptFusionPayload
 }
