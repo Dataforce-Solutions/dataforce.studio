@@ -2,11 +2,14 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
+from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
+from dataforce_studio.models.organization import DBOrganizationInvite, DBOrganizationMember
 from dataforce_studio.models.errors import OrganizationLimitReachedError
 from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
 from dataforce_studio.models.orm.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.organization import UpdateOrganizationMember, OrganizationMemberCreate
 
 
 class OrganizationHandler:
@@ -77,3 +80,23 @@ class OrganizationHandler:
         """Handle listing all invites sent to user"""
 
         return await self.__invites_repository.get_invites_by_user_email(email)
+
+    async def get_organization_members_data(self, organization_id: uuid.UUID):
+        return await self.__user_repository.get_organization_members(
+            DBOrganizationMember.organization_id == organization_id
+        )
+
+    async def update_organization_member_by_id(self, member: UpdateOrganizationMember):
+        return await self.__user_repository.update_organization_member(
+            member, DBOrganizationMember.id == member.id
+        )
+
+    async def delete_organization_member_by_id(self, member_id: uuid.UUID):
+        return await self.__user_repository.delete_organization_member(
+            DBOrganizationMember.id == member_id
+        )
+
+    async def add_organization_member(self, member: OrganizationMemberCreate):
+        return await self.__user_repository.create_organization_member(
+            member.user_id, member.organization_id, member.role
+        )

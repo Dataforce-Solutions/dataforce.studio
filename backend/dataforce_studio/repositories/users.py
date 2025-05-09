@@ -9,7 +9,8 @@ from dataforce_studio.models.organization import (
     OrgRole,
 )
 from dataforce_studio.models.orm import UserOrm
-from dataforce_studio.models.user import (
+from dataforce_studio.schemas.organization import UpdateOrganizationMember, OrganizationMember
+from dataforce_studio.schemas.user import (
     UpdateUser,
     User,
     UserResponse,
@@ -23,6 +24,7 @@ from dataforce_studio.models.orm.user import UserOrm
 from dataforce_studio.models.user import CreateUser, UpdateUser, User
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.utils.organizations import generate_organization_name
+from sqlalchemy.orm import joinedload
 
 
 class UserRepository(RepositoryBase):
@@ -77,8 +79,8 @@ class UserRepository(RepositoryBase):
                 await session.commit()
 
     async def update_user(
-        self,
-        update_user: UpdateUser,
+            self,
+            update_user: UpdateUser,
     ) -> bool:
         async with self._get_session() as session:
             changed = False
@@ -169,3 +171,49 @@ class UserRepository(RepositoryBase):
             return [
                 member.to_organization_member() for member in db_organization_members
             ]
+
+    async def update_organization_member(
+            self, member: UpdateOrganizationMember, *where_conditions
+    ) -> DBOrganizationMember | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(DBOrganizationMember).where(*where_conditions)
+            )
+            db_member = result.scalar_one_or_none()
+
+            if not db_member:
+                return None
+
+            fields_to_update = member.model_dump(exclude_unset=True)
+            if not fields_to_update:
+                return db_member
+
+            for field, value in fields_to_update.items():
+                setattr(db_member, field, value)
+
+            await session.commit()
+            await session.refresh(db_member)
+
+            return db_member
+
+    async def delete_organization_member(self, *where_conditions) -> None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(DBOrganizationMember).where(*where_conditions)
+            )
+            member = result.scalar_one_or_none()
+
+            if member:
+                await session.delete(member)
+                await session.commit()
+
+    async def get_organization_members(self, *where_conditions):
+        async with self._get_session() as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(DBOrganizationMember)
+                    .options(joinedload(DBOrganizationMember.user))
+                    .where(*where_conditions)
+                )
+                members = result.scalars().all()
+                return [OrganizationMember.model_validate(member) for member in members]

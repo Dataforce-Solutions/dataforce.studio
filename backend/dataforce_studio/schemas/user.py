@@ -1,7 +1,7 @@
 import uuid
 from enum import Enum
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_serializer
 
 from dataforce_studio.models.base import BaseOrmConfig
 
@@ -40,8 +40,17 @@ class UserResponse(_UserBase):
         arbitrary_types_allowed = True
 
 
-class UserResponse(_UserBase):
+class UserResponse(BaseModel):
     id: uuid.UUID
+    email: EmailStr
+    full_name: str | None = None
+    disabled: bool | None = None
+    email_verified: bool = False
+    auth_method: AuthProvider
+    photo: str | None = None
+
+    class Config:
+        from_attributes = True
 
 
 class CreateUserIn(BaseModel):

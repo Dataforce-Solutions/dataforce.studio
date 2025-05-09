@@ -13,7 +13,7 @@ from dataforce_studio.models.auth import (
     Token,
 )
 from dataforce_studio.models.errors import AuthError
-from dataforce_studio.models.user import (
+from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,

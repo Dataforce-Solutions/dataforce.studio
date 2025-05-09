@@ -2,11 +2,13 @@ import uuid
 
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import Boolean, Enum, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Boolean, Enum, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.schemas.user import AuthProvider, User, UserResponse
 from dataforce_studio.models.user import AuthProvider, User, UserResponse
 from dataforce_studio.models.orm.base import Base, TimestampMixin
 from dataforce_studio.models.user import AuthProvider, CreateUser, User
@@ -28,8 +30,12 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    memberships: Mapped[list["DBOrganizationMember"]] = relationship(
+        "DBOrganizationMember", back_populates="user", lazy="selectin"
+    )
+
     def __repr__(self) -> str:
-        return f"User(email={self.email!r}, full_name={self.full_name!r}"
+        return f"User(email={self.email!r}, full_name={self.full_name!r})"
 
     def to_user(self) -> User:
         return User.model_validate(self)

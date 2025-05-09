@@ -10,7 +10,7 @@ from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import get_current_user
 from dataforce_studio.models.auth import AuthUser, Token
 from dataforce_studio.models.errors import AuthError
-from dataforce_studio.models.user import CreateUserIn, UpdateUserIn, User, UserResponse
+from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, User, UserResponse
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])

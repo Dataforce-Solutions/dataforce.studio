@@ -6,6 +6,7 @@ from sqlalchemy import UUID, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.orm import UserOrm
 
 
 class OrgRole(StrEnum):
@@ -50,8 +51,11 @@ class DBOrganizationMember(TimestampMixin, Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
 
+    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
+    user: Mapped["UserOrm"] = relationship(
+        "UserOrm", back_populates="memberships", lazy="selectin"
+    )
     organization: Mapped["DBOrganization"] = relationship(back_populates="members")
 
     def __repr__(self) -> str:

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, status
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.dependencies import get_current_user
 from dataforce_studio.models.auth import AuthUser
-from dataforce_studio.models.invite import (
+from dataforce_studio.schemas.invite import (
     CreateOrganizationInvite,
     OrganizationInvite,
 )
