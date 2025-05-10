@@ -1,7 +1,7 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import func, select
+from sqlalchemy import func, select, case
 
 from dataforce_studio.models.organization import (
     DBOrganization,
@@ -222,6 +222,15 @@ class UserRepository(RepositoryBase):
                     select(DBOrganizationMember)
                     .options(joinedload(DBOrganizationMember.user))
                     .where(*where_conditions)
+                    .order_by(
+                        case(
+                            (DBOrganizationMember.role == 'OWNER', 0),
+                            (DBOrganizationMember.role == 'ADMIN', 1),
+                            (DBOrganizationMember.role == 'MEMBER', 2),
+                            else_=3
+                        ),
+                        DBOrganizationMember.created_at
+                    )
                 )
                 members = result.scalars().all()
                 return [OrganizationMember.model_validate(member) for member in members]
