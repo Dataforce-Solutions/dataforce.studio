@@ -1,7 +1,10 @@
 import uuid
 
+from fastapi import HTTPException, status
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import func, select, case
+from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 from dataforce_studio.models.organization import (
     DBOrganization,
@@ -9,7 +12,11 @@ from dataforce_studio.models.organization import (
     OrgRole,
 )
 from dataforce_studio.models.orm import UserOrm
-from dataforce_studio.schemas.organization import UpdateOrganizationMember, OrganizationMember
+from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.schemas.organization import (
+    OrganizationMember,
+    UpdateOrganizationMember,
+)
 from dataforce_studio.schemas.user import (
     UpdateUser,
     User,
@@ -24,7 +31,6 @@ from dataforce_studio.models.orm.user import UserOrm
 from dataforce_studio.models.user import CreateUser, UpdateUser, User
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.utils.organizations import generate_organization_name
-from sqlalchemy.orm import joinedload
 
 
 class UserRepository(RepositoryBase):
@@ -38,7 +44,7 @@ class UserRepository(RepositoryBase):
 
             await session.flush()
             await session.refresh(db_user)
-            user_response = db_user.to_public_user()
+            user_response = db_user.to_user()
 
             db_organization = OrganizationOrm(
                 name=generate_organization_name(
@@ -128,8 +134,8 @@ class UserRepository(RepositoryBase):
         return result.scalar() or 0
 
     async def create_organization_member(
-        self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
-    ) -> OrganizationMember:
+            self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
+    ) -> DBOrganizationMember:
         async with self._get_session() as session:
             db_organization_member = OrganizationMemberOrm(
                 user_id=user_id, organization_id=organization_id, role=role
@@ -137,6 +143,22 @@ class UserRepository(RepositoryBase):
             session.add(db_organization_member)
             await session.commit()
         return db_organization_member.to_organization_member()
+            try:
+                await session.commit()
+                await session.refresh(db_organization_member)
+            except IntegrityError as e:
+                await session.rollback()
+                if "org_member" in str(e.orig):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"User with ID {user_id} is already a member "
+                               f"of organization {organization_id}.",
+                    ) from e
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="An unexpected database error occurred.",
+                ) from e
+        return OrganizationMember.model_validate(db_organization_member)
 
     async def create_owner(
         self, user_id: uuid.UUID, organization_id: uuid.UUID
@@ -181,8 +203,8 @@ class UserRepository(RepositoryBase):
             ]
 
     async def update_organization_member(
-            self, member: UpdateOrganizationMember, *where_conditions
-    ) -> DBOrganizationMember | None:
+        self, member: UpdateOrganizationMember, *where_conditions
+    ) -> OrganizationMember | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(DBOrganizationMember).where(*where_conditions)
@@ -194,7 +216,7 @@ class UserRepository(RepositoryBase):
 
             fields_to_update = member.model_dump(exclude_unset=True)
             if not fields_to_update:
-                return db_member
+                return OrganizationMember.model_validate(db_member)
 
             for field, value in fields_to_update.items():
                 setattr(db_member, field, value)
@@ -202,7 +224,7 @@ class UserRepository(RepositoryBase):
             await session.commit()
             await session.refresh(db_member)
 
-            return db_member
+            return OrganizationMember.model_validate(db_member)
 
     async def delete_organization_member(self, *where_conditions) -> None:
         async with self._get_session() as session:
@@ -215,22 +237,23 @@ class UserRepository(RepositoryBase):
                 await session.delete(member)
                 await session.commit()
 
-    async def get_organization_members(self, *where_conditions):
-        async with self._get_session() as session:
-            async with session.begin():
-                result = await session.execute(
-                    select(DBOrganizationMember)
-                    .options(joinedload(DBOrganizationMember.user))
-                    .where(*where_conditions)
-                    .order_by(
-                        case(
-                            (DBOrganizationMember.role == 'OWNER', 0),
-                            (DBOrganizationMember.role == 'ADMIN', 1),
-                            (DBOrganizationMember.role == 'MEMBER', 2),
-                            else_=3
-                        ),
-                        DBOrganizationMember.created_at
-                    )
+    async def get_organization_members(
+            self, *where_conditions
+    ) -> list[OrganizationMember]:
+        async with self._get_session() as session, session.begin():
+            result = await session.execute(
+                select(DBOrganizationMember)
+                .options(joinedload(DBOrganizationMember.user))
+                .where(*where_conditions)
+                .order_by(
+                    case(
+                        (DBOrganizationMember.role == "OWNER", 0),
+                        (DBOrganizationMember.role == "ADMIN", 1),
+                        (DBOrganizationMember.role == "MEMBER", 2),
+                        else_=3,
+                    ),
+                    DBOrganizationMember.created_at,
                 )
-                members = result.scalars().all()
-                return [OrganizationMember.model_validate(member) for member in members]
+            )
+            members = result.scalars().all()
+            return [OrganizationMember.model_validate(member) for member in members]

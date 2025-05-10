@@ -1,12 +1,13 @@
 import asyncpg
 import pytest_asyncio
 from dataforce_studio.settings import config
+from sqlalchemy.ext.asyncio import AsyncConnection
 from utils.db import migrate_db
 
 TEST_DB_NAME = "df_studio_test"
 
 
-async def _terminate_connections(conn, db_name: str) -> None:
+async def _terminate_connections(conn: AsyncConnection, db_name: str) -> None:
     await conn.execute(
         """
         SELECT pg_terminate_backend(pid)

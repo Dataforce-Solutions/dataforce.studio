@@ -1,6 +1,5 @@
 from falcon import AutoML
 from falcon.tabular.tabular_manager import TabularTaskManager
-from falcon.task_configurations import get_task_configuration
 import numpy as np
 from dfs_webworker.constants import (
     PRODUCER,

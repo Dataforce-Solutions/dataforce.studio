@@ -6,10 +6,10 @@ Create Date: 2025-05-05 17:31:57.085891
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import ENUM
 
 # revision identifiers, used by Alembic.
@@ -28,7 +28,6 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("email", sa.String(), nullable=False),
         sa.Column("role", orgrole_enum, nullable=False),
-        # sa.Column('role', sa.Enum('OWNER', 'ADMIN', 'MEMBER', name='orgrole'), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("invited_by", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),

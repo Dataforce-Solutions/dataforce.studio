@@ -2,6 +2,7 @@ import os
 
 from alembic import command
 from alembic.config import Config
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,6 @@ async def migrate_db(conn_url: str) -> None:
         await conn.run_sync(__execute_upgrade)
 
 
-def __execute_upgrade(connection) -> None:
+def __execute_upgrade(connection: Connection) -> None:
     cfg.attributes["connection"] = connection
     command.upgrade(cfg, "head")

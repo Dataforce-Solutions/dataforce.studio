@@ -13,6 +13,8 @@ from dataforce_studio.models.auth import (
     Token,
 )
 from dataforce_studio.models.errors import AuthError
+from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
+from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -22,8 +24,6 @@ from dataforce_studio.schemas.user import (
     User,
     UserResponse,
 )
-from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
-from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
 
 
@@ -259,7 +259,7 @@ class AuthHandler:
                 )
             )
 
-        if photo_url != user.photo:
+        if user and photo_url != user.photo:
             await self.__user_repository.update_user(
                 UpdateUser(email=email, photo=photo_url)
             )

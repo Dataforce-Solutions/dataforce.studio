@@ -8,11 +8,12 @@ Create Date: 2025-05-02 18:30:02.103035
 
 import datetime
 import uuid
+from collections.abc import Sequence
 from typing import Sequence, Union
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "003"
@@ -38,7 +39,8 @@ def upgrade() -> None:
     for (email,) in users:
         conn.execute(
             sa.text(
-                "UPDATE users SET id = :id, created_at = :now, updated_at = :now WHERE email = :email"
+                "UPDATE users SET id = :id, created_at = :now,"
+                " updated_at = :now WHERE email = :email"
             ),
             {"id": str(uuid.uuid4()), "now": now, "email": email},
         )
@@ -79,13 +81,14 @@ def upgrade() -> None:
 
     results = conn.execute(sa.text("SELECT id, email, full_name FROM users")).fetchall()
 
-    for id, email, full_name in results:
+    for id, email, full_name in results:  # noqa: A001
         org_id = uuid.uuid4()
         org_name = f"{full_name or email.split('@')[0]}'s organization"
 
         conn.execute(
             sa.text(
-                "INSERT INTO organizations (id, name, created_at, updated_at) VALUES (:id, :name, :created_at, :updated_at)"
+                "INSERT INTO organizations (id, name, created_at, updated_at) "
+                "VALUES (:id, :name, :created_at, :updated_at)"
             ),
             {
                 "id": str(org_id),
@@ -97,8 +100,14 @@ def upgrade() -> None:
 
         conn.execute(
             sa.text(
-                """INSERT INTO organization_members (id, user_id, organization_id, role, created_at, updated_at)
-                   VALUES (:id, :user_id, :organization_id, :role, :created_at, :updated_at)"""
+                """
+                INSERT INTO
+                organization_members
+                (id, user_id, organization_id, role, created_at, updated_at)
+                VALUES (
+                :id, :user_id, :organization_id, :role, :created_at, :updated_at
+                )
+                """
             ),
             {
                 "id": str(uuid.uuid4()),

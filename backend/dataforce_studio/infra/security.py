@@ -38,6 +38,10 @@ class JWTAuthenticationBackend(AuthenticationBackend):
 
             try:
                 user = await self.auth_handler.handle_get_current_user(email)
+
+                if user.id is None:
+                    raise ValueError("User ID не может быть None")
+
                 auth_user = AuthUser(
                     user_id=user.id,
                     email=user.email,

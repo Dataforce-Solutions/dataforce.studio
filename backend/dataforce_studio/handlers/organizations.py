@@ -7,9 +7,18 @@ from dataforce_studio.models.organization import DBOrganizationInvite, DBOrganiz
 from dataforce_studio.models.errors import OrganizationLimitReachedError
 from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
 from dataforce_studio.models.orm.organization import OrganizationInviteOrm
+from dataforce_studio.models.organization import (
+    DBOrganizationInvite,
+    DBOrganizationMember,
+)
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import UpdateOrganizationMember, OrganizationMemberCreate
+from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
+from dataforce_studio.schemas.organization import (
+    OrganizationMember,
+    OrganizationMemberCreate,
+    UpdateOrganizationMember,
+)
 
 
 class OrganizationHandler:
@@ -20,7 +29,7 @@ class OrganizationHandler:
     __members_limit = 10
 
     async def check_org_members_limit(
-        self, organization_id: uuid.UUID, num: int = 0
+            self, organization_id: uuid.UUID, num: int = 0
     ) -> None:
         members_count = await self.__user_repository.get_organization_members_count(
             organization_id
@@ -81,22 +90,28 @@ class OrganizationHandler:
 
         return await self.__invites_repository.get_invites_by_user_email(email)
 
-    async def get_organization_members_data(self, organization_id: uuid.UUID):
+    async def get_organization_members_data(
+            self, organization_id: uuid.UUID
+    ) -> list[OrganizationMember]:
         return await self.__user_repository.get_organization_members(
             DBOrganizationMember.organization_id == organization_id
         )
 
-    async def update_organization_member_by_id(self, member: UpdateOrganizationMember):
+    async def update_organization_member_by_id(
+            self, member: UpdateOrganizationMember
+    ) -> OrganizationMember | None:
         return await self.__user_repository.update_organization_member(
             member, DBOrganizationMember.id == member.id
         )
 
-    async def delete_organization_member_by_id(self, member_id: uuid.UUID):
+    async def delete_organization_member_by_id(self, member_id: uuid.UUID) -> None:
         return await self.__user_repository.delete_organization_member(
             DBOrganizationMember.id == member_id
         )
 
-    async def add_organization_member(self, member: OrganizationMemberCreate):
+    async def add_organization_member(
+            self, member: OrganizationMemberCreate
+    ) -> OrganizationMember:
         return await self.__user_repository.create_organization_member(
             member.user_id, member.organization_id, member.role
         )

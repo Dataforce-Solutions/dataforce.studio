@@ -2,12 +2,13 @@ import pytest
 from dataforce_studio.models.organization import OrgRole
 from dataforce_studio.models.user import AuthProvider, CreateUser
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.user import AuthProvider, User
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
 @pytest.mark.asyncio
 async def test_create_user_and_organization(
-    create_database_and_apply_migrations,
+    create_database_and_apply_migrations: str
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)

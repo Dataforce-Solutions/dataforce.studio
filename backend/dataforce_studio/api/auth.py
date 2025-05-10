@@ -39,8 +39,8 @@ async def signup(create_user: CreateUserIn) -> dict[str, str]:
 
 @auth_router.post("/signin", response_model=Token)
 async def signin(
-        email: Annotated[EmailStr, Body()],
-        password: Annotated[str, Body(min_length=8)],
+    email: Annotated[EmailStr, Body()],
+    password: Annotated[str, Body(min_length=8)],
 ) -> Token:
     try:
         return await auth_handler.handle_signin(email, password)
@@ -91,14 +91,14 @@ async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
 
 @auth_router.get("/users/me", response_model=User)
 async def get_current_user_info(
-        user: Annotated[AuthUser, Depends(get_current_user)]
+    user: Annotated[AuthUser, Depends(get_current_user)],
 ) -> UserResponse:
     return await auth_handler.handle_get_current_user(user.email)
 
 
 @auth_router.delete("/users/me")
 async def delete_account(
-        request: Request,
+    request: Request,
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_delete_account(request.user.email)
@@ -109,7 +109,7 @@ async def delete_account(
 
 @auth_router.patch("/users/me")
 async def update_user_profile(
-        update_user: UpdateUserIn, user: Annotated[AuthUser, Depends(get_current_user)]
+    update_user: UpdateUserIn, user: Annotated[AuthUser, Depends(get_current_user)]
 ) -> dict[str, str]:
     return {
         "detail": "User profile updated successfully"
@@ -120,8 +120,8 @@ async def update_user_profile(
 
 @auth_router.post("/logout")
 async def logout(
-        request: Request,
-        refresh_token: Annotated[str, Body()],
+    request: Request,
+    refresh_token: Annotated[str, Body()],
 ) -> dict[str, str]:
     try:
         auth_header = request.headers.get("Authorization")
@@ -134,7 +134,7 @@ async def logout(
 
 @auth_router.get("/confirm-email")
 async def confirm_email(
-        confirmation_token: str,
+    confirmation_token: str,
 ) -> RedirectResponse:
     try:
         await auth_handler.handle_email_confirmation(confirmation_token)
@@ -145,8 +145,8 @@ async def confirm_email(
 
 @auth_router.post("/reset-password")
 async def reset_password(
-        reset_token: Annotated[str, Body()],
-        new_password: Annotated[str, Body(min_length=8)],
+    reset_token: Annotated[str, Body()],
+    new_password: Annotated[str, Body(min_length=8)],
 ) -> dict[str, str]:
     try:
         await auth_handler.handle_reset_password(reset_token, new_password)

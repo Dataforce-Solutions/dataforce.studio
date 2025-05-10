@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dataforce_studio.handlers.auth import AuthHandler
 from passlib.context import CryptContext
@@ -11,7 +11,7 @@ handler = AuthHandler(
 
 
 @patch("passlib.context.CryptContext.hash")
-def test_get_password_hash(patched_hash):
+def test_get_password_hash(patched_hash: Mock) -> None:
     password = "test_password"
     hashed_password = "$2b$12$rr/FMTnWz0BGDTiG//l.YuzZe9ZIpZTPZD5FeAVDDdqgchIDUyD66"
     patched_hash.return_value = hashed_password
