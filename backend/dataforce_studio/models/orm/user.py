@@ -40,6 +40,10 @@ class UserOrm(TimestampMixin, Base):
     def to_user(self) -> User:
         return User.model_validate(self)
 
+    def to_public_user(self) -> UserResponse:
+        return UserResponse.model_validate(self.__dict__)
+
+
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":
         return UserOrm(

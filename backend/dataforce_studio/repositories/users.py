@@ -38,7 +38,7 @@ class UserRepository(RepositoryBase):
 
             await session.flush()
             await session.refresh(db_user)
-            user_response = db_user.to_user()
+            user_response = db_user.to_public_user()
 
             db_organization = OrganizationOrm(
                 name=generate_organization_name(
@@ -66,6 +66,14 @@ class UserRepository(RepositoryBase):
             )
             db_user = result.scalar_one_or_none()
             return db_user.to_user() if db_user else None
+
+    async def get_public_user(self, email: str) -> UserResponse | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(UserOrm).filter(UserOrm.email == email)
+            )
+            db_user = result.scalar_one_or_none()
+            return db_user.to_public_user() if db_user else None
 
     async def delete_user(self, email: EmailStr) -> None:
         async with self._get_session() as session:

@@ -12,6 +12,7 @@ class AuthProvider(str, Enum):
 
 
 class _UserBase(BaseModel):
+    id: uuid.UUID | None = None
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
@@ -41,16 +42,15 @@ class UserResponse(_UserBase):
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID
+    id: uuid.UUID | None = None
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
-    email_verified: bool = False
-    auth_method: AuthProvider
     photo: str | None = None
 
     class Config:
         from_attributes = True
+
 
 
 class CreateUserIn(BaseModel):

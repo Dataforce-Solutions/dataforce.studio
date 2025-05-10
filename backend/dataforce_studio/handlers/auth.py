@@ -52,7 +52,7 @@ class AuthHandler:
     def _get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)
 
-    async def _authenticate_user(self, email: EmailStr, password: str) -> UserResponse:
+    async def _authenticate_user(self, email: EmailStr, password: str) -> User:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("Invalid email or password", 400)
@@ -173,7 +173,7 @@ class AuthHandler:
         await self.__user_repository.delete_user(email)
 
     async def handle_get_current_user(self, email: EmailStr) -> UserResponse:
-        user = await self.__user_repository.get_user(email)
+        user = await self.__user_repository.get_public_user(email)
         if user is None:
             raise AuthError("User not found", 404)
 
