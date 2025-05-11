@@ -6,21 +6,99 @@ title: Express Tasks
 
 
 ### What Are Express Tasks?
-Express Tasks are simplified workflows designed to let you quickly train and download machine learning models. Perfect for users who want fast results without complex configurations.
+OLDExpress Tasks are simplified workflows designed to let you quickly train and download machine learning models. Perfect for users who want fast results without complex configurations.
+
+**Express Tasks** are streamlined, pre-configured workflows that allow users to quickly build and deploy machine learning models without needing in-depth technical knowledge. They are designed for simplicity, speed, and accessibility—ideal for business analysts, domain experts, or beginners in ML who want results without getting into complex model tuning or coding.
+
+These tasks abstract away the technical complexity of typical ML pipelines by offering:
+
+- Guided interfaces
+- Default settings that work well out of the box
+- Minimal data preparation requirements
+- Quick turnaround from data upload to model download
+
+Whether you're working with classification, regression, or prompt engineering, Express Tasks help you go from raw data to usable model in minutes.
+
+---
+
+## Available Tasks
+
+### 1. Tabular Classification
+
+**Description:**  
+Tabular Classification allows you to predict predefined categories from structured data, where each row represents an individual observation (e.g., a customer, transaction, or product).  
+The model uses the input features (columns) to learn patterns and classify new observations into target categories. Built-in preprocessing and sensible defaults make it easy to get started even without prior ML experience.
+
+**Use Cases:**
+
+- Customer segmentation
+- Product classification
+- Fraud detection
+
+---
+
+### 2. Tabular Regression
+
+**Description:**  
+Tabular Regression focuses on predicting continuous numerical values from structured data.  
+This task trains a model that maps input features to a continuous target variable. It supports automatic feature selection, scaling, and a simple interface for training high-quality predictive models with minimal configuration.
+
+**Use Cases:**
+
+- Price prediction
+- Demand forecasting
+- Financial estimation
+
+---
+
+### 3. Prompt Optimization *(Pre-release)*
+
+**Description:**  
+Prompt Optimization is a no-code environment for constructing and refining workflows powered by large language models (LLMs).  
+Rather than manually crafting prompts and chaining responses, users can visually design and optimize how prompts interact within their specific domain.
+
+**Use Cases:**
+
+- Healthcare: Disease diagnosis  
+- Finance: Credit risk evaluation  
+- Marketing: Customer segmentation  
+- Retail: Product category prediction
+
+---
+
 
 ### Express Workflow
-1. Upload your data.
-2. Configure basic settings (or use defaults).
-3. Train your model.
-4. Download the result.
+Follow these steps to complete an Express Task:
+
+1. **Upload your data**  
+   Prepare your dataset in a supported format and upload it to the platform.
+
+2. **Configure basic settings (or use defaults)**  
+   Either adjust the model settings to fit your needs or continue with the optimized defaults.
+
+3. **Train your model**  
+   Let the system analyze your data and build a predictive model automatically.
+
+4. **Download the result**  
+   Get your trained model packaged with documentation and metadata.
+
+---
+
 
 ### Supported File Formats
-- CSV (.csv)
-- Excel (.xlsx)
+You can upload your data in the following formats:
 
-Ensure your files have headers and follow formatting best practices.
+- **CSV (.csv)**
+- **Excel (.xlsx)**
+
+> ⚠️ Make sure your files include clear headers and follow proper formatting conventions to ensure successful model training.
 
 ### Output Model Format & Structure
-Models are downloaded as `.dfs` files containing:
-- A README with usage instructions
-- Metadata and logs
+Once training is complete, the model is available for download as a `.dfs` file containing:
+
+- **README file**: With instructions on how to use the model
+- **Metadata and logs**: Detailing the training process and model structure
+
+  ---
+
+> For more detailed guidance, check the full documentation or reach out to the Dataforce team.
