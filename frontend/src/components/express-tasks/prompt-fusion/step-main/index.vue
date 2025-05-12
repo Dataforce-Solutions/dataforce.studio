@@ -1,14 +1,19 @@
 <template>
   <div class="wrapper">
-    <presentation-area :initial-nodes="initialNodes"/>
+    <presentation-area :initial-nodes="initialNodes" />
     <Transition>
       <sidebar v-if="activeNode" :data="activeNode.data" class="sidebar" @close="closeSidebar" />
     </Transition>
     <control-center />
-    <navigation @go-back="$emit('goBack')"/>
+    <navigation @go-back="$emit('goBack')" />
     <toolbar />
   </div>
-  <ui-training v-model="isTrainingActive" :time="8" :is-cancel-available="true" @cancel="cancelTraining"/>
+  <ui-training
+    v-model="isTrainingActive"
+    :time="8"
+    :is-cancel-available="true"
+    @cancel="cancelTraining"
+  />
   <prompt-fusion-predict />
 </template>
 
@@ -18,11 +23,11 @@ import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useVueFlow, type GraphNode } from '@vue-flow/core'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
-import PresentationArea from '@/components/services/prompt-fusion/step-main/PresentationArea.vue'
-import Sidebar from '@/components/services/prompt-fusion/step-main/sidebar/index.vue'
-import Navigation from '@/components/services/prompt-fusion/step-main/Navigation.vue'
-import Toolbar from '@/components/services/prompt-fusion/step-main/Toolbar.vue'
-import ControlCenter from '@/components/services/prompt-fusion/step-main/control-center/index.vue'
+import PresentationArea from '@/components/express-tasks/prompt-fusion/step-main/PresentationArea.vue'
+import Sidebar from '@/components/express-tasks/prompt-fusion/step-main/sidebar/index.vue'
+import Navigation from '@/components/express-tasks/prompt-fusion/step-main/Navigation.vue'
+import Toolbar from '@/components/express-tasks/prompt-fusion/step-main/Toolbar.vue'
+import ControlCenter from '@/components/express-tasks/prompt-fusion/step-main/control-center/index.vue'
 import UiTraining from '@/components/ui/UiTraining.vue'
 import PromptFusionPredict from './predict/PromptFusionPredict.vue'
 

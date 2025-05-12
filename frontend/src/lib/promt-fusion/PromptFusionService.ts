@@ -1,6 +1,15 @@
 import type { FlowExportObject } from '@vue-flow/core'
-import type { NodeData } from '@/components/services/prompt-fusion/interfaces'
-import type { PayloadData, PayloadNode, PromptFusionPayload, ProviderModelsEnum, ProvidersEnum, ProviderSetting, ProviderWithModels, TrainingData } from './prompt-fusion.interfaces'
+import type { NodeData } from '@/components/express-tasks/prompt-fusion/interfaces'
+import type {
+  PayloadData,
+  PayloadNode,
+  PromptFusionPayload,
+  ProviderModelsEnum,
+  ProvidersEnum,
+  ProviderSetting,
+  ProviderWithModels,
+  TrainingData,
+} from './prompt-fusion.interfaces'
 import { Observable } from '@/utils/observable/Observable'
 import { EvaluationModesEnum, ProviderStatus } from './prompt-fusion.interfaces'
 import { allModels, getProviders } from './prompt-fusion.data'
@@ -80,10 +89,12 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   updateProviderSettings(provider: ProvidersEnum, settings: ProviderSetting[]) {
-    const currentProvider = this.providers.find(prov => prov.id === provider)
+    const currentProvider = this.providers.find((prov) => prov.id === provider)
     if (!currentProvider) return
     currentProvider.settings = settings
-    currentProvider.status = settings.filter(setting => setting.required && !setting.value).length ? ProviderStatus.disconnected : ProviderStatus.connected
+    currentProvider.status = settings.filter((setting) => setting.required && !setting.value).length
+      ? ProviderStatus.disconnected
+      : ProviderStatus.connected
     this.changeAvailableModels()
   }
 
@@ -98,7 +109,9 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   changeAvailableModels() {
-    this.availableModels = allModels.filter(model => this.getConnectedProviders().find(provider => provider.id === model.providerId))
+    this.availableModels = allModels.filter((model) =>
+      this.getConnectedProviders().find((provider) => provider.id === model.providerId),
+    )
     this.emit('CHANGE_AVAILABLE_MODELS', this.availableModels)
   }
 
@@ -116,18 +129,24 @@ class PromptFusionServiceClass extends Observable<Events> {
     if (!this.teacherModel) throw new Error('Teacher model is required!')
     if (!this.studentModel) throw new Error('Student model is required!')
     if (!this.taskDescription) throw new Error('Task description is required!')
-    if (this.haveDuplicatedFields()) throw new Error('Optimization cannot proceed with identical field names in cards. Please review and rename duplicate fields.')
+    if (this.haveDuplicatedFields())
+      throw new Error(
+        'Optimization cannot proceed with identical field names in cards. Please review and rename duplicate fields.',
+      )
   }
 
   getProviderSettings(providerId: ProvidersEnum) {
-    return this.providers.find(provider => provider.id === providerId)?.settings || []
+    return this.providers.find((provider) => provider.id === providerId)?.settings || []
   }
 
   async runOptimization() {
     this.isTrainingActive = true
     this.changeOptimizationState(false)
     this.emit('CHANGE_TRAINING_STATE', this.isTrainingActive)
-    const result = await DataProcessingWorker.startTraining({ task_spec: this.payload! }, WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN)
+    const result = await DataProcessingWorker.startTraining(
+      { task_spec: this.payload! },
+      WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
+    )
     if (result.status === 'success' && result.model_id) {
       this.setModelId(result.model_id)
       this.savePredictionFields()
@@ -148,7 +167,11 @@ class PromptFusionServiceClass extends Observable<Events> {
       evaluationMode: this.evaluationMode,
       criteriaList: this.evaluationCriteriaList,
     }
-    const payload = { data: this.nodesData as PayloadData, settings: optimizationSettings, trainingData: this.trainingData }
+    const payload = {
+      data: this.nodesData as PayloadData,
+      settings: optimizationSettings,
+      trainingData: this.trainingData,
+    }
     this.payload = payload
   }
 
@@ -163,7 +186,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   saveTrainingData(data: object, inputFields: string[], outputFields: string[]) {
-    this.trainingData = { data, inputFields, outputFields };
+    this.trainingData = { data, inputFields, outputFields }
   }
 
   resetState() {
@@ -187,22 +210,22 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   getConnectedProviders() {
-    return this.providers.filter(provider => {
-      if (provider.disabled) return false;
-      return provider.status === ProviderStatus.connected;
+    return this.providers.filter((provider) => {
+      if (provider.disabled) return false
+      return provider.status === ProviderStatus.connected
     })
   }
 
   private haveDuplicatedFields() {
-    return this.nodesData?.nodes.find(node => {
-      const values = node.data.fields.map(field => field.value)
+    return this.nodesData?.nodes.find((node) => {
+      const values = node.data.fields.map((field) => field.value)
       return values.length !== new Set(values).size
     })
   }
 
   private prepareNodesData(object: FlowExportObject) {
     const edges = this.getEdgesFromObject(object)
-    const nodes: PayloadNode[] = object.nodes.map(node => {
+    const nodes: PayloadNode[] = object.nodes.map((node) => {
       const nodeData = node.data as NodeData
       const data = {
         fields: this.getFieldsDataFromNodeData(nodeData),
@@ -216,7 +239,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   private getEdgesFromObject(object: FlowExportObject) {
-    return object.edges.map(edge => ({
+    return object.edges.map((edge) => ({
       id: edge.id,
       sourceNode: edge.source,
       sourceField: edge.sourceHandle!,
@@ -226,7 +249,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   private getFieldsDataFromNodeData(nodeData: NodeData) {
-    return nodeData.fields.map(field => ({
+    return nodeData.fields.map((field) => ({
       id: field.id,
       value: field.value,
       variant: field.variant,
@@ -237,8 +260,12 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   private getTeacherProviderData() {
     if (!this.teacherModel) throw new Error('Select teacher model before')
-    const teacherProviderId = allModels.find(item => item.items.find(model => model.id === this.teacherModel))?.providerId
-    const teacherProviderSettings = teacherProviderId ? this.getProviderSettings(teacherProviderId) : null
+    const teacherProviderId = allModels.find((item) =>
+      item.items.find((model) => model.id === this.teacherModel),
+    )?.providerId
+    const teacherProviderSettings = teacherProviderId
+      ? this.getProviderSettings(teacherProviderId)
+      : null
     const settingsObject = parseProviderSettingsToObject(teacherProviderSettings)
     return {
       providerId: teacherProviderId!,
@@ -249,8 +276,12 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   private getStudentProviderData() {
     if (!this.studentModel) throw new Error('Select student model before')
-    const studentProviderId = allModels.find(item => item.items.find(model => model.id === this.studentModel))?.providerId
-    const studentProviderSettings = studentProviderId ? this.getProviderSettings(studentProviderId) : null
+    const studentProviderId = allModels.find((item) =>
+      item.items.find((model) => model.id === this.studentModel),
+    )?.providerId
+    const studentProviderSettings = studentProviderId
+      ? this.getProviderSettings(studentProviderId)
+      : null
     const settingsObject = parseProviderSettingsToObject(studentProviderSettings)
     return {
       providerId: studentProviderId!,
@@ -267,10 +298,10 @@ class PromptFusionServiceClass extends Observable<Events> {
   private savePredictionFields() {
     if (!this.nodesData) throw new Error('Create nodes data first')
     const fields = this.nodesData.nodes.reduce((acc: string[], node) => {
-      node.data.fields.forEach(field => {
+      node.data.fields.forEach((field) => {
         if (field.variant === 'input') acc.push(field.value)
       })
-      return acc;
+      return acc
     }, [])
     if (fields.length) {
       this.predictionFields = fields

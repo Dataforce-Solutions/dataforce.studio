@@ -1,4 +1,8 @@
-import type { FieldVariant, NodeTypeEnum, PromptFieldTypeEnum } from "@/components/services/prompt-fusion/interfaces"
+import type {
+  FieldVariant,
+  NodeTypeEnum,
+  PromptFieldTypeEnum,
+} from '@/components/express-tasks/prompt-fusion/interfaces'
 
 export interface BaseProviderInfo {
   id: ProvidersEnum
@@ -61,9 +65,9 @@ export interface ProviderModel {
 }
 
 export interface ProviderWithModels {
-  label: string;
-  providerId: ProvidersEnum;
-  items: ProviderModel[];
+  label: string
+  providerId: ProvidersEnum
+  items: ProviderModel[]
 }
 
 export interface PromptFusionPayload {
