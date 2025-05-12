@@ -79,6 +79,9 @@ const router = createRouter({
       path: '/prompt-fusion/:mode?',
       name: 'prompt-fusion',
       component: () => import('../pages/PromptFusionPage.vue'),
+      meta: {
+        mobileAvailable: false,
+      },
     },
     {
       path: '/orbits',
