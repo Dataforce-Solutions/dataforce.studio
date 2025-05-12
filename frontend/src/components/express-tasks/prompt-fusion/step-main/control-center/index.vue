@@ -3,12 +3,24 @@
     <providers-component />
     <optimization-component :disabled="optimizationDisabled" />
     <div class="other-buttons">
-      <d-button v-tooltip.bottom="'Run the model'" severity="secondary" variant="text" :disabled="!isPredictAvailable" @click="promptFusionService.togglePredict()">
+      <d-button
+        v-tooltip.bottom="'Run the model'"
+        severity="secondary"
+        variant="text"
+        :disabled="!isPredictAvailable"
+        @click="promptFusionService.togglePredict()"
+      >
         <template #icon>
           <play :size="14" />
         </template>
       </d-button>
-      <d-button v-tooltip.left="'Download the model'" disabled severity="secondary" variant="text" @click="onDownloadClick">
+      <d-button
+        v-tooltip.left="'Download the model'"
+        disabled
+        severity="secondary"
+        variant="text"
+        @click="onDownloadClick"
+      >
         <template #icon>
           <cloud-download :size="14" />
         </template>
@@ -20,8 +32,8 @@
 <script setup lang="ts">
 import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { Play, CloudDownload } from 'lucide-vue-next'
-import ProvidersComponent from '@/components/services/prompt-fusion/step-main/control-center/providers/index.vue'
-import OptimizationComponent from '@/components/services/prompt-fusion/step-main/control-center/optimization/index.vue'
+import ProvidersComponent from '@/components/express-tasks/prompt-fusion/step-main/control-center/providers/index.vue'
+import OptimizationComponent from '@/components/express-tasks/prompt-fusion/step-main/control-center/optimization/index.vue'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 

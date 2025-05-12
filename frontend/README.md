@@ -53,7 +53,7 @@ src (main app folder)
 |    |    authorization
 |    |    homepage-tasks
 |    |    layout (layout parts)
-|    |    services (app tasks components)
+|    |    express-tasks (app tasks components)
 |    |    |    tabular (components for classification & regression)
 |    |    |    |    first-step (components for first step)
 |    |    |    |    second-step (components for second step)

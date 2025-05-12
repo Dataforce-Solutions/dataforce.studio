@@ -11,9 +11,16 @@
         @selectFile="onSelectFile"
         @removeFile="onRemoveFile"
       />
-      <first-step-navigation :is-next-step-available="!!fileData.name && !isUploadWithErrors" @continue="step = 2"/>
+      <first-step-navigation
+        :is-next-step-available="!!fileData.name && !isUploadWithErrors"
+        @continue="step = 2"
+      />
     </div>
-    <step-edit v-else-if="step === 2 && columnsCount && rowsCount && viewValues" @back="step = 1" @continue="goToMainStep">
+    <step-edit
+      v-else-if="step === 2 && columnsCount && rowsCount && viewValues"
+      @back="step = 1"
+      @continue="goToMainStep"
+    >
       <table-view
         :columns-count="columnsCount"
         :rows-count="rowsCount"
@@ -27,7 +34,7 @@
         @edit="setSelectedColumns"
       />
     </step-edit>
-    <step-main v-else-if="step === 3" :initial-nodes="initialNodes" @go-back="backFromMain"/>
+    <step-main v-else-if="step === 3" :initial-nodes="initialNodes" @go-back="backFromMain" />
   </div>
 </template>
 
@@ -39,10 +46,10 @@ import { promptFusionResources } from '@/constants/constants'
 import { getInitialNodes } from '@/constants/prompt-fusion'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { useVueFlow } from '@vue-flow/core'
-import FirstStepNavigation from '@/components/services/prompt-fusion/step-upload/Navigation.vue'
+import FirstStepNavigation from '@/components/express-tasks/prompt-fusion/step-upload/Navigation.vue'
 import TableView from '@/components/table-view/index.vue'
-import StepEdit from '@/components/services/prompt-fusion/step-edit/StepEdit.vue'
-import StepMain from '@/components/services/prompt-fusion/step-main/index.vue'
+import StepEdit from '@/components/express-tasks/prompt-fusion/step-edit/StepEdit.vue'
+import StepMain from '@/components/express-tasks/prompt-fusion/step-main/index.vue'
 import UploadData from '@/components/ui/UploadData.vue'
 
 const { $reset } = useVueFlow()
@@ -87,7 +94,11 @@ function backFromMain() {
 }
 function goToMainStep() {
   initialNodes.value = getInitialNodes(getInputsColumns.value, getOutputsColumns.value)
-  promptFusionService.saveTrainingData(getDataForTraining(), getInputsColumns.value, getOutputsColumns.value)
+  promptFusionService.saveTrainingData(
+    getDataForTraining(),
+    getInputsColumns.value,
+    getOutputsColumns.value,
+  )
   step.value = 3
 }
 

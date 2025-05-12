@@ -22,8 +22,18 @@
           color="var(--p-primary-color)"
         />
         <template v-if="inputsOutputsColumns">
-          <component v-if="inputsOutputsColumns.find(c => c.name === column)?.variant === 'input'" :is="PROMPT_NODES_ICONS.input" :size="16" color="var(--p-primary-color)"></component>
-          <component v-if="inputsOutputsColumns.find(c => c.name === column)?.variant === 'output'" :is="PROMPT_NODES_ICONS.output" :size="16" color="var(--p-primary-color)"></component>
+          <component
+            v-if="inputsOutputsColumns.find((c) => c.name === column)?.variant === 'input'"
+            :is="PROMPT_NODES_ICONS.input"
+            :size="16"
+            color="var(--p-primary-color)"
+          ></component>
+          <component
+            v-if="inputsOutputsColumns.find((c) => c.name === column)?.variant === 'output'"
+            :is="PROMPT_NODES_ICONS.output"
+            :size="16"
+            color="var(--p-primary-color)"
+          ></component>
         </template>
       </div>
     </div>
@@ -38,7 +48,7 @@
       :style="{ width: '30px', height: '31px' }"
     >
       <template #icon>
-        <EllipsisVertical :size="14"/>
+        <EllipsisVertical :size="14" />
       </template>
     </d-button>
     <Menu :model="menuItems" :popup="true" ref="menu">
@@ -57,7 +67,7 @@
 <script setup lang="ts">
 import type { MenuItem } from 'primevue/menuitem'
 import type { LucideIcon } from 'lucide-vue-next'
-import { PROMPT_NODES_ICONS } from '@/components/services/prompt-fusion/interfaces'
+import { PROMPT_NODES_ICONS } from '@/components/express-tasks/prompt-fusion/interfaces'
 import { Blocks, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 'lucide-vue-next'
 import { Menu } from 'primevue'
 import { computed, ref } from 'vue'

@@ -3,7 +3,7 @@
     <div class="header">
       <img class="image" alt="" :src="task.icon" width="48" height="48" />
       <div v-tooltip.left="task.tooltipData" autoHide="false">
-        <circle-help :size="20" class="tooltip-icon"/>
+        <circle-help :size="20" class="tooltip-icon" />
       </div>
     </div>
     <div class="content">
@@ -19,7 +19,7 @@
     <div class="footer" v-if="task.btnText">
       <d-button :label="task.btnText" severity="secondary" class="w-full" @click="onButtonClick" />
     </div>
-    <task-modal v-if="isPromptFusionTask" v-model="isPopupVisible"/>
+    <task-modal v-if="isPromptFusionTask" v-model="isPopupVisible" />
   </div>
 </template>
 
@@ -28,7 +28,7 @@ import type { TaskData } from './interfaces'
 import { CircleHelp } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import TaskModal from '@/components/services/prompt-fusion/TaskModal.vue'
+import TaskModal from '@/components/express-tasks/prompt-fusion/TaskModal.vue'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 type TProps = {

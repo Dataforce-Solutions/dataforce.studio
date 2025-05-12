@@ -1,4 +1,4 @@
-import { NodeTypeEnum, type PromptNode } from '@/components/services/prompt-fusion/interfaces'
+import { NodeTypeEnum, type PromptNode } from '@/components/express-tasks/prompt-fusion/interfaces'
 import { Position } from '@vue-flow/core'
 import { v4 as uuidv4 } from 'uuid'
 

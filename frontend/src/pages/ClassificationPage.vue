@@ -3,9 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import TabularWrapper from '@/components/services/tabular/TabularWrapper.vue'
+import TabularWrapper from '@/components/express-tasks/tabular/TabularWrapper.vue'
 import { Tasks } from '@/lib/data-processing/interfaces'
-import { tabularSteps } from '@/constants/constants';
+import { tabularSteps } from '@/constants/constants'
 </script>
 
 <style scoped></style>
