@@ -52,7 +52,7 @@ class DBOrganizationMember(TimestampMixin, Base):
         UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
 
-    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
     user: Mapped["UserOrm"] = relationship(
         "UserOrm", back_populates="memberships", lazy="selectin"
     )
@@ -72,7 +72,7 @@ class DBOrganizationInvite(TimestampMixin, Base):
         primary_key=True, unique=True, nullable=False, default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[OrgRole] = mapped_column(Enum(OrgRole), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )

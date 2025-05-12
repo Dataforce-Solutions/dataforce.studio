@@ -29,7 +29,7 @@ class OrganizationHandler:
     __members_limit = 10
 
     async def check_org_members_limit(
-            self, organization_id: uuid.UUID, num: int = 0
+        self, organization_id: uuid.UUID, num: int = 0
     ) -> None:
         members_count = await self.__user_repository.get_organization_members_count(
             organization_id
@@ -40,7 +40,9 @@ class OrganizationHandler:
                 "Organization reached maximum number of users", 409
             )
 
-    async def send_invite(self, invite: CreateOrganizationInvite) -> OrganizationInvite:
+    async def send_invite(
+        self, invite: CreateOrganizationInvite
+    ) -> OrganizationInvite:
         """Handle sending invite to organization"""
 
         await self.check_org_members_limit(invite.organization_id)
@@ -91,14 +93,14 @@ class OrganizationHandler:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
-            self, organization_id: uuid.UUID
+        self, organization_id: uuid.UUID
     ) -> list[OrganizationMember]:
         return await self.__user_repository.get_organization_members(
             DBOrganizationMember.organization_id == organization_id
         )
 
     async def update_organization_member_by_id(
-            self, member: UpdateOrganizationMember
+        self, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         return await self.__user_repository.update_organization_member(
             member, DBOrganizationMember.id == member.id
@@ -110,7 +112,7 @@ class OrganizationHandler:
         )
 
     async def add_organization_member(
-            self, member: OrganizationMemberCreate
+        self, member: OrganizationMemberCreate
     ) -> OrganizationMember:
         return await self.__user_repository.create_organization_member(
             member.user_id, member.organization_id, member.role

@@ -152,7 +152,7 @@ class UserRepository(RepositoryBase):
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
                         detail=f"User with ID {user_id} is already a member "
-                               f"of organization {organization_id}.",
+                        f"of organization {organization_id}.",
                     ) from e
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -238,7 +238,7 @@ class UserRepository(RepositoryBase):
                 await session.commit()
 
     async def get_organization_members(
-            self, *where_conditions
+        self, *where_conditions
     ) -> list[OrganizationMember]:
         async with self._get_session() as session, session.begin():
             result = await session.execute(

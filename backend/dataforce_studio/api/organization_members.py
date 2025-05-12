@@ -24,7 +24,7 @@ async def get_organization_members(
     return await organization_handler.get_organization_members_data(organization_id)
 
 
-@members_router.post("/")
+@members_router.post("")
 async def add_member_to_organization(
     member: OrganizationMemberCreate,
     user: Annotated[AuthUser, Depends(get_current_user)],
@@ -32,7 +32,7 @@ async def add_member_to_organization(
     return await organization_handler.add_organization_member(member)
 
 
-@members_router.patch("/")
+@members_router.patch("")
 async def update_organization_member(
     member: UpdateOrganizationMember,
     user: Annotated[AuthUser, Depends(get_current_user)],

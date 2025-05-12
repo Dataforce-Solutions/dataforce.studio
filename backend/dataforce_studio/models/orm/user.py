@@ -30,7 +30,7 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    memberships: Mapped[list["DBOrganizationMember"]] = relationship(  # noqa: F821
+    memberships: Mapped[list["DBOrganizationMember"]] = relationship(  # type: ignore[name-defined]
         "DBOrganizationMember", back_populates="user", lazy="selectin"
     )
 
