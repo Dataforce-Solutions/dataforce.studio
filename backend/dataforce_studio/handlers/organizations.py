@@ -2,8 +2,9 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
+from dataforce_studio.models.errors import OrganizationLimitReachedError
 from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
-from dataforce_studio.models.orm.organization import DBOrganizationInvite
+from dataforce_studio.models.orm.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
 
@@ -21,20 +22,19 @@ class OrganizationHandler:
         members_count = await self.__user_repository.get_organization_members_count(
             organization_id
         )
-        members_count = members_count or 0
 
         if (members_count + num) >= self.__members_limit:
-            raise ValueError("Organization reached maximum number of users")
+            raise OrganizationLimitReachedError(
+                "Organization reached maximum number of users", 409
+            )
 
-    async def send_invite(
-        self, invite: CreateOrganizationInvite
-    ) -> DBOrganizationInvite:
+    async def send_invite(self, invite: CreateOrganizationInvite) -> OrganizationInvite:
         """Handle sending invite to organization"""
 
         await self.check_org_members_limit(invite.organization_id)
 
         db_invite = await self.__invites_repository.create_organization_invite(
-            DBOrganizationInvite(**invite.model_dump())
+            OrganizationInviteOrm(**invite.model_dump())
         )
         # TODO implement invite sending email
         self.__email_handler.send_organization_invite_email()
@@ -55,8 +55,8 @@ class OrganizationHandler:
             user_id, invite.organization_id, invite.role
         )
         await self.__invites_repository.delete_organization_invites_where(
-            DBOrganizationInvite.organization_id == invite.organization_id,
-            DBOrganizationInvite.email == invite.email,
+            OrganizationInviteOrm.organization_id == invite.organization_id,
+            OrganizationInviteOrm.email == invite.email,
         )
 
     async def reject_invite(self, invite_id: uuid.UUID) -> None:
@@ -69,13 +69,11 @@ class OrganizationHandler:
     ) -> list[OrganizationInvite]:
         """Handle listing all organization's invite"""
 
-        return await self.__invites_repository.get_invites_where(
-            DBOrganizationInvite.organization_id == organization_id
+        return await self.__invites_repository.get_invites_by_organization_id(
+            organization_id
         )
 
     async def get_user_invites(self, email: str) -> list[OrganizationInvite]:
         """Handle listing all invites sent to user"""
 
-        return await self.__invites_repository.get_invites_where(
-            DBOrganizationInvite.email == email
-        )
+        return await self.__invites_repository.get_invites_by_user_email(email)

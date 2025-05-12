@@ -29,7 +29,15 @@ class User(_UserBase, BaseOrmConfig):
 
 
 class UserResponse(_UserBase):
-    id: uuid.UUID
+    id: uuid.UUID | None = None
+    email: EmailStr
+    full_name: str | None = None
+    disabled: bool | None = None
+    photo: str | None = None
+
+    class Config:
+        from_attributes = True
+        arbitrary_types_allowed = True
 
 
 class CreateUserIn(BaseModel):

@@ -10,7 +10,7 @@ from starlette.responses import RedirectResponse
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.models.auth import Token
 from dataforce_studio.models.errors import AuthError
-from dataforce_studio.models.user import CreateUserIn, UpdateUserIn, User, UserResponse
+from dataforce_studio.models.user import CreateUserIn, UpdateUserIn, User
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])

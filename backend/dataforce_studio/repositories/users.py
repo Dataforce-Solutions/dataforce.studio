@@ -100,16 +100,14 @@ class UserRepository(RepositoryBase):
             await session.commit()
         return db_organization
 
-    async def get_organization_members_count(
-        self, organization_id: uuid.UUID
-    ) -> int | None:
+    async def get_organization_members_count(self, organization_id: uuid.UUID) -> int:
         async with self._get_session() as session:
             result = await session.execute(
                 select(func.count())
                 .select_from(OrganizationMemberOrm)
                 .where(OrganizationMemberOrm.organization_id == organization_id)
             )
-        return result.scalar_one_or_none()
+        return result.scalar() or 0
 
     async def create_organization_member(
         self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole

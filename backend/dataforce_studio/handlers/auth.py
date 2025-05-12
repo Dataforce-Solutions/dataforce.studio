@@ -19,7 +19,6 @@ from dataforce_studio.models.user import (
     CreateUserIn,
     UpdateUser,
     UpdateUserIn,
-    UserResponse,
     User,
 )
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository

@@ -4,7 +4,7 @@ from pydantic import EmailStr, HttpUrl
 from sqlalchemy import Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from dataforce_studio.models.orm.base import TimestampMixin, Base
+from dataforce_studio.models.orm.base import Base, TimestampMixin
 from dataforce_studio.models.user import AuthProvider, CreateUser, User
 
 
@@ -28,7 +28,7 @@ class UserOrm(TimestampMixin, Base):
         return f"User(email={self.email!r}, full_name={self.full_name!r}"
 
     def to_user(self) -> User:
-        return User.model_validate(self.__dict__)
+        return User.model_validate(self)
 
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":
