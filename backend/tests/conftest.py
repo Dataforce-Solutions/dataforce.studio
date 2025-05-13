@@ -1,9 +1,12 @@
 import asyncpg
 import pytest_asyncio
+
+from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
 from sqlalchemy.ext.asyncio import AsyncConnection
 from utils.db import migrate_db
-from dataforce_studio.schemas.user import AuthProvider
+from dataforce_studio.schemas.user import AuthProvider, User
+from sqlalchemy.ext.asyncio import create_async_engine
 
 TEST_DB_NAME = "df_studio_test"
 
@@ -59,4 +62,21 @@ def test_user() -> dict:
         "auth_method": AuthProvider.EMAIL,
         "photo": None,
         "hashed_password": "hashed_password",
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+async def create_organization_with_user(create_database_and_apply_migrations: str, test_user):
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+
+    created_organization = await repo.create_organization('test org', None)
+    await repo.create_user(User(**test_user))
+    fetched_user = await repo.get_user(test_user["email"])
+
+    return {
+        "engine": engine,
+        "repo": repo,
+        "user": fetched_user,
+        "organization": created_organization,
     }
