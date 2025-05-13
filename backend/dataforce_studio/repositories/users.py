@@ -122,6 +122,7 @@ class UserRepository(RepositoryBase):
             db_organization = OrganizationOrm(name=name, logo=logo)
             session.add(db_organization)
             await session.commit()
+            await session.refresh(db_organization)
         return db_organization
 
     async def get_organization_members_count(self, organization_id: uuid.UUID) -> int:
@@ -135,14 +136,12 @@ class UserRepository(RepositoryBase):
 
     async def create_organization_member(
             self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
-    ) -> DBOrganizationMember:
+    ) -> OrganizationMember:
         async with self._get_session() as session:
             db_organization_member = OrganizationMemberOrm(
                 user_id=user_id, organization_id=organization_id, role=role
             )
             session.add(db_organization_member)
-            await session.commit()
-        return db_organization_member.to_organization_member()
             try:
                 await session.commit()
                 await session.refresh(db_organization_member)
@@ -152,7 +151,7 @@ class UserRepository(RepositoryBase):
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
                         detail=f"User with ID {user_id} is already a member "
-                        f"of organization {organization_id}.",
+                               f"of organization {organization_id}.",
                     ) from e
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -161,7 +160,7 @@ class UserRepository(RepositoryBase):
         return OrganizationMember.model_validate(db_organization_member)
 
     async def create_owner(
-        self, user_id: uuid.UUID, organization_id: uuid.UUID
+            self, user_id: uuid.UUID, organization_id: uuid.UUID
     ) -> OrganizationMember:
         return await self.create_organization_member(
             user_id, organization_id, OrgRole.OWNER
@@ -202,8 +201,8 @@ class UserRepository(RepositoryBase):
                 member.to_organization_member() for member in db_organization_members
             ]
 
-    async def update_organization_member(
-        self, member: UpdateOrganizationMember, *where_conditions
+    async def update_organization_member_where(
+            self, member: UpdateOrganizationMember, *where_conditions
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -226,7 +225,14 @@ class UserRepository(RepositoryBase):
 
             return OrganizationMember.model_validate(db_member)
 
-    async def delete_organization_member(self, *where_conditions) -> None:
+    async def update_organization_member(
+            self, member: UpdateOrganizationMember
+    ) -> OrganizationMember | None:
+        return await self.update_organization_member_where(
+            member, DBOrganizationMember.id == member.id
+        )
+
+    async def delete_organization_member_where(self, *where_conditions) -> None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(DBOrganizationMember).where(*where_conditions)
@@ -237,8 +243,13 @@ class UserRepository(RepositoryBase):
                 await session.delete(member)
                 await session.commit()
 
-    async def get_organization_members(
-        self, *where_conditions
+    async def delete_organization_member(self, member_id: uuid.UUID) -> None:
+        return await self.delete_organization_member_where(
+            DBOrganizationMember.id == member_id
+        )
+
+    async def get_organization_members_where(
+            self, *where_conditions
     ) -> list[OrganizationMember]:
         async with self._get_session() as session, session.begin():
             result = await session.execute(
@@ -257,3 +268,10 @@ class UserRepository(RepositoryBase):
             )
             members = result.scalars().all()
             return [OrganizationMember.model_validate(member) for member in members]
+
+    async def get_organization_members(
+            self, organization_id: uuid.UUID
+    ) -> list[OrganizationMember]:
+        return await self.get_organization_members_where(
+            DBOrganizationMember.organization_id == organization_id
+        )

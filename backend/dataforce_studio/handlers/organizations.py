@@ -95,21 +95,15 @@ class OrganizationHandler:
     async def get_organization_members_data(
         self, organization_id: uuid.UUID
     ) -> list[OrganizationMember]:
-        return await self.__user_repository.get_organization_members(
-            DBOrganizationMember.organization_id == organization_id
-        )
+        return await self.__user_repository.get_organization_members(organization_id)
 
     async def update_organization_member_by_id(
         self, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        return await self.__user_repository.update_organization_member(
-            member, DBOrganizationMember.id == member.id
-        )
+        return await self.__user_repository.update_organization_member(member)
 
     async def delete_organization_member_by_id(self, member_id: uuid.UUID) -> None:
-        return await self.__user_repository.delete_organization_member(
-            DBOrganizationMember.id == member_id
-        )
+        return await self.__user_repository.delete_organization_member(member_id)
 
     async def add_organization_member(
         self, member: OrganizationMemberCreate

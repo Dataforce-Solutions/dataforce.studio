@@ -31,7 +31,7 @@ async def get_user_invites(
     return await organization_handler.get_user_invites(user.email)
 
 
-@invites_router.post("/", response_model=OrganizationInvite)
+@invites_router.post("", response_model=OrganizationInvite)
 async def create_invite_in_organization(
     invite: CreateOrganizationInvite,
     user: Annotated[AuthUser, Depends(get_current_user)],

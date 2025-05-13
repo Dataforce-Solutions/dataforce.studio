@@ -3,6 +3,7 @@ import pytest_asyncio
 from dataforce_studio.settings import config
 from sqlalchemy.ext.asyncio import AsyncConnection
 from utils.db import migrate_db
+from dataforce_studio.schemas.user import AuthProvider
 
 TEST_DB_NAME = "df_studio_test"
 
@@ -46,3 +47,16 @@ async def create_database_and_apply_migrations():  # noqa: ANN201
     yield test_dsn
 
     await _drop_database(admin_dsn, TEST_DB_NAME)
+
+
+@pytest_asyncio.fixture(scope="function")
+def test_user() -> dict:
+    return {
+        "email": "testuser@example.com",
+        "full_name": "Test User",
+        "disabled": False,
+        "email_verified": True,
+        "auth_method": AuthProvider.EMAIL,
+        "photo": None,
+        "hashed_password": "hashed_password",
+    }
