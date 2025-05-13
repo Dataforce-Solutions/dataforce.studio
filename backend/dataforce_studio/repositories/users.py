@@ -1,7 +1,7 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from dataforce_studio.models.organization import (
     Organization,
@@ -13,11 +13,7 @@ from dataforce_studio.models.orm.organization import (
     OrganizationOrm,
 )
 from dataforce_studio.models.orm.user import UserOrm
-from dataforce_studio.models.user import (
-    CreateUser,
-    UpdateUser,
-    User,
-)
+from dataforce_studio.models.user import CreateUser, UpdateUser, User
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.utils.organizations import generate_organization_name
 
@@ -30,7 +26,10 @@ class UserRepository(RepositoryBase):
         async with self._get_session() as session:
             db_user = UserOrm.from_user(create_user)
             session.add(db_user)
+
             await session.flush()
+            await session.refresh(db_user)
+            user_response = db_user.to_user()
 
             db_organization = OrganizationOrm(
                 name=generate_organization_name(
@@ -46,9 +45,9 @@ class UserRepository(RepositoryBase):
                 role=OrgRole.OWNER,
             )
             session.add(db_organization_member)
-            user = db_user.to_user()
+
             await session.commit()
-            return user
+        return user_response
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
@@ -100,6 +99,15 @@ class UserRepository(RepositoryBase):
             session.add(db_organization)
             await session.commit()
         return db_organization
+
+    async def get_organization_members_count(self, organization_id: uuid.UUID) -> int:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(OrganizationMemberOrm)
+                .where(OrganizationMemberOrm.organization_id == organization_id)
+            )
+        return result.scalar() or 0
 
     async def create_organization_member(
         self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole

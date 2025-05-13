@@ -27,9 +27,7 @@ class UserOrm(TimestampMixin, Base):
     def __repr__(self) -> str:
         return f"User(email={self.email!r}, full_name={self.full_name!r}"
 
-    def to_user(
-        self,
-    ) -> User:
+    def to_user(self) -> User:
         return User.model_validate(self)
 
     @classmethod

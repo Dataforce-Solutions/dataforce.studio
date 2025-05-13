@@ -32,18 +32,32 @@ def upgrade() -> None:
         ),
     )
     op.add_column(
-        "users", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True)
+        "users",
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            server_onupdate=sa.text("now()"),
+            nullable=True
+        )
     )
 
     now = datetime.datetime.now(datetime.UTC)
     conn = op.get_bind()
+
+    conn.execute(sa.text("UPDATE users SET updated_at = now()"
+                         "WHERE updated_at IS NULL"))
+    conn.execute(sa.text("UPDATE users SET created_at = now()"
+                         "WHERE created_at IS NULL"))
 
     users = conn.execute(sa.text("SELECT email FROM users")).fetchall()
 
     for (email,) in users:
         conn.execute(
             sa.text(
-                "UPDATE users SET id = :id, created_at = :now WHERE email = :email"
+                "UPDATE users"
+                "SET id = :id, created_at = :now, updated_at = :now"
+                "WHERE email = :email"
             ),
             {"id": str(uuid.uuid4()), "now": now, "email": email},
         )
@@ -51,6 +65,7 @@ def upgrade() -> None:
     op.drop_constraint("users_pkey", "users", type_="primary")
     op.create_primary_key("users_pkey", "users", ["id"])
     op.alter_column("users", "created_at", nullable=False)
+    op.alter_column("users", "updated_at", nullable=False)
 
     op.create_table(
         "organizations",
@@ -100,25 +115,31 @@ def upgrade() -> None:
 
     results = conn.execute(sa.text("SELECT id, email, full_name FROM users")).fetchall()
 
-    for id, email, full_name in results:
+    for id, email, full_name in results:  # noqa: A001
         org_id = uuid.uuid4()
         org_name = f"{full_name or email.split('@')[0]}'s organization"
 
         conn.execute(
             sa.text(
-                "INSERT INTO organizations (id, name, created_at) VALUES (:id, :name, :created_at)"
+                "INSERT INTO organizations"
+                "(id, name, created_at, updated_at)"
+                "VALUES (:id, :name, :created_at, :updated_at)"
             ),
             {
                 "id": str(org_id),
                 "name": org_name,
                 "created_at": now,
+                "updated_at": now,
             },
         )
 
         conn.execute(
             sa.text(
-                """INSERT INTO organization_members (id, user_id, organization_id, role, created_at)
-                   VALUES (:id, :user_id, :organization_id, :role, :created_at)"""
+                """INSERT INTO organization_members
+                (id, user_id, organization_id, role, created_at, updated_at)
+                   VALUES (
+                   :id, :user_id, :organization_id, :role, :created_at, :updated_at
+                   )"""
             ),
             {
                 "id": str(uuid.uuid4()),
@@ -126,6 +147,7 @@ def upgrade() -> None:
                 "organization_id": str(org_id),
                 "role": "OWNER",
                 "created_at": now,
+                "updated_at": now,
             },
         )
 
@@ -133,7 +155,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("organization_members")
     op.drop_table("organizations")
+    op.drop_constraint(None, "users", type_="unique")
     op.drop_column("users", "updated_at")
     op.drop_column("users", "created_at")
     op.drop_column("users", "id")
-    op.create_primary_key("users_pkey", "users", ["email"])
+
