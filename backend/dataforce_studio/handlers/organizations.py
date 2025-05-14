@@ -9,7 +9,6 @@ from dataforce_studio.models.invite import CreateOrganizationInvite, Organizatio
 from dataforce_studio.models.orm.organization import OrganizationInviteOrm
 from dataforce_studio.models.organization import (
     DBOrganizationInvite,
-    DBOrganizationMember,
 )
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository

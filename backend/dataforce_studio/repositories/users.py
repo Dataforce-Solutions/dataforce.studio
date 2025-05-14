@@ -93,8 +93,8 @@ class UserRepository(RepositoryBase):
                 await session.commit()
 
     async def update_user(
-            self,
-            update_user: UpdateUser,
+        self,
+        update_user: UpdateUser,
     ) -> bool:
         async with self._get_session() as session:
             changed = False
@@ -151,7 +151,7 @@ class UserRepository(RepositoryBase):
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
                         detail=f"User with ID {user_id} is already a member "
-                               f"of organization {organization_id}.",
+                        f"of organization {organization_id}.",
                     ) from e
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -160,7 +160,7 @@ class UserRepository(RepositoryBase):
         return OrganizationMember.model_validate(db_organization_member)
 
     async def create_owner(
-            self, user_id: uuid.UUID, organization_id: uuid.UUID
+        self, user_id: uuid.UUID, organization_id: uuid.UUID
     ) -> OrganizationMember:
         return await self.create_organization_member(
             user_id, organization_id, OrgRole.OWNER

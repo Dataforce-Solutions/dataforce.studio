@@ -2,7 +2,7 @@ import uuid
 from enum import StrEnum
 
 from pydantic import HttpUrl
-from sqlalchemy import UUID, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -77,7 +77,7 @@ class DBOrganizationInvite(TimestampMixin, Base):
         UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     invited_by: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id"), nullable=False
+        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     organization: Mapped["DBOrganization"] = relationship(back_populates="invites")

@@ -30,8 +30,11 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    memberships: Mapped[list["DBOrganizationMember"]] = relationship(  # type: ignore[name-defined]
-        "DBOrganizationMember", back_populates="user", lazy="selectin"
+    memberships: Mapped[list["DBOrganizationMember"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "DBOrganizationMember",
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

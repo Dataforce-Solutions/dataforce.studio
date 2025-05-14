@@ -2,15 +2,14 @@
 
 Revision ID: 001
 Revises:
-Create Date: 2025-05-12 19:05:50.420063
+Create Date: 2025-05-13 21:26:31.459317
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "001"
@@ -67,10 +66,7 @@ def upgrade() -> None:
         sa.Column("invited_by", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["invited_by"],
-            ["users.id"],
-        ),
+        sa.ForeignKeyConstraint(["invited_by"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["organization_id"], ["organizations.id"], ondelete="CASCADE"
         ),
@@ -103,4 +99,5 @@ def downgrade() -> None:
     op.drop_table("users")
     op.drop_table("token_black_list")
     op.drop_table("organizations")
+    op.execute("DROP TYPE IF EXISTS authprovider;")
     # ### end Alembic commands ###
