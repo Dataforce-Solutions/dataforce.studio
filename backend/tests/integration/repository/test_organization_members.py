@@ -1,32 +1,33 @@
+import uuid
+
 import pytest
 import pytest_asyncio
 from dataforce_studio.models.organization import OrgRole
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.organization import UpdateOrganizationMember
+from dataforce_studio.schemas.user import AuthProvider, User
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.schemas.organization import UpdateOrganizationMember
-from dataforce_studio.schemas.user import User, AuthProvider
-from fastapi import HTTPException
-from tests.conftest import create_organization_with_user
-
-organization_data = {
-    'name': 'test organization',
-    'logo': None
-}
+organization_data = {"name": "test organization", "logo": None}
 
 organization_member_data = {
-    'user_id': 'test organization',
-    'organization_id': None,
-    'role': None
+    "user_id": "test organization",
+    "organization_id": None,
+    "role": None,
 }
 
 
 @pytest_asyncio.fixture(scope="function")
-async def create_organization_with_members(create_database_and_apply_migrations: str):
+async def create_organization_with_members(
+    create_database_and_apply_migrations: str,
+) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    organization = await repo.create_organization(name="Test org with members", logo=None)
+    organization = await repo.create_organization(
+        name="Test org with members", logo=None
+    )
 
     members = []
 
@@ -58,9 +59,9 @@ async def create_organization_with_members(create_database_and_apply_migrations:
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member(create_organization_with_user) -> None:
+async def test_create_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data['repo'], data['user'], data['organization']
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
 
     created_member = await repo.create_organization_member(
         user.id, created_organization.id, OrgRole.MEMBER
@@ -73,9 +74,11 @@ async def test_create_organization_member(create_organization_with_user) -> None
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member_already_exist(create_organization_with_user) -> None:
+async def test_create_organization_member_already_exist(
+    create_organization_with_user: dict,
+) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data['repo'], data['user'], data['organization']
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
 
     await repo.create_organization_member(
         user.id, created_organization.id, OrgRole.OWNER
@@ -92,13 +95,32 @@ async def test_create_organization_member_already_exist(create_organization_with
 
 
 @pytest.mark.asyncio
-async def test_create_organization_owner(create_organization_with_user) -> None:
+async def test_create_organization_server_error(
+    create_organization_with_user: dict,
+) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data['repo'], data['user'], data['organization']
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
 
-    created_member = await repo.create_owner(
-        user.id, created_organization.id
+    await repo.create_organization_member(
+        user.id, created_organization.id, OrgRole.OWNER
     )
+
+    with pytest.raises(HTTPException) as error:
+        await repo.create_organization_member(
+            user_id=str(uuid.uuid4()),
+            organization_id=created_organization.id,
+            role=OrgRole.ADMIN,
+        )
+
+    assert error.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_create_organization_owner(create_organization_with_user: dict) -> None:
+    data = create_organization_with_user
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
+
+    created_member = await repo.create_owner(user.id, created_organization.id)
 
     assert created_member.id
     assert created_member.organization_id == created_organization.id
@@ -107,19 +129,16 @@ async def test_create_organization_owner(create_organization_with_user) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_organization_member(create_organization_with_user) -> None:
+async def test_update_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data['repo'], data['user'], data['organization']
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
 
     created_member = await repo.create_organization_member(
         user.id, created_organization.id, OrgRole.MEMBER
     )
 
     updated_member = await repo.update_organization_member(
-        UpdateOrganizationMember(**{
-            "id": created_member.id,
-            "role": OrgRole.ADMIN
-        })
+        UpdateOrganizationMember(**{"id": created_member.id, "role": OrgRole.ADMIN})
     )
 
     assert updated_member.id == created_member.id
@@ -127,26 +146,29 @@ async def test_update_organization_member(create_organization_with_user) -> None
 
 
 @pytest.mark.asyncio
-async def test_delete_organization_member(create_organization_with_user) -> None:
+async def test_delete_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data['repo'], data['user'], data['organization']
+    repo, user, created_organization = data["repo"], data["user"], data["organization"]
 
     created_member = await repo.create_organization_member(
         user.id, created_organization.id, OrgRole.MEMBER
     )
 
     deleted_member = await repo.delete_organization_member(created_member.id)
-    org_members_count = await repo.get_organization_members_count(created_organization.id)
+    org_members_count = await repo.get_organization_members_count(
+        created_organization.id
+    )
 
     assert deleted_member is None
     assert org_members_count == 0 or org_members_count is None
 
 
 @pytest.mark.asyncio
-async def test_get_organization_members_count(create_organization_with_members) -> None:
+async def test_get_organization_members_count(
+    create_organization_with_members: dict,
+) -> None:
     data = create_organization_with_members
-    repo, organization, members = (
-        data['repo'], data['organization'], data['members'])
+    repo, organization, members = (data["repo"], data["organization"], data["members"])
 
     count = await repo.get_organization_members_count(organization.id)
 
@@ -154,10 +176,9 @@ async def test_get_organization_members_count(create_organization_with_members) 
 
 
 @pytest.mark.asyncio
-async def test_get_organization_members(create_organization_with_members) -> None:
+async def test_get_organization_members(create_organization_with_members: dict) -> None:
     data = create_organization_with_members
-    repo, organization, members = (
-        data['repo'], data['organization'], data['members'])
+    repo, organization, members = (data["repo"], data["organization"], data["members"])
 
     db_members = await repo.get_organization_members(organization.id)
 

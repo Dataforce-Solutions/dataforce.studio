@@ -76,7 +76,9 @@ class InviteRepository(RepositoryBase):
             await session.execute(delete(OrganizationInviteOrm).where(*conditions))
             await session.commit()
 
-    async def delete_organization_invites_for_user(self, organization_id: uuid.UUID, email: str) -> None:
+    async def delete_organization_invites_for_user(
+        self, organization_id: uuid.UUID, email: str
+    ) -> None:
         return await self.delete_organization_invites_where(
             DBOrganizationInvite.organization_id == organization_id,
             DBOrganizationInvite.email == email,
