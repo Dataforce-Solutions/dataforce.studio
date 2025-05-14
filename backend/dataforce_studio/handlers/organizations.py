@@ -67,9 +67,8 @@ class OrganizationHandler:
         await self.__user_repository.create_organization_member(
             user_id, invite.organization_id, invite.role
         )
-        await self.__invites_repository.delete_organization_invites_where(
-            OrganizationInviteOrm.organization_id == invite.organization_id,
-            OrganizationInviteOrm.email == invite.email,
+        await self.__invites_repository.delete_organization_invites_for_user(
+            invite.organization_id, invite.email
         )
 
     async def reject_invite(self, invite_id: uuid.UUID) -> None:

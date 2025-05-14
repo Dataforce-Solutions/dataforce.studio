@@ -59,10 +59,7 @@ class DBOrganizationMember(TimestampMixin, Base):
     organization: Mapped["DBOrganization"] = relationship(back_populates="members")
 
     def __repr__(self) -> str:
-        return (
-            f"OrganizationMember(id={self.id!r}, user_id={self.user_id!r}, "
-            f"organization={self.organization.id!r})"
-        )
+        return f"OrganizationMember(id={self.id!r}, user_id={self.user_id!r})"
 
 
 class DBOrganizationInvite(TimestampMixin, Base):
@@ -85,5 +82,5 @@ class DBOrganizationInvite(TimestampMixin, Base):
     def __repr__(self) -> str:
         return (
             f"OrganizationInvite(id={self.id!r}, email={self.email!r}, "
-            f"role={self.role!r}, organization={self.organization.id!r})"
+            f"role={self.role!r})"
         )
