@@ -3,10 +3,15 @@ import uuid
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.models.errors import OrganizationLimitReachedError
-from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
-from dataforce_studio.models.orm.organization import OrganizationInviteOrm
+from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
+from dataforce_studio.schemas.organization import (
+    OrganizationMember,
+    OrganizationMemberCreate,
+    UpdateOrganizationMember,
+)
 
 
 class OrganizationHandler:
@@ -54,9 +59,8 @@ class OrganizationHandler:
         await self.__user_repository.create_organization_member(
             user_id, invite.organization_id, invite.role
         )
-        await self.__invites_repository.delete_organization_invites_where(
-            OrganizationInviteOrm.organization_id == invite.organization_id,
-            OrganizationInviteOrm.email == invite.email,
+        await self.__invites_repository.delete_organization_invites_for_user(
+            invite.organization_id, invite.email
         )
 
     async def reject_invite(self, invite_id: uuid.UUID) -> None:
@@ -77,3 +81,23 @@ class OrganizationHandler:
         """Handle listing all invites sent to user"""
 
         return await self.__invites_repository.get_invites_by_user_email(email)
+
+    async def get_organization_members_data(
+        self, organization_id: uuid.UUID
+    ) -> list[OrganizationMember]:
+        return await self.__user_repository.get_organization_members(organization_id)
+
+    async def update_organization_member_by_id(
+        self, member: UpdateOrganizationMember
+    ) -> OrganizationMember | None:
+        return await self.__user_repository.update_organization_member(member)
+
+    async def delete_organization_member_by_id(self, member_id: uuid.UUID) -> None:
+        return await self.__user_repository.delete_organization_member(member_id)
+
+    async def add_organization_member(
+        self, member: OrganizationMemberCreate
+    ) -> OrganizationMember:
+        return await self.__user_repository.create_organization_member(
+            member.user_id, member.organization_id, member.role
+        )

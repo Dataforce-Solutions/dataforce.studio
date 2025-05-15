@@ -38,6 +38,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
 
             try:
                 user = await self.auth_handler.handle_get_current_user(email)
+
                 auth_user = AuthUser(
                     user_id=user.id,
                     email=user.email,

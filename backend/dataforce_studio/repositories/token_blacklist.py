@@ -1,8 +1,8 @@
 import time
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from dataforce_studio.models.orm.token_black_list import TokenBlackListOrm
+from dataforce_studio.models import TokenBlackListOrm
 from dataforce_studio.repositories.base import RepositoryBase
 
 
@@ -24,7 +24,7 @@ class TokenBlackListRepository(RepositoryBase):
     async def delete_expired_tokens(self) -> None:
         async with self._get_session() as session:
             await session.execute(
-                select(TokenBlackListOrm).filter(
+                delete(TokenBlackListOrm).filter(
                     TokenBlackListOrm.expire_at < int(time.time())
                 )
             )

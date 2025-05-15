@@ -13,16 +13,17 @@ from dataforce_studio.models.auth import (
     Token,
 )
 from dataforce_studio.models.errors import AuthError
-from dataforce_studio.models.user import (
+from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
     UpdateUser,
     UpdateUserIn,
     User,
+    UserResponse,
 )
-from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
-from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.settings import config
 
 
@@ -171,8 +172,8 @@ class AuthHandler:
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> User:
-        user = await self.__user_repository.get_user(email)
+    async def handle_get_current_user(self, email: EmailStr) -> UserResponse:
+        user = await self.__user_repository.get_public_user(email)
         if user is None:
             raise AuthError("User not found", 404)
 
@@ -258,7 +259,7 @@ class AuthHandler:
                 )
             )
 
-        if photo_url != user.photo:
+        if user and photo_url != user.photo:
             await self.__user_repository.update_user(
                 UpdateUser(email=email, photo=photo_url)
             )

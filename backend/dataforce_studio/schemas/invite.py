@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
 
-from dataforce_studio.models.organization import OrgRole
+from dataforce_studio.schemas.organization import OrgRole
 
 
 class CreateOrganizationInvite(BaseModel):

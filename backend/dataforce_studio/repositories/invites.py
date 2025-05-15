@@ -3,9 +3,9 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 
-from dataforce_studio.models.invite import OrganizationInvite
-from dataforce_studio.models.orm.organization import OrganizationInviteOrm
+from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.schemas.invite import OrganizationInvite
 
 
 class InviteRepository(RepositoryBase):
@@ -72,3 +72,11 @@ class InviteRepository(RepositoryBase):
         async with self._get_session() as session, session.begin():
             await session.execute(delete(OrganizationInviteOrm).where(*conditions))
             await session.commit()
+
+    async def delete_organization_invites_for_user(
+        self, organization_id: uuid.UUID, email: str
+    ) -> None:
+        return await self.delete_organization_invites_where(
+            OrganizationInviteOrm.organization_id == organization_id,
+            OrganizationInviteOrm.email == email,
+        )

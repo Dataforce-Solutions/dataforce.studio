@@ -1,60 +1,45 @@
 import uuid
-from enum import Enum
 
-from pydantic import BaseModel, EmailStr
+from pydantic import EmailStr, HttpUrl
+from sqlalchemy import Boolean, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from dataforce_studio.models.base import BaseOrmConfig
-
-
-class AuthProvider(str, Enum):
-    EMAIL = "EMAIL"
-    GOOGLE = "GOOGLE"
+from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.schemas.user import CreateUser, User, UserResponse
 
 
-class _UserBase(BaseModel):
-    email: EmailStr
-    full_name: str | None = None
-    disabled: bool | None = None
-    email_verified: bool = False
-    auth_method: AuthProvider
-    photo: str | None = None
-    hashed_password: str | None = None
+class UserOrm(TimestampMixin, Base):
+    __tablename__ = "users"
 
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
+    )
+    email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    auth_method: Mapped[str] = mapped_column(String, nullable=False)
+    photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
-class CreateUser(_UserBase): ...
+    memberships: Mapped[list["OrganizationMemberOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "OrganizationMemberOrm",
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
+    def __repr__(self) -> str:
+        return f"User(email={self.email!r}, full_name={self.full_name!r})"
 
-class User(_UserBase, BaseOrmConfig):
-    id: uuid.UUID
+    def to_user(self) -> User:
+        return User.model_validate(self)
 
+    def to_public_user(self) -> UserResponse:
+        return UserResponse.model_validate(self)
 
-class UserResponse(_UserBase):
-    id: uuid.UUID | None = None
-    email: EmailStr
-    full_name: str | None = None
-    disabled: bool | None = None
-    photo: str | None = None
-
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
-
-
-class CreateUserIn(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str | None = None
-    photo: str | None = None
-
-
-class UpdateUserIn(BaseModel):
-    hashed_password: str | None = None
-    full_name: str | None = None
-    disabled: bool | None = None
-    auth_method: AuthProvider | None = None
-    photo: str | None = None
-
-
-class UpdateUser(UpdateUserIn):
-    email: EmailStr
-    email_verified: bool | None = None
+    @classmethod
+    def from_user(cls, user: CreateUser) -> "UserOrm":
+        return UserOrm(
+            **user.model_dump(),
+        )
