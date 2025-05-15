@@ -1,8 +1,9 @@
-import datetime
+from datetime import datetime
 
 from pydantic import ConfigDict
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql import func
 
 
 class BaseOrmConfig:
@@ -14,14 +15,14 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime.datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.UTC),
+        server_default=func.now(),
         nullable=False,
     )
 
-    updated_at: Mapped[datetime.datetime] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=func.now(),
         nullable=True,
     )

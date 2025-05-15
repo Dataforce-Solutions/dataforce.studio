@@ -51,7 +51,7 @@ class OrganizationMemberOrm(TimestampMixin, Base):
     )
 
     role: Mapped[str] = mapped_column(String, nullable=False)
-    # noqa: F821
+
     user: Mapped["UserOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "UserOrm", back_populates="memberships", lazy="selectin"
     )

@@ -30,7 +30,7 @@ class User(_UserBase, BaseOrmConfig):
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID | None = None
+    id: uuid.UUID
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None

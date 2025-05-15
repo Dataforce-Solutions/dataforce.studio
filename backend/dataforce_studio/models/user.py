@@ -1,11 +1,11 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, Enum, String
+from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.user import AuthProvider, CreateUser, User, UserResponse
+from dataforce_studio.schemas.user import CreateUser, User, UserResponse
 
 
 class UserOrm(TimestampMixin, Base):
@@ -18,9 +18,7 @@ class UserOrm(TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    auth_method: Mapped[AuthProvider] = mapped_column(
-        Enum(AuthProvider), nullable=False
-    )
+    auth_method: Mapped[str] = mapped_column(String, nullable=False)
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -38,7 +36,7 @@ class UserOrm(TimestampMixin, Base):
         return User.model_validate(self)
 
     def to_public_user(self) -> UserResponse:
-        return UserResponse.model_validate(self.__dict__)
+        return UserResponse.model_validate(self)
 
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":

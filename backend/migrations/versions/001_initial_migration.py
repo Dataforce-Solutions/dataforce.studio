@@ -2,7 +2,7 @@
 
 Revision ID: 001
 Revises:
-Create Date: 2025-05-13 21:26:31.459317
+Create Date: 2025-05-15 18:01:36.374080
 
 """
 
@@ -25,7 +25,12 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("logo", sa.String(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("id"),
@@ -44,14 +49,15 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(), nullable=True),
         sa.Column("disabled", sa.Boolean(), nullable=False),
         sa.Column("email_verified", sa.Boolean(), nullable=False),
-        sa.Column(
-            "auth_method",
-            sa.Enum("EMAIL", "GOOGLE", name="authprovider"),
-            nullable=False,
-        ),
+        sa.Column("auth_method", sa.String(), nullable=False),
         sa.Column("photo", sa.String(), nullable=True),
         sa.Column("hashed_password", sa.String(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email"),
@@ -64,7 +70,12 @@ def upgrade() -> None:
         sa.Column("role", sa.String(), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("invited_by", sa.UUID(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["invited_by"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
@@ -79,7 +90,12 @@ def upgrade() -> None:
         sa.Column("user_id", sa.UUID(), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("role", sa.String(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["organization_id"], ["organizations.id"], ondelete="CASCADE"
@@ -99,5 +115,4 @@ def downgrade() -> None:
     op.drop_table("users")
     op.drop_table("token_black_list")
     op.drop_table("organizations")
-    op.execute("DROP TYPE IF EXISTS authprovider;")
     # ### end Alembic commands ###
