@@ -22,7 +22,7 @@ from dataforce_studio.schemas.user import (
     CreateUser,
     UpdateUser,
     User,
-    UserResponse,
+    UserOut,
 )
 from dataforce_studio.utils.organizations import generate_organization_name
 
@@ -66,7 +66,7 @@ class UserRepository(RepositoryBase):
             db_user = result.scalar_one_or_none()
             return db_user.to_user() if db_user else None
 
-    async def get_public_user(self, email: str) -> UserResponse | None:
+    async def get_public_user(self, email: str) -> UserOut | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(UserOrm).filter(UserOrm.email == email)

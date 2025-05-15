@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import BaseModel, EmailStr
 
-from dataforce_studio.models.base import BaseOrmConfig
+from dataforce_studio.schemas.base import BaseOrmConfig
 
 
 class AuthProvider(str, Enum):
@@ -29,16 +29,12 @@ class User(_UserBase, BaseOrmConfig):
     id: uuid.UUID
 
 
-class UserResponse(BaseModel):
+class UserOut(BaseModel, BaseOrmConfig):
     id: uuid.UUID
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
     photo: str | None = None
-
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
 
 
 class CreateUserIn(BaseModel):
@@ -49,7 +45,7 @@ class CreateUserIn(BaseModel):
 
 
 class UpdateUserIn(BaseModel):
-    hashed_password: str | None = None
+    password: str | None = None
     full_name: str | None = None
     disabled: bool | None = None
     auth_method: AuthProvider | None = None
@@ -59,3 +55,4 @@ class UpdateUserIn(BaseModel):
 class UpdateUser(UpdateUserIn):
     email: EmailStr
     email_verified: bool | None = None
+    hashed_password: str | None = None

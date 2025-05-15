@@ -3,8 +3,8 @@ from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
 from dataforce_studio.handlers.auth import AuthHandler
+from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models.auth import AuthUser
-from dataforce_studio.models.errors import AuthError
 from dataforce_studio.settings import config
 
 
@@ -33,12 +33,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
 
             try:
                 email = self.auth_handler._verify_token(token)
-            except AuthError:
-                return None
-
-            try:
                 user = await self.auth_handler.handle_get_current_user(email)
-
                 auth_user = AuthUser(
                     user_id=user.id,
                     email=user.email,

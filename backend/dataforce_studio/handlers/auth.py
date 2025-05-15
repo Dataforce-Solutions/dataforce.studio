@@ -9,10 +9,10 @@ from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
+from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models.auth import (
     Token,
 )
-from dataforce_studio.models.errors import AuthError
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.user import (
@@ -22,7 +22,7 @@ from dataforce_studio.schemas.user import (
     UpdateUser,
     UpdateUserIn,
     User,
-    UserResponse,
+    UserOut,
 )
 from dataforce_studio.settings import config
 
@@ -163,16 +163,22 @@ class AuthHandler:
     ) -> bool:
         if not await self.__user_repository.get_user(email):
             raise AuthError("User not found", 404)
-
+        hashed_password = (
+            self._get_password_hash(update_user.password)
+            if update_user.password
+            else None
+        )
         update_user = UpdateUser(
             **update_user.model_dump(exclude_unset=True), email=email
         )
+        if hashed_password:
+            update_user.hashed_password = hashed_password
         return await self.__user_repository.update_user(update_user)
 
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> UserResponse:
+    async def handle_get_current_user(self, email: EmailStr) -> UserOut:
         user = await self.__user_repository.get_public_user(email)
         if user is None:
             raise AuthError("User not found", 404)
@@ -206,7 +212,9 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    async def handle_google_auth(self, code: str) -> Token:
+    async def handle_google_auth(self, code: str | None) -> Token:
+        if not code:
+            raise AuthError("Google callback code is missing")
         data = {
             "code": code,
             "client_id": config.GOOGLE_CLIENT_ID,

@@ -1,0 +1,60 @@
+from fastapi import status
+
+
+class ServiceError(Exception):
+    def __init__(
+        self,
+        message: str = "Service error",
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+    ) -> None:
+        self.message = message
+        self.status_code = status_code
+        super().__init__(self.message)
+
+
+class AuthError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Authentication error",
+        status_code: int = status.HTTP_401_UNAUTHORIZED,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
+class OrganizationLimitReachedError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Organization reached users limit",
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
+class GoogleCodeMissingError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Google code is missing",
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
+class NotFoundError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Not found",
+        status_code: int = status.HTTP_404_NOT_FOUND,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )

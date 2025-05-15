@@ -2,7 +2,7 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.models.errors import OrganizationLimitReachedError
+from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -34,8 +34,6 @@ class OrganizationHandler:
             )
 
     async def send_invite(self, invite: CreateOrganizationInvite) -> OrganizationInvite:
-        """Handle sending invite to organization"""
-
         await self.check_org_members_limit(invite.organization_id)
 
         db_invite = await self.__invites_repository.create_organization_invite(
@@ -46,13 +44,9 @@ class OrganizationHandler:
         return db_invite
 
     async def cancel_invite(self, invite_id: uuid.UUID) -> None:
-        """Handle canceling invite to organization"""
-
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def accept_invite(self, invite_id: uuid.UUID, user_id: uuid.UUID) -> None:
-        """Handle accepting invite to organization"""
-
         invite = await self.__invites_repository.get_invite(invite_id)
 
         await self.check_org_members_limit(invite.organization_id, 1)
@@ -64,22 +58,16 @@ class OrganizationHandler:
         )
 
     async def reject_invite(self, invite_id: uuid.UUID) -> None:
-        """Handle rejecting invite to organization"""
-
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def get_organization_invites(
         self, organization_id: uuid.UUID
     ) -> list[OrganizationInvite]:
-        """Handle listing all organization's invite"""
-
         return await self.__invites_repository.get_invites_by_organization_id(
             organization_id
         )
 
     async def get_user_invites(self, email: str) -> list[OrganizationInvite]:
-        """Handle listing all invites sent to user"""
-
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(

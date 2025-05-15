@@ -1,16 +1,15 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Request
 from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.infra.dependencies import get_current_user
-from dataforce_studio.models.auth import AuthUser, Token
-from dataforce_studio.models.errors import AuthError
-from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, User, UserResponse
+from dataforce_studio.infra.dependencies import is_user_authenticated
+from dataforce_studio.models.auth import Token
+from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, User, UserOut
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -21,20 +20,9 @@ auth_handler = AuthHandler(
 )
 
 
-def handle_auth_error(error: AuthError) -> HTTPException:
-    return HTTPException(
-        status_code=error.status_code,
-        detail=error.message,
-        headers={"WWW-Authenticate": "Bearer"} if error.status_code == 401 else None,
-    )
-
-
 @auth_router.post("/signup", response_model=dict)
 async def signup(create_user: CreateUserIn) -> dict[str, str]:
-    try:
-        return await auth_handler.handle_signup(create_user)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    return await auth_handler.handle_signup(create_user)
 
 
 @auth_router.post("/signin", response_model=Token)
@@ -42,10 +30,7 @@ async def signin(
     email: Annotated[EmailStr, Body()],
     password: Annotated[str, Body(min_length=8)],
 ) -> Token:
-    try:
-        return await auth_handler.handle_signin(email, password)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    return await auth_handler.handle_signin(email, password)
 
 
 @auth_router.get("/google/login")
@@ -63,57 +48,46 @@ async def google_login() -> RedirectResponse:
 
 
 @auth_router.get("/google/callback")
-async def google_callback(request: Request, code: str | None = None) -> Token:
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing code in callback")
-    try:
-        return await auth_handler.handle_google_auth(code)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+async def google_callback(code: str | None = None) -> Token:
+    return await auth_handler.handle_google_auth(code)
 
 
 @auth_router.post("/refresh", response_model=Token)
 async def refresh(refresh_token: Annotated[str, Body()]) -> Token:
-    try:
-        return await auth_handler.handle_refresh_token(refresh_token)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    return await auth_handler.handle_refresh_token(refresh_token)
 
 
 @auth_router.post("/forgot-password")
 async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
-    try:
-        await auth_handler.send_password_reset_email(email)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    await auth_handler.send_password_reset_email(email)
     return {"detail": "Password reset email has been sent"}
 
 
 @auth_router.get("/users/me", response_model=User)
 async def get_current_user_info(
-    user: Annotated[AuthUser, Depends(get_current_user)],
-) -> UserResponse:
-    return await auth_handler.handle_get_current_user(user.email)
+    request: Request,
+    _: Annotated[None, Depends(is_user_authenticated)],
+) -> UserOut:
+    return await auth_handler.handle_get_current_user(request.user.email)
 
 
 @auth_router.delete("/users/me")
 async def delete_account(
     request: Request,
 ) -> dict[str, str]:
-    try:
-        await auth_handler.handle_delete_account(request.user.email)
-        return {"detail": "Account deleted successfully"}
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    await auth_handler.handle_delete_account(request.user.email)
+    return {"detail": "Account deleted successfully"}
 
 
 @auth_router.patch("/users/me")
 async def update_user_profile(
-    update_user: UpdateUserIn, user: Annotated[AuthUser, Depends(get_current_user)]
+    request: Request,
+    update_user: UpdateUserIn,
+    _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
     return {
         "detail": "User profile updated successfully"
-        if (await auth_handler.update_user(user.email, update_user))
+        if (await auth_handler.update_user(request.user.email, update_user))
         else "No changes made to the user profile"
     }
 
@@ -123,24 +97,18 @@ async def logout(
     request: Request,
     refresh_token: Annotated[str, Body()],
 ) -> dict[str, str]:
-    try:
-        auth_header = request.headers.get("Authorization")
-        access_token = auth_header.split()[1] if auth_header else None
-        await auth_handler.handle_logout(access_token, refresh_token)
-        return {"detail": "Successfully logged out"}
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    auth_header = request.headers.get("Authorization")
+    access_token = auth_header.split()[1] if auth_header else None
+    await auth_handler.handle_logout(access_token, refresh_token)
+    return {"detail": "Successfully logged out"}
 
 
 @auth_router.get("/confirm-email")
 async def confirm_email(
     confirmation_token: str,
 ) -> RedirectResponse:
-    try:
-        await auth_handler.handle_email_confirmation(confirmation_token)
-        return RedirectResponse(config.CONFIRM_EMAIL_REDIRECT_URL)
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    await auth_handler.handle_email_confirmation(confirmation_token)
+    return RedirectResponse(config.CONFIRM_EMAIL_REDIRECT_URL)
 
 
 @auth_router.post("/reset-password")
@@ -148,8 +116,5 @@ async def reset_password(
     reset_token: Annotated[str, Body()],
     new_password: Annotated[str, Body(min_length=8)],
 ) -> dict[str, str]:
-    try:
-        await auth_handler.handle_reset_password(reset_token, new_password)
-        return {"detail": "Password reset successfully"}
-    except AuthError as e:
-        raise handle_auth_error(e) from e
+    await auth_handler.handle_reset_password(reset_token, new_password)
+    return {"detail": "Password reset successfully"}

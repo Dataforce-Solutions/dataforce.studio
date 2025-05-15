@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.user import CreateUser, User, UserResponse
+from dataforce_studio.schemas.user import CreateUser, User, UserOut
 
 
 class UserOrm(TimestampMixin, Base):
@@ -35,8 +35,8 @@ class UserOrm(TimestampMixin, Base):
     def to_user(self) -> User:
         return User.model_validate(self)
 
-    def to_public_user(self) -> UserResponse:
-        return UserResponse.model_validate(self)
+    def to_public_user(self) -> UserOut:
+        return UserOut.model_validate(self)
 
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":

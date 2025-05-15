@@ -5,8 +5,8 @@ from uuid import uuid4
 import jwt
 import pytest
 from dataforce_studio.handlers.auth import AuthHandler
+from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models.auth import Token
-from dataforce_studio.models.errors import AuthError
 from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -14,7 +14,7 @@ from dataforce_studio.schemas.user import (
     UpdateUser,
     UpdateUserIn,
     User,
-    UserResponse,
+    UserOut,
 )
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
@@ -518,7 +518,7 @@ async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
 )
 @pytest.mark.asyncio
 async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
-    user = UserResponse(**user_data)
+    user = UserOut(**user_data)
     mock_get_public_user.return_value = user
 
     result = await handler.handle_get_current_user(user.email)
@@ -535,7 +535,7 @@ async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
 async def test_handle_get_current_user_not_found(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    user = UserResponse(**user_data)
+    user = UserOut(**user_data)
     mock_get_public_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -555,7 +555,7 @@ async def test_handle_get_current_account_is_disabled(
 ) -> None:
     disabled_user_data = user_data.copy()
     disabled_user_data["disabled"] = True
-    user = UserResponse(**disabled_user_data)
+    user = UserOut(**disabled_user_data)
 
     mock_get_public_user.return_value = user
 
