@@ -4,11 +4,13 @@ from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.models.organization import DBOrganizationInvite, OrgRole
+from dataforce_studio.models import OrganizationInviteOrm
+from dataforce_studio.models.errors import OrganizationLimitReachedError
 from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
 from dataforce_studio.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
+    OrgRole,
     UpdateOrganizationMember,
 )
 
@@ -64,7 +66,8 @@ async def test_check_org_members_limit_raises(
     mock_get_organization_members_count.return_value = 10
 
     with pytest.raises(
-        ValueError, match="Organization reached maximum number of users"
+        OrganizationLimitReachedError,
+        match="Organization reached maximum number of users",
     ):
         await handler.check_org_members_limit(organization_id=uuid4(), num=1)
 
@@ -90,7 +93,7 @@ async def test_send_invite(
     mock_send_organization_invite_email: MagicMock,
 ) -> None:
     invite = CreateOrganizationInvite(**invite_data)
-    mocked_invite = DBOrganizationInvite(**invite.model_dump())
+    mocked_invite = OrganizationInviteOrm(**invite.model_dump())
 
     mock_get_organization_members_count.return_value = 0
     mock_create_organization_invite.return_value = mocked_invite
@@ -102,7 +105,7 @@ async def test_send_invite(
     mock_send_organization_invite_email.assert_called_once()
     mock_create_organization_invite.assert_awaited_once()
     # mock_create_organization_invite.assert_called_once_with(
-    #     DBOrganizationInvite(**invite.model_dump()))
+    #     OrganizationInviteOrm(**invite.model_dump()))
 
 
 @patch(
@@ -147,7 +150,7 @@ async def test_accept_invite(
     mock_get_organization_members_count: AsyncMock,
 ) -> None:
     user_id = uuid4()
-    invite = DBOrganizationInvite(**invite_accept_data)
+    invite = OrganizationInviteOrm(**invite_accept_data)
 
     mock_get_invite.return_value = invite
     mock_get_organization_members_count.return_value = 0

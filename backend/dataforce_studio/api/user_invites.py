@@ -6,7 +6,7 @@ from starlette.authentication import UnauthenticatedUser
 from dataforce_studio.api.auth import handle_auth_error
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.models.errors import AuthError
-from dataforce_studio.models.invite import OrganizationInvite
+from dataforce_studio.schemas.invite import OrganizationInvite
 
 user_invites_router = APIRouter(prefix="/organization")
 

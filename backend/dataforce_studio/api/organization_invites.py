@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, status
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.dependencies import get_current_user
 from dataforce_studio.models.auth import AuthUser
-from dataforce_studio.models.organization import DBOrganizationInvite
 from dataforce_studio.schemas.invite import (
     CreateOrganizationInvite,
     OrganizationInvite,
@@ -35,7 +34,7 @@ async def get_user_invites(
 async def create_invite_in_organization(
     invite: CreateOrganizationInvite,
     user: Annotated[AuthUser, Depends(get_current_user)],
-) -> DBOrganizationInvite:
+) -> OrganizationInvite:
     return await organization_handler.send_invite(invite)
 
 

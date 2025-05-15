@@ -29,18 +29,6 @@ class User(_UserBase, BaseOrmConfig):
     id: uuid.UUID
 
 
-class UserResponse(_UserBase):
-    id: uuid.UUID | None = None
-    email: EmailStr
-    full_name: str | None = None
-    disabled: bool | None = None
-    photo: str | None = None
-
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
-
-
 class UserResponse(BaseModel):
     id: uuid.UUID | None = None
     email: EmailStr

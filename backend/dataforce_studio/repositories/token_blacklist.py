@@ -2,7 +2,7 @@ import time
 
 from sqlalchemy import delete, select
 
-from dataforce_studio.models.orm.token_black_list import TokenBlackListOrm
+from dataforce_studio.models import TokenBlackListOrm
 from dataforce_studio.repositories.base import RepositoryBase
 
 

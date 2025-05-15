@@ -7,29 +7,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from dataforce_studio.models.organization import (
-    DBOrganization,
-    DBOrganizationMember,
-    OrgRole,
-)
-from dataforce_studio.models.orm import UserOrm
-from dataforce_studio.repositories.base import RepositoryBase
-from dataforce_studio.schemas.organization import (
-    OrganizationMember,
-    UpdateOrganizationMember,
-)
-from dataforce_studio.schemas.user import (
-    UpdateUser,
-    User,
-    UserResponse,
-
-from dataforce_studio.models.organization import OrgRole
-from dataforce_studio.models.orm.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
-from dataforce_studio.models.orm.user import UserOrm
-from dataforce_studio.models.user import CreateUser, UpdateUser, User
+from dataforce_studio.models.user import UserOrm
 from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.schemas.organization import (
+    Organization,
+    OrganizationMember,
+    OrgRole,
+    UpdateOrganizationMember,
+)
+from dataforce_studio.schemas.user import (
+    CreateUser,
+    UpdateUser,
+    User,
+    UserResponse,
+)
 from dataforce_studio.utils.organizations import generate_organization_name
 
 
@@ -63,7 +57,6 @@ class UserRepository(RepositoryBase):
 
             await session.commit()
         return user_response
-
 
     async def get_user(self, email: str) -> User | None:
         async with self._get_session() as session:
@@ -135,7 +128,7 @@ class UserRepository(RepositoryBase):
         return result.scalar() or 0
 
     async def create_organization_member(
-            self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
+        self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
     ) -> OrganizationMember:
         async with self._get_session() as session:
             db_organization_member = OrganizationMemberOrm(
@@ -202,11 +195,11 @@ class UserRepository(RepositoryBase):
             ]
 
     async def update_organization_member_where(
-            self, member: UpdateOrganizationMember, *where_conditions
+        self, member: UpdateOrganizationMember, *where_conditions
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(DBOrganizationMember).where(*where_conditions)
+                select(OrganizationMemberOrm).where(*where_conditions)
             )
             db_member = result.scalar_one_or_none()
 
@@ -215,7 +208,7 @@ class UserRepository(RepositoryBase):
 
             fields_to_update = member.model_dump(exclude_unset=True)
             if not fields_to_update:
-                return OrganizationMember.model_validate(db_member)
+                return db_member.to_organization_member()
 
             for field, value in fields_to_update.items():
                 setattr(db_member, field, value)
@@ -223,19 +216,19 @@ class UserRepository(RepositoryBase):
             await session.commit()
             await session.refresh(db_member)
 
-            return OrganizationMember.model_validate(db_member)
+            return db_member.to_organization_member()
 
     async def update_organization_member(
-            self, member: UpdateOrganizationMember
+        self, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         return await self.update_organization_member_where(
-            member, DBOrganizationMember.id == member.id
+            member, OrganizationMemberOrm.id == member.id
         )
 
     async def delete_organization_member_where(self, *where_conditions) -> None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(DBOrganizationMember).where(*where_conditions)
+                select(OrganizationMemberOrm).where(*where_conditions)
             )
             member = result.scalar_one_or_none()
 
@@ -245,33 +238,33 @@ class UserRepository(RepositoryBase):
 
     async def delete_organization_member(self, member_id: uuid.UUID) -> None:
         return await self.delete_organization_member_where(
-            DBOrganizationMember.id == member_id
+            OrganizationMemberOrm.id == member_id
         )
 
     async def get_organization_members_where(
-            self, *where_conditions
+        self, *where_conditions
     ) -> list[OrganizationMember]:
         async with self._get_session() as session, session.begin():
             result = await session.execute(
-                select(DBOrganizationMember)
-                .options(joinedload(DBOrganizationMember.user))
+                select(OrganizationMemberOrm)
+                .options(joinedload(OrganizationMemberOrm.user))
                 .where(*where_conditions)
                 .order_by(
                     case(
-                        (DBOrganizationMember.role == "OWNER", 0),
-                        (DBOrganizationMember.role == "ADMIN", 1),
-                        (DBOrganizationMember.role == "MEMBER", 2),
+                        (OrganizationMemberOrm.role == "OWNER", 0),
+                        (OrganizationMemberOrm.role == "ADMIN", 1),
+                        (OrganizationMemberOrm.role == "MEMBER", 2),
                         else_=3,
                     ),
-                    DBOrganizationMember.created_at,
+                    OrganizationMemberOrm.created_at,
                 )
             )
             members = result.scalars().all()
             return [OrganizationMember.model_validate(member) for member in members]
 
     async def get_organization_members(
-            self, organization_id: uuid.UUID
+        self, organization_id: uuid.UUID
     ) -> list[OrganizationMember]:
         return await self.get_organization_members_where(
-            DBOrganizationMember.organization_id == organization_id
+            OrganizationMemberOrm.organization_id == organization_id
         )

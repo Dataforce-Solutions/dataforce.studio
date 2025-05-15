@@ -1,7 +1,14 @@
 import pytest
 import pytest_asyncio
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import UpdateUser, User, UserResponse
+from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.user import (
+    AuthProvider,
+    CreateUser,
+    UpdateUser,
+    User,
+    UserResponse,
+)
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
@@ -12,7 +19,7 @@ async def get_created_user(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    user = await repo.create_user(User(**test_user))
+    user = await repo.create_user(CreateUser(**test_user))
 
     return {
         "engine": engine,
@@ -22,17 +29,31 @@ async def get_created_user(
 
 
 @pytest.mark.asyncio
-async def test_create_user(
-    create_database_and_apply_migrations: str, test_user: dict
+async def test_create_user_and_organization(
+    create_database_and_apply_migrations: str,
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
-    user = User(**test_user)
+    user = CreateUser(
+        email="test@email.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password="hashed_password",
+    )
 
     created_user = await repo.create_user(user)
-
     fetched_user = await repo.get_user(user.email)
+    fetched_org = (await repo.get_user_organizations(fetched_user.id, OrgRole.OWNER))[0]
+    fetched_org_member = (
+        await repo.get_organization_users(fetched_org.id, OrgRole.OWNER)
+    )[0]
 
+    assert fetched_org.name == "Test's organization"
+    # assert fetched_org_member.user_id == fetched_user.id
+    assert fetched_org_member.organization_id == fetched_org.id
     assert created_user == fetched_user
 
 

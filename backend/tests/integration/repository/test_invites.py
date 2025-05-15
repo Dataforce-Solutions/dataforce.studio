@@ -1,19 +1,16 @@
 import uuid
 
 import pytest
-from dataforce_studio.models.organization import (
-    DBOrganization,
-    DBOrganizationInvite,
-    OrgRole,
-)
+from dataforce_studio.models import OrganizationInviteOrm, OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
+from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.user import User
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def get_invite_obj(organization: DBOrganization, user: User) -> DBOrganizationInvite:
-    return DBOrganizationInvite(
+def get_invite_obj(organization: OrganizationOrm, user: User) -> OrganizationInviteOrm:
+    return OrganizationInviteOrm(
         **{
             "email": "test@gmail.com",
             "role": OrgRole.MEMBER,
@@ -108,7 +105,7 @@ async def test_get_invite_where(create_organization_with_user: dict) -> None:
         await repo.create_organization_invite(invite_i)
 
     invites = await repo.get_invites_where(
-        DBOrganizationInvite.organization_id == organization.id
+        OrganizationInviteOrm.organization_id == organization.id
     )
 
     assert isinstance(invites, list)
@@ -128,11 +125,11 @@ async def test_delete_invite_where(create_organization_with_user: dict) -> None:
         await repo.create_organization_invite(invite_i)
 
     deleted_invites = await repo.delete_organization_invites_where(
-        DBOrganizationInvite.organization_id == organization.id
+        OrganizationInviteOrm.organization_id == organization.id
     )
 
     invites = await repo.get_invites_where(
-        DBOrganizationInvite.organization_id == organization.id
+        OrganizationInviteOrm.organization_id == organization.id
     )
 
     assert deleted_invites is None

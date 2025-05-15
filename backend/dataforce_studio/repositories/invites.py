@@ -3,10 +3,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 
-from dataforce_studio.models.invite import OrganizationInvite
-from dataforce_studio.models.orm.organization import OrganizationInviteOrm
-from dataforce_studio.schemas.invite import OrganizationInvite
-from dataforce_studio.models.organization import DBOrganizationInvite
+from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.schemas.invite import OrganizationInvite
 
@@ -80,6 +77,6 @@ class InviteRepository(RepositoryBase):
         self, organization_id: uuid.UUID, email: str
     ) -> None:
         return await self.delete_organization_invites_where(
-            DBOrganizationInvite.organization_id == organization_id,
-            DBOrganizationInvite.email == email,
+            OrganizationInviteOrm.organization_id == organization_id,
+            OrganizationInviteOrm.email == email,
         )

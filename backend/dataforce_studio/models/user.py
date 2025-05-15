@@ -1,17 +1,11 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import Boolean, Enum, Integer, String
+from sqlalchemy import Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Boolean, Enum, String, Integer
-from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.user import AuthProvider, User, UserResponse
-from dataforce_studio.models.user import AuthProvider, User, UserResponse
-from dataforce_studio.models.orm.base import Base, TimestampMixin
-from dataforce_studio.models.user import AuthProvider, CreateUser, User
+from dataforce_studio.schemas.user import AuthProvider, CreateUser, User, UserResponse
 
 
 class UserOrm(TimestampMixin, Base):
@@ -30,8 +24,8 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    memberships: Mapped[list["DBOrganizationMember"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
-        "DBOrganizationMember",
+    memberships: Mapped[list["OrganizationMemberOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "OrganizationMemberOrm",
         back_populates="user",
         lazy="selectin",
         cascade="all, delete-orphan",
@@ -46,17 +40,8 @@ class UserOrm(TimestampMixin, Base):
     def to_public_user(self) -> UserResponse:
         return UserResponse.model_validate(self.__dict__)
 
-
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":
         return UserOrm(
             **user.model_dump(),
         )
-
-
-class TokenBlackListOrm(Base):
-    __tablename__ = "token_black_list"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    token: Mapped[str] = mapped_column(String, nullable=False)
-    expire_at: Mapped[int] = mapped_column(Integer, nullable=False)

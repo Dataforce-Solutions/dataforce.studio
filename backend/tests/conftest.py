@@ -1,7 +1,7 @@
 import asyncpg
 import pytest_asyncio
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import AuthProvider, User
+from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from utils.db import migrate_db
@@ -71,7 +71,7 @@ async def create_organization_with_user(
     repo = UserRepository(engine)
 
     created_organization = await repo.create_organization("test org", None)
-    await repo.create_user(User(**test_user))
+    await repo.create_user(CreateUser(**test_user))
     fetched_user = await repo.get_user(test_user["email"])
 
     return {

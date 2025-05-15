@@ -1,21 +1,16 @@
 import uuid
-from enum import StrEnum
+from collections.abc import Sequence
 
 from pydantic import HttpUrl
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.models.orm import UserOrm
+from dataforce_studio.schemas.invite import OrganizationInvite
+from dataforce_studio.schemas.organization import Organization, OrganizationMember
 
 
-class OrgRole(StrEnum):
-    OWNER = "owner"
-    ADMIN = "admin"
-    MEMBER = "member"
-
-
-class DBOrganization(TimestampMixin, Base):
+class OrganizationOrm(TimestampMixin, Base):
     __tablename__ = "organizations"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -24,19 +19,22 @@ class DBOrganization(TimestampMixin, Base):
     name: Mapped[str | None] = mapped_column(String, nullable=False)
     logo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
 
-    members: Mapped[list["DBOrganizationMember"]] = relationship(
+    members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
-    invites: Mapped[list["DBOrganizationInvite"]] = relationship(
+    invites: Mapped[list["OrganizationInviteOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
     def __repr__(self) -> str:
         return f"Organization(id={self.id!r}, name={self.name!r})"
 
+    def to_organization(self) -> Organization:
+        return Organization.model_validate(self)
 
-class DBOrganizationMember(TimestampMixin, Base):
+
+class OrganizationMemberOrm(TimestampMixin, Base):
     __tablename__ = "organization_members"
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="org_member"),
@@ -53,16 +51,20 @@ class DBOrganizationMember(TimestampMixin, Base):
     )
 
     role: Mapped[str] = mapped_column(String, nullable=False)
-    user: Mapped["UserOrm"] = relationship(
+    # noqa: F821
+    user: Mapped["UserOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "UserOrm", back_populates="memberships", lazy="selectin"
     )
-    organization: Mapped["DBOrganization"] = relationship(back_populates="members")
+    organization: Mapped["OrganizationOrm"] = relationship(back_populates="members")
 
     def __repr__(self) -> str:
         return f"OrganizationMember(id={self.id!r}, user_id={self.user_id!r})"
 
+    def to_organization_member(self) -> OrganizationMember:
+        return OrganizationMember.model_validate(self)
 
-class DBOrganizationInvite(TimestampMixin, Base):
+
+class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -77,10 +79,19 @@ class DBOrganizationInvite(TimestampMixin, Base):
         UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
-    organization: Mapped["DBOrganization"] = relationship(back_populates="invites")
+    organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")
 
     def __repr__(self) -> str:
         return (
             f"OrganizationInvite(id={self.id!r}, email={self.email!r}, "
             f"role={self.role!r})"
         )
+
+    @classmethod
+    def to_invites_list(
+        cls, invites: Sequence["OrganizationInviteOrm"]
+    ) -> list[OrganizationInvite]:
+        return [OrganizationInvite.model_validate(invite) for invite in invites]
+
+    def to_organization_invite(self) -> OrganizationInvite:
+        return OrganizationInvite.model_validate(self)

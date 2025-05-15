@@ -2,14 +2,8 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
-from dataforce_studio.models.organization import DBOrganizationInvite, DBOrganizationMember
 from dataforce_studio.models.errors import OrganizationLimitReachedError
-from dataforce_studio.models.invite import CreateOrganizationInvite, OrganizationInvite
-from dataforce_studio.models.orm.organization import OrganizationInviteOrm
-from dataforce_studio.models.organization import (
-    DBOrganizationInvite,
-)
+from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
@@ -39,9 +33,7 @@ class OrganizationHandler:
                 "Organization reached maximum number of users", 409
             )
 
-    async def send_invite(
-        self, invite: CreateOrganizationInvite
-    ) -> OrganizationInvite:
+    async def send_invite(self, invite: CreateOrganizationInvite) -> OrganizationInvite:
         """Handle sending invite to organization"""
 
         await self.check_org_members_limit(invite.organization_id)

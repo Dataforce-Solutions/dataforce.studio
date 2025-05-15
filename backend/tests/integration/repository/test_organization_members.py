@@ -2,10 +2,9 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from dataforce_studio.models.organization import OrgRole
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import UpdateOrganizationMember
-from dataforce_studio.schemas.user import AuthProvider, User
+from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
+from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -32,7 +31,7 @@ async def create_organization_with_members(
     members = []
 
     for i in range(10):
-        user = User(
+        user = CreateUser(
             email=f"user{i}@gmail.com",
             full_name=f"Test User {i}",
             disabled=False,

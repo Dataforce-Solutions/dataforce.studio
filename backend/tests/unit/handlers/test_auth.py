@@ -9,6 +9,7 @@ from dataforce_studio.models.auth import Token
 from dataforce_studio.models.errors import AuthError
 from dataforce_studio.schemas.user import (
     AuthProvider,
+    CreateUser,
     CreateUserIn,
     UpdateUser,
     UpdateUserIn,
@@ -32,6 +33,7 @@ passwords = {
 }
 
 user_data = {
+    "id": uuid4(),
     "email": "testuser@example.com",
     "full_name": "Test User",
     "disabled": False,
@@ -52,11 +54,7 @@ create_user_data = {
 @pytest.fixture
 def get_create_user() -> dict:
     create_user = CreateUserIn(**create_user_data)
-    user = User(
-        **create_user.model_dump(exclude={"password"}),
-        hashed_password=passwords["hashed_password"],
-        auth_method=AuthProvider.EMAIL,
-    )
+    user = User(**user_data)
     return {"create_user": create_user, "user": user}
 
 
@@ -257,18 +255,23 @@ async def test_handle_signup(
     get_create_user: dict,
 ) -> None:
     data = get_create_user
-    create_user, user = data["create_user"], data["user"]
+    create_user_in = data["create_user"]
+    create_user = CreateUser(
+        **create_user_in.model_dump(exclude={"password"}),
+        hashed_password=passwords["hashed_password"],
+        auth_method=AuthProvider.EMAIL,
+    )
     mock_get_user.return_value = None
     mock_hash.return_value = passwords["hashed_password"]
 
-    actual = await handler.handle_signup(create_user)
+    actual = await handler.handle_signup(create_user_in)
 
     assert actual
     assert actual["detail"] == "Please confirm your email address"
     mock_send_activation_email.assert_called_once()
-    mock_hash.assert_called_once_with(create_user.password)
+    mock_hash.assert_called_once_with(create_user_in.password)
     mock_get_user.assert_awaited_once_with(create_user.email)
-    mock_create_user.assert_awaited_once_with(user=user)
+    mock_create_user.assert_awaited_once_with(create_user=create_user)
 
 
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
@@ -277,12 +280,16 @@ async def test_handle_signup_already_exist(
     mock_get_user: AsyncMock, get_create_user: dict
 ) -> None:
     data = get_create_user
-    create_user, user = data["create_user"], data["user"]
-
+    create_user_in, user = data["create_user"], data["user"]
+    create_user = CreateUser(
+        **create_user_in.model_dump(exclude={"password"}),
+        hashed_password=passwords["hashed_password"],
+        auth_method=AuthProvider.EMAIL,
+    )
     mock_get_user.return_value = user
 
     with pytest.raises(AuthError, match="Email already registered") as error:
-        await handler.handle_signup(create_user)
+        await handler.handle_signup(create_user_in)
 
     assert error.value.status_code == 400
     mock_get_user.assert_awaited_once_with(create_user.email)
@@ -511,7 +518,7 @@ async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
 )
 @pytest.mark.asyncio
 async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
-    user = UserResponse(**user_data, id=uuid4())
+    user = UserResponse(**user_data)
     mock_get_public_user.return_value = user
 
     result = await handler.handle_get_current_user(user.email)
@@ -528,7 +535,7 @@ async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
 async def test_handle_get_current_user_not_found(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    user = UserResponse(**user_data, id=uuid4())
+    user = UserResponse(**user_data)
     mock_get_public_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -548,7 +555,7 @@ async def test_handle_get_current_account_is_disabled(
 ) -> None:
     disabled_user_data = user_data.copy()
     disabled_user_data["disabled"] = True
-    user = UserResponse(**disabled_user_data, id=uuid4())
+    user = UserResponse(**disabled_user_data)
 
     mock_get_public_user.return_value = user
 
