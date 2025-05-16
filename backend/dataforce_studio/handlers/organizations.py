@@ -2,14 +2,21 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
+from dataforce_studio.models.errors import (
+    OrganizationLimitReachedError,
+    OrganizationNotFoundError,
+)
 from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
 from dataforce_studio.schemas.organization import (
+    CreateOrganizationInvite,
+    OrganizationDetails,
+    OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationSwitcher,
     UpdateOrganizationMember,
 )
 
@@ -20,6 +27,19 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
 
     __members_limit = 10
+
+    async def get_user_organizations(
+        self, user_id: uuid.UUID
+    ) -> list[OrganizationSwitcher]:
+        return await self.__user_repository.get_user_organizations(user_id)
+
+    async def get_organization(self, organization_id: uuid.UUID) -> OrganizationDetails:
+        organization = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+        if not organization:
+            raise OrganizationNotFoundError()
+        return organization
 
     async def check_org_members_limit(
         self, organization_id: uuid.UUID, num: int = 0

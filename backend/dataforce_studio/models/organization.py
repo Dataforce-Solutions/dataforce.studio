@@ -6,8 +6,12 @@ from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.invite import OrganizationInvite
-from dataforce_studio.schemas.organization import Organization, OrganizationMember
+from dataforce_studio.schemas.organization import (
+    Organization,
+    OrganizationDetails,
+    OrganizationInvite,
+    OrganizationMember,
+)
 
 
 class OrganizationOrm(TimestampMixin, Base):
@@ -32,6 +36,9 @@ class OrganizationOrm(TimestampMixin, Base):
 
     def to_organization(self) -> Organization:
         return Organization.model_validate(self)
+
+    def to_organization_details(self) -> OrganizationDetails:
+        return OrganizationDetails.model_validate(self)
 
 
 class OrganizationMemberOrm(TimestampMixin, Base):

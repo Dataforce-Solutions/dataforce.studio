@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import RepositoryBase
-from dataforce_studio.schemas.invite import OrganizationInvite
+from dataforce_studio.schemas.organization import OrganizationInvite
 
 
 class InviteRepository(RepositoryBase):
