@@ -1,6 +1,17 @@
+import datetime
+import random
+from uuid import uuid4
+
 import asyncpg
 import pytest_asyncio
+from dataforce_studio.models import OrganizationInviteOrm
+from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.organization import (
+    OrganizationInvite,
+    OrganizationMember,
+    OrgRole,
+)
 from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -50,6 +61,43 @@ async def create_database_and_apply_migrations():  # noqa: ANN201
     await _drop_database(admin_dsn, TEST_DB_NAME)
 
 
+invite_data = {
+    "email": "test@example.com",
+    "role": OrgRole.MEMBER,
+    "organization_id": uuid4(),
+    "invited_by": uuid4(),
+}
+
+invite_get_data = {
+    "id": uuid4(),
+    "email": "test@example.com",
+    "role": OrgRole.MEMBER,
+    "organization_id": uuid4(),
+    "invited_by": uuid4(),
+    "created_at": datetime.datetime.now(),
+}
+
+invite_accept_data = {
+    "id": uuid4(),
+    "email": "test@example.com",
+    "role": OrgRole.MEMBER,
+    "organization_id": uuid4(),
+    "invited_by": uuid4(),
+}
+member_data = {
+    "id": uuid4(),
+    "organization_id": uuid4(),
+    "role": OrgRole.ADMIN,
+    "user": {
+        "id": uuid4(),
+        "email": "test@gmail.com",
+        "full_name": "Full Name",
+        "disabled": False,
+        "photo": None,
+    },
+}
+
+
 @pytest_asyncio.fixture(scope="function")
 def test_user() -> dict:
     return {
@@ -60,6 +108,30 @@ def test_user() -> dict:
         "auth_method": AuthProvider.EMAIL,
         "photo": None,
         "hashed_password": "hashed_password",
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+def test_org() -> dict:
+    return {
+        "id": uuid4(),
+        "name": "Test organization",
+        "logo": None,
+        "created_at": datetime.datetime.now(),
+        "updated_at": datetime.datetime.now(),
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+def test_org_details() -> dict:
+    return {
+        "id": uuid4(),
+        "name": "Test organization",
+        "logo": None,
+        "created_at": datetime.datetime.now(),
+        "updated_at": datetime.datetime.now(),
+        "invites": [OrganizationInvite(**invite_get_data)],
+        "members": [OrganizationMember(**member_data)],
     }
 
 
@@ -79,4 +151,61 @@ async def create_organization_with_user(
         "repo": repo,
         "user": fetched_user,
         "organization": created_organization,
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+async def create_organization_with_members(
+    create_database_and_apply_migrations: str,
+) -> dict:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+    invites_repo = InviteRepository(engine)
+
+    organization = await repo.create_organization(
+        name="Test org with members", logo=None
+    )
+
+    members = []
+    users = []
+    invites = []
+
+    for i in range(10):
+        user = CreateUser(
+            email=f"user{i}@gmail.com",
+            full_name=f"Test User {i}",
+            disabled=False,
+            email_verified=True,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+        fetched_user = await repo.create_user(user)
+        users.append(fetched_user)
+
+        member = await repo.create_organization_member(
+            user_id=fetched_user.id,
+            organization_id=organization.id,
+            role=OrgRole.MEMBER,
+        )
+        members.append(member)
+
+    for i in range(5):
+        invited_by_user = random.choice(users)
+        invite = await invites_repo.create_organization_invite(
+            OrganizationInviteOrm(
+                email=f"invited_{i}_@gmail.com",
+                organization_id=organization.id,
+                invited_by=invited_by_user.id,
+                role=OrgRole.MEMBER,
+            )
+        )
+        invites.append(invite)
+
+    return {
+        "engine": engine,
+        "repo": repo,
+        "organization": organization,
+        "members": members,
+        "invites": invites,
     }
