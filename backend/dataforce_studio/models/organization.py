@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from pydantic import HttpUrl
+from pydantic import EmailStr, HttpUrl
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -70,7 +70,7 @@ class OrganizationInviteOrm(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, unique=True, nullable=False, default=uuid.uuid4
     )
-    email: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False

@@ -16,7 +16,7 @@ class EmailHandler:
     ) -> None:
         message = Mail(
             from_email=self.sender_email,
-            to_emails=email,
+            to_emails=str(email),
             subject="Welcome to Dataforce Studio",
         )
         message.template_id = "d-6f44f2afe9c44bbfa523eba28092e078"
@@ -32,7 +32,7 @@ class EmailHandler:
     ) -> None:
         message = Mail(
             from_email=self.sender_email,
-            to_emails=email,
+            to_emails=str(email),
             subject="Reset Your Password",
         )
         message.template_id = "d-1a3be5478f454efeb7afc791e69ec613"

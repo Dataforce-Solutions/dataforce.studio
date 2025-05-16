@@ -58,7 +58,7 @@ class UserRepository(RepositoryBase):
             await session.commit()
         return user_response
 
-    async def get_user(self, email: str) -> User | None:
+    async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(UserOrm).filter(UserOrm.email == email)
@@ -66,7 +66,7 @@ class UserRepository(RepositoryBase):
             db_user = result.scalar_one_or_none()
             return db_user.to_user() if db_user else None
 
-    async def get_public_user(self, email: str) -> UserOut | None:
+    async def get_public_user(self, email: EmailStr) -> UserOut | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(UserOrm).filter(UserOrm.email == email)
