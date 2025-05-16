@@ -3,8 +3,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, HttpUrl
 
-from dataforce_studio.models.base import BaseOrmConfig
-from dataforce_studio.schemas.user import UserResponse
+from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.user import UserOut
 
 
 class OrgRole(StrEnum):
@@ -18,14 +18,11 @@ class UpdateOrganizationMember(BaseModel):
     role: OrgRole
 
 
-class OrganizationMember(BaseModel):
+class OrganizationMember(BaseModel, BaseOrmConfig):
     id: uuid.UUID
     organization_id: uuid.UUID
     role: OrgRole
-    user: UserResponse
-
-    class Config:
-        from_attributes = True
+    user: UserOut
 
 
 class OrganizationMemberCreate(BaseModel):

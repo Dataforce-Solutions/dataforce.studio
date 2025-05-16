@@ -7,7 +7,7 @@ from dataforce_studio.schemas.user import (
     CreateUser,
     UpdateUser,
     User,
-    UserResponse,
+    UserOut,
 )
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -76,7 +76,7 @@ async def test_get_public_user(get_created_user: dict) -> None:
     fetched_user = await repo.get_public_user(user.email)
 
     assert fetched_user
-    assert isinstance(fetched_user, UserResponse)
+    assert isinstance(fetched_user, UserOut)
     assert fetched_user.id
     assert fetched_user.email
     assert hasattr(fetched_user, "full_name")

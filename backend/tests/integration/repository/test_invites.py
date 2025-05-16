@@ -1,11 +1,11 @@
 import uuid
 
 import pytest
+from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models import OrganizationInviteOrm, OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.user import User
-from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
@@ -57,7 +57,7 @@ async def test_delete_organization_invite_not_found(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = InviteRepository(engine)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(NotFoundError) as error:
         await repo.delete_organization_invite(uuid.uuid4())
 
     assert error.value.status_code == 404
@@ -87,7 +87,7 @@ async def test_get_invite_not_found(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = InviteRepository(engine)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(NotFoundError) as error:
         await repo.get_invite(uuid.uuid4())
 
     assert error.value.status_code == 404

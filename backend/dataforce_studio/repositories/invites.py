@@ -1,8 +1,8 @@
 import uuid
 
-from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 
+from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.schemas.invite import OrganizationInvite
@@ -30,9 +30,7 @@ class InviteRepository(RepositoryBase):
             if invite:
                 await session.delete(invite)
             else:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found"
-                )
+                raise NotFoundError("Invite not found")
 
     async def get_invites_where(self, *where_conditions) -> list[OrganizationInvite]:
         async with self._get_session() as session, session.begin():
@@ -64,9 +62,7 @@ class InviteRepository(RepositoryBase):
             invite = result.scalar_one_or_none()
             if invite:
                 return invite.to_organization_invite()
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found"
-            )
+            raise NotFoundError("Invite not found")
 
     async def delete_organization_invites_where(self, *conditions) -> None:
         async with self._get_session() as session, session.begin():

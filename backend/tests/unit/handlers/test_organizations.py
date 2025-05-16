@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
+from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
 from dataforce_studio.models import OrganizationInviteOrm
-from dataforce_studio.models.errors import OrganizationLimitReachedError
 from dataforce_studio.schemas.invite import CreateOrganizationInvite, OrganizationInvite
 from dataforce_studio.schemas.organization import (
     OrganizationMember,
