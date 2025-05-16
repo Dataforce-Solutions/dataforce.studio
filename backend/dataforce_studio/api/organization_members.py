@@ -13,7 +13,7 @@ from dataforce_studio.schemas.organization import (
 members_router = APIRouter(
     prefix="/members",
     tags=["organization-members"],
-    dependencies=Depends(is_user_authenticated),
+    dependencies=[Depends(is_user_authenticated)],
 )
 
 organization_handler = OrganizationHandler()
