@@ -1,5 +1,6 @@
 import uuid
 
+from pydantic import EmailStr
 from sqlalchemy import delete, select
 
 from dataforce_studio.infra.exceptions import NotFoundError
@@ -48,7 +49,9 @@ class InviteRepository(RepositoryBase):
             OrganizationInviteOrm.organization_id == organization_id
         )
 
-    async def get_invites_by_user_email(self, email: str) -> list[OrganizationInvite]:
+    async def get_invites_by_user_email(
+        self, email: EmailStr
+    ) -> list[OrganizationInvite]:
         return await self.get_invites_where(OrganizationInviteOrm.email == email)
 
     async def get_invite(self, invite_id: uuid.UUID) -> OrganizationInvite:
@@ -70,7 +73,7 @@ class InviteRepository(RepositoryBase):
             await session.commit()
 
     async def delete_organization_invites_for_user(
-        self, organization_id: uuid.UUID, email: str
+        self, organization_id: uuid.UUID, email: EmailStr
     ) -> None:
         return await self.delete_organization_invites_where(
             OrganizationInviteOrm.organization_id == organization_id,

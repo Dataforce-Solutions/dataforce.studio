@@ -1,5 +1,7 @@
 import uuid
 
+from pydantic import EmailStr
+
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
@@ -67,7 +69,7 @@ class OrganizationHandler:
             organization_id
         )
 
-    async def get_user_invites(self, email: str) -> list[OrganizationInvite]:
+    async def get_user_invites(self, email: EmailStr) -> list[OrganizationInvite]:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
