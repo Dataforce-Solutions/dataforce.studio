@@ -21,17 +21,13 @@ class CreateOrganizationInvite(BaseModel):
     invited_by: uuid.UUID
 
 
-class OrganizationInvite(BaseModel):
+class OrganizationInvite(BaseModel, BaseOrmConfig):
     id: uuid.UUID
     email: EmailStr
     role: OrgRole
     organization_id: uuid.UUID
     invited_by: uuid.UUID
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
 
 
 class UpdateOrganizationMember(BaseModel):
@@ -57,20 +53,13 @@ class Organization(BaseModel, BaseOrmConfig):
     name: str
     logo: HttpUrl | None = None
 
-    class Config:
-        from_attributes = True
-
 
 class OrganizationSwitcher(Organization):
     role: OrgRole | None = None
 
 
-class OrganizationDetails(Organization):
+class OrganizationDetails(Organization, BaseOrmConfig):
     created_at: datetime
     updated_at: datetime | None = None
     invites: list[OrganizationInvite]
     members: list[OrganizationMember]
-
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True

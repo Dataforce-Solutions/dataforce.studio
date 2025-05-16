@@ -2,11 +2,10 @@ import uuid
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.models.errors import (
+from dataforce_studio.infra.exceptions import (
+    NotFoundError,
     OrganizationLimitReachedError,
-    OrganizationNotFoundError,
 )
-from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -38,7 +37,7 @@ class OrganizationHandler:
             organization_id
         )
         if not organization:
-            raise OrganizationNotFoundError()
+            raise NotFoundError("Organization not found")
         return organization
 
     async def check_org_members_limit(

@@ -3,8 +3,10 @@ from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.exceptions import OrganizationLimitReachedError
-from dataforce_studio.models.errors import OrganizationNotFoundError
+from dataforce_studio.infra.exceptions import (
+    NotFoundError,
+    OrganizationLimitReachedError,
+)
 from dataforce_studio.schemas.organization import (
     OrganizationDetails,
     OrganizationSwitcher,
@@ -81,7 +83,7 @@ async def test_get_organization_not_found(
     mock_get_organization_details.return_value = None
 
     with pytest.raises(
-        OrganizationNotFoundError,
+        NotFoundError,
         match="Organization not found",
     ):
         await handler.get_organization(organization_id)

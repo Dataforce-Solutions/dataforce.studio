@@ -5,9 +5,9 @@ from starlette.middleware.authentication import AuthenticationMiddleware
 
 from dataforce_studio.api.auth import auth_router
 from dataforce_studio.api.organization import organization_router
-from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.api.organization_invites import invites_router
 from dataforce_studio.api.organization_members import members_router
+from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
 
 
