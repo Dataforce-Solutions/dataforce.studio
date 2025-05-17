@@ -61,7 +61,7 @@ async function initPyWorker() {
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/e3/51/9b208e85196941db2f0654ad0357ca6388ab3ed67efdbfc799f35d1f83aa/colorlog-6.9.0-py3-none-any.whl");
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl")
     await micropip.install("sqlite3");
-    await micropip.install("pyfnx-utils=0.0.1");
+    await micropip.install("pyfnx-utils==0.0.1");
     await micropip.install("fnnx");
 
     self.pyodide = pyodide;

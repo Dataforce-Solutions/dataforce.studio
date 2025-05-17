@@ -140,8 +140,8 @@ class JsData:
                 student=parse_provider(settings["student"]),
                 evaluation_mode=settings["evaluationMode"],
                 criteria_list=settings["criteriaList"],
-                inputs=settings["inputs"],
-                outputs=settings["outputs"],
+                inputs=settings.get("inputs", []),
+                outputs=settings.get("outputs", []),
             )
 
         return cls(
