@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.models.auth import Token
-from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, User, UserOut
+from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, UserOut
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -63,7 +63,7 @@ async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
     return {"detail": "Password reset email has been sent"}
 
 
-@auth_router.get("/users/me", response_model=User)
+@auth_router.get("/users/me", response_model=UserOut)
 async def get_current_user_info(
     request: Request,
     _: Annotated[None, Depends(is_user_authenticated)],

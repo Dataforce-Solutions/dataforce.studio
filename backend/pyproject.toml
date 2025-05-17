@@ -56,7 +56,6 @@ select = [
 ]
 
 ignore = [
-    "ANN101",  # Missing type annotation for self in method
     "ANN002",  # Missing type annotation for *args
     "ANN003",  # Missing type annotation for **kwargs
 ]
