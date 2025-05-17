@@ -1,12 +1,8 @@
 import uuid
 
 import pytest
-import pytest_asyncio
-from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
-from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import create_async_engine
 
 organization_data = {"name": "test organization", "logo": None}
 
@@ -15,46 +11,6 @@ organization_member_data = {
     "organization_id": None,
     "role": None,
 }
-
-
-@pytest_asyncio.fixture(scope="function")
-async def create_organization_with_members(
-    create_database_and_apply_migrations: str,
-) -> dict:
-    engine = create_async_engine(create_database_and_apply_migrations)
-    repo = UserRepository(engine)
-
-    organization = await repo.create_organization(
-        name="Test org with members", logo=None
-    )
-
-    members = []
-
-    for i in range(10):
-        user = CreateUser(
-            email=f"user{i}@gmail.com",
-            full_name=f"Test User {i}",
-            disabled=False,
-            email_verified=True,
-            auth_method=AuthProvider.EMAIL,
-            photo=None,
-            hashed_password="hashed_password",
-        )
-        fetched_user = await repo.create_user(user)
-
-        member = await repo.create_organization_member(
-            user_id=fetched_user.id,
-            organization_id=organization.id,
-            role=OrgRole.MEMBER,
-        )
-        members.append(member)
-
-    return {
-        "engine": engine,
-        "repo": repo,
-        "organization": organization,
-        "members": members,
-    }
 
 
 @pytest.mark.asyncio

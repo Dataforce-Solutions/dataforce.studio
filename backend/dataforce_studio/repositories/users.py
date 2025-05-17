@@ -13,8 +13,9 @@ from dataforce_studio.models.organization import (
 from dataforce_studio.models.user import UserOrm
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.schemas.organization import (
-    Organization,
+    OrganizationDetails,
     OrganizationMember,
+    OrganizationSwitcher,
     OrgRole,
     UpdateOrganizationMember,
 )
@@ -161,21 +162,49 @@ class UserRepository(RepositoryBase):
 
     async def get_user_organizations(
         self, user_id: uuid.UUID, role: OrgRole | None = None
-    ) -> list[Organization]:
+    ) -> list[OrganizationSwitcher]:
         async with self._get_session() as session:
             query = (
-                select(OrganizationOrm)
-                .join(OrganizationMemberOrm)
+                select(OrganizationOrm, OrganizationMemberOrm.role)
+                .join(
+                    OrganizationMemberOrm,
+                    OrganizationMemberOrm.organization_id == OrganizationOrm.id,
+                )
                 .filter(OrganizationMemberOrm.user_id == user_id)
+                .order_by(OrganizationOrm.name)
             )
 
             if role is not None:
                 query = query.filter(OrganizationMemberOrm.role == role)
 
             result = await session.execute(query)
-            db_organizations = result.scalars().all()
+            db_organizations = result.unique().all()
 
-            return [org.to_organization() for org in db_organizations]
+            return [
+                OrganizationSwitcher(
+                    id=org.id, name=org.name, logo=org.logo, role=member_role
+                )
+                for org, member_role in db_organizations
+            ]
+
+    async def get_organization_details(
+        self, organization_id: uuid.UUID
+    ) -> OrganizationDetails | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrganizationOrm)
+                .options(
+                    joinedload(OrganizationOrm.members).joinedload(
+                        OrganizationMemberOrm.user
+                    ),
+                    joinedload(OrganizationOrm.invites),
+                )
+                .where(OrganizationOrm.id == organization_id)
+            )
+            db_organization = result.unique().scalar_one_or_none()
+            return (
+                db_organization.to_organization_details() if db_organization else None
+            )
 
     async def get_organization_users(
         self, organization_id: uuid.UUID, role: OrgRole | None = None
