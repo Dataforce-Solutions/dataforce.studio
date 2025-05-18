@@ -32,10 +32,16 @@ Choose between **AI-assisted** and **data-driven** optimization modes to iterate
 2. Connect your OpenAI or Ollama API key.  
 3. Select the provider in the **Model Provider** dropdown.
 
-#### Optimization Configurations  
-- Set parameters such as **temperature**, **max tokens**, and **stop sequences**.  
-- Create and compare multiple **prompt versions**.  
-- Configure evaluation criteria (e.g., accuracy, helpfulness, relevance).
+#### Optimization Settings  
+Set up how the prompt optimization should run:
+
+- **Task Description**: Describe what the model is expected to do.  
+- **Teacher Model**: Provides reference outputs.  
+- **Student Model**: The model being optimized.  
+- **Evaluation Metrics**: Choose how to measure success:
+  - **Exact Match**
+  - **LLM-Based Scoring**
+  - **None**
 
 #### Running Optimizations  
 1. Define input examples or upload a dataset.  
