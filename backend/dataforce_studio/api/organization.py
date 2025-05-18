@@ -8,6 +8,10 @@ from dataforce_studio.schemas.organization import (
     OrganizationDetails,
     OrganizationSwitcher,
 )
+from .orbits import orbits_router, organization_orbits_router
+from .orbits_members import orbit_members_router, orbit_router
+from .organization_invites import invites_router
+from .organization_members import members_router
 
 organization_router = APIRouter(
     prefix="/organizations",
@@ -16,6 +20,14 @@ organization_router = APIRouter(
 )
 
 organization_handler = OrganizationHandler()
+
+
+organization_router.include_router(invites_router)
+organization_router.include_router(members_router)
+organization_router.include_router(organization_orbits_router)
+organization_router.include_router(orbits_router)
+organization_router.include_router(orbit_router)
+organization_router.include_router(orbit_members_router)
 
 
 @organization_router.get("", response_model=list[OrganizationSwitcher])

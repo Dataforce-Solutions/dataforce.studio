@@ -31,6 +31,10 @@ class OrganizationOrm(TimestampMixin, Base):
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
+    orbits: Mapped[list["OrbitOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="organization", cascade="all, delete, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"Organization(id={self.id!r}, name={self.name!r})"
 
