@@ -31,7 +31,7 @@ class OrbitHandler:
 
         return orbit
 
-    async def update_orbit(self, orbit: OrbitUpdate) -> OrbitDetails:
+    async def update_orbit(self, orbit: OrbitUpdate) -> Orbit:
         orbit_obj = await self.__orbits_repository.update_orbit(orbit)
 
         if not orbit_obj:

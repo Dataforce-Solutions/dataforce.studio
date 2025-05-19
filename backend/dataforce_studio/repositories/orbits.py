@@ -27,8 +27,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             )
             db_orbits = result.scalars().all()
 
-            return [Orbit.model_validate(orbit) for orbit in db_orbits]
-
+            return [orbit.to_orbit() for orbit in db_orbits]
 
     async def get_orbit(self, orbit_id: uuid.UUID) -> OrbitDetails | None:
         async with self._get_session() as session, session.begin():
@@ -43,17 +42,26 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
             return db_orbit.to_orbit_details() if db_orbit else None
 
+    async def get_orbit_simple(self, orbit_id: uuid.UUID) -> Orbit | None:
+        async with self._get_session() as session, session.begin():
+            result = await session.execute(
+                select(OrbitOrm).where(OrbitOrm.id == orbit_id)
+            )
+            db_orbit = result.scalar_one_or_none()
+
+            return db_orbit.to_orbit() if db_orbit else None
+
     async def create_orbit(self, orbit: OrbitCreate) -> Orbit:
         async with self._get_session() as session:
             db_orbit = await self.create_model(session, OrbitOrm, orbit)
             return db_orbit.to_orbit()
 
-    async def update_orbit(self, orbit: OrbitUpdate) -> OrbitDetails | None:
+    async def update_orbit(self, orbit: OrbitUpdate) -> Orbit | None:
         async with self._get_session() as session:
             db_orbit = await self.update_model(
                 session=session, orm_class=OrbitOrm, data=orbit
             )
-            return db_orbit.to_orbit_details() if db_orbit else None
+            return db_orbit.to_orbit() if db_orbit else None
 
     async def delete_orbit(self, orbit_id: uuid.UUID) -> None:
         async with self._get_session() as session:

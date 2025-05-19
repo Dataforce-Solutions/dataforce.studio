@@ -4,8 +4,6 @@ from typing import TypeVar
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from typing import Protocol
-
 
 TOrm = TypeVar("TOrm")
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -61,7 +59,10 @@ class CrudMixin:
         data: TPydantic,
     ) -> TOrm | None:
         return await self.update_model_where(
-            session, orm_class, data, orm_class.id == data.id    # type: ignore[attr-defined]
+            session,
+            orm_class,
+            data,
+            orm_class.id == data.id,  # type: ignore[attr-defined]
         )
 
     async def delete_model(
@@ -70,7 +71,7 @@ class CrudMixin:
         orm_class: type[TOrm],
         obj_id: uuid.UUID,
     ) -> None:
-        result = await session.execute(select(orm_class).where(orm_class.id == obj_id))   # type: ignore[attr-defined]
+        result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # type: ignore[attr-defined]
         db_obj = result.scalar_one_or_none()
         if db_obj:
             await session.delete(db_obj)

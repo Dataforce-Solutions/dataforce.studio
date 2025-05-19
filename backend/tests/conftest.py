@@ -1,12 +1,17 @@
+import random
+
 import datetime
 import random
 from uuid import uuid4
 
 import asyncpg
 import pytest_asyncio
+
+from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.orbit import OrbitCreate, OrbitMemberCreate, OrbitRole
 from dataforce_studio.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
@@ -208,4 +213,64 @@ async def create_organization_with_members(
         "organization": organization,
         "members": members,
         "invites": invites,
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+async def create_orbit(
+    create_database_and_apply_migrations: str, test_user: dict
+) -> dict:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    user_repo = UserRepository(engine)
+    repo = OrbitRepository(engine)
+
+    user = await user_repo.create_user(CreateUser(**test_user))
+    created_organization = await user_repo.create_organization("test org", None)
+    created_orbit = await repo.create_orbit(
+        OrbitCreate(name="test orbit", organization_id=created_organization.id)
+    )
+
+    return {
+        "engine": engine,
+        "repo": repo,
+        "organization": created_organization,
+        "orbit": created_orbit,
+        "user": user,
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+async def create_orbit_with_members(
+    create_database_and_apply_migrations: str, test_user: dict
+) -> dict:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    user_repo = UserRepository(engine)
+    repo = OrbitRepository(engine)
+    created_organization = await user_repo.create_organization("test org", None)
+    created_orbit = await repo.create_orbit(
+        OrbitCreate(name="test orbit", organization_id=created_organization.id)
+    )
+
+    members = []
+
+    for i in range(10):
+        new_user = test_user.copy()
+        new_user["email"] = f"email_user_{i}@example.com"
+        created_user = await user_repo.create_user(CreateUser(**new_user))
+        member = await repo.create_orbit_member(
+            OrbitMemberCreate(
+                user_id=created_user.id,
+                orbit_id=created_orbit.id,
+                role=random.choice([OrbitRole.MEMBER, OrbitRole.ADMIN]),
+            )
+        )
+        if member:
+            members.append(member)
+
+    return {
+        "engine": engine,
+        "repo": repo,
+        "organization": created_organization,
+        "orbit": created_orbit,
+        "members": members,
     }
