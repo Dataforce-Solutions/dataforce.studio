@@ -48,6 +48,7 @@ const initialState = {
   taskDescription: '',
   trainingData: null,
   predictionFields: null,
+  modelBlob: null,
 }
 
 class PromptFusionServiceClass extends Observable<Events> {
@@ -68,6 +69,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   taskDescription = initialState.taskDescription
   trainingData: TrainingData | null = initialState.trainingData
   predictionFields: string[] | null = initialState.predictionFields
+  modelBlob: Blob | null = initialState.modelBlob
 
   constructor() {
     super()
@@ -151,6 +153,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       this.setModelId(result.model_id)
       this.savePredictionFields()
       this.endTraining()
+      this.saveModel(result.model)
     } else {
       this.endTraining()
       throw new Error('Training failed')
@@ -190,6 +193,9 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   resetState() {
+    if (this.modelId) {
+      DataProcessingWorker.deallocateModels([this.modelId], WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE)
+    }
     this.providers = getProviders()
     this.availableModels = initialState.availableModels
     this.isSettingsOpened = initialState.isSettingsOpened
@@ -214,6 +220,21 @@ class PromptFusionServiceClass extends Observable<Events> {
       if (provider.disabled) return false
       return provider.status === ProviderStatus.connected
     })
+  }
+
+  downloadModel() {
+    if (!this.modelBlob) throw new Error('Model not found')
+
+    const timestamp = Date.now()
+    const filename = `prompt-optimization_${timestamp}.dfs`
+    const url = URL.createObjectURL(this.modelBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   private haveDuplicatedFields() {
@@ -307,6 +328,12 @@ class PromptFusionServiceClass extends Observable<Events> {
       this.predictionFields = fields
       this.emit('CHANGE_PREDICTION_FIELDS', this.predictionFields)
     }
+  }
+
+  private saveModel(model: object) {
+    if (!model) throw new Error('Model not found')
+    const modelBytes = new Uint8Array(Object.values(model))
+    this.modelBlob = new Blob([modelBytes])
   }
 }
 

@@ -16,7 +16,7 @@
       </d-button>
       <d-button
         v-tooltip.left="'Download the model'"
-        disabled
+        :disabled="!isPredictAvailable"
         severity="secondary"
         variant="text"
         @click="onDownloadClick"
@@ -48,6 +48,7 @@ function onChangeModelId(modelId: string) {
   isPredictAvailable.value = !!modelId
 }
 function onDownloadClick() {
+  promptFusionService.downloadModel()
   AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task: 'prompt_optimization' })
 }
 
