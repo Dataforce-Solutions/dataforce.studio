@@ -21,9 +21,9 @@ button {
 }
 
 input[type='number'] {
-  -moz-appearance: textfield;
   -webkit-appearance: none;
   appearance: none;
+  -moz-appearance: textfield;
 }
 
 input[type='number']::-webkit-inner-spin-button,
