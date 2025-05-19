@@ -19,16 +19,7 @@
         <template #item="{ item, props }">
           <div v-if="item.themeToggle" class="appearance">
             <span>{{ item.label }}</span>
-            <div class="custom-toggle">
-              <div class="custom-toggle-wrapper" @click="themeStore.changeTheme()">
-                <div class="custom-toggle-item custom-toggle-item-active">
-                  <sun :size="14" />
-                </div>
-                <div class="custom-toggle-item">
-                  <moon :size="14" />
-                </div>
-              </div>
-            </div>
+            <UiThemeToggle v-model="theme"/>
           </div>
           <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
             <span>{{ item.label }}</span>
@@ -62,15 +53,13 @@
 <script setup lang="ts">
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
-
+import { computed, ref, watch } from 'vue'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
-
-import { ChevronDown, Sun, Moon } from 'lucide-vue-next'
-
+import UiThemeToggle from '../ui/UiThemeToggle.vue'
+import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeStore, type Theme } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
 import { passwordChangedSuccessToast } from '@/lib/primevue/data/toasts'
 
@@ -78,6 +67,8 @@ const userStore = useUserStore()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const toast = useToast()
+
+const theme = ref<Theme>(themeStore.getCurrentTheme)
 
 const showChangePasswordSuccess = () => {
   toast.add(passwordChangedSuccessToast)
@@ -137,6 +128,10 @@ const onChangePasswordSuccess = () => {
     showChangePasswordSuccess()
   }, 100)
 }
+
+watch(theme, () => {
+  themeStore.changeTheme();
+})
 </script>
 
 <style scoped>
@@ -210,36 +205,6 @@ const onChangePasswordSuccess = () => {
   padding: 7px;
   gap: 5px;
   align-items: center;
-}
-
-.custom-toggle {
-  --toggleswitch-background: #f1f5f9;
-  --toggle-switch-handle-color: #64748b;
-  --toggle-switch-handle-checked-color: #0a0a0a;
-  --toggleswitch-handle-checked-background: #fff;
-}
-.custom-toggle-wrapper {
-  display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 16px;
-  background-color: var(--toggleswitch-background);
-  cursor: pointer;
-}
-.custom-toggle-item {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 50%;
-  background-color: transparent;
-  color: var(--toggle-switch-handle-color);
-}
-
-.custom-toggle-item-active {
-  color: var(--toggle-switch-handle-checked-color);
-  background-color: var(--toggleswitch-handle-checked-background);
 }
 
 .footer {
