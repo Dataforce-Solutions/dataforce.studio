@@ -36,6 +36,18 @@ class OrganizationLimitReachedError(ServiceError):
         )
 
 
+class OrbitLimitReachedError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Orbit reached users limit",
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
 class GoogleCodeMissingError(ServiceError):
     def __init__(
         self,

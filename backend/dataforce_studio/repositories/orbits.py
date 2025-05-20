@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from dataforce_studio.models import OrbitMembersOrm, OrbitOrm
@@ -21,7 +21,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
     #     pass
 
     async def get_organization_orbits(self, organization_id: uuid.UUID) -> list[Orbit]:
-        async with self._get_session() as session, session.begin():
+        async with self._get_session() as session:
             result = await session.execute(
                 select(OrbitOrm).where(OrbitOrm.organization_id == organization_id)
             )
@@ -91,3 +91,21 @@ class OrbitRepository(RepositoryBase, CrudMixin):
     async def delete_orbit_member(self, member_id: uuid.UUID) -> None:
         async with self._get_session() as session:
             return await self.delete_model(session, OrbitMembersOrm, member_id)
+
+    async def get_organization_orbits_count(self, organization_id: uuid.UUID) -> int:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(OrbitOrm)
+                .where(OrbitOrm.organization_id == organization_id)
+            )
+        return result.scalar() or 0
+
+    async def get_orbit_members_count(self, orbit_id: uuid.UUID) -> int:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(OrbitMembersOrm)
+                .where(OrbitMembersOrm.orbit_id == orbit_id)
+            )
+        return result.scalar() or 0

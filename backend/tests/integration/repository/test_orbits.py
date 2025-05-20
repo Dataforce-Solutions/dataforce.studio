@@ -1,15 +1,13 @@
 import pytest
-
 from dataforce_studio.repositories.orbits import OrbitRepository
-
 from dataforce_studio.schemas.orbit import (
-    OrbitCreate,
-    OrbitUpdate,
-    OrbitDetails,
     Orbit,
+    OrbitCreate,
+    OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
     OrbitRole,
+    OrbitUpdate,
     UpdateOrbitMember,
 )
 
@@ -50,7 +48,7 @@ async def test_update_orbit(create_organization_with_user: dict) -> None:
 @pytest.mark.asyncio
 async def test_delete_orbit(create_orbit: dict) -> None:
     data = create_orbit
-    repo, organization, orbit = data["repo"], data["organization"], data["orbit"]
+    repo,orbit = data["repo"], data["orbit"]
 
     deleted_orbit = await repo.delete_orbit(orbit.id)
     fetched_orbit = await repo.get_orbit_simple(orbit.id)
@@ -62,7 +60,7 @@ async def test_delete_orbit(create_orbit: dict) -> None:
 @pytest.mark.asyncio
 async def test_get_orbit(create_orbit: dict) -> None:
     data = create_orbit
-    repo, organization, orbit = data["repo"], data["organization"], data["orbit"]
+    repo, orbit = data["repo"], data["orbit"]
 
     fetched_orbit = await repo.get_orbit(orbit.id)
 
@@ -109,9 +107,8 @@ async def test_get_orbit_members(create_orbit_with_members: dict) -> None:
 @pytest.mark.asyncio
 async def test_create_orbit_member(create_orbit: dict) -> None:
     data = create_orbit
-    repo, organization, orbit, user = (
+    repo, orbit, user = (
         data["repo"],
-        data["organization"],
         data["orbit"],
         data["user"],
     )
@@ -128,9 +125,8 @@ async def test_create_orbit_member(create_orbit: dict) -> None:
 @pytest.mark.asyncio
 async def test_update_orbit_member(create_orbit: dict) -> None:
     data = create_orbit
-    repo, organization, orbit, user = (
+    repo, orbit, user = (
         data["repo"],
-        data["organization"],
         data["orbit"],
         data["user"],
     )
@@ -152,9 +148,8 @@ async def test_update_orbit_member(create_orbit: dict) -> None:
 @pytest.mark.asyncio
 async def test_delete_orbit_member(create_orbit: dict) -> None:
     data = create_orbit
-    repo, organization, orbit, user = (
+    repo, orbit, user = (
         data["repo"],
-        data["organization"],
         data["orbit"],
         data["user"],
     )

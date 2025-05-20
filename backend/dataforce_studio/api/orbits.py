@@ -1,18 +1,19 @@
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from dataforce_studio.handlers.orbits import OrbitHandler
+from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.schemas.orbit import Orbit, OrbitCreate, OrbitDetails, OrbitUpdate
 
 orbits_router = APIRouter(
     prefix="/orbits",
     tags=["orbits"],
-    # dependencies=[Depends(is_user_authenticated)],
+    dependencies=[Depends(is_user_authenticated)],
 )
 organization_orbits_router = APIRouter(
     tags=["orbits"],
-    # dependencies=[Depends(is_user_authenticated)],
+    dependencies=[Depends(is_user_authenticated)],
 )
 
 orbit_handler = OrbitHandler()

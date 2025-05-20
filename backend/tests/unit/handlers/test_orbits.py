@@ -3,17 +3,16 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.schemas.orbit import (
-    OrbitCreate,
     Orbit,
+    OrbitCreate,
     OrbitDetails,
-    OrbitUpdate,
     OrbitMember,
     OrbitMemberCreate,
     OrbitRole,
+    OrbitUpdate,
     UpdateOrbitMember,
 )
 
@@ -53,17 +52,23 @@ test_orbit_details = {
 
 
 @patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_organization_orbit(
-    mock_create_orbit: AsyncMock,
+    mock_create_orbit: AsyncMock, mock_get_organization_orbits_count: AsyncMock
 ) -> None:
     orbit_id = uuid4()
     orbit_to_create = OrbitCreate(**test_orbit)
     mocked_orbit = Orbit(**test_orbit, id=orbit_id)
+
     mock_create_orbit.return_value = mocked_orbit
+    mock_get_organization_orbits_count.return_value = 0
 
     result = await handler.create_organization_orbit(orbit_to_create)
 
@@ -200,12 +205,16 @@ async def test_get_orbit_members(
 
 
 @patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_members_count",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_orbit_member(
-    mock_create_orbit_member: AsyncMock,
+    mock_create_orbit_member: AsyncMock, mock_get_orbit_members_count: AsyncMock
 ) -> None:
     expected = OrbitMember(**test_orbit_member)
     create_member = OrbitMemberCreate(
@@ -213,7 +222,9 @@ async def test_create_orbit_member(
         orbit_id=test_orbit_member["orbit_id"],
         role=test_orbit_member["role"],
     )
+
     mock_create_orbit_member.return_value = expected
+    mock_get_orbit_members_count.return_value = 0
 
     result = await handler.create_orbit_member(create_member)
 

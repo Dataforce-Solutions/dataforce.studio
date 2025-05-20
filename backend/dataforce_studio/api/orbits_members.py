@@ -32,7 +32,7 @@ async def get_orbit_members(
 
 
 @orbit_members_router.post("", response_model=OrbitMember)
-async def add_member_to_robit(member: OrbitMemberCreate) -> OrbitMember:
+async def add_member_to_orbit(member: OrbitMemberCreate) -> OrbitMember:
     return await orbit_handler.create_orbit_member(member)
 
 
