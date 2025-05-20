@@ -1,4 +1,5 @@
 from dataforce_studio.models.base import Base
+from dataforce_studio.models.orbit import OrbitMembersOrm, OrbitOrm
 from dataforce_studio.models.organization import (
     OrganizationInviteOrm,
     OrganizationMemberOrm,
@@ -14,4 +15,6 @@ __all__ = [
     "OrganizationOrm",
     "OrganizationMemberOrm",
     "OrganizationInviteOrm",
+    "OrbitOrm",
+    "OrbitMembersOrm",
 ]

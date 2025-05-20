@@ -27,7 +27,7 @@ class OrganizationHandler:
     __email_handler = EmailHandler()
     __user_repository = UserRepository(engine)
 
-    __members_limit = 10
+    __members_limit = 30
 
     async def get_user_organizations(
         self, user_id: uuid.UUID

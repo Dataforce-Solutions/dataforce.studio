@@ -24,7 +24,7 @@ handler = OrganizationHandler()
 async def test_check_org_members_limit_raises(
     mock_get_organization_members_count: AsyncMock,
 ) -> None:
-    mock_get_organization_members_count.return_value = 10
+    mock_get_organization_members_count.return_value = 30
 
     with pytest.raises(
         OrganizationLimitReachedError,

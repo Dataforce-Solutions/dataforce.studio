@@ -29,6 +29,13 @@ class UserOrm(TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
 
+    orbit_memberships: Mapped[list["OrbitMemberOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "OrbitMembersOrm",
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
     def __repr__(self) -> str:
         return f"User(email={self.email!r}, full_name={self.full_name!r})"
 
