@@ -1,4 +1,4 @@
-import uuid
+import random
 
 import pytest
 from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
@@ -62,7 +62,7 @@ async def test_create_organization_server_error(
 
     with pytest.raises(HTTPException) as error:
         await repo.create_organization_member(
-            user_id=str(uuid.uuid4()),
+            user_id=random.randint(1, 10000),
             organization_id=created_organization.id,
             role=OrgRole.ADMIN,
         )

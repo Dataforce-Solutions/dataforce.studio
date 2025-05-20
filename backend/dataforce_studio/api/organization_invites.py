@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
@@ -19,16 +17,12 @@ organization_handler = OrganizationHandler()
 
 
 @invites_router.get("/{organization_id}", response_model=list[OrganizationInvite])
-async def get_organization_invites(
-    organization_id: uuid.UUID,
-) -> list[OrganizationInvite]:
+async def get_organization_invites(organization_id: int) -> list[OrganizationInvite]:
     return await organization_handler.get_organization_invites(organization_id)
 
 
 @invites_router.get("/my", response_model=list[OrganizationInvite])
-async def get_user_invites(
-    request: Request,
-) -> list[OrganizationInvite]:
+async def get_user_invites(request: Request) -> list[OrganizationInvite]:
     return await organization_handler.get_user_invites(request.user.email)
 
 
@@ -40,20 +34,15 @@ async def create_invite_in_organization(
 
 
 @invites_router.delete("/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_invite_to_organization(
-    invite_id: uuid.UUID,
-) -> None:
+async def cancel_invite_to_organization(invite_id: int) -> None:
     return await organization_handler.cancel_invite(invite_id)
 
 
 @invites_router.post("/{invite_id}/accept")
-async def accept_invite_to_organization(
-    request: Request,
-    invite_id: uuid.UUID,
-) -> None:
+async def accept_invite_to_organization(request: Request, invite_id: int) -> None:
     return await organization_handler.accept_invite(invite_id, request.user.id)
 
 
 @invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
-async def reject_invite_to_organization(invite_id: uuid.UUID) -> None:
+async def reject_invite_to_organization(invite_id: int) -> None:
     return await organization_handler.reject_invite(invite_id)

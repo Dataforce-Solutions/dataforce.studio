@@ -1,5 +1,3 @@
-import uuid
-
 from pydantic import EmailStr
 from sqlalchemy import delete, select
 
@@ -19,7 +17,7 @@ class InviteRepository(RepositoryBase):
             await session.refresh(invite)
         return invite.to_organization_invite()
 
-    async def delete_organization_invite(self, invite_id: uuid.UUID) -> None:
+    async def delete_organization_invite(self, invite_id: int) -> None:
         async with self._get_session() as session, session.begin():
             result = await session.execute(
                 select(OrganizationInviteOrm).filter(
@@ -43,7 +41,7 @@ class InviteRepository(RepositoryBase):
             return OrganizationInviteOrm.to_invites_list(invites)
 
     async def get_invites_by_organization_id(
-        self, organization_id: uuid.UUID
+        self, organization_id: int
     ) -> list[OrganizationInvite]:
         return await self.get_invites_where(
             OrganizationInviteOrm.organization_id == organization_id
@@ -54,7 +52,7 @@ class InviteRepository(RepositoryBase):
     ) -> list[OrganizationInvite]:
         return await self.get_invites_where(OrganizationInviteOrm.email == email)
 
-    async def get_invite(self, invite_id: uuid.UUID) -> OrganizationInvite:
+    async def get_invite(self, invite_id: int) -> OrganizationInvite:
         async with self._get_session() as session, session.begin():
             result = await session.execute(
                 select(OrganizationInviteOrm).where(
@@ -73,7 +71,7 @@ class InviteRepository(RepositoryBase):
             await session.commit()
 
     async def delete_organization_invites_for_user(
-        self, organization_id: uuid.UUID, email: EmailStr
+        self, organization_id: int, email: EmailStr
     ) -> None:
         return await self.delete_organization_invites_where(
             OrganizationInviteOrm.organization_id == organization_id,

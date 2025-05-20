@@ -48,7 +48,7 @@ async def test_update_orbit(create_organization_with_user: dict) -> None:
 @pytest.mark.asyncio
 async def test_delete_orbit(create_orbit: dict) -> None:
     data = create_orbit
-    repo,orbit = data["repo"], data["orbit"]
+    repo, orbit = data["repo"], data["orbit"]
 
     deleted_orbit = await repo.delete_orbit(orbit.id)
     fetched_orbit = await repo.get_orbit_simple(orbit.id)

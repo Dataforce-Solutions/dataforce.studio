@@ -1,5 +1,5 @@
+import random
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
@@ -30,7 +30,9 @@ async def test_check_org_members_limit_raises(
         OrganizationLimitReachedError,
         match="Organization reached maximum number of users",
     ):
-        await handler.check_org_members_limit(organization_id=uuid4(), num=1)
+        await handler.check_org_members_limit(
+            organization_id=random.randint(1, 10000), num=1
+        )
 
     mock_get_organization_members_count.assert_awaited_once()
 
@@ -43,7 +45,7 @@ async def test_check_org_members_limit_raises(
 async def test_get_user_organizations(
     mock_get_user_organizations: AsyncMock, test_org: dict
 ) -> None:
-    user_id = uuid4()
+    user_id = random.randint(1, 10000)
     expected = [OrganizationSwitcher(**test_org, role=OrgRole.MEMBER)]
     mock_get_user_organizations.return_value = expected
 
@@ -61,7 +63,7 @@ async def test_get_user_organizations(
 async def test_get_organization(
     mock_get_organization_details: AsyncMock, test_org_details: dict
 ) -> None:
-    organization_id = uuid4()
+    organization_id = random.randint(1, 10000)
     expected = OrganizationDetails(**test_org_details)
     mock_get_organization_details.return_value = expected
 
@@ -79,7 +81,7 @@ async def test_get_organization(
 async def test_get_organization_not_found(
     mock_get_organization_details: AsyncMock,
 ) -> None:
-    organization_id = uuid4()
+    organization_id = random.randint(1, 10000)
     mock_get_organization_details.return_value = None
 
     with pytest.raises(

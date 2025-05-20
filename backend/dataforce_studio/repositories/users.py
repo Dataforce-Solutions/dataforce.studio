@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import HTTPException, status
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import case, func, select
@@ -119,7 +117,7 @@ class UserRepository(RepositoryBase):
             await session.refresh(db_organization)
         return db_organization
 
-    async def get_organization_members_count(self, organization_id: uuid.UUID) -> int:
+    async def get_organization_members_count(self, organization_id: int) -> int:
         async with self._get_session() as session:
             result = await session.execute(
                 select(func.count())
@@ -129,7 +127,7 @@ class UserRepository(RepositoryBase):
         return result.scalar() or 0
 
     async def create_organization_member(
-        self, user_id: uuid.UUID, organization_id: uuid.UUID, role: OrgRole
+        self, user_id: int, organization_id: int, role: OrgRole
     ) -> OrganizationMember:
         async with self._get_session() as session:
             db_organization_member = OrganizationMemberOrm(
@@ -154,14 +152,14 @@ class UserRepository(RepositoryBase):
         return OrganizationMember.model_validate(db_organization_member)
 
     async def create_owner(
-        self, user_id: uuid.UUID, organization_id: uuid.UUID
+        self, user_id: int, organization_id: int
     ) -> OrganizationMember:
         return await self.create_organization_member(
             user_id, organization_id, OrgRole.OWNER
         )
 
     async def get_user_organizations(
-        self, user_id: uuid.UUID, role: OrgRole | None = None
+        self, user_id: int, role: OrgRole | None = None
     ) -> list[OrganizationSwitcher]:
         async with self._get_session() as session:
             query = (
@@ -188,7 +186,7 @@ class UserRepository(RepositoryBase):
             ]
 
     async def get_organization_details(
-        self, organization_id: uuid.UUID
+        self, organization_id: int
     ) -> OrganizationDetails | None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -207,7 +205,7 @@ class UserRepository(RepositoryBase):
             )
 
     async def get_organization_users(
-        self, organization_id: uuid.UUID, role: OrgRole | None = None
+        self, organization_id: int, role: OrgRole | None = None
     ) -> list[OrganizationMember]:
         async with self._get_session() as session:
             query = select(OrganizationMemberOrm).filter(
@@ -265,7 +263,7 @@ class UserRepository(RepositoryBase):
                 await session.delete(member)
                 await session.commit()
 
-    async def delete_organization_member(self, member_id: uuid.UUID) -> None:
+    async def delete_organization_member(self, member_id: int) -> None:
         return await self.delete_organization_member_where(
             OrganizationMemberOrm.id == member_id
         )
@@ -292,7 +290,7 @@ class UserRepository(RepositoryBase):
             return [OrganizationMember.model_validate(member) for member in members]
 
     async def get_organization_members(
-        self, organization_id: uuid.UUID
+        self, organization_id: int
     ) -> list[OrganizationMember]:
         return await self.get_organization_members_where(
             OrganizationMemberOrm.organization_id == organization_id

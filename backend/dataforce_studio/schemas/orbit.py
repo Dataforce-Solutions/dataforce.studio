@@ -15,7 +15,7 @@ class OrbitRole(StrEnum):
 
 
 class Orbit(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
     name: str
     organization_id: uuid.UUID
 
@@ -27,29 +27,29 @@ class OrbitDetails(Orbit):
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
     name: str
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
-    organization_id: uuid.UUID
+    organization_id: int
 
 
 class OrbitMemberCreate(BaseModel):
-    user_id: uuid.UUID
-    orbit_id: uuid.UUID
+    user_id: int
+    orbit_id: int
     role: OrbitRole
 
 
 class UpdateOrbitMember(BaseModel):
-    id: uuid.UUID
+    id: int
     role: OrbitRole
 
 
 class OrbitMember(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
-    orbit_id: uuid.UUID
+    id: int
+    orbit_id: int
     role: OrbitRole
     user: UserOut
     created_at: datetime

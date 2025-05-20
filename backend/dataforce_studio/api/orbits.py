@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, status
 
 from dataforce_studio.handlers.orbits import OrbitHandler
@@ -20,12 +18,12 @@ orbit_handler = OrbitHandler()
 
 
 @organization_orbits_router.get("/{organization_id}/orbits")
-async def get_organization_orbits(organization_id: uuid.UUID) -> list[Orbit]:
+async def get_organization_orbits(organization_id: int) -> list[Orbit]:
     return await orbit_handler.get_organization_orbits(organization_id)
 
 
 @orbits_router.get("/{orbit_id}", response_model=OrbitDetails)
-async def get_orbit_details(orbit_id: uuid.UUID) -> OrbitDetails:
+async def get_orbit_details(orbit_id: int) -> OrbitDetails:
     return await orbit_handler.get_orbit(orbit_id)
 
 
@@ -40,5 +38,5 @@ async def update_orbit(orbit: OrbitUpdate) -> Orbit:
 
 
 @orbits_router.delete("/{orbit_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_orbit(orbit_id: uuid.UUID) -> None:
+async def delete_orbit(orbit_id: int) -> None:
     return await orbit_handler.delete_orbit(orbit_id)

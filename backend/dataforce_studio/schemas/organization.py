@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 from enum import StrEnum
 
@@ -17,39 +16,39 @@ class OrgRole(StrEnum):
 class CreateOrganizationInvite(BaseModel):
     email: EmailStr
     role: OrgRole
-    organization_id: uuid.UUID
-    invited_by: uuid.UUID
+    organization_id: int
+    invited_by: int
 
 
 class OrganizationInvite(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
     email: EmailStr
     role: OrgRole
-    organization_id: uuid.UUID
-    invited_by: uuid.UUID
+    organization_id: int
+    invited_by: int
     created_at: datetime
 
 
 class UpdateOrganizationMember(BaseModel):
-    id: uuid.UUID
+    id: int
     role: OrgRole
 
 
 class OrganizationMember(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
-    organization_id: uuid.UUID
+    id: int
+    organization_id: int
     role: OrgRole
     user: UserOut
 
 
 class OrganizationMemberCreate(BaseModel):
-    user_id: uuid.UUID
-    organization_id: uuid.UUID
+    user_id: int
+    organization_id: int
     role: OrgRole
 
 
 class Organization(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
     name: str
     logo: HttpUrl | None = None
 

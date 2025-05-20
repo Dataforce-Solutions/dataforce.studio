@@ -1,5 +1,3 @@
-import uuid
-
 from pydantic import BaseModel, EmailStr
 from starlette.authentication import BaseUser
 
@@ -13,7 +11,7 @@ class Token(BaseModel):
 class AuthUser(BaseUser):
     def __init__(
         self,
-        user_id: uuid.UUID,
+        user_id: int,
         email: EmailStr,
         full_name: str | None = None,
         disabled: bool | None = None,

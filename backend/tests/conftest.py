@@ -1,6 +1,5 @@
 import datetime
 import random
-from uuid import uuid4
 
 import asyncpg
 import pytest_asyncio
@@ -66,32 +65,32 @@ async def create_database_and_apply_migrations():  # noqa: ANN201
 invite_data = {
     "email": "test@example.com",
     "role": OrgRole.MEMBER,
-    "organization_id": uuid4(),
-    "invited_by": uuid4(),
+    "organization_id": random.randint(1, 10000),
+    "invited_by": random.randint(1, 10000),
 }
 
 invite_get_data = {
-    "id": uuid4(),
+    "id": random.randint(1, 10000),
     "email": "test@example.com",
     "role": OrgRole.MEMBER,
-    "organization_id": uuid4(),
-    "invited_by": uuid4(),
+    "organization_id": random.randint(1, 10000),
+    "invited_by": random.randint(1, 10000),
     "created_at": datetime.datetime.now(),
 }
 
 invite_accept_data = {
-    "id": uuid4(),
+    "id": random.randint(1, 10000),
     "email": "test@example.com",
     "role": OrgRole.MEMBER,
-    "organization_id": uuid4(),
-    "invited_by": uuid4(),
+    "organization_id": random.randint(1, 10000),
+    "invited_by": random.randint(1, 10000),
 }
 member_data = {
-    "id": uuid4(),
-    "organization_id": uuid4(),
+    "id": random.randint(1, 10000),
+    "organization_id": random.randint(1, 10000),
     "role": OrgRole.ADMIN,
     "user": {
-        "id": uuid4(),
+        "id": random.randint(1, 10000),
         "email": "test@gmail.com",
         "full_name": "Full Name",
         "disabled": False,
@@ -116,7 +115,7 @@ def test_user() -> dict:
 @pytest_asyncio.fixture(scope="function")
 def test_org() -> dict:
     return {
-        "id": uuid4(),
+        "id": random.randint(1, 10000),
         "name": "Test organization",
         "logo": None,
         "created_at": datetime.datetime.now(),
@@ -127,13 +126,13 @@ def test_org() -> dict:
 @pytest_asyncio.fixture(scope="function")
 def test_org_details() -> dict:
     return {
-        "id": uuid4(),
+        "id": random.randint(1, 10000),
         "name": "Test organization",
         "logo": None,
         "created_at": datetime.datetime.now(),
         "updated_at": datetime.datetime.now(),
-        "invites": [OrganizationInvite(**invite_get_data)],
-        "members": [OrganizationMember(**member_data)],
+        "invites": [OrganizationInvite(**invite_get_data)],  # type: ignore[arg-type]
+        "members": [OrganizationMember(**member_data)],  # type: ignore[arg-type]
     }
 
 
@@ -168,9 +167,7 @@ async def create_organization_with_members(
         name="Test org with members", logo=None
     )
 
-    members = []
-    users = []
-    invites = []
+    members, users, invites = [], [], []
 
     for i in range(10):
         user = CreateUser(

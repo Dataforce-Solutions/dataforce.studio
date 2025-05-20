@@ -1,8 +1,7 @@
-import uuid
 from collections.abc import Sequence
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -17,9 +16,8 @@ from dataforce_studio.schemas.organization import (
 class OrganizationOrm(TimestampMixin, Base):
     __tablename__ = "organizations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
     name: Mapped[str | None] = mapped_column(String, nullable=False)
     logo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
 
@@ -51,14 +49,13 @@ class OrganizationMemberOrm(TimestampMixin, Base):
         UniqueConstraint("organization_id", "user_id", name="org_member"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
 
     role: Mapped[str] = mapped_column(String, nullable=False)
@@ -78,16 +75,14 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    invited_by: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    invited_by: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")

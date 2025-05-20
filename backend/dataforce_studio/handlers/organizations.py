@@ -1,5 +1,3 @@
-import uuid
-
 from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
@@ -29,12 +27,10 @@ class OrganizationHandler:
 
     __members_limit = 30
 
-    async def get_user_organizations(
-        self, user_id: uuid.UUID
-    ) -> list[OrganizationSwitcher]:
+    async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)
 
-    async def get_organization(self, organization_id: uuid.UUID) -> OrganizationDetails:
+    async def get_organization(self, organization_id: int) -> OrganizationDetails:
         organization = await self.__user_repository.get_organization_details(
             organization_id
         )
@@ -42,9 +38,7 @@ class OrganizationHandler:
             raise NotFoundError("Organization not found")
         return organization
 
-    async def check_org_members_limit(
-        self, organization_id: uuid.UUID, num: int = 0
-    ) -> None:
+    async def check_org_members_limit(self, organization_id: int, num: int = 0) -> None:
         members_count = await self.__user_repository.get_organization_members_count(
             organization_id
         )
@@ -64,10 +58,10 @@ class OrganizationHandler:
         self.__email_handler.send_organization_invite_email()
         return db_invite
 
-    async def cancel_invite(self, invite_id: uuid.UUID) -> None:
+    async def cancel_invite(self, invite_id: int) -> None:
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
-    async def accept_invite(self, invite_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    async def accept_invite(self, invite_id: int, user_id: int) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
         await self.check_org_members_limit(invite.organization_id, 1)
@@ -78,11 +72,11 @@ class OrganizationHandler:
             invite.organization_id, invite.email
         )
 
-    async def reject_invite(self, invite_id: uuid.UUID) -> None:
+    async def reject_invite(self, invite_id: int) -> None:
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def get_organization_invites(
-        self, organization_id: uuid.UUID
+        self, organization_id: int
     ) -> list[OrganizationInvite]:
         return await self.__invites_repository.get_invites_by_organization_id(
             organization_id
@@ -92,7 +86,7 @@ class OrganizationHandler:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
-        self, organization_id: uuid.UUID
+        self, organization_id: int
     ) -> list[OrganizationMember]:
         return await self.__user_repository.get_organization_members(organization_id)
 
@@ -101,7 +95,7 @@ class OrganizationHandler:
     ) -> OrganizationMember | None:
         return await self.__user_repository.update_organization_member(member)
 
-    async def delete_organization_member_by_id(self, member_id: uuid.UUID) -> None:
+    async def delete_organization_member_by_id(self, member_id: int) -> None:
         return await self.__user_repository.delete_organization_member(member_id)
 
     async def add_organization_member(

@@ -1,6 +1,6 @@
 import datetime
+import random
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.orbits import OrbitHandler
@@ -18,18 +18,22 @@ from dataforce_studio.schemas.orbit import (
 
 handler = OrbitHandler()
 
-test_orbit = {"name": "test", "organization_id": uuid4()}
+test_orbit = {"name": "test", "organization_id": random.randint(1, 10000)}
 
-test_orbit_created = {"id": uuid4(), "name": "test", "organization_id": uuid4()}
+test_orbit_created = {
+    "id": random.randint(1, 10000),
+    "name": "test",
+    "organization_id": random.randint(1, 10000),
+}
 
-test_orbit_id = uuid4()
+test_orbit_id = random.randint(1, 10000)
 
 test_orbit_member = {
-    "id": uuid4(),
+    "id": random.randint(1, 10000),
     "orbit_id": test_orbit_id,
     "role": OrbitRole.MEMBER,
     "user": {
-        "id": uuid4(),
+        "id": random.randint(1, 10000),
         "email": "brandihernandez@example.org",
         "full_name": "Kathy Hall",
         "disabled": False,
@@ -42,7 +46,7 @@ test_orbit_member = {
 test_orbit_details = {
     "id": test_orbit_id,
     "name": "test",
-    "organization_id": uuid4(),
+    "organization_id": random.randint(1, 10000),
     "members": [
         test_orbit_member,
     ],
@@ -63,7 +67,7 @@ test_orbit_details = {
 async def test_create_organization_orbit(
     mock_create_orbit: AsyncMock, mock_get_organization_orbits_count: AsyncMock
 ) -> None:
-    orbit_id = uuid4()
+    orbit_id = random.randint(1, 10000)
     orbit_to_create = OrbitCreate(**test_orbit)
     mocked_orbit = Orbit(**test_orbit, id=orbit_id)
 
@@ -102,9 +106,7 @@ async def test_get_organization_orbits(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_orbit(
-    mock_get_orbit: AsyncMock,
-) -> None:
+async def test_get_orbit(mock_get_orbit: AsyncMock) -> None:
     expected = OrbitDetails(**test_orbit_details)
 
     mock_get_orbit.return_value = expected
@@ -120,10 +122,8 @@ async def test_get_orbit(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_orbit_not_found(
-    mock_get_orbit: AsyncMock,
-) -> None:
-    orbit_id = uuid4()
+async def test_get_orbit_not_found(mock_get_orbit: AsyncMock) -> None:
+    orbit_id = random.randint(1, 10000)
     mock_get_orbit.return_value = None
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
@@ -138,9 +138,7 @@ async def test_get_orbit_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_update_orbit(
-    mock_update_orbit: AsyncMock,
-) -> None:
+async def test_update_orbit(mock_update_orbit: AsyncMock) -> None:
     expected = OrbitDetails(**test_orbit_details)
     mock_update_orbit.return_value = expected
 
@@ -156,11 +154,9 @@ async def test_update_orbit(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_update_orbit_not_found(
-    mock_update_orbit: AsyncMock,
-) -> None:
+async def test_update_orbit_not_found(mock_update_orbit: AsyncMock) -> None:
     mock_update_orbit.return_value = None
-    update_orbit = OrbitUpdate(id=uuid4(), name="new_name")
+    update_orbit = OrbitUpdate(id=random.randint(1, 10000), name="new_name")
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.update_orbit(update_orbit)
@@ -174,10 +170,8 @@ async def test_update_orbit_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_delete_orbit(
-    mock_delete_orbit: AsyncMock,
-) -> None:
-    orbit_id = uuid4()
+async def test_delete_orbit(mock_delete_orbit: AsyncMock) -> None:
+    orbit_id = random.randint(1, 10000)
     mock_delete_orbit.return_value = None
 
     deleted = await handler.delete_orbit(orbit_id)
@@ -191,9 +185,7 @@ async def test_delete_orbit(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_orbit_members(
-    mock_get_orbit_members: AsyncMock,
-) -> None:
+async def test_get_orbit_members(mock_get_orbit_members: AsyncMock) -> None:
     expected = OrbitMember(**test_orbit_member)
 
     mock_get_orbit_members.return_value = expected
@@ -259,7 +251,7 @@ async def test_update_orbit_member(
 async def test_update_orbit_member_not_found(
     mock_update_orbit_member: AsyncMock,
 ) -> None:
-    update_member = UpdateOrbitMember(id=uuid4(), role=OrbitRole.ADMIN)
+    update_member = UpdateOrbitMember(id=random.randint(1, 10000), role=OrbitRole.ADMIN)
 
     mock_update_orbit_member.return_value = None
 
@@ -278,7 +270,7 @@ async def test_update_orbit_member_not_found(
 async def test_delete_orbit_member(
     mock_delete_orbit_member: AsyncMock,
 ) -> None:
-    member_id = uuid4()
+    member_id = random.randint(1, 10000)
     mock_delete_orbit_member.return_value = None
 
     deleted = await handler.delete_orbit_member(member_id)
