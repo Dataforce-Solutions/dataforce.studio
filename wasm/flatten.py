@@ -103,7 +103,7 @@ class ModuleFlattener:
 
                             for name in node.names:
                                 self.from_imports[module_name][name.name] = name.asname
-        except Exception:
+        except Exception as e:
             pass
 
     def process_imports(self, file_path, content, depth=0):
@@ -146,7 +146,7 @@ class ModuleFlattener:
                 if module_path not in self.processed_modules:
                     self.process_file(module_path, depth + 1)
 
-        except Exception:
+        except Exception as e:
             pass
 
     def process_file(self, file_path, depth=0):
@@ -224,7 +224,7 @@ class ModuleFlattener:
             # Store module content
             self.module_contents[abs_path] = content
 
-        except Exception:
+        except Exception as e:
             pass
         finally:
             if self.import_stack and self.import_stack[-1] == abs_path:
