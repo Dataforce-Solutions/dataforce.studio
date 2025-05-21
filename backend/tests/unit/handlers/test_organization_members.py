@@ -1,5 +1,5 @@
+import random
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
@@ -59,7 +59,7 @@ async def test_update_organization_member_by_id(
 async def test_delete_organization_member_by_id(
     mock_delete_organization_member: AsyncMock,
 ) -> None:
-    member_id = uuid4()
+    member_id = random.randint(1, 10000)
     mock_delete_organization_member.return_value = None
 
     actual = await handler.delete_organization_member_by_id(member_id)

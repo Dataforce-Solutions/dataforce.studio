@@ -1,5 +1,3 @@
-import uuid
-
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
@@ -25,7 +23,7 @@ class OrbitHandler:
     __orbits_limit = 10
 
     async def check_organization_orbits_limit(
-        self, organization_id: uuid.UUID, num: int = 0
+        self, organization_id: int, num: int = 0
     ) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
             organization_id
@@ -37,7 +35,7 @@ class OrbitHandler:
             )
 
     async def check_organization_members_limit(
-        self, organization_id: uuid.UUID, num: int = 0
+        self, organization_id: int, num: int = 0
     ) -> None:
         members_count = await self.__orbits_repository.get_orbit_members_count(
             organization_id
@@ -51,10 +49,10 @@ class OrbitHandler:
 
         return await self.__orbits_repository.create_orbit(orbit)
 
-    async def get_organization_orbits(self, organization_id: uuid.UUID) -> list[Orbit]:
+    async def get_organization_orbits(self, organization_id: int) -> list[Orbit]:
         return await self.__orbits_repository.get_organization_orbits(organization_id)
 
-    async def get_orbit(self, orbit_id: uuid.UUID) -> OrbitDetails:
+    async def get_orbit(self, orbit_id: int) -> OrbitDetails:
         orbit = await self.__orbits_repository.get_orbit(orbit_id)
 
         if not orbit:
@@ -70,10 +68,10 @@ class OrbitHandler:
 
         return orbit_obj
 
-    async def delete_orbit(self, orbit_id: uuid.UUID) -> None:
+    async def delete_orbit(self, orbit_id: int) -> None:
         return await self.__orbits_repository.delete_orbit(orbit_id)
 
-    async def get_orbit_members(self, orbit_id: uuid.UUID) -> list[OrbitMember]:
+    async def get_orbit_members(self, orbit_id: int) -> list[OrbitMember]:
         return await self.__orbits_repository.get_orbit_members(orbit_id)
 
     async def create_orbit_member(self, member: OrbitMemberCreate) -> OrbitMember:
@@ -89,5 +87,5 @@ class OrbitHandler:
 
         return member_obj
 
-    async def delete_orbit_member(self, member_id: uuid.UUID) -> None:
+    async def delete_orbit_member(self, member_id: int) -> None:
         return await self.__orbits_repository.delete_orbit_member(member_id)

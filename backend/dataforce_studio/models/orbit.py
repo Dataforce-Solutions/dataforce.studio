@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -12,9 +12,7 @@ from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
 class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str | None] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
@@ -44,15 +42,13 @@ class OrbitMembersOrm(TimestampMixin, Base):
     __tablename__ = "orbit_members"
     __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, unique=True, nullable=False, default=uuid.uuid4
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    orbit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+    orbit_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
 
     role: Mapped[str] = mapped_column(String, nullable=False)

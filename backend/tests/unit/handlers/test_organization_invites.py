@@ -1,5 +1,5 @@
+import random
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
@@ -56,7 +56,7 @@ async def test_send_invite(
 async def test_cancel_invite(
     mock_delete_organization_invite: AsyncMock,
 ) -> None:
-    invite_id = uuid4()
+    invite_id = random.randint(1, 10000)
 
     mock_delete_organization_invite.return_value = None
 
@@ -89,7 +89,7 @@ async def test_accept_invite(
     mock_create_organization_member: AsyncMock,
     mock_get_organization_members_count: AsyncMock,
 ) -> None:
-    user_id = uuid4()
+    user_id = random.randint(1, 10000)
     invite = OrganizationInviteOrm(**invite_accept_data)
 
     mock_get_invite.return_value = invite
@@ -116,7 +116,7 @@ async def test_accept_invite(
 async def test_reject_invite(
     mock_delete_organization_invite: AsyncMock,
 ) -> None:
-    invite_id = uuid4()
+    invite_id = random.randint(1, 10000)
 
     mock_delete_organization_invite.return_value = None
 
@@ -134,7 +134,7 @@ async def test_reject_invite(
 async def test_get_organization_invites(
     mock_get_organization_invites: AsyncMock,
 ) -> None:
-    organization_id = uuid4()
+    organization_id = random.randint(1, 10000)
 
     expected = list(OrganizationInvite(**invite_get_data))
     mock_get_organization_invites.return_value = expected
@@ -153,10 +153,11 @@ async def test_get_organization_invites(
 async def test_get_user_invites(
     mock_get_user_invites: AsyncMock,
 ) -> None:
-    expected = list(OrganizationInvite(**invite_get_data))
+    invite = OrganizationInvite(**invite_get_data)
+    expected = list(invite)
     mock_get_user_invites.return_value = expected
 
-    actual = await handler.get_user_invites(invite_get_data["email"])
+    actual = await handler.get_user_invites(invite.email)
 
     assert actual == expected
     mock_get_user_invites.assert_awaited_once()

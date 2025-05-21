@@ -1,6 +1,6 @@
+import random
 from time import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import uuid4
 
 import jwt
 import pytest
@@ -33,7 +33,7 @@ passwords = {
 }
 
 user_data = {
-    "id": uuid4(),
+    "id": random.randint(1, 10000),
     "email": "testuser@example.com",
     "full_name": "Test User",
     "disabled": False,

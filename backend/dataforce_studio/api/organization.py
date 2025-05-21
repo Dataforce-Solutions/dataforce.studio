@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, Request
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
@@ -32,14 +30,10 @@ organization_router.include_router(orbit_members_router)
 
 
 @organization_router.get("", response_model=list[OrganizationSwitcher])
-async def get_available_organizations(
-    request: Request,
-) -> list[OrganizationSwitcher]:
+async def get_available_organizations(request: Request) -> list[OrganizationSwitcher]:
     return await organization_handler.get_user_organizations(request.user.id)
 
 
 @organization_router.get("/{organization_id}", response_model=OrganizationDetails)
-async def get_organization_details(
-    organization_id: uuid.UUID,
-) -> OrganizationDetails:
+async def get_organization_details(organization_id: int) -> OrganizationDetails:
     return await organization_handler.get_organization(organization_id)

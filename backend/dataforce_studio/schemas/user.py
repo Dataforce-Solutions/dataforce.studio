@@ -1,4 +1,3 @@
-import uuid
 from enum import Enum
 
 from pydantic import BaseModel, EmailStr
@@ -12,7 +11,7 @@ class AuthProvider(str, Enum):
 
 
 class _UserBase(BaseModel):
-    id: uuid.UUID | None = None
+    id: int | None = None
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None
@@ -26,11 +25,11 @@ class CreateUser(_UserBase): ...
 
 
 class User(_UserBase, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
 
 
 class UserOut(BaseModel, BaseOrmConfig):
-    id: uuid.UUID
+    id: int
     email: EmailStr
     full_name: str | None = None
     disabled: bool | None = None

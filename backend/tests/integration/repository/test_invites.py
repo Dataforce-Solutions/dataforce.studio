@@ -1,4 +1,4 @@
-import uuid
+import random
 
 import pytest
 from dataforce_studio.infra.exceptions import NotFoundError
@@ -58,7 +58,7 @@ async def test_delete_organization_invite_not_found(
     repo = InviteRepository(engine)
 
     with pytest.raises(NotFoundError) as error:
-        await repo.delete_organization_invite(uuid.uuid4())
+        await repo.delete_organization_invite(random.randint(1, 10000))
 
     assert error.value.status_code == 404
 
@@ -88,7 +88,7 @@ async def test_get_invite_not_found(
     repo = InviteRepository(engine)
 
     with pytest.raises(NotFoundError) as error:
-        await repo.get_invite(uuid.uuid4())
+        await repo.get_invite(random.randint(1, 10000))
 
     assert error.value.status_code == 404
 
