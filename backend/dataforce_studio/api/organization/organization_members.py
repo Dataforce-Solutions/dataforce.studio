@@ -8,7 +8,8 @@ from dataforce_studio.schemas.organization import (
 )
 
 members_router = APIRouter(
-    prefix="/{organization_id}/members", tags=["organization-members"]
+    prefix="/{organization_id}/members",
+    tags=["organization-members"]
 )
 
 organization_handler = OrganizationHandler()
@@ -21,15 +22,15 @@ async def get_organization_members(organization_id: int) -> list[OrganizationMem
 
 @members_router.post("")
 async def add_member_to_organization(
-    member: OrganizationMemberCreate,
+        member: OrganizationMemberCreate,
 ) -> OrganizationMember:
     return await organization_handler.add_organization_member(member)
 
 
 @members_router.patch("/{member_id}")
 async def update_organization_member(
-    member_id: int,
-    member: UpdateOrganizationMember,
+        member_id: int,
+        member: UpdateOrganizationMember,
 ) -> OrganizationMember | None:
     return await organization_handler.update_organization_member_by_id(
         member_id, member

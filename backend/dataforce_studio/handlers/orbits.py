@@ -30,9 +30,7 @@ class OrbitHandler:
                 "Organization reached maximum number of orbits", 409
             )
 
-    async def create_organization_orbit(
-        self, organization_id: int, orbit: OrbitCreate
-    ) -> Orbit:
+    async def create_organization_orbit(self, organization_id: int, orbit: OrbitCreate) -> Orbit:
         await self.check_organization_orbits_limit(organization_id)
 
         return await self.__orbits_repository.create_orbit(organization_id, orbit)
