@@ -11,6 +11,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationInvite,
     OrgRole,
     UserInvite,
+    OrganizationMemberCreate,
 )
 from dataforce_studio.schemas.user import UserOut
 
@@ -169,7 +170,9 @@ async def test_accept_invite(
     mock_get_invite.assert_awaited_once_with(invite.id)
     mock_get_organization_members_count.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
-        user_id, invite.organization_id, invite.role
+        OrganizationMemberCreate(
+            user_id=user_id, organization_id=invite.organization_id, role=invite.role
+        )
     )
     mock_delete_organization_invites_for_user.assert_awaited_once_with(
         invite.organization_id, invite.email
@@ -199,7 +202,7 @@ async def test_reject_invite(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_where",
+    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_by_organization_id",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -221,7 +224,7 @@ async def test_get_organization_invites(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_where",
+    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_by_user_email",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

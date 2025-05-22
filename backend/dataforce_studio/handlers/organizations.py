@@ -1,9 +1,11 @@
 from pydantic import EmailStr
+from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    DatabaseConstraintError,
     NotFoundError,
     OrganizationDeleteError,
     OrganizationLimitReachedError,
@@ -206,10 +208,24 @@ class OrganizationHandler:
     async def accept_invite(self, invite_id: int, user_id: int) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
+        if not invite:
+            raise NotFoundError("Invite not found")
+
         await self.check_org_members_limit(invite.organization_id)
-        await self.__user_repository.create_organization_member(
-            user_id, invite.organization_id, invite.role
-        )
+
+        try:
+            await self.__user_repository.create_organization_member(
+                OrganizationMemberCreate(
+                    user_id=user_id,
+                    organization_id=invite.organization_id,
+                    role=invite.role,
+                )
+            )
+        except IntegrityError as error:
+            raise DatabaseConstraintError(
+                "Organization member already exist."
+            ) from error
+
         await self.__invites_repository.delete_organization_invites_for_user(
             invite.organization_id, invite.email
         )
@@ -314,7 +330,13 @@ class OrganizationHandler:
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise ServiceError("Only Organization Owner can add new admins.")
+        try:
+            created_member = await self.__user_repository.create_organization_member(
+                member
+            )
+        except IntegrityError as error:
+            raise DatabaseConstraintError(
+                "Organization member already exist."
+            ) from error
 
-        return await self.__user_repository.create_organization_member(
-            member.user_id, member.organization_id, member.role
-        )
+        return created_member

@@ -77,6 +77,12 @@ class OrganizationMemberOrm(TimestampMixin, Base):
     def to_organization_member(self) -> OrganizationMember:
         return OrganizationMember.model_validate(self)
 
+    @classmethod
+    def to_organization_members(
+        cls, members: Sequence["OrganizationMemberOrm"]
+    ) -> list[OrganizationMember]:
+        return [OrganizationMember.model_validate(member) for member in members]
+
 
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"

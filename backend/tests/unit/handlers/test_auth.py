@@ -53,8 +53,8 @@ create_user_data = {
 
 @pytest.fixture
 def get_create_user() -> dict:
-    create_user = CreateUserIn(**create_user_data)
-    user = User(**user_data)
+    create_user = CreateUserIn.model_validate(create_user_data)
+    user = User.model_validate(user_data)
     return {"create_user": create_user, "user": user}
 
 
@@ -103,7 +103,7 @@ def test_verify_password(mock_verify: Mock) -> None:
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user(mock_get_user: AsyncMock, mock_verify: Mock) -> None:
-    expected = User(**user_data)
+    expected = User.model_validate(user_data)
 
     mock_verify.return_value = True
     mock_get_user.return_value = expected
@@ -118,7 +118,7 @@ async def test_authenticate_user(mock_get_user: AsyncMock, mock_verify: Mock) ->
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_user_not_found(mock_get_user: AsyncMock) -> None:
-    expected = User(**user_data)
+    expected = User.model_validate(user_data)
 
     mock_get_user.return_value = None
 
@@ -135,7 +135,7 @@ async def test_authenticate_user_invalid_auth_method(mock_get_user: AsyncMock) -
     new_test_user = user_data.copy()
     new_test_user["auth_method"] = AuthProvider.GOOGLE
 
-    expected = User(**new_test_user)
+    expected = User.model_validate(new_test_user)
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Invalid auth method") as error:
@@ -151,7 +151,7 @@ async def test_authenticate_user_password_is_invalid(mock_get_user: AsyncMock) -
     new_test_user = user_data.copy()
     new_test_user["hashed_password"] = None
 
-    expected = User(**new_test_user)
+    expected = User.model_validate(new_test_user)
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Password is invalid") as error:
@@ -167,7 +167,7 @@ async def test_authenticate_user_password_is_invalid(mock_get_user: AsyncMock) -
 async def test_authenticate_user_password_not_verified(
     mock_get_user: AsyncMock, mock_verify: Mock
 ) -> None:
-    expected = User(**user_data)
+    expected = User.model_validate(user_data)
 
     mock_verify.return_value = False
     mock_get_user.return_value = expected
@@ -185,7 +185,7 @@ async def test_authenticate_user_email_not_verified(mock_get_user: AsyncMock) ->
     new_test_user = user_data.copy()
     new_test_user["email_verified"] = False
 
-    expected = User(**new_test_user)
+    expected = User.model_validate(new_test_user)
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Email not verified") as error:
@@ -519,7 +519,7 @@ async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
 )
 @pytest.mark.asyncio
 async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
-    user = UserOut(**user_data)
+    user = UserOut.model_validate(user_data)
     mock_get_public_user.return_value = user
 
     result = await handler.handle_get_current_user(user.email)
@@ -536,7 +536,7 @@ async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
 async def test_handle_get_current_user_not_found(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    user = UserOut(**user_data)
+    user = UserOut.model_validate(user_data)
     mock_get_public_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -556,7 +556,7 @@ async def test_handle_get_current_account_is_disabled(
 ) -> None:
     disabled_user_data = user_data.copy()
     disabled_user_data["disabled"] = True
-    user = UserOut(**disabled_user_data)
+    user = UserOut.model_validate(disabled_user_data)
 
     mock_get_public_user.return_value = user
 

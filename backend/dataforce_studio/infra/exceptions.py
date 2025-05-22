@@ -106,3 +106,10 @@ class InsufficientPermissionsError(ServiceError):
             message=message,
             status_code=status_code,
         )
+
+
+class DatabaseConstraintError(ServiceError):
+    def __init__(
+        self, message: str, status_code: int = status.HTTP_409_CONFLICT
+    ) -> None:
+        super().__init__(message=message, status_code=status_code)

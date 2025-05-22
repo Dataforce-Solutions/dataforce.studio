@@ -19,6 +19,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrgRole,
+    OrganizationMemberCreate,
 )
 from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
@@ -267,9 +268,11 @@ async def create_organization_with_members(
         users.append(fetched_user)
 
         member = await repo.create_organization_member(
-            user_id=fetched_user.id,
-            organization_id=organization.id,
-            role=OrgRole.MEMBER,
+            OrganizationMemberCreate(
+                user_id=fetched_user.id,
+                organization_id=organization.id,
+                role=OrgRole.MEMBER,
+            )
         )
         members.append(member)
 
