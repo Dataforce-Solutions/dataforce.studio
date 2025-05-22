@@ -41,13 +41,10 @@
 </template>
 
 <script setup lang="ts">
-import { AnalyticsService } from '@/lib/analytics/AnalyticsService'
 import type { IAuthorizationService, TAuthorizationWrapperProps } from './interfaces'
-
 import GoogleIcon from '@/assets/img/authorization-services/google.svg'
 // import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
 // import GitHubIcon from '@/assets/img/authorization-services/github.svg'
-
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { onBeforeMount, ref } from 'vue'
@@ -90,8 +87,6 @@ onBeforeMount(async () => {
   try {
     await authStore.loginWithGoogle(code)
     await userStore.loadUser()
-    const email = userStore.getUserEmail
-    email && AnalyticsService.identify(email)
     router.push({ name: 'home' })
   } catch (e) {
     console.error(e)

@@ -24,7 +24,7 @@ import { useToast } from 'primevue'
 import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
 import { forgotPasswordResolver } from '@/utils/forms/resolvers'
-import { AnalyticsService } from '@/lib/analytics/AnalyticsService'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
 const toast = useToast()
 
@@ -33,7 +33,7 @@ const resolver = ref(forgotPasswordResolver)
 
 const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   if (!valid) return
-  AnalyticsService.identify(values.email)
+  AnalyticsService.track(AnalyticsTrackKeysEnum.send_mail, { task: 'orbits', email: values.email })
   toast.add(
     simpleSuccessToast('We’ll notify you as soon as Orbits is ready for early access.', 'You’re on the list!')
   )

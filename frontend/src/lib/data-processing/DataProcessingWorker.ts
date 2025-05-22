@@ -27,7 +27,7 @@ class DataProcessingWorkerClass {
       const m = event.data
       const callback = this.callbacks[m.id]
       delete this.callbacks[m.id]
-      callback(m.payload)
+      if (callback) callback(m.payload)
     }
     return true
   }

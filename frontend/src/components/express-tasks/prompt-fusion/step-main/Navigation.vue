@@ -4,15 +4,15 @@
       <arrow-left :size="14" />
       <span>Back</span>
     </d-button>
-    <d-button asChild severity="secondary" v-slot="slotProps">
-      <router-link :to="{ name: 'home' }" :class="slotProps.class" @click="onFinishClick()">Finish</router-link>
-    </d-button>
+    <d-button severity="secondary" label="finish" @click="onFinishClick" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService';
+import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm';
 import { ArrowLeft } from 'lucide-vue-next'
+import { useConfirm } from 'primevue';
 import { useRoute, useRouter } from 'vue-router'
 
 type Emits = {
@@ -23,6 +23,7 @@ const emit = defineEmits<Emits>()
 
 const route = useRoute()
 const router = useRouter()
+const confirm = useConfirm()
 
 function onBackClick() {
   if (route.params.mode === 'data-driven') {
@@ -32,7 +33,11 @@ function onBackClick() {
   }
 }
 function onFinishClick() {
-  AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
+  const accept = async () => {
+    AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
+    router.push({ name: 'home' })
+  }
+  confirm.require(dashboardFinishConfirmOptions(accept))
 }
 </script>
 
