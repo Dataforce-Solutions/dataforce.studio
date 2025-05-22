@@ -9,7 +9,7 @@ from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationDetails,
     OrganizationInvite,
-    OrganizationMember,
+    OrganizationMember, UserInvite,
 )
 
 
@@ -98,6 +98,12 @@ class OrganizationInviteOrm(TimestampMixin, Base):
         cls, invites: Sequence["OrganizationInviteOrm"]
     ) -> list[OrganizationInvite]:
         return [OrganizationInvite.model_validate(invite) for invite in invites]
+
+    @classmethod
+    def to_user_invites_list(
+        cls, invites: Sequence["OrganizationInviteOrm"]
+    ) -> list[UserInvite]:
+        return [UserInvite.model_validate(invite) for invite in invites]
 
     def to_organization_invite(self) -> OrganizationInvite:
         return OrganizationInvite.model_validate(self)

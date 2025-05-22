@@ -27,13 +27,13 @@ class OrbitDetails(Orbit):
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
-    id: int
+    id: int | None = None
     name: str
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
-    organization_id: int
+    organization_id: int | None = None
 
 
 class OrbitMemberCreate(BaseModel):

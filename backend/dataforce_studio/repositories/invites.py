@@ -1,10 +1,14 @@
+from typing import Sequence
+
 from pydantic import EmailStr
 from sqlalchemy import delete, select
+from sqlalchemy.orm import joinedload
 
 from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import RepositoryBase
-from dataforce_studio.schemas.organization import OrganizationInvite
+from dataforce_studio.schemas.organization import OrganizationInvite, UserInvite
 
 
 class InviteRepository(RepositoryBase):
@@ -31,26 +35,41 @@ class InviteRepository(RepositoryBase):
             else:
                 raise NotFoundError("Invite not found")
 
-    async def get_invites_where(self, *where_conditions) -> list[OrganizationInvite]:
+    async def get_invites_where(self, *where_conditions, load_options=None) -> Sequence[OrganizationInviteOrm]:
+        if load_options is None:
+            load_options = []
+
+        optional_load = {
+            "org": joinedload(OrganizationInviteOrm.organization),
+            "invited_by": joinedload(OrganizationInviteOrm.invited_by)
+        }
+        options = [opt for key in load_options if (opt := optional_load.get(key))]
+
         async with self._get_session() as session, session.begin():
             result = await session.execute(
-                select(OrganizationInviteOrm).where(*where_conditions)
+                select(OrganizationInviteOrm).where(*where_conditions).options(*options)
             )
-            invites = result.scalars().all()
 
-            return OrganizationInviteOrm.to_invites_list(invites)
+            return result.scalars().all()
 
     async def get_invites_by_organization_id(
         self, organization_id: int
     ) -> list[OrganizationInvite]:
-        return await self.get_invites_where(
-            OrganizationInviteOrm.organization_id == organization_id
+        invites = await self.get_invites_where(
+            OrganizationInviteOrm.organization_id == organization_id,
+            ["invited_by"]
         )
+
+        return OrganizationInviteOrm.to_invites_list(invites)
 
     async def get_invites_by_user_email(
         self, email: EmailStr
-    ) -> list[OrganizationInvite]:
-        return await self.get_invites_where(OrganizationInviteOrm.email == email)
+    ) -> list[UserInvite]:
+        invites = await self.get_invites_where(
+            OrganizationInviteOrm.email == email,
+            ["invited_by", "org"]
+        )
+        return OrganizationInviteOrm.to_user_invites_list(invites)
 
     async def get_invite(self, invite_id: int) -> OrganizationInvite:
         async with self._get_session() as session, session.begin():

@@ -13,6 +13,16 @@ class OrgRole(StrEnum):
     MEMBER = "member"
 
 
+class Organization(BaseModel, BaseOrmConfig):
+    id: int
+    name: str
+    logo: HttpUrl | None = None
+
+
+class OrganizationSwitcher(Organization):
+    role: OrgRole | None = None
+
+
 class CreateOrganizationInvite(BaseModel):
     email: EmailStr
     role: OrgRole
@@ -25,12 +35,15 @@ class OrganizationInvite(BaseModel, BaseOrmConfig):
     email: EmailStr
     role: OrgRole
     organization_id: int
-    invited_by: int
+    invited_by: UserOut | None = None
     created_at: datetime
 
 
+class UserInvite(OrganizationInvite):
+    organization: Organization | None = None
+
+
 class UpdateOrganizationMember(BaseModel):
-    id: int
     role: OrgRole
 
 
@@ -45,17 +58,6 @@ class OrganizationMemberCreate(BaseModel):
     user_id: int
     organization_id: int
     role: OrgRole
-
-
-class Organization(BaseModel, BaseOrmConfig):
-    id: int
-    name: str
-    logo: HttpUrl | None = None
-
-
-class OrganizationSwitcher(Organization):
-    role: OrgRole | None = None
-
 
 class OrganizationDetails(Organization, BaseOrmConfig):
     created_at: datetime
