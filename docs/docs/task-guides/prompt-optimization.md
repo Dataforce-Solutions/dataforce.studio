@@ -3,63 +3,128 @@ sidebar_position: 3
 title: Prompt Optimization
 ---
 
+---
+sidebar_position: 3
+title: Prompt Optimization
+---
 
 # Prompt Optimization
 
-Design, test, and improve prompts using AI assistance or your own data in an intuitive no-code interface.  
-Whether you're exploring new prompt styles or refining existing ones with real-world data, our prompt optimization tools help you iterate quickly and effectively.  
-Choose between AI-assisted suggestions to guide your creativity, or upload datasets to evaluate prompts at scale. No coding required — just drag, drop, and optimize.
+Design, test, and improve prompts using AI assistance or your own data — all within an intuitive no-code interface.  
+Whether you're exploring new prompt styles or refining existing ones with real-world data, Prompt Optimization helps you iterate quickly and effectively.
 
-#### Overview  
-Prompt Optimization (Pre-release) is available under **Express Tasks**. It lets you construct and optimize LLM prompt flows using an intuitive, no-code builder — without writing a single line of code.
+Available under the **Express Tasks** tab, Prompt Optimization (Pre-release) lets you build and test LLM prompt flows without writing a single line of code.
 
-Choose between **AI-assisted** and **data-driven** optimization modes to iterate on prompt designs and maximize performance.
+---
 
-#### Prompt Optimization Options  
-- **Free-form Optimization**: Get AI-powered prompt suggestions while keeping control over your writing style and intent.  
-- **Data-Driven Optimization**: Upload your own dataset to optimize prompts based on actual performance metrics.
+## Overview
 
-> Tip: To quickly explore the tool, click **"Use sample"** in the interface to auto-fill input/output examples.
+Prompt Optimization supports two main workflows:
 
-#### Constructing & Optimizing LLM Flows  
-- Build prompt pipelines by adding **Input**, **Prompt**, and **Output** nodes.  
-- Define data types (`string`, `integer`, `float`) and field names.  
-- Use **Set as a list** to test multiple examples at once.  
-- Visually connect steps to define prompt logic and evaluation flow.  
+- **Free-form Optimization** – Create and tweak prompts using AI-generated suggestions.  
+- **Data-Driven Optimization** – Upload datasets and evaluate prompt performance at scale.
 
-#### Setting Up Model Providers  
-1. Go to **Provider**.  
-2. Connect your OpenAI or Ollama API key.  
+To get started, open **Express Tasks** and select **Prompt Optimization (Pre-release)**.
+
+---
+
+## Step-by-Step Guide
+
+### 1. Select an Optimization Option
+
+After entering Prompt Optimization, choose between:
+
+- **Free-form Optimization** – Manually configure inputs/outputs and craft prompt logic.  
+- *(Data-Driven Optimization option is coming soon or available conditionally.)*
+
+Once selected, a visual prompt flow editor will appear (similar to a Miro board) with two default blocks: **Input** and **Output**.
+
+---
+
+### 2. Configure Input and Output Fields
+
+Click on the **Input** or **Output** nodes to set:
+
+- **Data Type** – `string`, `integer`, or `float`.  
+- **Field Name** – Define a label for each field (e.g., `user_query`, `answer`).  
+- **Set as a List** – Enable this option to test with multiple examples.  
+- Add more fields with **"Add input/output field"** if needed.
+
+---
+
+### 3. Add Logic Nodes: Gate or Processor
+
+Click the **+** icon (bottom-right toolbar) to add:
+
+- **Gate**  
+  - Add a **Hint** – This is the actual prompt instruction shown to the model.  
+  - Define **Input data type and name**.  
+  - Optionally add **Conditions** to trigger logic (e.g., `if language = EN`).
+
+- **Processor**  
+  - Add a **Hint** – Typically, a transformation or instruction prompt.  
+  - Set **Input and Output** fields similar to Gate.
+
+Connect nodes visually to define the prompt flow.
+
+---
+
+### 4. Set Up Model Provider
+
+Before running prompts, configure the model backend:
+
+1. Go to the **Provider** tab.  
+2. Add your API key (OpenAI supported, Ollama currently not available).  
 3. Select the provider in the **Model Provider** dropdown.
 
-#### Optimization Settings  
-Set up how the prompt optimization should run:
+---
 
-- **Task Description**: Describe what the model is expected to do.  
-- **Teacher Model**: Provides reference outputs.  
-- **Student Model**: The model being optimized.  
-- **Evaluation Metrics**: Choose how to measure success:
-  - **Exact Match**
-  - **LLM-Based Scoring**
-  - **None**
+### 5. Define Task Optimization Settings
 
-#### Running Optimizations  
-1. Define input examples or upload a dataset.  
-2. Choose prompt versions to test.  
-3. Click **Run the model** to evaluate outputs.  
-4. Compare outputs and metrics side-by-side.  
-5. Use **Download model** to export your configuration.
+Scroll to the **Task Optimization** section:
 
-#### Uploading Data (for Data-Driven Mode)  
+- **Task Description** – A summary of what the prompt should achieve.  
+- **Teacher Model** – Reference model used for ideal output.  
+- **Student Model** – The model being tested/optimized.  
+  > Tip: Use smaller models for quicker testing.
+
+- **Evaluation Metrics**:  
+  - `Exact Match` – Output must match expected text (currently not available).  
+  - `LLM-Based Scoring` – Evaluate based on similarity or scoring (currently not available).  
+  - `None` – Skip evaluation metrics.
+
+---
+
+### 6. Run Prompt Evaluation
+
+1. Click **Run the Model** (top-right corner).  
+2. Add input examples manually or upload a `.csv` file for batch testing.  
+3. Click **Predict** to generate model outputs.  
+4. Review and compare outputs and scores.
+
+---
+
+### 7. (Optional) Upload Dataset for Data-Driven Optimization
+
+If using a dataset:
+
 - **Accepted format**: `.csv`  
-- **Minimum rows**: 100  
-- **Minimum columns**: 3  
-- **Max file size**: 50 MB  
+- **Requirements**:
+  - Minimum 100 rows  
+  - At least 3 columns: `input`, `expected_output`, plus optional `context`  
+  - Max file size: 50 MB  
 
-Required columns typically include:  
-- `input`  
-- `expected_output`  
-- Any additional context field (optional)
+Click **Upload File**, then **Predict** to evaluate performance on the dataset.
+
+---
+
+## Quick Tips
+  
+- You can chain multiple gates and processors for advanced workflows.  
+- Smaller models = faster iteration.
+
+---
+
 
 
 
