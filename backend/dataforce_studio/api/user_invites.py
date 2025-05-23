@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.dependencies import is_user_authenticated
-from dataforce_studio.schemas.organization import OrganizationInvite, UserInvite
+from dataforce_studio.schemas.organization import UserInvite
 
 user_invites_router = APIRouter(
     prefix="/me/invitations",
