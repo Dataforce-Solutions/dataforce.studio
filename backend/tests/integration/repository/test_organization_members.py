@@ -93,7 +93,7 @@ async def test_update_organization_member(create_organization_with_user: dict) -
     )
 
     updated_member = await repo.update_organization_member(
-        UpdateOrganizationMember(**{"id": created_member.id, "role": OrgRole.ADMIN})
+        created_member.id, UpdateOrganizationMember(role=OrgRole.ADMIN)
     )
 
     assert updated_member.id == created_member.id

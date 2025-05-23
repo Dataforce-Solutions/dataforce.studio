@@ -18,8 +18,8 @@ async def test_create_orbit(create_organization_with_user: dict) -> None:
     engine, organization = data["engine"], data["organization"]
     repo = OrbitRepository(engine)
 
-    orbit = OrbitCreate(name="test orbit", organization_id=organization.id)
-    created_orbit = await repo.create_orbit(orbit)
+    orbit = OrbitCreate(name="test orbit")
+    created_orbit = await repo.create_orbit(organization.id, orbit)
 
     assert created_orbit.id
     assert created_orbit.name == orbit.name
@@ -32,12 +32,12 @@ async def test_update_orbit(create_organization_with_user: dict) -> None:
     engine, organization = data["engine"], data["organization"]
     repo = OrbitRepository(engine)
 
-    orbit = OrbitCreate(name="test orbit", organization_id=organization.id)
-    created_orbit = await repo.create_orbit(orbit)
+    orbit = OrbitCreate(name="test orbit")
+    created_orbit = await repo.create_orbit(organization.id, orbit)
 
     new_name = created_orbit.name + "updated"
     updated_orbit = await repo.update_orbit(
-        OrbitUpdate(id=created_orbit.id, name=new_name)
+        created_orbit.id, OrbitUpdate(name=new_name)
     )
 
     assert updated_orbit
@@ -78,9 +78,7 @@ async def test_get_organization_orbits(create_organization_with_user: dict) -> N
     repo = OrbitRepository(engine)
 
     for i in range(5):
-        await repo.create_orbit(
-            OrbitCreate(name=f"orbit #{i}", organization_id=organization.id)
-        )
+        await repo.create_orbit(organization.id, OrbitCreate(name=f"orbit #{i}"))
 
     orbits = await repo.get_organization_orbits(organization.id)
 

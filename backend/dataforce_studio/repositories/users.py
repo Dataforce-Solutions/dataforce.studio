@@ -246,7 +246,7 @@ class UserRepository(RepositoryBase):
             return db_member.to_organization_member()
 
     async def update_organization_member(
-        self,member_id: int, member: UpdateOrganizationMember
+        self, member_id: int, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         return await self.update_organization_member_where(
             member, OrganizationMemberOrm.id == member_id

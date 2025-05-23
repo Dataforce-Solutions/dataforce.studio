@@ -16,7 +16,8 @@ from dataforce_studio.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrganizationSwitcher,
-    UpdateOrganizationMember, UserInvite,
+    UpdateOrganizationMember,
+    UserInvite,
 )
 
 
@@ -93,7 +94,9 @@ class OrganizationHandler:
     async def update_organization_member_by_id(
         self, member_id: int, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        return await self.__user_repository.update_organization_member(member_id, member)
+        return await self.__user_repository.update_organization_member(
+            member_id, member
+        )
 
     async def delete_organization_member_by_id(self, member_id: int) -> None:
         return await self.__user_repository.delete_organization_member(member_id)

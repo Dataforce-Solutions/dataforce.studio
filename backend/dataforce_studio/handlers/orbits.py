@@ -44,7 +44,9 @@ class OrbitHandler:
         if (members_count + num) >= self.__orbits_limit:
             raise OrbitLimitReachedError("Orbit reached maximum number of members", 409)
 
-    async def create_organization_orbit(self, organization_id: int, orbit: OrbitCreate) -> Orbit:
+    async def create_organization_orbit(
+        self, organization_id: int, orbit: OrbitCreate
+    ) -> Orbit:
         await self.check_organization_orbits_limit(organization_id)
 
         return await self.__orbits_repository.create_orbit(organization_id, orbit)

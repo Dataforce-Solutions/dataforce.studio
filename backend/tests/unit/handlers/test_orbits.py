@@ -29,7 +29,7 @@ test_orbit_created = {
 test_orbit_id = random.randint(1, 10000)
 
 test_orbit_member = {
-    "id": random.randint(1, 10000),
+    "id": 8766,
     "orbit_id": test_orbit_id,
     "role": OrbitRole.MEMBER,
     "user": {
@@ -74,11 +74,11 @@ async def test_create_organization_orbit(
     mock_create_orbit.return_value = mocked_orbit
     mock_get_organization_orbits_count.return_value = 0
 
-    result = await handler.create_organization_orbit(orbit_to_create)
+    result = await handler.create_organization_orbit(orbit_id, orbit_to_create)
 
     assert result == mocked_orbit
 
-    mock_create_orbit.assert_awaited_once_with(orbit_to_create)
+    mock_create_orbit.assert_awaited_once_with(orbit_id, orbit_to_create)
 
 
 @patch(
@@ -142,11 +142,11 @@ async def test_update_orbit(mock_update_orbit: AsyncMock) -> None:
     expected = OrbitDetails(**test_orbit_details)
     mock_update_orbit.return_value = expected
 
-    update_orbit = OrbitUpdate(id=expected.id, name="new_name")
-    result = await handler.update_orbit(update_orbit)
+    update_orbit = OrbitUpdate(name="new_name")
+    result = await handler.update_orbit(expected.id, update_orbit)
 
     assert result == expected
-    mock_update_orbit.assert_awaited_once_with(update_orbit)
+    mock_update_orbit.assert_awaited_once_with(expected.id, update_orbit)
 
 
 @patch(
@@ -156,13 +156,14 @@ async def test_update_orbit(mock_update_orbit: AsyncMock) -> None:
 @pytest.mark.asyncio
 async def test_update_orbit_not_found(mock_update_orbit: AsyncMock) -> None:
     mock_update_orbit.return_value = None
-    update_orbit = OrbitUpdate(id=random.randint(1, 10000), name="new_name")
+    orbit_id = random.randint(1, 10000)
+    update_orbit = OrbitUpdate(name="new_name")
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
-        await handler.update_orbit(update_orbit)
+        await handler.update_orbit(orbit_id, update_orbit)
 
     assert error.value.status_code == 404
-    mock_update_orbit.assert_awaited_once_with(update_orbit)
+    mock_update_orbit.assert_awaited_once_with(orbit_id, update_orbit)
 
 
 @patch(

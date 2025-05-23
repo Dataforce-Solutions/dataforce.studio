@@ -35,7 +35,7 @@ class OrganizationInvite(BaseModel, BaseOrmConfig):
     email: EmailStr
     role: OrgRole
     organization_id: int
-    invited_by: UserOut | None = None
+    invited_by_user: UserOut | None = None
     created_at: datetime
 
 
@@ -58,6 +58,7 @@ class OrganizationMemberCreate(BaseModel):
     user_id: int
     organization_id: int
     role: OrgRole
+
 
 class OrganizationDetails(Organization, BaseOrmConfig):
     created_at: datetime

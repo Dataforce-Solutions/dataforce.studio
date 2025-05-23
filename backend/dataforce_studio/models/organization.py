@@ -9,7 +9,8 @@ from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationDetails,
     OrganizationInvite,
-    OrganizationMember, UserInvite,
+    OrganizationMember,
+    UserInvite,
 )
 
 
@@ -86,6 +87,8 @@ class OrganizationInviteOrm(TimestampMixin, Base):
     )
 
     organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")
+
+    invited_by_user: Mapped["UserOrm"] = relationship("UserOrm", lazy="selectin")  # type: ignore[name-defined]  # noqa: F821
 
     def __repr__(self) -> str:
         return (

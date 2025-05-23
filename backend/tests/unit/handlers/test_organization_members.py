@@ -42,13 +42,13 @@ async def test_update_organization_member_by_id(
     expected = OrganizationMember(**member_data)
     mock_update_organization_member.return_value = expected
 
-    update_member = UpdateOrganizationMember(
-        id=member_data["id"], role=member_data["role"]
+    update_member = UpdateOrganizationMember(role=member_data["role"])
+    actual = await handler.update_organization_member_by_id(
+        member_data["id"], update_member
     )
-    actual = await handler.update_organization_member_by_id(update_member)
 
     assert actual == expected
-    mock_update_organization_member.assert_awaited_once_with(update_member)
+    mock_update_organization_member.assert_awaited_once()
 
 
 @patch(

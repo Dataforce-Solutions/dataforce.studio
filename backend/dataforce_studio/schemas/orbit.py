@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 from enum import StrEnum
 
@@ -17,7 +16,7 @@ class OrbitRole(StrEnum):
 class Orbit(BaseModel, BaseOrmConfig):
     id: int
     name: str
-    organization_id: uuid.UUID
+    organization_id: int
 
 
 class OrbitDetails(Orbit):
