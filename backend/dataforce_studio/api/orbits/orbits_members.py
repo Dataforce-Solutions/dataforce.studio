@@ -8,8 +8,7 @@ from dataforce_studio.schemas.orbit import (
 )
 
 orbit_members_router = APIRouter(
-    prefix="/orbits/{orbit_id}/members",
-    tags=["orbits-members"]
+    prefix="/orbits/{orbit_id}/members", tags=["orbits-members"]
 )
 
 orbit_handler = OrbitHandler()
@@ -17,7 +16,7 @@ orbit_handler = OrbitHandler()
 
 @orbit_members_router.get("", response_model=list[OrbitMember])
 async def get_orbit_members(
-        orbit_id: int,
+    orbit_id: int,
 ) -> list[OrbitMember]:
     return await orbit_handler.get_orbit_members(orbit_id)
 
