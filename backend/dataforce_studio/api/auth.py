@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Body, Depends, Request
@@ -25,11 +25,11 @@ async def signup(create_user: CreateUserIn) -> dict[str, str]:
     return await auth_handler.handle_signup(create_user)
 
 
-@auth_router.post("/signin", response_model=Token)
+@auth_router.post("/signin")
 async def signin(
     email: Annotated[EmailStr, Body()],
     password: Annotated[str, Body(min_length=8)],
-) -> Token:
+) -> dict[str, Any]:
     return await auth_handler.handle_signin(email, password)
 
 
@@ -48,7 +48,7 @@ async def google_login() -> RedirectResponse:
 
 
 @auth_router.get("/google/callback")
-async def google_callback(code: str | None = None) -> Token:
+async def google_callback(code: str | None = None) -> dict[str, Any]:
     return await auth_handler.handle_google_auth(code)
 
 

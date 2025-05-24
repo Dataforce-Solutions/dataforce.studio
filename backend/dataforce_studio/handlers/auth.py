@@ -121,9 +121,11 @@ class AuthHandler:
     def _get_email_confirmation_link(self, token: str) -> str:
         return config.CONFIRM_EMAIL_URL + token
 
-    async def handle_signin(self, email: EmailStr, password: str) -> Token:
+    async def handle_signin(self, email: EmailStr, password: str) -> dict[str, Any]:
         user = await self._authenticate_user(email, password)
-        return self._create_tokens(user.email)
+        user_id = user.id
+        tokens = self._create_tokens(user.email)
+        return {"token": tokens, "user_id": user_id}
 
     async def handle_refresh_token(self, refresh_token: str) -> Token:
         try:
@@ -212,7 +214,7 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    async def handle_google_auth(self, code: str | None) -> Token:
+    async def handle_google_auth(self, code: str | None) -> dict[str, Any]:
         if not code:
             raise AuthError("Google callback code is missing")
         data = {
@@ -272,7 +274,7 @@ class AuthHandler:
                 UpdateUser(email=email, photo=photo_url)
             )
 
-        return self._create_tokens(user.email)
+        return {"token": self._create_tokens(user.email), "user_id": user.id}
 
     def _generate_email_confirmation_token(self, email: EmailStr) -> str:
         return self._create_token(
