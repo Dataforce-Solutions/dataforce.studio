@@ -48,7 +48,7 @@ async def google_login() -> RedirectResponse:
 
 
 @auth_router.get("/google/callback")
-async def google_callback(code: str | None = None) -> Token:
+async def google_callback(code: str | None = None) -> dict[str, Any]:
     return await auth_handler.handle_google_auth(code)
 
 

@@ -214,7 +214,7 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    async def handle_google_auth(self, code: str | None) -> Token:
+    async def handle_google_auth(self, code: str | None) -> dict[str, Any]:
         if not code:
             raise AuthError("Google callback code is missing")
         data = {
@@ -274,7 +274,7 @@ class AuthHandler:
                 UpdateUser(email=email, photo=photo_url)
             )
 
-        return self._create_tokens(user.email)
+        return {"token": self._create_tokens(user.email), "user_id": user.id}
 
     def _generate_email_confirmation_token(self, email: EmailStr) -> str:
         return self._create_token(
