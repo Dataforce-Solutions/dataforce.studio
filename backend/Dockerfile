@@ -6,6 +6,11 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 COPY --from=ghcr.io/astral-sh/uv:0.4.18 /uv /bin/uv
+COPY dataforce_studio /app/dataforce_studio
+COPY pyproject.toml /app/pyproject.toml
+COPY migrations /app/migrations
+COPY alembic.ini /app/alembic.ini
+COPY uv.lock /app/uv.lock
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -17,6 +22,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
-COPY dataforce_studio /app/dataforce_studio
 CMD ["uv", "run", "uvicorn", "dataforce_studio.server:app", "--host", "0.0.0.0", "--port", "8000"]
-
