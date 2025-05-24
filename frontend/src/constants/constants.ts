@@ -1,5 +1,5 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
-import { CirclePlay, Zap, File, Orbit } from 'lucide-vue-next'
+import { CirclePlay, Zap, File, Orbit, Notebook, BotMessageSquare } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
@@ -23,6 +23,24 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'runtime',
+  },
+  {
+    id: 4,
+    label: 'Notebooks',
+    icon: Notebook,
+    route: 'notebooks',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'notebook',
+  },
+  {
+    id: 5,
+    label: 'Data Agent',
+    icon: BotMessageSquare,
+    route: 'data-agent',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'data-agent',
   },
   {
     id: 3,

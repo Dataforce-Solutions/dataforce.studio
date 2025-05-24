@@ -1,17 +1,17 @@
 <template>
   <div class="content">
     <h2 class="sub-title">Coming Soon</h2>
-    <h1 class="title">Orbits <Orbit :size="42" color="var(--p-primary-color)" /></h1>
+    <h1 class="title">Notebooks <Notebook :size="42" color="var(--p-primary-color)" /></h1>
     <p class="text">
-      Orbits is a zero-trust orchestration module for managing and deploying models across any
-      infrastructure — cloud or on-prem.
+      Start building instantly with a zero-setup, in-browser environment powered by Jupyter. Explore
+      data, test ideas, and share results - all without leaving your browser.
     </p>
     <ui-email-form class="form" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { Orbit } from 'lucide-vue-next';
+import { Notebook } from 'lucide-vue-next'
 import UiEmailForm from '@/components/ui/UiEmailForm.vue'
 </script>
 
