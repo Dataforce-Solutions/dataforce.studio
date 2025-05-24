@@ -18,9 +18,12 @@ export interface IPostSignInRequest {
 }
 
 export interface IPostSignInResponse {
-  access_token: string
-  token_type: string
-  refresh_token: string
+  token: {
+    access_token: string
+    token_type: string
+    refresh_token: string
+  }
+  user_id: number
 }
 
 export interface IPostRefreshTokenRequest {
@@ -50,6 +53,7 @@ export interface IGetUserResponse {
   disabled: boolean
   auth_method: 'email' | 'google'
   photo: string
+  id: string
 }
 
 export interface IPostLogoutRequest {

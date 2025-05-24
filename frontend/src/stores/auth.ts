@@ -4,7 +4,6 @@ import type {
   IPostSignInResponse,
   IPostSignupRequest,
 } from '@/lib/api/DataforceApi.interfaces'
-
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useUserStore } from './user'
@@ -17,14 +16,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const signUp = async (data: IPostSignupRequest) => {
     await dataforceApi.signUp(data)
-    AnalyticsService.identify(data.email)
   }
 
   const signIn = async (data: IPostSignInRequest) => {
-    const { access_token, refresh_token }: IPostSignInResponse = await dataforceApi.signIn(data)
-    saveTokens(access_token, refresh_token)
+    const { token, user_id }: IPostSignInResponse = await dataforceApi.signIn(data)
+    saveTokens(token.access_token, token.refresh_token)
     isAuth.value = true
-    AnalyticsService.identify(data.email)
+    AnalyticsService.identify(user_id, data.email)
     await usersStore.loadUser()
   }
 
@@ -44,10 +42,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const checkIsLoggedId = async () => {
-    const token = localStorage.getItem('token');
-    const refreshToken = localStorage.getItem('refreshToken');
+    const token = localStorage.getItem('token')
+    const refreshToken = localStorage.getItem('refreshToken')
     if (!token && !refreshToken) {
-      isAuth.value = false;
+      isAuth.value = false
       return
     }
     await usersStore.loadUser()
@@ -64,11 +62,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const loginWithGoogle = async (code: string) => {
-    const { access_token, refresh_token } = await dataforceApi.googleLogin({ code })
-    if (!access_token) return
-    saveTokens(access_token, refresh_token)
+    const { token, user_id } = await dataforceApi.googleLogin({ code })
+    if (!token.access_token) return
+    saveTokens(token.access_token, token.refresh_token)
     isAuth.value = true
     await usersStore.loadUser()
+    if (usersStore.getUserEmail) AnalyticsService.identify(user_id, usersStore.getUserEmail)
   }
 
   return { isAuth, signUp, signIn, logout, checkIsLoggedId, forgotPassword, loginWithGoogle }
