@@ -88,6 +88,16 @@ const router = createRouter({
       name: 'orbits',
       component: () => import('../pages/OrbitsPage.vue'),
     },
+    {
+      path: '/notebooks',
+      name: 'notebooks',
+      component: () => import('../pages/NotebooksPage.vue'),
+    },
+    {
+      path: '/data-agent',
+      name: 'data-agent',
+      component: () => import('../pages/DataAgentPage.vue'),
+    },
   ],
 })
 

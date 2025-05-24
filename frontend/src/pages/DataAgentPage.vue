@@ -1,17 +1,17 @@
 <template>
   <div class="content">
     <h2 class="sub-title">Coming Soon</h2>
-    <h1 class="title">Orbits <Orbit :size="42" color="var(--p-primary-color)" /></h1>
+    <h1 class="title">Data Agent <BotMessageSquare :size="42" color="var(--p-primary-color)" /></h1>
     <p class="text">
-      Orbits is a zero-trust orchestration module for managing and deploying models across any
-      infrastructure — cloud or on-prem.
+      Let an autonomous assistant handle the heavy lifting - from data exploration to model building
+      and smart recommendations, it keeps your ML projects moving forward.
     </p>
     <ui-email-form class="form" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { Orbit } from 'lucide-vue-next';
+import { BotMessageSquare } from 'lucide-vue-next'
 import UiEmailForm from '@/components/ui/UiEmailForm.vue'
 </script>
 
