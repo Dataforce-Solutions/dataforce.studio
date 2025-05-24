@@ -52,20 +52,25 @@ Click on the **Input** or **Output** nodes to set:
 
 ---
 
-### 3. Add Logic Nodes: Gate or Processor
+### 3. Add Logic Nodes: Gate and Processor
 
 Click the **+** icon (bottom-right toolbar) to add:
 
 - **Gate**  
-  - Add a **Hint** – This is the actual prompt instruction shown to the model.  
+  - Provide a **Hint** – a guide used by the optimizer to generate the final prompt logic.
   - Define **Input data type and name**.  
-  - Optionally add **Conditions** to trigger logic (e.g., `if language = EN`).
+  - Add **Conditions** to define under which input criteria this node is triggered.
 
-- **Processor**  
-  - Add a **Hint** – Typically, a transformation or instruction prompt.  
-  - Set **Input and Output** fields similar to Gate.
 
-Connect nodes visually to define the prompt flow.
+- **Processor**
+- Provide a **Hint** – This serves as a transformation instruction.
+- Set **Input and Output** fields similar to Gate.
+Each Processor uses its Hint to build a specific prompt that is sent to the model.  
+It takes input from upstream nodes and transforms it according to the defined logic.
+
+Connect nodes visually to define the prompt flow. Just like Gate nodes, Processors can be chained and combined with Conditions for advanced flows.  
+Each node prepares its part of the final prompt, and the model proceeds through the entire flow using those prompts.
+ 
 
 ---
 
@@ -74,8 +79,10 @@ Connect nodes visually to define the prompt flow.
 Before running prompts, configure the model backend:
 
 1. Go to the **Provider** tab.  
-2. Add your API key (OpenAI supported, Ollama currently not available).  
-3. Select the provider in the **Model Provider** dropdown.
+2. Select the provider in the **Model Provider** dropdown (OpenAI supported, Ollama currently not available).
+3. Add your API key.  
+4. *(Optional)* Allow storing the API key in your browser’s local storage for future sessions.
+
 
 ---
 
@@ -84,13 +91,15 @@ Before running prompts, configure the model backend:
 Scroll to the **Task Optimization** section:
 
 - **Task Description** – A summary of what the prompt should achieve.  
-- **Teacher Model** – Reference model used for ideal output.  
-- **Student Model** – The model being tested/optimized.  
+- The **Teacher Model** prepares the optimization logic and generates the "ideal prompts" based on hints and (optionally) a provided dataset.
+- When ready, the **Student Model** is evaluated by running through the same workflow — using the optimized prompts to generate outputs.
+After the Student model completes its run, the results can optionally be reviewed again by the Teacher model or evaluated using scoring metrics.
+ You can then run the Student model multiple times to improve its match to the Teacher’s output.
   > Tip: Use smaller models for quicker testing.
 
 - **Evaluation Metrics**:  
-  - `Exact Match` – Output must match expected text (currently not available).  
-  - `LLM-Based Scoring` – Evaluate based on similarity or scoring (currently not available).  
+  - `Exact Match` – Optimization continues until model output matches expected result exactly.   
+  - `LLM-Based Scoring` – Measures similarity to target output (ideal when exact match is too strict).   
   - `None` – Skip evaluation metrics.
 
 ---
@@ -100,7 +109,6 @@ Scroll to the **Task Optimization** section:
 1. Click **Run the Model** (top-right corner).  
 2. Add input examples manually or upload a `.csv` file for batch testing.  
 3. Click **Predict** to generate model outputs.  
-4. Review and compare outputs and scores.
 
 ---
 
