@@ -1,5 +1,5 @@
 import type { FlowExportObject } from '@vue-flow/core'
-import type { NodeData } from '@/components/express-tasks/prompt-fusion/interfaces'
+import { NodeTypeEnum, type NodeData } from '@/components/express-tasks/prompt-fusion/interfaces'
 import type {
   PayloadData,
   PayloadNode,
@@ -8,7 +8,6 @@ import type {
   ProvidersEnum,
   ProviderSetting,
   ProviderWithModels,
-  TrainingData,
 } from './prompt-fusion.interfaces'
 import { Observable } from '@/utils/observable/Observable'
 import { EvaluationModesEnum, ProviderStatus } from './prompt-fusion.interfaces'
@@ -67,9 +66,11 @@ class PromptFusionServiceClass extends Observable<Events> {
   isPredictVisible = initialState.isPredictVisible
   modelId: string | null = initialState.modelId
   taskDescription = initialState.taskDescription
-  trainingData: TrainingData | null = initialState.trainingData
+  trainingData: Record<string, []> | null = initialState.trainingData
   predictionFields: string[] | null = initialState.predictionFields
   modelBlob: Blob | null = initialState.modelBlob
+  inputs: string[] = []
+  outputs: string[] = []
 
   constructor() {
     super()
@@ -156,7 +157,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       this.saveModel(result.model)
     } else {
       this.endTraining()
-      throw new Error('Training failed')
+      throw new Error(result.error_message || 'Training failed')
     }
   }
 
@@ -169,11 +170,13 @@ class PromptFusionServiceClass extends Observable<Events> {
       student: this.getStudentProviderData(),
       evaluationMode: this.evaluationMode,
       criteriaList: this.evaluationCriteriaList,
+      inputs: this.inputs,
+      outputs: this.outputs,
     }
     const payload = {
-      data: this.nodesData as PayloadData,
+      data: this.nodesData,
       settings: optimizationSettings,
-      trainingData: this.trainingData,
+      trainingData: this.trainingData || {},
     }
     this.payload = payload
   }
@@ -188,8 +191,10 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.emit('CHANGE_PREDICT_VISIBLE', this.isPredictVisible)
   }
 
-  saveTrainingData(data: object, inputFields: string[], outputFields: string[]) {
-    this.trainingData = { data, inputFields, outputFields }
+  saveTrainingData(data: Record<string, []>, inputFields: string[], outputFields: string[]) {
+    this.trainingData = data
+    this.inputs = inputFields
+    this.outputs = outputFields
   }
 
   resetState() {
@@ -320,7 +325,8 @@ class PromptFusionServiceClass extends Observable<Events> {
     if (!this.nodesData) throw new Error('Create nodes data first')
     const fields = this.nodesData.nodes.reduce((acc: string[], node) => {
       node.data.fields.forEach((field) => {
-        if (field.variant === 'input') acc.push(field.value)
+        if (field.variant === 'input' && node.data.type === NodeTypeEnum.input)
+          acc.push(field.value)
       })
       return acc
     }, [])

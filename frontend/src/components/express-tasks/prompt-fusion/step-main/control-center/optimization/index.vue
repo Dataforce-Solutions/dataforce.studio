@@ -21,7 +21,7 @@
           <div class="body">
             <div class="description">
               <label class="description-label">task description</label>
-              <CustomTextarea v-model="description" fluid rows="1" placeholder="Define what you want to optimize" size="small" autoResize :maxHeight="75" class="hint"/>
+              <CustomTextarea v-model="description" fluid rows="1" placeholder="Provide a short task description" size="small" autoResize :maxHeight="75" class="hint"/>
             </div>
             <div class="teacher-model">
               <model-select title="teacher model" description="Model that provides reference outputs" :model-type="ModelTypeEnum.teacher" />
@@ -33,7 +33,7 @@
           </div>
           <footer class="footer">
             <div class="footer">
-              <d-button label="Need help?" variant="text" />
+              <d-button as="a" label="Need help?" :href="helpLink" target="_blank" variant="text" />
               <d-button label="run optimization" severity="secondary" @click="onRunOptimizationClick"/>
             </div>
           </footer>
@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { SlidersHorizontal, X } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { EvaluationModesEnum, ModelTypeEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
@@ -70,6 +70,8 @@ defineProps<Props>()
 const mainButton = ref()
 const visible = ref(false)
 const description = ref(promptFusionService.taskDescription)
+
+const helpLink = computed(() => `${import.meta.env.VITE_DOCS_URL}/docs/task-guides/prompt-optimization`)
 
 function onChangeOptimizationState(isOpen: boolean) {
   visible.value = isOpen

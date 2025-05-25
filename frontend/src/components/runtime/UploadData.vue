@@ -6,8 +6,8 @@
         id="model"
         :file="file"
         :error="isError"
-        accept-text="Accepts .dfs model"
-        upload-text="upload ML model"
+        accept-text="Accepts .dfs files"
+        upload-text="upload a model"
         :loading="isModelLoading"
         loading-message="Model creating..."
         @select-file="selectFile"
@@ -15,7 +15,7 @@
       <span class="middle-divider">or</span>
       <div class="sample">
         <div class="sample-title">
-          <span>No trained model yet? Train one in “Express tasks”</span>
+          <span>Don't have a model yet? Train one in “Express tasks”</span>
         </div>
         <d-button label="Express tasks" @click="$router.push({ name: 'home' })" />
       </div>

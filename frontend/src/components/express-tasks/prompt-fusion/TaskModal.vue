@@ -3,20 +3,20 @@
     <template #header>
       <h2 class="dialog-title">PROMPT OPTIMIZATION</h2>
     </template>
-    <div class="dialog-sub-title">Select prompt optimization option to continue.</div>
+    <div class="dialog-sub-title">Select a prompt optimization strategy to continue.</div>
     <ul class="prompt-menu">
       <li class="prompt-menu-item">
         <h3 class="prompt-menu-item-title">Free-form Optimization</h3>
-        <p class="prompt-menu-item-description">AI-powered prompt suggestions that maintain your creative control and original style.</p>
+        <p class="prompt-menu-item-description">Zero-shot prompt optimization based on the pipeline structure and the task description.</p>
         <d-button asChild severity="secondary" v-slot="slotProps">
           <router-link :to="{ name: 'prompt-fusion' }" class="prompt-menu-item-button" :class="slotProps.class" @click="() => onLinkClick('free_form')">Select option</router-link>
         </d-button>
       </li>
       <li class="prompt-menu-item">
         <h3 class="prompt-menu-item-title">Data-Driven Optimization</h3>
-        <p class="prompt-menu-item-description">Performance-based prompt optimization using historical data patterns for higher success rates.</p>
+        <p class="prompt-menu-item-description">Multi-iteration prompt optimization incorporating both the pipeline structure and the labelled data.</p>
         <d-button asChild severity="secondary" v-slot="slotProps">
-          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button button-disabled" :class="slotProps.class" @click="() => onLinkClick('data_driven')">Select option</router-link>
+          <router-link :to="{ name: 'prompt-fusion', params: { mode: 'data-driven' } }" class="prompt-menu-item-button" :class="slotProps.class" @click="() => onLinkClick('data_driven')">Select option</router-link>
         </d-button>
       </li>
     </ul>

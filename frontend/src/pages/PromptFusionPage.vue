@@ -6,9 +6,10 @@
         :is-table-exist="isTableExist"
         :file="fileData"
         :min-columns-count="2"
+        :min-rows-count="10"
         :resources="promptFusionResources"
-        sample-file-name="iris.csv"
-        @selectFile="onSelectFile"
+        sample-file-name="formal-phrases.csv"
+        @selectFile="selectFile"
         @removeFile="onRemoveFile"
       />
       <first-step-navigation
@@ -39,11 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
+import type { PromptNode } from '@/components/express-tasks/prompt-fusion/interfaces'
+import { nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDataTable } from '@/hooks/useDataTable'
 import { promptFusionResources } from '@/constants/constants'
-import { getInitialNodes } from '@/constants/prompt-fusion'
+import { getInitialNodes, getSample } from '@/constants/prompt-fusion'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { useVueFlow } from '@vue-flow/core'
 import FirstStepNavigation from '@/components/express-tasks/prompt-fusion/step-upload/Navigation.vue'
@@ -52,13 +54,13 @@ import StepEdit from '@/components/express-tasks/prompt-fusion/step-edit/StepEdi
 import StepMain from '@/components/express-tasks/prompt-fusion/step-main/index.vue'
 import UploadData from '@/components/ui/UploadData.vue'
 
-const { $reset } = useVueFlow()
+const { $reset, addEdges, addNodes, toObject } = useVueFlow()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
     size: !!(size && size > 50 * 1024 * 1024),
-    columns: !!(columns && columns <= 2),
-    rows: !!(rows && rows <= 100),
+    columns: !!(columns && columns <= 1),
+    rows: !!(rows && rows <= 10),
   }
 }
 
@@ -86,24 +88,42 @@ const {
 } = useDataTable(tableValidator)
 
 const step = ref<number>()
-const initialNodes = ref(getInitialNodes())
+const initialNodes = ref<PromptNode[]>([])
+const isSampleDataset = ref(false)
 
 function backFromMain() {
   if (route.params.mode === 'data-driven') step.value = 2
   else router.back()
 }
 function goToMainStep() {
-  initialNodes.value = getInitialNodes(getInputsColumns.value, getOutputsColumns.value)
   promptFusionService.saveTrainingData(
-    getDataForTraining(),
+    getDataForTraining() as Record<string, []>,
     getInputsColumns.value,
     getOutputsColumns.value,
   )
   step.value = 3
+  nextTick(() => {
+    if (isSampleDataset.value) {
+      const sample = getSample(getInputsColumns.value, getOutputsColumns.value)
+      addNodes(sample.nodes)
+      addEdges(sample.edges)
+    } else {
+      addNodes(getInitialNodes())
+    }
+  })
+}
+function selectFile(file: File) {
+  onSelectFile(file)
+  isSampleDataset.value = file.name === 'formal-phrases.csv'
 }
 
 onBeforeMount(() => {
   step.value = route.params.mode === 'data-driven' ? 1 : 3
+})
+onMounted(() => {
+  if (step.value === 3) {
+    addNodes(getInitialNodes())
+  }
 })
 onBeforeUnmount(() => {
   $reset()

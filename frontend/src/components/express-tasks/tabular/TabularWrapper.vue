@@ -20,6 +20,7 @@
           :is-table-exist="isTableExist"
           :file="fileData"
           :min-columns-count="3"
+          :min-rows-count="100"
           :resources="resources"
           :sample-file-name="sampleFileName"
           @selectFile="onSelectFile"
