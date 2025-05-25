@@ -30,7 +30,7 @@ Whether you're working with classification, regression, or prompt engineering, E
 Tabular Classification allows you to predict predefined categories from structured data, where each row represents an individual observation (e.g., a customer, transaction, or product).  
 The model uses the input features (columns) to learn patterns and classify new observations into target categories. Built-in preprocessing and sensible defaults make it easy to get started even without prior ML experience.
 
-**Use Cases:**
+**Potential Applications:**
 
 - Customer segmentation
 - Product classification
@@ -44,7 +44,7 @@ The model uses the input features (columns) to learn patterns and classify new o
 Tabular Regression focuses on predicting continuous numerical values from structured data.  
 This task trains a model that maps input features to a continuous target variable. It supports automatic feature selection, scaling, and a simple interface for training high-quality predictive models with minimal configuration.
 
-**Use Cases:**
+**Potential Applications:**
 
 - Price prediction
 - Demand forecasting
@@ -58,7 +58,7 @@ This task trains a model that maps input features to a continuous target variabl
 Prompt Optimization is a no-code environment for constructing and refining workflows powered by large language models (LLMs).  
 Rather than manually crafting prompts and chaining responses, users can visually design and optimize how prompts interact within their specific domain.
 
-**Use Cases:**
+**Potential Applications:**
 
 - Healthcare: Disease diagnosis  
 - Finance: Credit risk evaluation  
