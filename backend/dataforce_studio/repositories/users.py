@@ -2,8 +2,9 @@ from fastapi import HTTPException, status
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, Mapped
 
+from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.models.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
@@ -297,6 +298,25 @@ class UserRepository(RepositoryBase):
         return await self.get_organization_members_where(
             OrganizationMemberOrm.organization_id == organization_id
         )
+
+    async def get_organization_member(
+        self, organization_id: int, user_id
+    ) -> OrganizationMemberOrm | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrganizationMemberOrm).where(
+                    OrganizationMemberOrm.user_id == user_id,
+                    OrganizationMemberOrm.organization_id == organization_id,
+                )
+            )
+            return result.scalar_one_or_none()
+
+    async def get_organization_member_role(
+        self, organization_id: int, user_id
+    ) -> str | None:
+        async with self._get_session() as session:
+            member = await self.get_organization_member(organization_id, user_id)
+            return str(member.role) if member else None
 
     async def create_stats_email_send_obj(
         self, stat: StatsEmailSendCreate

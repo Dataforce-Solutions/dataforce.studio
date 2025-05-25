@@ -23,6 +23,12 @@ class OrganizationSwitcher(Organization):
     role: OrgRole | None = None
 
 
+class CreateOrganizationInviteIn(BaseModel):
+    email: EmailStr
+    role: OrgRole
+    organization_id: int
+
+
 class CreateOrganizationInvite(BaseModel):
     email: EmailStr
     role: OrgRole

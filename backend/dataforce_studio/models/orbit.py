@@ -13,8 +13,8 @@ class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str | None] = mapped_column(String, nullable=False)
-    organization_id: Mapped[uuid.UUID] = mapped_column(
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    organization_id: Mapped[int] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
 

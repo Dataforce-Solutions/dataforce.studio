@@ -75,3 +75,49 @@ class CrudMixin:
         if db_obj:
             await session.delete(db_obj)
             await session.commit()
+
+    async def get_model_where(
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions,
+        options: list = None,
+    ) -> TOrm | None:
+        result = await session.execute(
+            select(orm_class)
+            .where(*where_conditions)  # type: ignore[attr-defined]
+            .options(*(options or []))
+        )
+
+        return result.scalar_one_or_none()
+
+    async def get_model(
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        obj_id: int,
+        options: list = None,
+    ) -> TOrm | None:
+        result = await session.execute(
+            select(orm_class)
+            .where(orm_class.id == obj_id)  # type: ignore[attr-defined]
+            .options(*(options or []))
+        )
+
+        return result.scalar_one_or_none()
+
+    async def get_models_where(
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions,
+        options: list = None,
+        order_by: list | None = None,
+    ):
+        result = await session.execute(
+            select(orm_class)
+            .where(*where_conditions)  # type: ignore[attr-defined]
+            .options(*(options or []))
+            .order_by(*(order_by or []))
+        )
+        return result.scalars().all()

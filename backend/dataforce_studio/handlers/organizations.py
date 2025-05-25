@@ -26,7 +26,7 @@ class OrganizationHandler:
     __email_handler = EmailHandler()
     __user_repository = UserRepository(engine)
 
-    __members_limit = 30
+    __members_limit = 100
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)
