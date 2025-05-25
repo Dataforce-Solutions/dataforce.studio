@@ -35,12 +35,12 @@ To get started, open **Express Tasks** and select **Prompt Optimization (Pre-rel
 After entering Prompt Optimization, choose between:
 
 - **Free-form Optimization** – Manually configure inputs/outputs and craft prompt logic.  
-- *(Data-Driven Optimization option is coming soon or available conditionally.)*
+- **Data-Driven Optimization** enables you to iteratively improve prompts using both pipeline structure and labelled dataset examples.
 
 Once selected, a visual prompt flow editor will appear (similar to a Miro board) with two default blocks: **Input** and **Output**.
 
 ---
-
+## Free-form Optimization
 ### 2. Configure Input and Output Fields
 
 Click on the **Input** or **Output** nodes to set:
@@ -112,24 +112,49 @@ After the Student model completes its run, the results can optionally be reviewe
 
 ---
 
-### 7. (Optional) Upload Dataset for Data-Driven Optimization
+##  Data-Driven Optimization
+### 7. Upload Dataset for Data-Driven Optimization
 
 If using a dataset:
 
-- **Accepted format**: `.csv`  
-- **Requirements**:
-  - Minimum 100 rows  
-  - At least 3 columns: `input`, `expected_output`, plus optional `context`  
-  - Max file size: 50 MB  
+#### File Requirements:
 
-Click **Upload File**, then **Predict** to evaluate performance on the dataset.
+- **File Size**: Up to 50 MB  
+- **Columns**: At least 2  
+- **Rows**: Minimum 10 rows
+
+You can either:
+
+- Upload your own `.csv` file  
+- Or use the **Sample Dataset**, which includes two example columns:  
+  - `phrase`  
+  - `translated formal phrase`
+
+Once the dataset is loaded, you can configure column behaviour using the **Set type for each column** tool.
+
+#### Column Configuration Features:
+
+- Use **Find column** to search by name  
+- Define columns as `input` or `output`  
+- Sort columns alphabetically (A–Z) or in reverse (Z–A)  
+- Use **Edit Columns** to rename or modify columns  
+- Use **Export** to download the modified dataset  
+  > *(Note: Browser must allow downloads to enable this)*
+
+Once you finish configuration, click **Continue** to move to the workflow editor where you can define the logic and see your optimized prompt flow in action.
+
+---
+
 
 ---
 
 ## Quick Tips
   
-- You can chain multiple gates and processors for advanced workflows.  
+- You can chain multiple gates and processors for advanced workflows.
+- You can use **Conditions** to guide model behaviour based on inputs.
 - Smaller models = faster iteration.
+- Store your API key in local storage to avoid re-entering it each session.
+
 
 ---
 
