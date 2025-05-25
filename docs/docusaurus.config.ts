@@ -58,6 +58,7 @@ const config: Config = {
       logo: {
         alt: 'My Site Logo',
         src: 'img/logo.png',
+        href: '/getting-started',
       },
       items: [
         {

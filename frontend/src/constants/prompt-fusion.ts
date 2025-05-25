@@ -129,13 +129,13 @@ export const getSample = (inputs?: string[], outputs?: string[]) => {
     { id: firstGateFirstInputId, value: 'text', handlePosition: Position.Left, variant: 'output' },
     {
       id: firstGateSecondInputId,
-      value: 'class1: EN text',
+      value: 'EN text',
       handlePosition: Position.Right,
       variant: 'condition',
     },
     {
       id: firstGateThirdInputId,
-      value: 'class2: non EN text',
+      value: 'non EN text',
       handlePosition: Position.Right,
       variant: 'condition',
     },
@@ -157,13 +157,13 @@ export const getSample = (inputs?: string[], outputs?: string[]) => {
     },
     {
       id: secondGateSecondInputId,
-      value: 'class1: formal',
+      value: 'formal',
       handlePosition: Position.Right,
       variant: 'condition',
     },
     {
       id: secondGateThirdInputId,
-      value: 'class2: informal',
+      value: 'informal',
       handlePosition: Position.Right,
       variant: 'condition',
     },

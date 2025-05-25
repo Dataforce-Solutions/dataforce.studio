@@ -30,7 +30,7 @@ export const getProviders = (): BaseProviderInfo[] => {
       image: Ollama,
       name: 'Ollama',
       status: ProviderStatus.disconnected,
-      disabled: false, // Ollama is currently not working
+      disabled: true, // Ollama is currently not working
       settings: [
         {
           id: 'apiBase',
