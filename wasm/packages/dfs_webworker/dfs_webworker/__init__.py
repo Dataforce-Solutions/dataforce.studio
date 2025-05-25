@@ -5,6 +5,7 @@ from dfs_webworker.prompt_optimization import (
 )
 from dfs_webworker.types import FakeJsProxy
 from dfs_webworker.store import Store
+import traceback
 
 
 class Router:
@@ -44,6 +45,7 @@ async def invoke(route: str, payload: FakeJsProxy, debug: bool = False):
             "status": "error",
             "error_type": type(e).__name__,
             "error_message": str(e),
+            "traceback": traceback.format_exc(),
         }
     except KeyboardInterrupt:
         if debug:
