@@ -23,13 +23,6 @@ export const getProviders = (): BaseProviderInfo[] => {
           placeholder: 'Enter your API Key',
           value: savedOpenAiSettings?.apiKey || '',
         },
-        {
-          id: 'apiBase',
-          label: 'API Base',
-          required: false,
-          placeholder: 'Enter your API Base',
-          value: savedOpenAiSettings?.apiBase || 'https://api.openai.com',
-        },
       ],
     },
     {
