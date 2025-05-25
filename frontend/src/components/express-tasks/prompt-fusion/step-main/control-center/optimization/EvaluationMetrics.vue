@@ -1,7 +1,7 @@
 <template>
   <div class="evaluation">
     <h3 class="title">evaluation Metrics</h3>
-    <div class="description">How to measure optimization success</div>
+    <div class="description">Choose a model evaluation metric</div>
     <div class="modes">
       <ui-custom-radio v-model="mode" :options="Object.values(EvaluationModesEnum)" style="display: inline-flex;"/>
     </div>

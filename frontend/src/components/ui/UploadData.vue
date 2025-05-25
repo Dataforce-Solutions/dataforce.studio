@@ -37,7 +37,7 @@
           </li>
           <li class="info-item">
             <div class="info-item-body">
-              <span>Rows: At least 100</span>
+              <span>Rows: At least {{ minRowsCount }}</span>
               <template v-if="isTableExist">
                 <x width="20" height="20" class="danger" v-if="errors.rows" />
                 <check width="20" height="20" class="success" v-if="!errors.rows" />
@@ -91,6 +91,7 @@ type Props = {
     size?: number
   }
   minColumnsCount: number
+  minRowsCount: number
   resources: { label: string, link: string }[]
   sampleFileName: string
 }

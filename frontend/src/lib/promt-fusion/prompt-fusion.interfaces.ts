@@ -46,7 +46,7 @@ export enum ProviderStatus {
 
 export enum EvaluationModesEnum {
   exactMatch = 'Exact match',
-  llmBased = 'LLM-based',
+  llmBased = 'LLM-as-a-judge',
   none = 'None',
 }
 
@@ -73,7 +73,7 @@ export interface ProviderWithModels {
 export interface PromptFusionPayload {
   data: PayloadData
   settings: PayloadSettings
-  trainingData: TrainingData | null
+  trainingData: Record<string, []>
 }
 
 export interface PayloadData {
@@ -121,10 +121,4 @@ export interface PayloadProviderData {
   providerId: ProvidersEnum
   modelId: ProviderModelsEnum
   providerSettings: Record<string, string>
-}
-
-export interface TrainingData {
-  data: object
-  inputFields: string[]
-  outputFields: string[]
 }

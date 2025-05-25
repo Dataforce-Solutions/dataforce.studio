@@ -58,8 +58,8 @@ export const sidebarMenuBottom = [
     id: 1,
     label: 'Documentation',
     icon: File,
-    link: 'https://google.com',
-  }
+    link: import.meta.env.VITE_DOCS_URL,
+  },
 ]
 
 type IAppTaskData = TaskData & {
@@ -71,7 +71,8 @@ const appTasks: IAppTaskData[] = [
     id: 1,
     icon: TabularClassificationIcon,
     title: 'Tabular Classification',
-    description: 'Predict categories from table-structured data —ideal for tasks like customer segmentation, product classification, or fraud detection.',
+    description:
+      'Predict categories from table-structured data — ideal for tasks like customer segmentation, product classification, or fraud detection.',
     btnText: 'next',
     linkName: 'classification',
     tooltipData:
@@ -83,7 +84,8 @@ const appTasks: IAppTaskData[] = [
     id: 2,
     icon: TabularRegressionIcon,
     title: 'Tabular Regression',
-    description: 'Predict continuous numerical values from table-structured data — perfect for tasks like pricing or demand estimation.',
+    description:
+      'Predict continuous numerical values from table-structured data — perfect for tasks like pricing or demand estimation.',
     btnText: 'next',
     linkName: 'regression',
     tooltipData:
@@ -95,7 +97,8 @@ const appTasks: IAppTaskData[] = [
     id: 3,
     icon: ForecastingIcon,
     title: 'Time Series Forecasting',
-    description: 'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
+    description:
+      'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
     tooltipData:
       'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
     isAvailable: false,
@@ -104,14 +107,15 @@ const appTasks: IAppTaskData[] = [
   {
     id: 5,
     icon: ConversationalQAIcon,
-    title: 'Prompt Optimization (Pre-release)',
-    description: 'Construct and optimize LLM flows using a no-code builder.',
+    title: 'Prompt Optimization',
+    description:
+      'Construct and optimize LLM flows using a no-code builder — suitable for various NLP tasks, including text classification and structured information extraction.',
     btnText: 'next',
     tooltipData:
-      'Applied in fields like healthcare for disease diagnosis, finance for credit risk evaluation, marketing for customer segmentation, and retail for predicting product categories',
+      'Define and automatically optimize generic LLM-based NLP pipelines using a no-code builder. Optimization can be performed either based on the task structure and description or on the provided labeled input-output pairs. ',
     isAvailable: true,
     analyticsTaskName: 'prompt_optimization',
-  }
+  },
 ]
 
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
@@ -120,30 +124,30 @@ export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
 export const classificationResources = [
   {
     label: 'Data Cleaning Essentials',
-    link: 'https://google.com',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-cleaning-essentials`,
   },
   {
     label: 'Preparing Data for Classification',
-    link: '#',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#preparing-data-for-classification`,
   },
   {
     label: 'Data Preparation Pitfalls',
-    link: '#',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-preparation-pitfalls`,
   },
 ]
 
 export const regressionResources = [
   {
     label: 'Data Cleaning Essentials',
-    link: 'https://google.com',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-cleaning-essentials`,
   },
   {
     label: 'Preparing Data for Regression',
-    link: '#',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#preparing-data-for-regression`,
   },
   {
     label: 'Data Preparation Pitfalls',
-    link: '#',
+    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-preparation-pitfalls`,
   },
 ]
 

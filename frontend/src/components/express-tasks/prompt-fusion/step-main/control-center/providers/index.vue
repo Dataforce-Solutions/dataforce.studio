@@ -1,6 +1,6 @@
 <template>
   <d-button severity="secondary" @click="onProviderButtonClick">
-    <span>provider</span>
+    <span>providers</span>
     <brain :size="14" />
   </d-button>
   <d-dialog v-model:visible="visible" modal style="width:100%;max-width:500px;" dismissable-mask>

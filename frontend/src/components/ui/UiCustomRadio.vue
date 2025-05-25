@@ -57,7 +57,6 @@ defineEmits<Emits>()
   color: var(--p-togglebutton-color);
   font-weight: 600;
   border-radius: var(--p-togglebutton-border-radius);
-  text-transform: capitalize;
   display: block;
   overflow: hidden;
   z-index: 2;
