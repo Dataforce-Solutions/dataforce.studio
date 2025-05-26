@@ -10,10 +10,12 @@ title: Prompt Optimization
 
 # Prompt Optimization
 
-Design, test, and improve prompts using AI assistance or your own data — all within an intuitive no-code interface.  
-Whether you're exploring new prompt styles or refining existing ones with real-world data, Prompt Optimization helps you iterate quickly and effectively.
+Define and automatically optimize LLM-based NLP pipelines — without writing code.
+Prompt Optimization lets you design flexible prompt workflows using a visual builder. You can either manually define prompt logic and task structure, or use labelled input–output data to guide multi-iteration optimization.
 
-Available under the **Express Tasks** tab, Prompt Optimization (Pre-release) lets you build and test LLM prompt flows without writing a single line of code.
+Each logic path generates its own prompt, which the model follows step by step. With built-in flow control (via Gate and Processor nodes) and optional dataset evaluation, you can refine prompts until they consistently produce high-quality outputs.
+
+Available under the **Express Tasks** tab, Prompt Optimization lets you build and test LLM prompt flows without writing a single line of code.
 
 ---
 
@@ -21,10 +23,10 @@ Available under the **Express Tasks** tab, Prompt Optimization (Pre-release) let
 
 Prompt Optimization supports two main workflows:
 
-- **Free-form Optimization** – Create and tweak prompts using AI-generated suggestions.  
-- **Data-Driven Optimization** – Upload datasets and evaluate prompt performance at scale.
+- **Free-form Optimization** – Optimize prompts without labelled datasets — just define the task logic and flow, and the system will generate prompts accordingly.  
+- **Data-Driven Optimization** – Iteratively optimize prompts using both pipeline structure and labelled input-output data to improve task-specific performance.
 
-To get started, open **Express Tasks** and select **Prompt Optimization (Pre-release)**.
+To get started, open **Express Tasks** and select **Prompt Optimization**.
 
 ---
 
@@ -152,7 +154,7 @@ Once you finish configuration, click **Continue** to move to the workflow editor
   
 - You can chain multiple gates and processors for advanced workflows.
 - You can use **Conditions** to guide model behaviour based on inputs.
-- Smaller models = faster iteration.
+- Use smaller models (e.g., gpt-4o) for faster testing, especially when working with small datasets.
 - Store your API key in local storage to avoid re-entering it each session.
 
 
