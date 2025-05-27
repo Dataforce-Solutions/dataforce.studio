@@ -34,7 +34,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title} docs`}
-      description="Description will go into a meta tag in <head />">
+      description="Dataforce Studio documentation">
       <HomepageHeader />
     </Layout>
   );
