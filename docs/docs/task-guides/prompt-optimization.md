@@ -3,15 +3,10 @@ sidebar_position: 3
 title: Prompt Optimization
 ---
 
----
-sidebar_position: 3
-title: Prompt Optimization
----
-
 # Prompt Optimization
 
-Define and automatically optimize LLM-based NLP pipelines — without writing code.
-Prompt Optimization lets you design flexible prompt workflows using a visual builder. You can either manually define prompt logic and task structure, or use labelled input–output data to guide multi-iteration optimization.
+Define and automatically optimize LLM-based workflow — without writing code.
+Prompt Optimization lets you design flexible LLM workflows using a visual builder.
 
 Each logic path generates its own prompt, which the model follows step by step. With built-in flow control (via Gate and Processor nodes) and optional dataset evaluation, you can refine prompts until they consistently produce high-quality outputs.
 
@@ -36,10 +31,10 @@ To get started, open **Express Tasks** and select **Prompt Optimization**.
 
 After entering Prompt Optimization, choose between:
 
-- **Free-form Optimization** – Manually configure inputs/outputs and craft prompt logic.  
-- **Data-Driven Optimization** enables you to iteratively improve prompts using both pipeline structure and labelled dataset examples.
+- **Free-form Optimization** – Manually configure inputs/outputs and craft the logic.  
+- **Data-Driven Optimization** automatically iterates and improves prompts using both pipeline structure and labelled dataset examples.
 
-Once selected, a visual prompt flow editor will appear (similar to a Miro board) with two default blocks: **Input** and **Output**.
+Once selected, a visual workflow builder editor will appear with two default blocks: **Input** and **Output**.
 
 ---
 ## Free-form Optimization
@@ -49,7 +44,6 @@ Click on the **Input** or **Output** nodes to set:
 
 - **Data Type** – `string`, `integer`, or `float`.  
 - **Field Name** – Define a label for each field (e.g., `user_query`, `answer`).  
-- **Set as a List** – Enable this option to test with multiple examples.  
 - Add more fields with **"Add input/output field"** if needed.
 
 ---
@@ -59,19 +53,19 @@ Click on the **Input** or **Output** nodes to set:
 Click the **+** icon (bottom-right toolbar) to add:
 
 - **Gate**  
-  - Provide a **Hint** – a guide used by the optimizer to generate the final prompt logic.
+  - Provide a **Hint** – a guide used by the optimizer to generate the final gate logic.  
+      _Example: Determine if the input data is in English or not._
   - Define **Input data type and name**.  
-  - Add **Conditions** to define under which input criteria this node is triggered.
-
+  - Add **Conditions** to define under which input criteria this node is triggered.    
+      _Example: Condition — "English text" (input is in English), "Not English text" (input is not in English)._
 
 - **Processor**
-- Provide a **Hint** – This serves as a transformation instruction.
-- Set **Input and Output** fields similar to Gate.
-Each Processor uses its Hint to build a specific prompt that is sent to the model.  
-It takes input from upstream nodes and transforms it according to the defined logic.
+  - Provide a **Hint** – Give a brief description of how the input should be processed.
+  - Set **Input and Output** fields similar to Gate.
+  It takes input from upstream nodes and transforms it according to the provided processor hint.
 
-Connect nodes visually to define the prompt flow. Just like Gate nodes, Processors can be chained and combined with Conditions for advanced flows.  
-Each node prepares its part of the final prompt, and the model proceeds through the entire flow using those prompts.
+Connect nodes visually to define the workflow. Processors can be chained and combined Gate nodes for advanced flows.  
+Each node prepares its part of the final flow.
  
 
 ---
@@ -92,16 +86,15 @@ Before running prompts, configure the model backend:
 
 Scroll to the **Task Optimization** section:
 
-- **Task Description** – A summary of what the prompt should achieve.  
+- **Task Description** – A summary of what the workflow should achieve.  
 - The **Teacher Model** prepares the optimization logic and generates the "ideal prompts" based on hints and (optionally) a provided dataset.
 - When ready, the **Student Model** is evaluated by running through the same workflow — using the optimized prompts to generate outputs.
 After the Student model completes its run, the results can optionally be reviewed again by the Teacher model or evaluated using scoring metrics.
- You can then run the Student model multiple times to improve its match to the Teacher’s output.
-  > Tip: Use smaller models for quicker testing.
+When the model is ready the model will be run by the Student model.
 
 - **Evaluation Metrics**:  
   - `Exact Match` – Optimization continues until model output matches expected result exactly.   
-  - `LLM-Based Scoring` – Measures similarity to target output (ideal when exact match is too strict).   
+  - `LLM-Based Scoring` – Measures similarity with a provided criteria to target output (ideal when exact match is too strict).   
   - `None` – Skip evaluation metrics.
 
 ---
@@ -141,22 +134,16 @@ Once the dataset is loaded, you can configure column behaviour using the **Set t
 - Sort columns alphabetically (A–Z) or in reverse (Z–A)  
 - Use **Edit Columns** to rename or modify columns  
 - Use **Export** to download the modified dataset  
-  > *(Note: Browser must allow downloads to enable this)*
 
-Once you finish configuration, click **Continue** to move to the workflow editor where you can define the logic and see your optimized prompt flow in action.
-
----
-
+Once you finish configuration, click **Continue** to move to the workflow editor where you can define the workflow logic and see your optimized prompt flow in action.
 
 ---
 
 ## Quick Tips
   
 - You can chain multiple gates and processors for advanced workflows.
-- You can use **Conditions** to guide model behaviour based on inputs.
-- Use smaller models (e.g., gpt-4o) for faster testing, especially when working with small datasets.
+- Use smaller models (e.g., gpt-4o) for testing before scaling up to larger models to save costs.
 - Store your API key in local storage to avoid re-entering it each session.
-
 
 ---
 

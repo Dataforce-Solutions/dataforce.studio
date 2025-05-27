@@ -1,6 +1,6 @@
 ---
 sidebar_label: 'Runtime'
-sidebar_position: 3
+sidebar_position: 4
 title: 'Runtime'
 ---
 
@@ -10,7 +10,7 @@ Runtime is the environment where you can upload your previously trained model an
 
 ### Uploading Your Model
 1. Navigate to the Runtime section.
-2. Upload your `.zip` file from the Express Task.
+2. Upload your `.dfs` file from the Express Task.
 3. The platform will validate and load the model.
 
 ### Running Predictions
@@ -24,9 +24,3 @@ Runtime is the environment where you can upload your previously trained model an
 
 ### Viewing and Downloading Results
 Results will be shown in a table. You can export them as a CSV.
-
-### Troubleshooting Runtime
-- Check if your model is in the correct format
-- Ensure the input dataset columns match the training dataset
-- Refer to the logs for detailed error information
-

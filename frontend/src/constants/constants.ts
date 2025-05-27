@@ -58,7 +58,7 @@ export const sidebarMenuBottom = [
     id: 1,
     label: 'Documentation',
     icon: File,
-    link: import.meta.env.VITE_DOCS_URL,
+    link: `${import.meta.env.VITE_DOCS_URL}/getting-started`,
   },
 ]
 
@@ -124,30 +124,30 @@ export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
 export const classificationResources = [
   {
     label: 'Data Cleaning Essentials',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-cleaning-essentials`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
   {
     label: 'Preparing Data for Classification',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#preparing-data-for-classification`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
   {
     label: 'Data Preparation Pitfalls',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-preparation-pitfalls`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
 ]
 
 export const regressionResources = [
   {
     label: 'Data Cleaning Essentials',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-cleaning-essentials`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
   {
     label: 'Preparing Data for Regression',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#preparing-data-for-regression`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
   {
     label: 'Data Preparation Pitfalls',
-    link: `${import.meta.env.VITE_DOCS_URL}/docs/data-preparation#data-preparation-pitfalls`,
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
   },
 ]
 

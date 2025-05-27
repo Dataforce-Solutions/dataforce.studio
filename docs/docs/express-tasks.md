@@ -9,7 +9,7 @@ title: Express Tasks
 
 ## What Are Express Tasks?
 
-**Express Tasks** are streamlined, pre-configured workflows that allow users to quickly build and deploy machine learning models without needing in-depth technical knowledge. They are designed for simplicity, speed, and accessibility—ideal for business analysts, domain experts, or beginners in ML who want results without getting into complex model tuning or coding.
+**Express Tasks** are streamlined, pre-configured workflows that allow users to quickly build machine learning models without needing in-depth technical knowledge. They are designed for simplicity, speed, and accessibility—ideal for business analysts, domain experts, or beginners in ML who want results without getting into complex model tuning or coding.
 
 These tasks abstract away the technical complexity of typical ML pipelines by offering:
 
@@ -18,11 +18,11 @@ These tasks abstract away the technical complexity of typical ML pipelines by of
 - Minimal data preparation requirements
 - Quick turnaround from data upload to model download
 
-Whether you're working with classification, regression, or prompt engineering, Express Tasks help you go from raw data to usable model in minutes.
+Whether you're working with classification, regression, or llm workflow builder, Express Tasks help you go from raw data to usable model in minutes.
 
 ---
 
-## Available Tasks
+## Available Express Tasks
 
 ### 1. Tabular Classification
 
@@ -52,7 +52,7 @@ This task trains a model that maps input features to a continuous target variabl
 
 ---
 
-### 3. Prompt Optimization *(Pre-release)*
+### 3. Prompt Optimization
 
 **Description:**  
 Prompt Optimization is a no-code environment for constructing and refining workflows powered by large language models (LLMs).  
@@ -60,10 +60,9 @@ Rather than manually crafting prompts and chaining responses, users can visually
 
 **Use Cases:**
 
-- Healthcare: Disease diagnosis  
-- Finance: Credit risk evaluation  
-- Marketing: Customer segmentation  
-- Retail: Product category prediction
+- Text classification & labeling
+- Data processing automation
+- Data extraction from unstructured text
 
 ## Coming Next
 
@@ -107,9 +106,6 @@ You can upload your data in the following formats:
 
 ## Output Model Format & Structure
 
-Once training is complete, the model is available for download as a `.dfs` file containing:
-
-- **README file**: With instructions on how to use the model
-- **Metadata and logs**: Detailing the training process and model structure
+Once training is complete, the model is available for download as a `.dfs` file. You can use this file in the Runtime section to run predictions on new data.
 
 ---
