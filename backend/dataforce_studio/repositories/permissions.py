@@ -1,15 +1,18 @@
+from collections.abc import Sequence
+
 from dataforce_studio.models import (
-    OrganizationRolePermissionsOrm,
     OrbitRolePermissionsOrm,
+    OrganizationRolePermissionsOrm,
 )
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
-
 from dataforce_studio.schemas.organization import OrgRole
-from dataforce_studio.schemas.permissions import OrgPermission, OrbitPermission
+from dataforce_studio.schemas.permissions import OrbitPermission, OrgPermission
 
 
 class PermissionsRepository(RepositoryBase, CrudMixin):
-    async def get_organization_permissions_by_role(self, role: OrgRole):
+    async def get_organization_permissions_by_role(
+        self, role: OrgRole
+    ) -> Sequence[OrganizationRolePermissionsOrm]:
         async with self._get_session() as session:
             return await self.get_models_where(
                 session,

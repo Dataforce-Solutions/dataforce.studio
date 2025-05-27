@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import TypeVar
 
 from pydantic import BaseModel
@@ -113,7 +114,7 @@ class CrudMixin:
         *where_conditions,
         options: list = None,
         order_by: list | None = None,
-    ):
+    ) -> Sequence[TOrm]:
         result = await session.execute(
             select(orm_class)
             .where(*where_conditions)  # type: ignore[attr-defined]

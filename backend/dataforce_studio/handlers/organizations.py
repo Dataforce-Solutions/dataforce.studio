@@ -1,16 +1,18 @@
 from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
+from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
     OrganizationLimitReachedError,
+    ServiceError,
 )
-from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
+    CreateOrganizationInviteIn,
     OrganizationDetails,
     OrganizationInvite,
     OrganizationMember,
@@ -18,25 +20,35 @@ from dataforce_studio.schemas.organization import (
     OrganizationSwitcher,
     UpdateOrganizationMember,
     UserInvite,
+    OrgRole,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class OrganizationHandler:
     __invites_repository = InviteRepository(engine)
     __email_handler = EmailHandler()
     __user_repository = UserRepository(engine)
+    __permissions_handler = PermissionsHandler()
 
     __members_limit = 100
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)
 
-    async def get_organization(self, organization_id: int) -> OrganizationDetails:
+    async def get_organization(
+        self, user_id: int, organization_id: int
+    ) -> OrganizationDetails:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id, user_id, Resource.ORGANIZATION, Action.READ
+        )
+
         organization = await self.__user_repository.get_organization_details(
             organization_id
         )
         if not organization:
             raise NotFoundError("Organization not found")
+
         return organization
 
     async def check_org_members_limit(self, organization_id: int, num: int = 0) -> None:
@@ -49,17 +61,33 @@ class OrganizationHandler:
                 "Organization reached maximum number of users", 409
             )
 
-    async def send_invite(self, invite: CreateOrganizationInvite) -> OrganizationInvite:
+    async def send_invite(
+        self, user_id: int, invite_: CreateOrganizationInviteIn
+    ) -> OrganizationInvite:
+        await self.__permissions_handler.check_organization_permission(
+            invite_.organization_id,
+            user_id,
+            Resource.ORGANIZATION_INVITE,
+            Action.CREATE,
+        )
+        invite = CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
         await self.check_org_members_limit(invite.organization_id)
 
-        db_invite = await self.__invites_repository.create_organization_invite(
-            OrganizationInviteOrm(**invite.model_dump())
-        )
+        db_invite = await self.__invites_repository.create_organization_invite(invite)
         # TODO implement invite sending email
         self.__email_handler.send_organization_invite_email()
         return db_invite
 
-    async def cancel_invite(self, invite_id: int) -> None:
+    async def cancel_invite(
+        self, user_id: int, organization_id: int, invite_id: int
+    ) -> None:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_INVITE,
+            Action.DELETE,
+        )
+
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def accept_invite(self, invite_id: int, user_id: int) -> None:
@@ -77,8 +105,15 @@ class OrganizationHandler:
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def get_organization_invites(
-        self, organization_id: int
+        self, user_id: int, organization_id: int
     ) -> list[OrganizationInvite]:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_INVITE,
+            Action.LIST,
+        )
+
         return await self.__invites_repository.get_invites_by_organization_id(
             organization_id
         )
@@ -87,23 +122,76 @@ class OrganizationHandler:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
-        self, organization_id: int
+        self, user_id: int, organization_id: int
     ) -> list[OrganizationMember]:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_USER,
+            Action.LIST,
+        )
+
         return await self.__user_repository.get_organization_members(organization_id)
 
     async def update_organization_member_by_id(
-        self, member_id: int, member: UpdateOrganizationMember
+        self,
+        user_id: int,
+        organization_id: int,
+        member_id: int,
+        member: UpdateOrganizationMember,
     ) -> OrganizationMember | None:
+        if user_id == member_id:
+            raise ServiceError("You can not update your own data.")
+
+        user_role = await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_USER,
+            Action.CREATE,
+        )
+
+        if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
+            raise ServiceError("Only Organization Owner can assign new admins.")
+
         return await self.__user_repository.update_organization_member(
             member_id, member
         )
 
-    async def delete_organization_member_by_id(self, member_id: int) -> None:
+    async def delete_organization_member_by_id(
+        self, user_id: int, organization_id: int, member_id: int
+    ) -> None:
+        if user_id == member_id:
+            raise ServiceError("You can not remove yourself from organization.")
+
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_USER,
+            Action.DELETE,
+        )
+
+        member_to_delete = await self.__user_repository.get_organization_member_by_id(
+            member_id
+        )
+
+        if member_to_delete and member_to_delete.role == OrgRole.OWNER:
+            raise ServiceError("Organization Owner can not be removed.")
+
         return await self.__user_repository.delete_organization_member(member_id)
 
     async def add_organization_member(
-        self, member: OrganizationMemberCreate
+        self, user_id: int, organization_id: int, member: OrganizationMemberCreate
     ) -> OrganizationMember:
+        user_role = await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION_USER,
+            Action.CREATE,
+        )
+
+        if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
+            raise ServiceError("Only Organization Owner can add new admins.")
+
         return await self.__user_repository.create_organization_member(
             member.user_id, member.organization_id, member.role
         )

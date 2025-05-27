@@ -1,9 +1,9 @@
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Integer, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
 from dataforce_studio.schemas.orbit import OrbitRole
-from dataforce_studio.schemas.permissions import Resources, ResourceAction
+from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class OrganizationRolePermissionsOrm(TimestampMixin, Base):
@@ -14,11 +14,15 @@ class OrganizationRolePermissionsOrm(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role: Mapped[OrbitRole] = mapped_column(String, nullable=False)
-    resource: Mapped[Resources] = mapped_column(String, nullable=False)
-    action: Mapped[ResourceAction] = mapped_column(String, nullable=False)
+    resource: Mapped[Resource] = mapped_column(String, nullable=False)
+    action: Mapped[Action] = mapped_column(String, nullable=False)
 
     def __repr__(self) -> str:
-        return f"OrganizationRolePermissionsOrm(role={self.role!r}, resource={self.resource!r}, action={self.action!r})"
+        return (
+            f"OrganizationRolePermissionsOrm("
+            f"role={self.role!r}, resource={self.resource!r}, "
+            f"action={self.action!r})"
+        )
 
 
 class OrbitRolePermissionsOrm(TimestampMixin, Base):
@@ -29,8 +33,12 @@ class OrbitRolePermissionsOrm(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role: Mapped[OrbitRole] = mapped_column(String, nullable=False)
-    resource: Mapped[Resources] = mapped_column(String, nullable=False)
-    action: Mapped[ResourceAction] = mapped_column(String, nullable=False)
+    resource: Mapped[Resource] = mapped_column(String, nullable=False)
+    action: Mapped[Action] = mapped_column(String, nullable=False)
 
     def __repr__(self) -> str:
-        return f"OrbitRolePermissionsOrm(role={self.role!r}, resource={self.resource!r}, action={self.action!r})"
+        return (
+            f"OrbitRolePermissionsOrm("
+            f"role={self.role!r}, resource={self.resource!r}, "
+            f"action={self.action!r})"
+        )

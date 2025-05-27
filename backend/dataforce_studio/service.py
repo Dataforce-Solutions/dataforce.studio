@@ -9,6 +9,7 @@ from dataforce_studio.api.organization_routes import organization_all_routers
 from dataforce_studio.api.user_routes import users_routers
 from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
+from fastapi.openapi.utils import get_openapi
 
 
 class AppService(FastAPI):
@@ -20,6 +21,8 @@ class AppService(FastAPI):
         self.include_router(router=users_routers)
         self.include_router(router=organization_all_routers)
         self.include_authentication()
+        self.include_error_handlers()
+        self.custom_openapi()
 
         self.add_middleware(
             CORSMiddleware,
@@ -45,3 +48,19 @@ class AppService(FastAPI):
                 status_code=exc.status_code,
                 content={"detail": exc.message},
             )
+
+    def custom_openapi(self) -> dict:
+        if self.openapi_schema:
+            return self.openapi_schema
+        openapi_schema = get_openapi(
+            title="Dataforce Studio API",
+            version="1.0.0",
+            description="API docs for Dataforce Studio",
+            routes=self.routes,
+        )
+        openapi_schema["components"]["securitySchemes"] = {
+            "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+        }
+        openapi_schema["security"] = [{"BearerAuth": []}]
+        self.openapi_schema = openapi_schema
+        return self.openapi_schema
