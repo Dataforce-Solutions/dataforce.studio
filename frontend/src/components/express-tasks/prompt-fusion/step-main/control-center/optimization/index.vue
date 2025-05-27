@@ -71,7 +71,7 @@ const mainButton = ref()
 const visible = ref(false)
 const description = ref(promptFusionService.taskDescription)
 
-const helpLink = computed(() => `${import.meta.env.VITE_DOCS_URL}/docs/task-guides/prompt-optimization`)
+const helpLink = computed(() => `${import.meta.env.VITE_DOCS_URL}/task-guides/prompt-optimization`)
 
 function onChangeOptimizationState(isOpen: boolean) {
   visible.value = isOpen

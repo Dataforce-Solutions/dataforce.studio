@@ -6,7 +6,7 @@ title: Getting Started
 
 
 ### Introduction to the Platform
-Welcome to our platform! Here, you can quickly train machine learning models, download them, and run predictions—all without writing code. Whether you're working with tabular data or optimizing LLM prompts, our intuitive interface helps you go from raw data to actionable insights in minutes.
+Welcome to our platform! Here, you can quickly train machine learning models, download them, and run predictions—all without writing code. Whether you're working with tabular data or building LLM workflows, our intuitive interface helps you go from raw data to actionable insights in minutes.
 
 ### Key Features Overview
 - **Express Tasks**: Rapid training workflows for tabular classification, regression, and prompt optimization.
