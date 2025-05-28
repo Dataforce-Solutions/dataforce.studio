@@ -1,12 +1,14 @@
 import random
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.schemas.organization import (
-    CreateOrganizationInvite,
+    CreateOrganizationInviteIn,
     OrganizationInvite,
+    OrgRole,
     UserInvite,
 )
 
@@ -20,6 +22,10 @@ from tests.conftest import (
 handler = OrganizationHandler()
 
 
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
 @patch(
     "dataforce_studio.handlers.organizations.EmailHandler.send_organization_invite_email",
     new_callable=MagicMock,
@@ -37,23 +43,31 @@ async def test_send_invite(
     mock_create_organization_invite: AsyncMock,
     mock_get_organization_members_count: AsyncMock,
     mock_send_organization_invite_email: MagicMock,
+    mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    invite = CreateOrganizationInvite(**invite_data)
-    mocked_invite = OrganizationInviteOrm(**invite.model_dump())
+    invite_id = random.randint(1, 10000)
+    user_id = random.randint(1, 10000)
+    invite = CreateOrganizationInviteIn(**invite_data)
+    mocked_invite = OrganizationInvite(
+        **invite_data, id=invite_id, created_at=datetime.utcnow()
+    )
 
     mock_get_organization_members_count.return_value = 0
     mock_create_organization_invite.return_value = mocked_invite
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-    result = await handler.send_invite(invite)
+    result = await handler.send_invite(user_id, invite)
 
     assert result == mocked_invite
 
     mock_send_organization_invite_email.assert_called_once()
     mock_create_organization_invite.assert_awaited_once()
-    # mock_create_organization_invite.assert_called_once_with(
-    #     OrganizationInviteOrm(**invite.model_dump()))
 
 
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
 @patch(
     "dataforce_studio.handlers.organizations.InviteRepository.delete_organization_invite",
     new_callable=AsyncMock,
@@ -61,12 +75,16 @@ async def test_send_invite(
 @pytest.mark.asyncio
 async def test_cancel_invite(
     mock_delete_organization_invite: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
 ) -> None:
+    organization_id = random.randint(1, 10000)
+    user_id = random.randint(1, 10000)
     invite_id = random.randint(1, 10000)
 
     mock_delete_organization_invite.return_value = None
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-    result = await handler.cancel_invite(invite_id)
+    result = await handler.cancel_invite(user_id, organization_id, invite_id)
 
     assert result is None
     mock_delete_organization_invite.assert_awaited_once_with(invite_id)
@@ -133,19 +151,26 @@ async def test_reject_invite(
 
 
 @patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.InviteRepository.get_invites_where",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_organization_invites(
     mock_get_organization_invites: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
 ) -> None:
+    user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
-
     expected = [OrganizationInvite(**invite_get_data)]
-    mock_get_organization_invites.return_value = expected
 
-    actual = await handler.get_organization_invites(organization_id)
+    mock_get_organization_invites.return_value = expected
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    actual = await handler.get_organization_invites(user_id, organization_id)
 
     assert actual == expected
     mock_get_organization_invites.assert_awaited_once()

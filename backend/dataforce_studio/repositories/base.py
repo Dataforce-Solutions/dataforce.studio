@@ -82,7 +82,7 @@ class CrudMixin:
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions,
-        options: list = None,
+        options: list | None = None,
     ) -> TOrm | None:
         result = await session.execute(
             select(orm_class)
@@ -97,7 +97,7 @@ class CrudMixin:
         session: AsyncSession,
         orm_class: type[TOrm],
         obj_id: int,
-        options: list = None,
+        options: list | None = None,
     ) -> TOrm | None:
         result = await session.execute(
             select(orm_class)
@@ -112,7 +112,7 @@ class CrudMixin:
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions,
-        options: list = None,
+        options: list | None = None,
         order_by: list | None = None,
     ) -> Sequence[TOrm]:
         result = await session.execute(

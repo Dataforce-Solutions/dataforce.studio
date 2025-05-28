@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request, status
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.organization import (
     OrganizationMember,

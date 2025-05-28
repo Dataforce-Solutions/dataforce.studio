@@ -1,4 +1,6 @@
-endpoint_responses = {
+from typing import Any
+
+endpoint_responses: dict[int | str, dict[str, Any]] = {
     401: {
         "description": "Authentication error",
         "content": {

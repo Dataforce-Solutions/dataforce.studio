@@ -18,9 +18,9 @@ from dataforce_studio.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrganizationSwitcher,
+    OrgRole,
     UpdateOrganizationMember,
     UserInvite,
-    OrgRole,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from dataforce_studio.models import (
+from dataforce_studio.models.permissions import (
     OrbitRolePermissionsOrm,
     OrganizationRolePermissionsOrm,
 )

@@ -1,3 +1,4 @@
+from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
@@ -130,6 +131,7 @@ class OrbitHandler:
             Action.CREATE,
         )
 
+        await self.check_organization_members_limit(member.orbit_id)
 
         return await self.__orbits_repository.create_orbit_member(member)
 

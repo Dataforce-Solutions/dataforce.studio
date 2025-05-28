@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
@@ -9,7 +10,6 @@ from dataforce_studio.api.organization_routes import organization_all_routers
 from dataforce_studio.api.user_routes import users_routers
 from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
-from fastapi.openapi.utils import get_openapi
 
 
 class AppService(FastAPI):

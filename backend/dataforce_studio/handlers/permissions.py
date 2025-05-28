@@ -5,6 +5,8 @@ from dataforce_studio.infra.exceptions import (
 )
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.orbit import OrbitRole
+from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.permissions import (
     Action,
     Resource,
@@ -22,12 +24,14 @@ class PermissionsHandler:
     def has_organization_permission(
         self, role: str, resource: Resource, action: Action
     ) -> bool:
-        return action in self.__org_permissions.get(role, {}).get(resource, [])
+        return action in self.__org_permissions.get(OrgRole(role), {}).get(resource, [])
 
     def has_orbit_permission(
         self, role: str, resource: Resource, action: Action
     ) -> bool:
-        return action in self.__orbit_permissions.get(role, {}).get(resource, [])
+        return action in self.__orbit_permissions.get(OrbitRole(role), {}).get(
+            resource, []
+        )
 
     async def check_organization_permission(
         self,

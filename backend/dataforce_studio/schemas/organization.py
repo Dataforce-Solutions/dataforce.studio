@@ -53,7 +53,8 @@ class UpdateOrganizationMember(BaseModel):
     role: OrgRole
 
     @field_validator("role")
-    def forbid_owner(value: OrgRole) -> OrgRole:
+    @classmethod
+    def forbid_owner(cls, value: OrgRole) -> OrgRole:
         if value == OrgRole.OWNER:
             raise ValueError("Role 'OWNER' cant be assigned")
         return value
@@ -72,7 +73,8 @@ class OrganizationMemberCreate(BaseModel):
     role: OrgRole
 
     @field_validator("role")
-    def forbid_owner(value: OrgRole) -> OrgRole:
+    @classmethod
+    def forbid_owner(cls, value: OrgRole) -> OrgRole:
         if value == OrgRole.OWNER:
             raise ValueError("Role 'OWNER' cant be assigned")
         return value

@@ -4,19 +4,19 @@ import pytest
 from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models import OrganizationInviteOrm, OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
-from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
 from dataforce_studio.schemas.user import User
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def get_invite_obj(organization: OrganizationOrm, user: User) -> OrganizationInviteOrm:
-    return OrganizationInviteOrm(
-        **{
-            "email": "test@gmail.com",
-            "role": OrgRole.MEMBER,
-            "organization_id": organization.id,
-            "invited_by": user.id,
-        }
+def get_invite_obj(
+    organization: OrganizationOrm, user: User
+) -> CreateOrganizationInvite:
+    return CreateOrganizationInvite(
+        email="test@gmail.com",
+        role=OrgRole.MEMBER,
+        organization_id=organization.id,
+        invited_by=user.id,
     )
 
 
@@ -30,7 +30,6 @@ async def test_create_organization_invite(create_organization_with_user: dict) -
 
     created_invite = await repo.create_organization_invite(invite)
 
-    assert created_invite.id == invite.id
     assert created_invite.email == invite.email
     assert created_invite.organization_id == invite.organization_id
 
@@ -70,7 +69,7 @@ async def test_get_invite(create_organization_with_user: dict) -> None:
     repo = InviteRepository(engine)
 
     created_invite = await repo.create_organization_invite(
-        get_invite_obj(organization, user)
+        invite=get_invite_obj(organization, user)
     )
     fetched_invite = await repo.get_invite(created_invite.id)
 
