@@ -1,19 +1,11 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.schemas.organization import (
-    OrganizationDetails,
-    OrganizationSwitcher,
-)
+from dataforce_studio.schemas.organization import OrganizationDetails
 
 organization_router = APIRouter(prefix="", tags=["organizations"])
 
 organization_handler = OrganizationHandler()
-
-
-@organization_router.get("/all", response_model=list[OrganizationSwitcher])
-async def get_available_organizations(request: Request) -> list[OrganizationSwitcher]:
-    return await organization_handler.get_user_organizations(request.user.id)
 
 
 @organization_router.get("/{organization_id}", response_model=OrganizationDetails)

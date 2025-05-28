@@ -5,7 +5,8 @@ from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.schemas.organization import UserInvite
 
 user_invites_router = APIRouter(
-    prefix="/me/invitations",
+    prefix="/invitations",
+    tags=["users-me-invites"],
     dependencies=[Depends(is_user_authenticated)],
 )
 
