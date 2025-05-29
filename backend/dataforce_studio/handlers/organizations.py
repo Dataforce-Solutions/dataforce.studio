@@ -17,6 +17,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationMemberCreate,
     OrganizationSwitcher,
     UpdateOrganizationMember,
+    UserInvite,
 )
 
 
@@ -82,7 +83,7 @@ class OrganizationHandler:
             organization_id
         )
 
-    async def get_user_invites(self, email: EmailStr) -> list[OrganizationInvite]:
+    async def get_user_invites(self, email: EmailStr) -> list[UserInvite]:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
@@ -91,9 +92,11 @@ class OrganizationHandler:
         return await self.__user_repository.get_organization_members(organization_id)
 
     async def update_organization_member_by_id(
-        self, member: UpdateOrganizationMember
+        self, member_id: int, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        return await self.__user_repository.update_organization_member(member)
+        return await self.__user_repository.update_organization_member(
+            member_id, member
+        )
 
     async def delete_organization_member_by_id(self, member_id: int) -> None:
         return await self.__user_repository.delete_organization_member(member_id)

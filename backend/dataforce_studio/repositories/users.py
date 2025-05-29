@@ -246,10 +246,10 @@ class UserRepository(RepositoryBase):
             return db_member.to_organization_member()
 
     async def update_organization_member(
-        self, member: UpdateOrganizationMember
+        self, member_id: int, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         return await self.update_organization_member_where(
-            member, OrganizationMemberOrm.id == member.id
+            member, OrganizationMemberOrm.id == member_id
         )
 
     async def delete_organization_member_where(self, *where_conditions) -> None:

@@ -74,8 +74,30 @@ invite_get_data = {
     "email": "test@example.com",
     "role": OrgRole.MEMBER,
     "organization_id": random.randint(1, 10000),
-    "invited_by": random.randint(1, 10000),
+    "invited_by_user": {
+        "id": 66,
+        "email": "robertstimothy@example.org",
+        "full_name": "Terry Lewis",
+        "disabled": False,
+        "photo": None,
+    },
     "created_at": datetime.datetime.now(),
+}
+
+invite_user_get_data = {
+    "id": random.randint(1, 10000),
+    "email": "test@example.com",
+    "role": OrgRole.MEMBER,
+    "organization_id": random.randint(1, 10000),
+    "invited_by_user": {
+        "id": 66,
+        "email": "robertstimothy@example.org",
+        "full_name": "Terry Lewis",
+        "disabled": False,
+        "photo": None,
+    },
+    "created_at": datetime.datetime.now(),
+    "organization": {"id": 1, "name": "test", "logo": "https://example.com/"},
 }
 
 invite_accept_data = {
@@ -221,7 +243,7 @@ async def create_orbit(
     user = await user_repo.create_user(CreateUser(**test_user))
     created_organization = await user_repo.create_organization("test org", None)
     created_orbit = await repo.create_orbit(
-        OrbitCreate(name="test orbit", organization_id=created_organization.id)
+        created_organization.id, OrbitCreate(name="test orbit")
     )
 
     return {
@@ -242,7 +264,7 @@ async def create_orbit_with_members(
     repo = OrbitRepository(engine)
     created_organization = await user_repo.create_organization("test org", None)
     created_orbit = await repo.create_orbit(
-        OrbitCreate(name="test orbit", organization_id=created_organization.id)
+        created_organization.id, OrbitCreate(name="test orbit")
     )
 
     members = []

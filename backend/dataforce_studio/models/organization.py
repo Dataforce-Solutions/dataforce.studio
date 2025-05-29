@@ -10,6 +10,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationDetails,
     OrganizationInvite,
     OrganizationMember,
+    UserInvite,
 )
 
 
@@ -87,6 +88,8 @@ class OrganizationInviteOrm(TimestampMixin, Base):
 
     organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")
 
+    invited_by_user: Mapped["UserOrm"] = relationship("UserOrm", lazy="selectin")  # type: ignore[name-defined]  # noqa: F821
+
     def __repr__(self) -> str:
         return (
             f"OrganizationInvite(id={self.id!r}, email={self.email!r}, "
@@ -98,6 +101,12 @@ class OrganizationInviteOrm(TimestampMixin, Base):
         cls, invites: Sequence["OrganizationInviteOrm"]
     ) -> list[OrganizationInvite]:
         return [OrganizationInvite.model_validate(invite) for invite in invites]
+
+    @classmethod
+    def to_user_invites_list(
+        cls, invites: Sequence["OrganizationInviteOrm"]
+    ) -> list[UserInvite]:
+        return [UserInvite.model_validate(invite) for invite in invites]
 
     def to_organization_invite(self) -> OrganizationInvite:
         return OrganizationInvite.model_validate(self)

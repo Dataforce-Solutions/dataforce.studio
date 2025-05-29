@@ -1,7 +1,6 @@
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
-    OrbitLimitReachedError,
     OrganizationLimitReachedError,
 )
 from dataforce_studio.repositories.orbits import OrbitRepository
@@ -19,35 +18,24 @@ from dataforce_studio.schemas.orbit import (
 class OrbitHandler:
     __orbits_repository = OrbitRepository(engine)
 
-    __members_limit = 10
     __orbits_limit = 10
 
-    async def check_organization_orbits_limit(
-        self, organization_id: int, num: int = 0
-    ) -> None:
+    async def check_organization_orbits_limit(self, organization_id: int) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
             organization_id
         )
 
-        if (orbits_count + num) >= self.__orbits_limit:
+        if orbits_count >= self.__orbits_limit:
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of orbits", 409
             )
 
-    async def check_organization_members_limit(
-        self, organization_id: int, num: int = 0
-    ) -> None:
-        members_count = await self.__orbits_repository.get_orbit_members_count(
-            organization_id
-        )
+    async def create_organization_orbit(
+        self, organization_id: int, orbit: OrbitCreate
+    ) -> Orbit:
+        await self.check_organization_orbits_limit(organization_id)
 
-        if (members_count + num) >= self.__orbits_limit:
-            raise OrbitLimitReachedError("Orbit reached maximum number of members", 409)
-
-    async def create_organization_orbit(self, orbit: OrbitCreate) -> Orbit:
-        await self.check_organization_orbits_limit(orbit.organization_id)
-
-        return await self.__orbits_repository.create_orbit(orbit)
+        return await self.__orbits_repository.create_orbit(organization_id, orbit)
 
     async def get_organization_orbits(self, organization_id: int) -> list[Orbit]:
         return await self.__orbits_repository.get_organization_orbits(organization_id)
@@ -60,8 +48,8 @@ class OrbitHandler:
 
         return orbit
 
-    async def update_orbit(self, orbit: OrbitUpdate) -> Orbit:
-        orbit_obj = await self.__orbits_repository.update_orbit(orbit)
+    async def update_orbit(self, orbit_id: int, orbit: OrbitUpdate) -> Orbit:
+        orbit_obj = await self.__orbits_repository.update_orbit(orbit_id, orbit)
 
         if not orbit_obj:
             raise NotFoundError("Orbit not found")
@@ -75,8 +63,6 @@ class OrbitHandler:
         return await self.__orbits_repository.get_orbit_members(orbit_id)
 
     async def create_orbit_member(self, member: OrbitMemberCreate) -> OrbitMember:
-        await self.check_organization_members_limit(member.orbit_id)
-
         return await self.__orbits_repository.create_orbit_member(member)
 
     async def update_orbit_member(self, member: UpdateOrbitMember) -> OrbitMember:

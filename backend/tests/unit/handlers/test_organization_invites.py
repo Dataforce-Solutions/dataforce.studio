@@ -7,9 +7,15 @@ from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationInvite,
+    UserInvite,
 )
 
-from tests.conftest import invite_accept_data, invite_data, invite_get_data
+from tests.conftest import (
+    invite_accept_data,
+    invite_data,
+    invite_get_data,
+    invite_user_get_data,
+)
 
 handler = OrganizationHandler()
 
@@ -136,7 +142,7 @@ async def test_get_organization_invites(
 ) -> None:
     organization_id = random.randint(1, 10000)
 
-    expected = list(OrganizationInvite(**invite_get_data))
+    expected = [OrganizationInvite(**invite_get_data)]
     mock_get_organization_invites.return_value = expected
 
     actual = await handler.get_organization_invites(organization_id)
@@ -153,8 +159,8 @@ async def test_get_organization_invites(
 async def test_get_user_invites(
     mock_get_user_invites: AsyncMock,
 ) -> None:
-    invite = OrganizationInvite(**invite_get_data)
-    expected = list(invite)
+    invite = UserInvite(**invite_user_get_data)
+    expected = [invite]
     mock_get_user_invites.return_value = expected
 
     actual = await handler.get_user_invites(invite.email)

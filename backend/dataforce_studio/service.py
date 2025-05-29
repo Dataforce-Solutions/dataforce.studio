@@ -4,9 +4,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
 from dataforce_studio.api.auth import auth_router
-from dataforce_studio.api.organization import organization_router
-from dataforce_studio.api.organization_invites import invites_router
-from dataforce_studio.api.organization_members import members_router
+from dataforce_studio.api.organization_routes import organization_all_routers
+from dataforce_studio.api.user_routes import users_routers
 from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
 
@@ -16,9 +15,8 @@ class AppService(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, tags=["auth"])
-        self.include_router(router=organization_router)
-        self.include_router(router=invites_router)
-        self.include_router(router=members_router)
+        self.include_router(router=users_routers)
+        self.include_router(router=organization_all_routers)
         self.include_authentication()
 
         self.add_middleware(

@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.schemas.orbit import (
     OrbitMember,
     OrbitMemberCreate,
@@ -9,20 +8,13 @@ from dataforce_studio.schemas.orbit import (
 )
 
 orbit_members_router = APIRouter(
-    prefix="/orbits/members",
-    tags=["orbits-members"],
-    dependencies=[Depends(is_user_authenticated)],
-)
-orbit_router = APIRouter(
-    prefix="/orbits",
-    tags=["orbits-members"],
-    dependencies=[Depends(is_user_authenticated)],
+    prefix="/orbits/{orbit_id}/members", tags=["orbits-members"]
 )
 
 orbit_handler = OrbitHandler()
 
 
-@orbit_router.get("/{orbit_id}/members", response_model=list[OrbitMember])
+@orbit_members_router.get("", response_model=list[OrbitMember])
 async def get_orbit_members(
     orbit_id: int,
 ) -> list[OrbitMember]:
@@ -34,7 +26,7 @@ async def add_member_to_orbit(member: OrbitMemberCreate) -> OrbitMember:
     return await orbit_handler.create_orbit_member(member)
 
 
-@orbit_members_router.patch("", response_model=OrbitMember)
+@orbit_members_router.patch("/{member_id}", response_model=OrbitMember)
 async def update_orbit_member(member: UpdateOrbitMember) -> OrbitMember:
     return await orbit_handler.update_orbit_member(member)
 
