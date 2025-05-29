@@ -3,7 +3,7 @@
     <h3 class="title">evaluation Metrics</h3>
     <div class="description">Choose a model evaluation metric</div>
     <div class="modes">
-      <ui-custom-radio v-model="mode" :options="Object.values(EvaluationModesEnum)" style="display: inline-flex;"/>
+      <ui-custom-radio v-model="mode" :options="Object.values(EvaluationModesEnum)" :disabled="disabledMetrics" style="display: inline-flex;"/>
     </div>
     <div v-if="mode === EvaluationModesEnum.llmBased" class="based-info">
       <ul class="criteria-list">
@@ -26,20 +26,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { EvaluationModesEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces';
 import { Trash2, Plus } from 'lucide-vue-next';
 import { v4 as uuid4 } from 'uuid';
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService';
 import UiCustomRadio from '@/components/ui/UiCustomRadio.vue';
+import { useRoute } from 'vue-router';
 
 type CriteriaItem = {
   id: string,
   value: string,
 }
 
+const route = useRoute()
+
 const mode = ref<EvaluationModesEnum>(promptFusionService.evaluationMode)
 const criteriaList = ref<CriteriaItem[]>(getInitialCriteriaList())
+
+const disabledMetrics = computed(() => route.params.mode === 'data-driven' ? [] : [EvaluationModesEnum.exactMatch, EvaluationModesEnum.llmBased])
 
 function getInitialCriteriaList() {
   return promptFusionService.evaluationCriteriaList.length ? promptFusionService.evaluationCriteriaList.map(value => createCriteria(value)) : [createCriteria()]

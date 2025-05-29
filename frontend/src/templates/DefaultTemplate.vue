@@ -1,17 +1,15 @@
 <template>
   <div class="wrapper" :style="`padding-left:${sidebarWidth}px`">
-    <layout-header
-      class="header"
-      :is-burger-open="isBurgerOpen"
-      @burger-click="() => (isBurgerOpen = !isBurgerOpen)"
-    />
+    <UiClosablePlug v-if="plugStore.visible" text="Some operations involving models may not behave correctly on mobile." :style="{
+      position: 'fixed',
+      top: headerSizes.height + 'px',
+      left: sidebarSizes.width + 'px',
+      right: 0,
+      zIndex: 100,
+    }" @close="plugStore.close"/>
+    <layout-header class="header" :is-burger-open="isBurgerOpen" @burger-click="() => (isBurgerOpen = !isBurgerOpen)"/>
     <transition>
-      <layout-sidebar
-        v-if="isBurgerAvailable ? isBurgerOpen : true"
-        class="sidebar"
-        ref="sidebarRef"
-        @change-width="calcSidebarWidth"
-      />
+      <layout-sidebar v-show="isBurgerAvailable ? isBurgerOpen : true" class="sidebar" ref="sidebarRef"/>
     </transition>
     <layout-footer class="footer" :style="`left:${sidebarWidth}px`" />
     <main class="page">
@@ -26,48 +24,36 @@ import LayoutHeader from '@/components/layout/LayoutHeader.vue'
 import LayoutSidebar from '@/components/layout/LayoutSidebar.vue'
 import LayoutFooter from '@/components/layout/LayoutFooter.vue'
 import MobileNotAvailablePlug from '@/components/plugs/MobileNotAvailablePlug.vue'
-import { computed, onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
+import UiClosablePlug from '@/components/ui/UiClosablePlug.vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { usePlugStore } from '@/stores/plug'
+import { useLayout } from '@/hooks/useLayout'
 
 const router = useRouter()
 const route = useRoute()
+const plugStore = usePlugStore()
+const { headerSizes, sidebarSizes } = useLayout()
 
-const sidebarRef = ref<InstanceType<typeof LayoutSidebar> | null>(null)
-const sidebarWidth = ref(0)
 const isBurgerOpen = ref(false)
 const windowWidth = ref(window.innerWidth)
 
 const isBurgerAvailable = computed(() => windowWidth.value <= 768)
 const mobileNotAvailable = computed(() => route.meta.mobileAvailable === false)
 const showMobileNotAvailablePlug = computed(() => mobileNotAvailable.value && windowWidth.value <= 768)
+const sidebarWidth = computed(() => sidebarSizes.value.width)
 
-function calcSidebarWidth() {
-  if (!sidebarRef.value) return
-  sidebarWidth.value = sidebarRef.value.$el.offsetWidth
-}
 function onWindowResize() {
   windowWidth.value = window.innerWidth
 }
 
-let resizeObserver: ResizeObserver
 router.afterEach(() => {
   isBurgerOpen.value = false
 })
-onBeforeMount(() => {
+onMounted(() => {
   window.addEventListener('resize', onWindowResize)
 })
-onMounted(() => {
-  resizeObserver = new ResizeObserver(() => {
-    calcSidebarWidth()
-  })
-  if (sidebarRef.value) {
-    resizeObserver.observe(sidebarRef.value.$el)
-  }
-})
 onBeforeUnmount(() => {
-  if (resizeObserver && sidebarRef.value) {
-    resizeObserver.unobserve(sidebarRef.value.$el)
-  }
   window.removeEventListener('resize', onWindowResize)
 })
 </script>

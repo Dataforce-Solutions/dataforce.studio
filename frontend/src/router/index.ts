@@ -64,16 +64,25 @@ const router = createRouter({
       path: '/classification',
       name: 'classification',
       component: () => import('../pages/ClassificationPage.vue'),
+      meta: {
+        showInvalidMessage: 992,
+      },
     },
     {
       path: '/regression',
       name: 'regression',
       component: () => import('../pages/RegressionPage.vue'),
+      meta: {
+        showInvalidMessage: 992,
+      },
     },
     {
       path: '/runtime',
       name: 'runtime',
       component: () => import('../pages/RuntimePage.vue'),
+      meta: {
+        showInvalidMessage: 992,
+      },
     },
     {
       path: '/prompt-fusion/:mode?',
@@ -81,6 +90,7 @@ const router = createRouter({
       component: () => import('../pages/PromptFusionPage.vue'),
       meta: {
         mobileAvailable: false,
+        showInvalidMessage: 992,
       },
     },
     {

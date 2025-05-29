@@ -1,5 +1,5 @@
 <template>
-  <aside class="sidebar" :class="{ closed: !isSidebarOpened }">
+  <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
     <nav class="nav">
       <ul class="list">
         <li v-for="item in sidebarMenu" :key="item.id" class="item">
@@ -55,9 +55,12 @@
 
 <script setup lang="ts">
 import { ArrowLeftToLine } from 'lucide-vue-next'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
+import { useWindowSize } from '@/hooks/useWindowSize'
+
+const { width } = useWindowSize()
 
 const isSidebarOpened = ref(true)
 
@@ -72,13 +75,12 @@ function sendAnalytics(option: string) {
   AnalyticsService.track(AnalyticsTrackKeysEnum.side_menu_select, { option })
 }
 
-onMounted(() => {
+watch(width, () => {
   windowResizeHandler()
-  window.addEventListener('resize', windowResizeHandler)
 })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', windowResizeHandler)
+onMounted(() => {
+  windowResizeHandler()
 })
 </script>
 
