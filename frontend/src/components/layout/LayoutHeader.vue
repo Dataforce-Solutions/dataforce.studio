@@ -1,5 +1,5 @@
 <template>
-  <header class="header">
+  <header id="header" class="header">
     <router-link :to="{ name: 'home' }" class="logo">
       <img :src="mainLogo" alt="Dataforce Studio" class="logo-img" />
     </router-link>
