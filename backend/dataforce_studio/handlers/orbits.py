@@ -131,8 +131,6 @@ class OrbitHandler:
             Action.CREATE,
         )
 
-        await self.check_organization_members_limit(member.orbit_id)
-
         return await self.__orbits_repository.create_orbit_member(member)
 
     async def update_orbit_member(
@@ -163,7 +161,6 @@ class OrbitHandler:
     async def delete_orbit_member(
         self, user_id: int, organization_id: int, orbit_id: int, member_id: int
     ) -> None:
-
         if user_id == member_id:
             raise ServiceError("You can not remove yourself from orbit.")
 

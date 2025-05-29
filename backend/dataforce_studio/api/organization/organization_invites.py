@@ -1,8 +1,9 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
+from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.organization import (
-    CreateOrganizationInvite,
+    CreateOrganizationInviteIn,
     OrganizationInvite,
 )
 
@@ -13,18 +14,32 @@ invites_router = APIRouter(
 organization_handler = OrganizationHandler()
 
 
-@invites_router.get("", response_model=list[OrganizationInvite])
-async def get_organization_invites(organization_id: int) -> list[OrganizationInvite]:
-    return await organization_handler.get_organization_invites(organization_id)
+@invites_router.get(
+    "", responses=endpoint_responses, response_model=list[OrganizationInvite]
+)
+async def get_organization_invites(
+    request: Request, organization_id: int
+) -> list[OrganizationInvite]:
+    return await organization_handler.get_organization_invites(
+        request.user.id, organization_id
+    )
 
 
-@invites_router.post("", response_model=OrganizationInvite)
+@invites_router.post(
+    "", responses=endpoint_responses, response_model=OrganizationInvite
+)
 async def create_invite_in_organization(
-    invite: CreateOrganizationInvite,
+    request: Request, organization_id: int, invite: CreateOrganizationInviteIn
 ) -> OrganizationInvite:
-    return await organization_handler.send_invite(invite)
+    return await organization_handler.send_invite(request.user.id, invite)
 
 
-@invites_router.delete("/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_invite_to_organization(invite_id: int) -> None:
-    return await organization_handler.cancel_invite(invite_id)
+@invites_router.delete(
+    "/{invite_id}", responses=endpoint_responses, status_code=status.HTTP_204_NO_CONTENT
+)
+async def cancel_invite_to_organization(
+    request: Request, organization_id: int, invite_id: int
+) -> None:
+    return await organization_handler.cancel_invite(
+        request.user.id, organization_id, invite_id
+    )
