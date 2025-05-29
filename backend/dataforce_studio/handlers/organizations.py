@@ -51,12 +51,12 @@ class OrganizationHandler:
 
         return organization
 
-    async def check_org_members_limit(self, organization_id: int, num: int = 0) -> None:
+    async def check_org_members_limit(self, organization_id: int) -> None:
         members_count = await self.__user_repository.get_organization_members_count(
             organization_id
         )
 
-        if (members_count + num) >= self.__members_limit:
+        if members_count >= self.__members_limit:
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of users", 409
             )
@@ -93,7 +93,7 @@ class OrganizationHandler:
     async def accept_invite(self, invite_id: int, user_id: int) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
-        await self.check_org_members_limit(invite.organization_id, 1)
+        await self.check_org_members_limit(invite.organization_id)
         await self.__user_repository.create_organization_member(
             user_id, invite.organization_id, invite.role
         )
