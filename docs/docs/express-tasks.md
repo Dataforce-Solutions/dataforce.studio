@@ -64,15 +64,6 @@ Rather than manually crafting prompts and chaining responses, users can visually
 - Data processing automation
 - Data extraction from unstructured text
 
-## Coming Next
-
-### Time Series Forecasting
-
-**Predict future values based on historical time-series data** — ideal for tasks like sales projections, demand planning, or financial forecasting.
-
-This task focuses on analyzing historical time-series data to forecast future trends or values over a specified time period. It involves identifying patterns, seasonality, and trends in the data to make informed predictions.
-
-
 ---
 
 ## Express Workflow

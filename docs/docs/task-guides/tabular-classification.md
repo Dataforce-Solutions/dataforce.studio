@@ -17,4 +17,3 @@ Download your model and use the Runtime or integrate it into your own Python cod
 
 #### ⚠️ Classification-Specific Tips
 - Ensure your target column is categorical.
-- Use balanced datasets to avoid biased predictions.

@@ -15,7 +15,3 @@ Train regression models to predict continuous numeric values from tabular data.
 
 #### How to Use Trained Models
 Download and run the model in the Runtime or locally.
-
-#### ⚠️ Regression-Specific Tips
-- Remove outliers to improve accuracy.
-- Normalize data if values differ widely in scale.
