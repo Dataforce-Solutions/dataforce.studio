@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     CONFIRM_EMAIL_REDIRECT_URL: str
     CONFIRM_EMAIL_URL: str
     CHANGE_PASSWORD_URL: str
+    APP_AUTH_EMAIL_URL: str
 
     SENDGRID_API_KEY: str
 

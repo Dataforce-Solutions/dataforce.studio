@@ -23,6 +23,7 @@ from dataforce_studio.schemas.organization import (
     UserInvite,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.settings import config
 
 
 class OrganizationHandler:
@@ -74,8 +75,13 @@ class OrganizationHandler:
         await self.check_org_members_limit(invite.organization_id)
 
         db_invite = await self.__invites_repository.create_organization_invite(invite)
-        # TODO implement invite sending email
-        self.__email_handler.send_organization_invite_email()
+
+        self.__email_handler.send_organization_invite_email(
+            db_invite.email,
+            db_invite.invited_by_user.full_name or db_invite.invited_by_user.email,
+            db_invite.organization.name,
+            config.APP_AUTH_EMAIL_URL,
+        )
         return db_invite
 
     async def cancel_invite(
