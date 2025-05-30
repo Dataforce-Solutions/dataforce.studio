@@ -5,6 +5,7 @@ from dataforce_studio.models.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
+from dataforce_studio.models.stats import StatsEmailSendOrm
 from dataforce_studio.models.token_black_list import TokenBlackListOrm
 from dataforce_studio.models.user import UserOrm
 
@@ -17,4 +18,5 @@ __all__ = [
     "OrganizationInviteOrm",
     "OrbitOrm",
     "OrbitMembersOrm",
+    "StatsEmailSendOrm",
 ]
