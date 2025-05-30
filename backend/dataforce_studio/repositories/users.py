@@ -8,6 +8,7 @@ from dataforce_studio.models.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
+from dataforce_studio.models.stats import StatsEmailSendOrm
 from dataforce_studio.models.user import UserOrm
 from dataforce_studio.repositories.base import RepositoryBase
 from dataforce_studio.schemas.organization import (
@@ -17,6 +18,7 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UpdateOrganizationMember,
 )
+from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
 from dataforce_studio.schemas.user import (
     CreateUser,
     UpdateUser,
@@ -295,3 +297,15 @@ class UserRepository(RepositoryBase):
         return await self.get_organization_members_where(
             OrganizationMemberOrm.organization_id == organization_id
         )
+
+    async def create_stats_email_send_obj(
+        self, stat: StatsEmailSendCreate
+    ) -> StatsEmailSendOut:
+        async with self._get_session() as session:
+            db_email_send = StatsEmailSendOrm(
+                email=stat.email, description=stat.description
+            )
+            session.add(db_email_send)
+            await session.commit()
+            await session.refresh(db_email_send)
+        return db_email_send.to_email_send()
