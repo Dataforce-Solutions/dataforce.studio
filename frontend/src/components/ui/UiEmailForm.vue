@@ -9,7 +9,7 @@
         {{ $form.email.error?.message }}
       </d-message>
     </div>
-    <d-button type="submit" class="button">
+    <d-button type="submit" class="button" :loading="loading">
       <span>Get early access</span>
       <arrow-right :size="14"/>
     </d-button>
@@ -24,21 +24,31 @@ import { useToast } from 'primevue'
 import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
 import { forgotPasswordResolver } from '@/utils/forms/resolvers'
-import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useRoute } from 'vue-router'
+import { dataforceApi } from '@/lib/api'
 
 const toast = useToast()
 const route = useRoute();
 
-const initialValues = ref(forgotPasswordInitialValues)
+const initialValues = ref({...forgotPasswordInitialValues})
 const resolver = ref(forgotPasswordResolver)
+const loading = ref(false)
 
 const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   if (!valid) return
-  AnalyticsService.track(AnalyticsTrackKeysEnum.send_mail, { task: route.name as string, email: values.email })
-  toast.add(
-    simpleSuccessToast('We’ll notify you as soon as Orbits is ready for early access.', 'You’re on the list!')
-  )
+  loading.value = true
+  try {
+    const currentPage = route.name
+    await dataforceApi.sendEmail({ email: values.email, description: currentPage as string })
+    initialValues.value = {...forgotPasswordInitialValues};
+    toast.add(
+      simpleSuccessToast(`We’ll notify you as soon as ${currentPage?.toString()} is ready for early access.`, 'You’re on the list!')
+    )
+  } catch {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to send email' })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

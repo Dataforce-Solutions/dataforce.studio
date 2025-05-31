@@ -19,6 +19,7 @@ import type {
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
   IResetPasswordRequest,
+  ISendEmailRequest,
 } from './DataforceApi.interfaces'
 
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
@@ -101,8 +102,14 @@ export class DataforceApiClass {
 
     return responseData
   }
-  
+
   public async resetPassword(data: IResetPasswordRequest) {
     await this.api.post('/auth/reset-password', data)
+  }
+
+  public async sendEmail(data: ISendEmailRequest) {
+    await this.api.post('/stats/email-send', data, {
+      skipInterceptors: true,
+    })
   }
 }

@@ -86,3 +86,8 @@ export interface IResetPasswordRequest {
   reset_token: string
   new_password: string
 }
+
+export interface ISendEmailRequest {
+  email: string
+  description: string
+}
