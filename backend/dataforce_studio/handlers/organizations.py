@@ -76,11 +76,19 @@ class OrganizationHandler:
 
         db_invite = await self.__invites_repository.create_organization_invite(invite)
 
+        user_name = (
+            (db_invite.invited_by_user.full_name or db_invite.invited_by_user.email)
+            if db_invite.invited_by_user
+            else ""
+        )
+
+        org_name = db_invite.organization.name if db_invite.organization else ""
+
         self.__email_handler.send_organization_invite_email(
             db_invite.email,
-            db_invite.invited_by_user.full_name or db_invite.invited_by_user.email,
-            db_invite.organization.name,
-            config.APP_AUTH_EMAIL_URL,
+            user_name,
+            org_name,
+            config.APP_EMAIL_URL,
         )
         return db_invite
 
