@@ -306,13 +306,14 @@ async def test_handle_signin(
 ) -> None:
     data = get_create_user
     create_user, user = data["create_user"], data["user"]
+    expected = {"token": get_tokens, "user_id": user.id}
 
     mock_authenticate_user.return_value = user
     mock_create_tokens.return_value = get_tokens
 
     actual = await handler.handle_signin(create_user.email, create_user.password)
 
-    assert actual == get_tokens
+    assert actual == expected
     mock_authenticate_user.assert_awaited_once_with(
         create_user.email, create_user.password
     )
@@ -618,7 +619,12 @@ async def test_handle_google_auth(
     mock_get: AsyncMock,
     mock_post: AsyncMock,
     get_tokens: Token,
+    get_create_user: dict,
 ) -> None:
+    data = get_create_user
+    user = data["user"]
+    expected = {"token": get_tokens, "user_id": user.id}
+
     mock_post.return_value.status_code = 200
     mock_post.return_value.json = MagicMock(
         return_value={"access_token": "fake_access_token"}
@@ -627,23 +633,23 @@ async def test_handle_google_auth(
     mock_get.return_value.status_code = 200
     mock_get.return_value.json = MagicMock(
         return_value={
-            "email": "user@example.com",
-            "name": "Test User",
+            "email": user.email,
+            "name": user.full_name,
             "picture": "http://example.com/photo.jpg",
         }
     )
 
     mock_get_user.return_value = None
-    mock_create_user.return_value = MagicMock(email="user@example.com", photo=None)
+    mock_create_user.return_value = user
     mock_create_tokens.return_value = get_tokens
 
     result = await handler.handle_google_auth("code")
 
-    assert result == get_tokens
+    assert result == expected
     mock_post.assert_awaited_once()
     mock_get.assert_awaited_once()
     mock_create_user.assert_awaited_once()
-    mock_create_tokens.assert_called_once_with("user@example.com")
+    mock_create_tokens.assert_called_once_with(user.email)
 
 
 @patch("httpx.AsyncClient.post", new_callable=AsyncMock)

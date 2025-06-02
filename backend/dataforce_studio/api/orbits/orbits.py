@@ -28,16 +28,14 @@ async def create_orbit(
     )
 
 
-@orbits_router.get(
-    "/{orbit_id}", responses=endpoint_responses, response_model=OrbitDetails
-)
+@orbits_router.get("", responses=endpoint_responses, response_model=OrbitDetails)
 async def get_orbit_details(
     request: Request, organization_id: int, orbit_id: int
 ) -> OrbitDetails:
     return await orbit_handler.get_orbit(request.user.id, organization_id, orbit_id)
 
 
-@orbits_router.patch("/{orbit_id}", responses=endpoint_responses, response_model=Orbit)
+@orbits_router.patch("", responses=endpoint_responses, response_model=Orbit)
 async def update_orbit(
     request: Request, organization_id: int, orbit_id: int, orbit: OrbitUpdate
 ) -> Orbit:
@@ -47,7 +45,7 @@ async def update_orbit(
 
 
 @orbits_router.delete(
-    "/{orbit_id}", responses=endpoint_responses, status_code=status.HTTP_204_NO_CONTENT
+    "", responses=endpoint_responses, status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_orbit(request: Request, organization_id: int, orbit_id: int) -> None:
     return await orbit_handler.delete_orbit(request.user.id, organization_id, orbit_id)
