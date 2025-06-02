@@ -3,12 +3,12 @@ import random
 
 import asyncpg
 import pytest_asyncio
-from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.orbit import OrbitCreate, OrbitMemberCreate, OrbitRole
 from dataforce_studio.schemas.organization import (
+    CreateOrganizationInvite,
     OrganizationInvite,
     OrganizationMember,
     OrgRole,
@@ -214,7 +214,7 @@ async def create_organization_with_members(
     for i in range(5):
         invited_by_user = random.choice(users)
         invite = await invites_repo.create_organization_invite(
-            OrganizationInviteOrm(
+            CreateOrganizationInvite(
                 email=f"invited_{i}_@gmail.com",
                 organization_id=organization.id,
                 invited_by=invited_by_user.id,

@@ -70,3 +70,15 @@ class NotFoundError(ServiceError):
             message=message,
             status_code=status_code,
         )
+
+
+class InsufficientPermissionsError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Not enough rights",
+        status_code: int = status.HTTP_403_FORBIDDEN,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )

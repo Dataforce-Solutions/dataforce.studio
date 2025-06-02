@@ -71,10 +71,18 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
     async def get_orbit_members(self, orbit_id: int) -> list[OrbitMember]:
         async with self._get_session() as session:
-            query = select(OrbitMembersOrm).filter(OrbitMembersOrm.orbit_id == orbit_id)
-            result = await session.execute(query)
-            db_organization_members = result.scalars().all()
-            return [member.to_orbit_member() for member in db_organization_members]
+            result = await session.execute(
+                select(OrbitMembersOrm).filter(OrbitMembersOrm.orbit_id == orbit_id)
+            )
+            db_orbit_members = result.scalars().all()
+            return [member.to_orbit_member() for member in db_orbit_members]
+
+    async def get_orbit_member(self, *where_conditions) -> OrbitMembersOrm | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrbitMembersOrm).where(*where_conditions)
+            )
+            return result.scalar_one_or_none()
 
     async def create_orbit_member(self, member: OrbitMemberCreate) -> OrbitMember:
         async with self._get_session() as session:
@@ -111,3 +119,9 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                 .where(OrbitMembersOrm.orbit_id == orbit_id)
             )
         return result.scalar() or 0
+
+    async def get_orbit_member_role(self, orbit_id: int, user_id: int) -> str | None:
+        member = await self.get_orbit_member(
+            OrbitMembersOrm.orbit_id == orbit_id, OrbitMembersOrm.user_id == user_id
+        )
+        return str(member.role) if member else None

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
@@ -20,6 +21,8 @@ class AppService(FastAPI):
         self.include_router(router=users_routers)
         self.include_router(router=organization_all_routers)
         self.include_authentication()
+        self.include_error_handlers()
+        self.custom_openapi()
 
         self.add_middleware(
             CORSMiddleware,
@@ -45,3 +48,19 @@ class AppService(FastAPI):
                 status_code=exc.status_code,
                 content={"detail": exc.message},
             )
+
+    def custom_openapi(self) -> dict:
+        if self.openapi_schema:
+            return self.openapi_schema
+        openapi_schema = get_openapi(
+            title="Dataforce Studio API",
+            version="1.0.0",
+            description="API docs for Dataforce Studio",
+            routes=self.routes,
+        )
+        openapi_schema["components"]["securitySchemes"] = {
+            "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+        }
+        openapi_schema["security"] = [{"BearerAuth": []}]
+        self.openapi_schema = openapi_schema
+        return self.openapi_schema

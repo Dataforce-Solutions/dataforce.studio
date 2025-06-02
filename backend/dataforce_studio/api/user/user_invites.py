@@ -24,5 +24,5 @@ async def accept_invite_to_organization(request: Request, invite_id: int) -> Non
 
 
 @user_invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
-async def reject_invite_to_organization(invite_id: int) -> None:
+async def reject_invite_to_organization(request: Request, invite_id: int) -> None:
     return await organization_handler.reject_invite(invite_id)

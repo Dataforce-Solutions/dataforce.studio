@@ -6,19 +6,21 @@ from sqlalchemy.orm import joinedload
 
 from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models.organization import OrganizationInviteOrm
-from dataforce_studio.repositories.base import RepositoryBase
-from dataforce_studio.schemas.organization import OrganizationInvite, UserInvite
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.organization import (
+    CreateOrganizationInvite,
+    OrganizationInvite,
+    UserInvite,
+)
 
 
-class InviteRepository(RepositoryBase):
+class InviteRepository(RepositoryBase, CrudMixin):
     async def create_organization_invite(
-        self, invite: OrganizationInviteOrm
+        self, invite: CreateOrganizationInvite
     ) -> OrganizationInvite:
         async with self._get_session() as session:
-            session.add(invite)
-            await session.commit()
-            await session.refresh(invite)
-        return invite.to_organization_invite()
+            db_invite = await self.create_model(session, OrganizationInviteOrm, invite)
+            return db_invite.to_organization_invite()
 
     async def delete_organization_invite(self, invite_id: int) -> None:
         async with self._get_session() as session, session.begin():

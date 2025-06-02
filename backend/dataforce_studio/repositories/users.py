@@ -298,6 +298,36 @@ class UserRepository(RepositoryBase):
             OrganizationMemberOrm.organization_id == organization_id
         )
 
+    async def get_organization_member(
+        self, organization_id: int, user_id: int
+    ) -> OrganizationMemberOrm | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrganizationMemberOrm).where(
+                    OrganizationMemberOrm.user_id == user_id,
+                    OrganizationMemberOrm.organization_id == organization_id,
+                )
+            )
+            return result.scalar_one_or_none()
+
+    async def get_organization_member_by_id(
+        self, member_id: int
+    ) -> OrganizationMember | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrganizationMemberOrm).where(
+                    OrganizationMemberOrm.id == member_id
+                )
+            )
+            db_member = result.scalar_one_or_none()
+            return db_member.to_organization_member() if db_member else None
+
+    async def get_organization_member_role(
+        self, organization_id: int, user_id: int
+    ) -> str | None:
+        member = await self.get_organization_member(organization_id, user_id)
+        return str(member.role) if member else None
+
     async def create_stats_email_send_obj(
         self, stat: StatsEmailSendCreate
     ) -> StatsEmailSendOut:
