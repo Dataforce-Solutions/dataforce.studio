@@ -25,6 +25,9 @@
     "apexcharts": "^4.2.0",
     "arquero": "^7.2.0",
     "axios": "^1.7.7",
+    "file-saver": "^2.0.5",
+    "idb": "^8.0.3",
+    "jszip": "^3.10.1",
     "lucide-vue-next": "^0.460.0",
     "pinia": "^2.2.6",
     "primevue": "^4.2.2",
@@ -36,6 +39,7 @@
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.0",
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^22.9.0",
     "@vitejs/plugin-vue": "^5.1.4",
     "@vue/eslint-config-prettier": "^10.1.0",
