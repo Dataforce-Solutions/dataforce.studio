@@ -1,7 +1,9 @@
 from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
+from dataforce_studio.models import CollectionOrm
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.bucket_secrets import BucketSecretOrm
 from dataforce_studio.models.organization import OrganizationOrm
 from dataforce_studio.models.user import UserOrm
 from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
@@ -45,9 +47,24 @@ class OrbitOrm(TimestampMixin, Base):
     organization_id: Mapped[int] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
+    bucket_secret_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("bucket_secrets.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
     members: Mapped[list["OrbitMembersOrm"]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    collections: Mapped[list["CollectionOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    bucket_secret: Mapped["BucketSecretOrm"] = relationship(
+        "BucketSecretOrm",
+        back_populates="orbits",
+        lazy="selectin",
     )
 
     organization: Mapped["OrganizationOrm"] = relationship(

@@ -17,6 +17,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     id: int
     name: str
     organization_id: int
+    bucket_secret_id: int
     total_members: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
@@ -29,11 +30,18 @@ class OrbitDetails(Orbit):
 class OrbitUpdate(BaseModel, BaseOrmConfig):
     id: int | None = None
     name: str
+    bucket_secret_id: int | None = None
+
+
+class OrbitCreateIn(BaseModel, BaseOrmConfig):
+    name: str
+    bucket_secret_id: int
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
     organization_id: int | None = None
+    bucket_secret_id: int
 
 
 class OrbitMemberCreate(BaseModel):

@@ -8,6 +8,7 @@ from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
+    OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
@@ -22,6 +23,7 @@ handler = OrbitHandler()
 test_orbit = {
     "name": "test",
     "organization_id": random.randint(1, 10000),
+    "bucket_secret_id": random.randint(1, 10000),
     "total_members": 1,
     "created_at": "2025-05-17T09:52:38.234961Z",
     "updated_at": "2025-05-17T09:52:38.234961Z",
@@ -31,6 +33,7 @@ test_orbit_created = {
     "id": random.randint(1, 10000),
     "name": "test",
     "organization_id": random.randint(1, 10000),
+    "bucket_secret_id": random.randint(1, 10000),
     "total_members": 0,
     "created_at": "2025-05-17T09:52:38.234961Z",
     "updated_at": None,
@@ -57,6 +60,7 @@ test_orbit_details = {
     "id": test_orbit_id,
     "name": "test",
     "organization_id": random.randint(1, 10000),
+    "bucket_secret_id": random.randint(1, 10000),
     "members": [
         test_orbit_member,
     ],
@@ -77,8 +81,13 @@ test_orbit_details = {
     "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
     new_callable=AsyncMock,
 )
+@patch(
+    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_organization_orbit(
+    mock_get_bucket_secret: AsyncMock,
     mock_create_orbit: AsyncMock,
     mock_get_organization_orbits_count: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
@@ -86,6 +95,16 @@ async def test_create_organization_orbit(
     orbit_id = random.randint(1, 10000)
     user_id = random.randint(1, 10000)
     orbit_to_create = OrbitCreate(**test_orbit)
+    mock_get_bucket_secret.return_value = type(
+        "obj",
+        (),
+        {
+            "id": orbit_id,
+            "organization_id": test_orbit["organization_id"],
+            "name": "test_secret",
+        },
+    )
+    orbit_to_create = OrbitCreateIn(**test_orbit)
     mocked_orbit = Orbit(**test_orbit, id=orbit_id)
 
     mock_create_orbit.return_value = mocked_orbit
@@ -93,14 +112,99 @@ async def test_create_organization_orbit(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.create_organization_orbit(
-        user_id, orbit_to_create.organization_id, orbit_to_create
+        user_id, mocked_orbit.organization_id, orbit_to_create
     )
 
     assert result == mocked_orbit
 
-    mock_create_orbit.assert_awaited_once_with(
-        orbit_to_create.organization_id, orbit_to_create
+    expected_orbit = OrbitCreate(
+        **orbit_to_create.model_dump(), organization_id=mocked_orbit.organization_id
     )
+    mock_create_orbit.assert_awaited_once_with(
+        mocked_orbit.organization_id, expected_orbit
+    )
+
+
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_organization_orbit_secret_not_found(
+    mock_create_orbit: AsyncMock,
+    mock_get_orbits_count: AsyncMock,
+    mock_get_secret: AsyncMock,
+    mock_get_org_role: AsyncMock,
+) -> None:
+    user_id = random.randint(1, 10000)
+    orbit_to_create = OrbitCreate(**test_orbit)
+
+    mock_get_orbits_count.return_value = 0
+    mock_get_secret.return_value = None
+    mock_get_org_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
+        await handler.create_organization_orbit(
+            user_id, orbit_to_create.organization_id, orbit_to_create
+        )
+
+    assert error.value.status_code == 404
+    mock_create_orbit.assert_not_called()
+
+
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_organization_orbit_secret_wrong_org(
+    mock_create_orbit: AsyncMock,
+    mock_get_orbits_count: AsyncMock,
+    mock_get_secret: AsyncMock,
+    mock_get_org_role: AsyncMock,
+) -> None:
+    user_id = random.randint(1, 10000)
+    orbit_to_create = OrbitCreate(**test_orbit)
+
+    class Secret:
+        def __init__(self, organization_id: int) -> None:
+            self.organization_id = organization_id
+
+    mock_get_orbits_count.return_value = 0
+    mock_get_secret.return_value = Secret(orbit_to_create.organization_id + 1)
+    mock_get_org_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
+        await handler.create_organization_orbit(
+            user_id, orbit_to_create.organization_id, orbit_to_create
+        )
+
+    assert error.value.status_code == 404
+    mock_create_orbit.assert_not_called()
 
 
 @patch(

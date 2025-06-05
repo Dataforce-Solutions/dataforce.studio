@@ -48,6 +48,18 @@ class OrganizationDeleteError(ServiceError):
         )
 
 
+class CollectionDeleteError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Collection cant be deleted",
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
 class OrbitLimitReachedError(ServiceError):
     def __init__(
         self,

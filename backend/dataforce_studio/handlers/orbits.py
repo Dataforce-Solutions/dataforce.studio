@@ -7,11 +7,13 @@ from dataforce_studio.infra.exceptions import (
     OrganizationLimitReachedError,
     ServiceError,
 )
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
+    OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
@@ -25,6 +27,7 @@ class OrbitHandler:
     __user_repository = UserRepository(engine)
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
+    __secret_repository = BucketSecretRepository(engine)
 
     __orbits_limit = 10
 
@@ -39,7 +42,7 @@ class OrbitHandler:
             )
 
     async def create_organization_orbit(
-        self, user_id: int, organization_id: int, orbit: OrbitCreate
+        self, user_id: int, organization_id: int, orbit: OrbitCreateIn
     ) -> Orbit:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -49,8 +52,18 @@ class OrbitHandler:
         )
 
         await self.check_organization_orbits_limit(organization_id)
+        secret = await self.__secret_repository.get_bucket_secret(
+            orbit.bucket_secret_id
+        )
+        if not secret or secret.organization_id != organization_id:
+            raise NotFoundError("Bucket secret not found")
 
-        return await self.__orbits_repository.create_orbit(organization_id, orbit)
+        orbit_create = OrbitCreate(
+            **orbit.model_dump(), organization_id=organization_id
+        )
+        return await self.__orbits_repository.create_orbit(
+            organization_id, orbit_create
+        )
 
     async def get_organization_orbits(
         self, user_id: int, organization_id: int

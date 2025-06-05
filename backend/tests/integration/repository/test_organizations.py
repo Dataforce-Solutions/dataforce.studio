@@ -1,10 +1,7 @@
-import random
-
 import pytest
 from dataforce_studio.repositories.users import UserRepository
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from dataforce_studio.schemas.user import CreateUser
+from sqlalchemy.ext.asyncio import create_async_engine
 
 organization_data = {"name": "test organization name", "logo": None}
 
@@ -32,7 +29,11 @@ async def test_create_organization(
 @pytest.mark.asyncio
 async def test_get_user_organizations(create_organization_with_members: dict) -> None:
     data = create_organization_with_members
-    repo, members, user_owner = data["repo"], data["members"], data["user_owner"]
+    repo, _members, user_owner = (
+        data["repo"],
+        data["members"],
+        data["user_owner"],
+    )
 
     organizations = await repo.get_user_organizations(user_owner.id)
 
