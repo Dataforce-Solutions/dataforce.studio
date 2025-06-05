@@ -1,4 +1,6 @@
 from dataforce_studio.models.base import Base
+from dataforce_studio.models.bucket_secrets import BucketSecretOrm
+from dataforce_studio.models.ml_models import ModelCollectionOrm, ModelVersionOrm
 from dataforce_studio.models.orbit import OrbitMembersOrm, OrbitOrm
 from dataforce_studio.models.organization import (
     OrganizationInviteOrm,
@@ -19,4 +21,7 @@ __all__ = [
     "OrbitOrm",
     "OrbitMembersOrm",
     "StatsEmailSendOrm",
+    "BucketSecretOrm",
+    "ModelCollectionOrm",
+    "ModelVersionOrm",
 ]

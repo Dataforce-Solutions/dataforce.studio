@@ -2,6 +2,7 @@ from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.ml_models import ModelCollectionOrm
 from dataforce_studio.models.organization import OrganizationOrm
 from dataforce_studio.models.user import UserOrm
 from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
@@ -17,6 +18,10 @@ class OrbitOrm(TimestampMixin, Base):
     )
 
     members: Mapped[list["OrbitMembersOrm"]] = relationship(
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    model_collections: Mapped[list["ModelCollectionOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 

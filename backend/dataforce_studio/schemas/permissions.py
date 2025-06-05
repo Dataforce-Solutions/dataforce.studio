@@ -14,6 +14,7 @@ class Resource(StrEnum):
     ORBIT = "orbit"
     ORBIT_USER = "orbit_user"
     BILLING = "billing"
+    BUCKET_SECRET = "bucket_secret"
     MODEL = "model"
 
 
@@ -81,6 +82,13 @@ organization_permissions = {
             Action.DELETE,
             Action.READ,
         ],
+        Resource.BUCKET_SECRET: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
         Resource.MODEL: [
             Action.LIST,
             Action.READ,
@@ -115,6 +123,13 @@ organization_permissions = {
             Action.UPDATE,
             Action.DELETE,
             Action.READ,
+        ],
+        Resource.BUCKET_SECRET: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
         ],
         Resource.MODEL: [
             Action.LIST,

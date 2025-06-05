@@ -30,9 +30,7 @@ async def test_check_org_members_limit_raises(
         OrganizationLimitReachedError,
         match="Organization reached maximum number of users",
     ):
-        await handler.check_org_members_limit(
-            organization_id=random.randint(1, 10000)
-        )
+        await handler.check_org_members_limit(organization_id=random.randint(1, 10000))
 
     mock_get_organization_members_count.assert_awaited_once()
 
