@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
 import NotebooksList from './NotebooksList.vue'
 import NotebookCreator from './NotebookCreator.vue'
 import { useNotebooksStore } from '@/stores/notebooks'
@@ -20,10 +20,9 @@ import { useToast } from 'primevue'
 
 const notebooksStore = useNotebooksStore()
 const toast = useToast()
-
 const loading = ref(false)
 
-onMounted(async () => {
+const fetchNotebooks = async () => {
   try {
     loading.value = true
     await notebooksStore.getNotebooks()
@@ -37,6 +36,27 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleVisibilityChange = () => { 
+  if (!document.hidden) {
+    fetchNotebooks()
+  }
+}
+
+const handleWindowFocus = () => {
+  fetchNotebooks()
+}
+
+onMounted(async () => {
+  await fetchNotebooks()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', handleWindowFocus)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', handleWindowFocus)
 })
 </script>
 
