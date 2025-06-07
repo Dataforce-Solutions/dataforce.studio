@@ -3,7 +3,7 @@
     <div class="top">
       <div class="headings">
         <h1 class="main-title">Notebooks</h1>
-        <p class="sub-title">All your notebooks will be here</p>
+        <p class="sub-title">A zero-setup, in-browser environment powered by Jupyter.</p>
       </div>
       <NotebookCreator></NotebookCreator>
     </div>

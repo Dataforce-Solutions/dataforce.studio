@@ -1,7 +1,7 @@
 <template>
   <div>
-    <Button label="Create notebook" @click="visible = true" />
-    <Dialog v-model:visible="visible" modal header="Create Notebook" :style="{ width: '25rem' }">
+    <Button label="Create instance" @click="visible = true" />
+    <Dialog v-model:visible="visible" modal header="Create instance" :style="{ width: '25rem' }">
       <NotebookCreateUpdateForm :loading="loading" @submit="onSubmit"></NotebookCreateUpdateForm>
     </Dialog>
   </div>
@@ -24,7 +24,7 @@ async function onSubmit(payload: { fullname: string }) {
   await notebooksStore.create(payload)
   loading.value = false
   visible.value = false
-  toast.add({ severity: 'success', summary: 'Success', detail: 'Notebook Created', life: 2000 })
+  toast.add({ severity: 'success', summary: 'Success', detail: 'Instance Created', life: 2000 })
 }
 </script>
 

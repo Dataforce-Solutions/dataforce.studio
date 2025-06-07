@@ -9,14 +9,14 @@
     size="small"
   >
     <template #empty>
-      <div>You don't have notebooks yet...</div>
+      <div>You don't have any instances yet...</div>
     </template>
     <Column expander style="width: 30px" />
     <Column field="fullname" header="Name" style="width: 25%"></Column>
-    <Column field="version" header="Version" style="width: 100px"></Column>
+    <!-- <Column field="version" header="Version" style="width: 100px"></Column> -->
     <Column field="name" header="Link" style="width: 200px">
       <template #body="slot">
-        <Button as="a" label="Open" target="_blank" :href="getLink(slot.data.name)" />
+        <Button as="a" label="Open JupyterLab" target="_blank" :href="getLink(slot.data.name)" />
       </template>
     </Column>
     <Column field="createdAt" header="Created">
@@ -51,9 +51,9 @@
       </template>
     </Column>
     <template #expansion="slotProps">
-      <div v-if="!slotProps.data.files?.length">Files not found...</div>
+      <div v-if="!slotProps.data.files?.length">No models found.</div>
       <div v-else>
-        <h5 style="margin-bottom: 5px">Notebook files:</h5>
+        <h5 style="margin-bottom: 5px">Models:</h5>
         <DataTable :value="slotProps.data.files" size="small">
           <Column field="name" header="Name"></Column>
           <Column field="size" header="Size">
@@ -87,7 +87,7 @@
       </div>
     </template>
   </DataTable>
-  <Dialog v-model:visible="visible" modal header="Update Notebook" :style="{ width: '25rem' }">
+  <Dialog v-model:visible="visible" modal header="Rename" :style="{ width: '25rem' }">
     <NotebookCreateUpdateForm
       v-if="editData"
       update-mode
@@ -122,7 +122,7 @@ const getLink = computed(
 function onDeleteClick(databaseName: string) {
   confirm.require({
     header: 'Are you sure?',
-    message: 'Are you sure you want to delete notebook? This action cannot be undone',
+    message: 'Are you sure you want to delete the instance? This action cannot be undone.',
     acceptProps: {
       label: 'Delete',
       severity: 'danger',
@@ -144,7 +144,7 @@ function onDeleteClick(databaseName: string) {
         toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: e?.message || 'Failed to delete notebook',
+          detail: e?.message || 'Failed to delete the instance',
         })
       }
     },
@@ -161,14 +161,14 @@ async function onUpdateSubmit(payload: { fullname: string }) {
 }
 function onBackupClick(name: string) {
   confirm.require({
-    header: 'You want create backup?',
+    header: 'Backup',
     message:
-      'We do not store your notebooks - they are stored only in your browser. Make a backup to avoid losing access to them.',
+      'Your data is only stored in your browser. Make a backup to avoid losing it.',
     acceptProps: {
-      label: 'Create backup',
+      label: 'Create a backup',
     },
     rejectProps: {
-      label: 'cancel',
+      label: 'Cancel',
       severity: 'secondary',
     },
     accept: async () => {
@@ -178,7 +178,7 @@ function onBackupClick(name: string) {
         toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: e?.message || 'Failed to create backup',
+          detail: e?.message || 'Failed to create a backup',
           life: 2000,
         })
       }
