@@ -95,27 +95,70 @@ class DatabaseServiceClass {
     const store = tx.objectStore(FILES_STORE)
     const allFiles = await store.getAll()
     const zip = new jszip()
+    
     for (const file of allFiles) {
-      const fileName = file.name || file.path
-      const content = file.content || file.data || ''
-      const format = file?.format
-      if (!fileName || !content) continue
-      let serializedContent: string | Blob
-      if (format === 'json') {
-        try {
-          serializedContent = JSON.stringify(content, null, 2)
-        } catch (e) {
-          console.error('Failed to serialize file data')
-          continue
-        }
-      } else if (format === 'text') {
-        serializedContent = content
-      } else {
+      const filePath = file.path || file.name
+      if (!filePath) continue
+      
+      if (file.type === 'directory' || 
+          file.mimetype === 'application/x-directory' ||
+          filePath.endsWith('/')) {
         continue
       }
-      zip.file(fileName, serializedContent)
+
+      const content = file.content ?? file.data ?? file.body
+      
+  
+      if (content === undefined) {
+        console.log(`Skipping ${filePath} - no content found`)
+        continue
+      }
+      
+      const format = file?.format || file?.type
+      
+      try {
+        let fileData: string | Uint8Array | ArrayBuffer | Blob
+        
+
+        if (content instanceof Blob) {
+          fileData = content
+        } else if (content instanceof ArrayBuffer) {
+          fileData = content
+        } else if (content instanceof Uint8Array) {
+          fileData = content
+        } else if (format === 'json' || (typeof content === 'object' && content !== null && !(content instanceof Date))) {
+          fileData = JSON.stringify(content, null, 2)
+        } else if (typeof content === 'string') {
+          fileData = content
+        } else if (content === null || content === undefined || content === '') {
+          fileData = ''
+        } else {
+          // Fallback: try to convert to string
+          fileData = String(content)
+        }
+        
+        const cleanPath = filePath.replace(/\/$/, '')
+    
+        zip.file(cleanPath, fileData)
+      } catch (e) {
+        console.error(`Failed to process file ${filePath}:`, e)
+        continue
+      }
     }
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    
+    const fileCount = Object.keys(zip.files).length
+    if (fileCount === 0) {
+      db.close()
+      throw new Error('No files found to backup')
+    }
+    
+    console.log(`Creating zip with ${fileCount} files`)
+    
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob', 
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    })
     saveAs(zipBlob, `${databaseName}-backup.zip`)
     db.close()
   }
@@ -132,13 +175,17 @@ class DatabaseServiceClass {
     const store = tx.objectStore(FILES_STORE)
     const allFiles = await store.getAll()
     const files = allFiles.filter((file) => {
+      const fullPath = file?.path || file?.name || ''
+      
       return DATAFORCE_FILES_EXTENSIONS.find((extension) => {
-        if (typeof file?.name === 'string' && file?.name.endsWith(extension)) return true
-        if (typeof file?.path === 'string' && file?.path.endsWith(extension)) return true
-        return false
+        return fullPath.endsWith(extension)
       })
     })
-    return files
+    
+    return files.map(file => ({
+      ...file,
+      name: file.path || file.name
+    }))
   }
 }
 
