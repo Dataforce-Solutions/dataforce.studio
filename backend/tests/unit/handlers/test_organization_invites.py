@@ -23,6 +23,10 @@ handler = OrganizationHandler()
 
 
 @patch(
+    "dataforce_studio.handlers.organizations.InviteRepository.get_invite",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -44,6 +48,7 @@ async def test_send_invite(
     mock_get_organization_members_count: AsyncMock,
     mock_send_organization_invite_email: MagicMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_invite: AsyncMock,
 ) -> None:
     invite_id = random.randint(1, 10000)
     user_id = random.randint(1, 10000)
@@ -54,6 +59,7 @@ async def test_send_invite(
 
     mock_get_organization_members_count.return_value = 0
     mock_create_organization_invite.return_value = mocked_invite
+    mock_get_invite.return_value = mocked_invite
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.send_invite(user_id, invite)

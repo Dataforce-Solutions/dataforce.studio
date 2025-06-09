@@ -5,6 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import joinedload
 
 from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.models.organization import OrganizationInviteOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
@@ -17,10 +18,9 @@ from dataforce_studio.schemas.organization import (
 class InviteRepository(RepositoryBase, CrudMixin):
     async def create_organization_invite(
         self, invite: CreateOrganizationInvite
-    ) -> OrganizationInvite:
+    ) -> OrganizationInviteOrm:
         async with self._get_session() as session:
-            db_invite = await self.create_model(session, OrganizationInviteOrm, invite)
-            return db_invite.to_organization_invite()
+            return await self.create_model(session, OrganizationInviteOrm, invite)
 
     async def delete_organization_invite(self, invite_id: int) -> None:
         async with self._get_session() as session, session.begin():
@@ -74,6 +74,9 @@ class InviteRepository(RepositoryBase, CrudMixin):
             result = await session.execute(
                 select(OrganizationInviteOrm).where(
                     OrganizationInviteOrm.id == invite_id
+                ).options(
+                    joinedload(OrganizationInviteOrm.invited_by_user),
+                    joinedload(OrganizationInviteOrm.organization),
                 )
             )
 

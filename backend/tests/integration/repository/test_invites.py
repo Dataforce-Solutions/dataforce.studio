@@ -75,7 +75,7 @@ async def test_get_invite(create_organization_with_user: dict) -> None:
 
     assert fetched_invite.id == created_invite.id
     assert fetched_invite.email == created_invite.email
-    assert fetched_invite.invited_by_user == created_invite.invited_by_user
+    assert fetched_invite.invited_by_user.id == user.id
     assert fetched_invite.organization_id == created_invite.organization_id
 
 

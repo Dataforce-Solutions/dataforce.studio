@@ -216,11 +216,12 @@ async def create_organization_with_members(
         invite = await invites_repo.create_organization_invite(
             CreateOrganizationInvite(
                 email=f"invited_{i}_@gmail.com",
+                role=OrgRole.MEMBER,
                 organization_id=organization.id,
                 invited_by=invited_by_user.id,
-                role=OrgRole.MEMBER,
             )
         )
+        print(invite)
         invites.append(invite)
 
     return {
