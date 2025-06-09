@@ -17,10 +17,9 @@ from dataforce_studio.schemas.organization import (
 class InviteRepository(RepositoryBase, CrudMixin):
     async def create_organization_invite(
         self, invite: CreateOrganizationInvite
-    ) -> OrganizationInvite:
+    ) -> OrganizationInviteOrm:
         async with self._get_session() as session:
-            db_invite = await self.create_model(session, OrganizationInviteOrm, invite)
-            return db_invite.to_organization_invite()
+            return await self.create_model(session, OrganizationInviteOrm, invite)
 
     async def delete_organization_invite(self, invite_id: int) -> None:
         async with self._get_session() as session, session.begin():
@@ -72,8 +71,11 @@ class InviteRepository(RepositoryBase, CrudMixin):
     async def get_invite(self, invite_id: int) -> OrganizationInvite:
         async with self._get_session() as session, session.begin():
             result = await session.execute(
-                select(OrganizationInviteOrm).where(
-                    OrganizationInviteOrm.id == invite_id
+                select(OrganizationInviteOrm)
+                .where(OrganizationInviteOrm.id == invite_id)
+                .options(
+                    joinedload(OrganizationInviteOrm.invited_by_user),
+                    joinedload(OrganizationInviteOrm.organization),
                 )
             )
 
