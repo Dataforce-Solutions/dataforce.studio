@@ -21,6 +21,9 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UpdateOrganizationMember,
     UserInvite,
+    OrganizationCreate,
+    Organization,
+    OrganizationUpdate,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
@@ -33,6 +36,41 @@ class OrganizationHandler:
     __permissions_handler = PermissionsHandler()
 
     __members_limit = 100
+
+    async def create_organization(
+        self, organization: OrganizationCreate
+    ) -> Organization:
+        db_org = await self.__user_repository.create_organization(
+            organization.name, organization.logo
+        )
+        return db_org.to_organization()
+
+    async def update_organization(
+        self,
+        user_id: int,
+        organization_id: int,
+        organization: OrganizationUpdate,
+    ) -> OrganizationDetails | None:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION,
+            Action.UPDATE,
+        )
+
+        await self.__user_repository.update_organization(organization_id, organization)
+
+        return await self.__user_repository.get_organization_details(organization_id)
+
+    async def delete_organization(self, user_id: int, organization_id: int) -> None:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION,
+            Action.DELETE,
+        )
+
+        return await self.__user_repository.delete_organization(organization_id)
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)

@@ -10,13 +10,15 @@ from dataforce_studio.models.organization import (
 )
 from dataforce_studio.models.stats import StatsEmailSendOrm
 from dataforce_studio.models.user import UserOrm
-from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.repositories.base import RepositoryBase, CrudMixin
 from dataforce_studio.schemas.organization import (
     OrganizationDetails,
     OrganizationMember,
     OrganizationSwitcher,
     OrgRole,
     UpdateOrganizationMember,
+    OrganizationUpdate,
+    Organization,
 )
 from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
 from dataforce_studio.schemas.user import (
@@ -28,7 +30,7 @@ from dataforce_studio.schemas.user import (
 from dataforce_studio.utils.organizations import generate_organization_name
 
 
-class UserRepository(RepositoryBase):
+class UserRepository(RepositoryBase, CrudMixin):
     async def create_user(
         self,
         create_user: CreateUser,
@@ -118,6 +120,23 @@ class UserRepository(RepositoryBase):
             await session.commit()
             await session.refresh(db_organization)
         return db_organization
+
+    async def update_organization(
+        self,
+        organization_id: int,
+        organization: OrganizationUpdate,
+    ) -> Organization | None:
+        organization.id = organization_id
+
+        async with self._get_session() as session:
+            db_organization = await self.update_model(
+                session=session, orm_class=OrganizationOrm, data=organization
+            )
+            return db_organization.to_organization() if db_organization else None
+
+    async def delete_organization(self, organization_id: int) -> None:
+        async with self._get_session() as session:
+            return await self.delete_model(session, OrganizationOrm, organization_id)
 
     async def get_organization_members_count(self, organization_id: int) -> int:
         async with self._get_session() as session:
