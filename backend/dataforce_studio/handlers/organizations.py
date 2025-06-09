@@ -5,26 +5,26 @@ from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
+    OrganizationDeleteError,
     OrganizationLimitReachedError,
     ServiceError,
-    OrganizationDeleteError,
 )
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
+    Organization,
+    OrganizationCreate,
     OrganizationDetails,
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
     OrganizationSwitcher,
+    OrganizationUpdate,
     OrgRole,
     UpdateOrganizationMember,
     UserInvite,
-    OrganizationCreate,
-    Organization,
-    OrganizationUpdate,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
@@ -51,7 +51,7 @@ class OrganizationHandler:
         user_id: int,
         organization_id: int,
         organization: OrganizationUpdate,
-    ) -> OrganizationDetails | None:
+    ) -> OrganizationDetails:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
@@ -66,7 +66,14 @@ class OrganizationHandler:
         if not org_obj:
             raise NotFoundError("Organization not found")
 
-        return await self.__user_repository.get_organization_details(organization_id)
+        organization_details = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+
+        if not organization_details:
+            raise NotFoundError("Organization not found")
+
+        return organization_details
 
     async def delete_organization(self, user_id: int, organization_id: int) -> None:
         await self.__permissions_handler.check_organization_permission(

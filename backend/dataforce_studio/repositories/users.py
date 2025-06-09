@@ -10,15 +10,15 @@ from dataforce_studio.models.organization import (
 )
 from dataforce_studio.models.stats import StatsEmailSendOrm
 from dataforce_studio.models.user import UserOrm
-from dataforce_studio.repositories.base import RepositoryBase, CrudMixin
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
+    Organization,
     OrganizationDetails,
     OrganizationMember,
     OrganizationSwitcher,
+    OrganizationUpdate,
     OrgRole,
     UpdateOrganizationMember,
-    OrganizationUpdate,
-    Organization,
 )
 from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
 from dataforce_studio.schemas.user import (
