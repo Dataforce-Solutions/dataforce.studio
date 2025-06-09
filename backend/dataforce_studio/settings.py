@@ -16,13 +16,14 @@ class Settings(BaseSettings):
     CONFIRM_EMAIL_REDIRECT_URL: str
     CONFIRM_EMAIL_URL: str
     CHANGE_PASSWORD_URL: str
-    APP_EMAIL_URL: str
+    APP_EMAIL_URL: str = "https://your.default.domain"
 
     SENDGRID_API_KEY: str
 
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
-        env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env"
+        env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env",
+        extra="ignore"
     )
 
 
