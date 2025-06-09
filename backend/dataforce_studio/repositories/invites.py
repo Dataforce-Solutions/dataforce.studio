@@ -50,7 +50,10 @@ class InviteRepository(RepositoryBase, CrudMixin):
         self, organization_id: int
     ) -> list[OrganizationInvite]:
         invites = await self.get_invites_where(
-            [joinedload(OrganizationInviteOrm.invited_by_user)],
+            [
+                joinedload(OrganizationInviteOrm.invited_by_user),
+                joinedload(OrganizationInviteOrm.organization),
+            ],
             OrganizationInviteOrm.organization_id == organization_id,
         )
 

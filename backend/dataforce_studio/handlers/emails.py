@@ -43,6 +43,18 @@ class EmailHandler:
 
         self._email_client.send(message)
 
-    # TODO implement method
-    def send_organization_invite_email(self) -> None:
-        pass
+    def send_organization_invite_email(
+        self, email: EmailStr, sender: str, organization: str, link: str
+    ) -> None:
+        message = Mail(
+            from_email=self.sender_email,
+            to_emails=str(email),
+        )
+        message.template_id = "d-e2074177754d47288a25da15d1c95eb2"
+        message.dynamic_template_data = {
+            "invite_sender": sender or "",
+            "organization": organization,
+            "open_platform_link": link,
+        }
+
+        self._email_client.send(message)

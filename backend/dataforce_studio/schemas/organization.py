@@ -42,6 +42,7 @@ class OrganizationInvite(BaseModel, BaseOrmConfig):
     role: OrgRole
     organization_id: int
     invited_by_user: UserOut | None = None
+    organization: Organization | None = None
     created_at: datetime
 
 
