@@ -7,6 +7,7 @@ from dataforce_studio.infra.exceptions import (
     NotFoundError,
     OrganizationLimitReachedError,
     ServiceError,
+    OrganizationDeleteError,
 )
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -58,7 +59,12 @@ class OrganizationHandler:
             Action.UPDATE,
         )
 
-        await self.__user_repository.update_organization(organization_id, organization)
+        org_obj = await self.__user_repository.update_organization(
+            organization_id, organization
+        )
+
+        if not org_obj:
+            raise NotFoundError("Organization not found")
 
         return await self.__user_repository.get_organization_details(organization_id)
 
@@ -69,6 +75,17 @@ class OrganizationHandler:
             Resource.ORGANIZATION,
             Action.DELETE,
         )
+        organization = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+
+        if not organization:
+            raise NotFoundError("Organization not found")
+
+        if len(organization.members) > 1:
+            raise OrganizationDeleteError(
+                "Organization has members and cant be deleted"
+            )
 
         return await self.__user_repository.delete_organization(organization_id)
 

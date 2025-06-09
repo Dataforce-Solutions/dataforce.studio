@@ -97,7 +97,13 @@ invite_user_get_data = {
         "photo": None,
     },
     "created_at": datetime.datetime.now(),
-    "organization": {"id": 1, "name": "test", "logo": "https://example.com/"},
+    "organization": {
+        "id": 1,
+        "name": "test",
+        "logo": "https://example.com/",
+        "created_at": datetime.datetime.now(),
+        "updated_at": datetime.datetime.now(),
+    },
 }
 
 invite_accept_data = {

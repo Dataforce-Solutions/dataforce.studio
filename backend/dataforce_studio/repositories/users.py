@@ -201,7 +201,12 @@ class UserRepository(RepositoryBase, CrudMixin):
 
             return [
                 OrganizationSwitcher(
-                    id=org.id, name=org.name, logo=org.logo, role=member_role
+                    id=org.id,
+                    name=org.name,
+                    logo=org.logo,
+                    role=member_role,
+                    created_at=org.created_at,
+                    updated_at=org.updated_at,
                 )
                 for org, member_role in db_organizations
             ]
