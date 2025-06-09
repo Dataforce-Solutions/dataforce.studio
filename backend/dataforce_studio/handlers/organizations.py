@@ -74,7 +74,9 @@ class OrganizationHandler:
         invite = CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
         await self.check_org_members_limit(invite.organization_id)
 
-        db_created_invite = await self.__invites_repository.create_organization_invite(invite)
+        db_created_invite = await self.__invites_repository.create_organization_invite(
+            invite
+        )
         db_invite = await self.__invites_repository.get_invite(db_created_invite.id)
 
         user_name = (
