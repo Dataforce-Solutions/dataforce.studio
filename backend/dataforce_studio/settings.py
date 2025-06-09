@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
         env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env",
-        extra="ignore"
+        extra="ignore",
     )
 
 
