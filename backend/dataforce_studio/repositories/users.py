@@ -10,11 +10,13 @@ from dataforce_studio.models.organization import (
 )
 from dataforce_studio.models.stats import StatsEmailSendOrm
 from dataforce_studio.models.user import UserOrm
-from dataforce_studio.repositories.base import RepositoryBase
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
+    Organization,
     OrganizationDetails,
     OrganizationMember,
     OrganizationSwitcher,
+    OrganizationUpdate,
     OrgRole,
     UpdateOrganizationMember,
 )
@@ -28,7 +30,7 @@ from dataforce_studio.schemas.user import (
 from dataforce_studio.utils.organizations import generate_organization_name
 
 
-class UserRepository(RepositoryBase):
+class UserRepository(RepositoryBase, CrudMixin):
     async def create_user(
         self,
         create_user: CreateUser,
@@ -119,6 +121,23 @@ class UserRepository(RepositoryBase):
             await session.refresh(db_organization)
         return db_organization
 
+    async def update_organization(
+        self,
+        organization_id: int,
+        organization: OrganizationUpdate,
+    ) -> Organization | None:
+        organization.id = organization_id
+
+        async with self._get_session() as session:
+            db_organization = await self.update_model(
+                session=session, orm_class=OrganizationOrm, data=organization
+            )
+            return db_organization.to_organization() if db_organization else None
+
+    async def delete_organization(self, organization_id: int) -> None:
+        async with self._get_session() as session:
+            return await self.delete_model(session, OrganizationOrm, organization_id)
+
     async def get_organization_members_count(self, organization_id: int) -> int:
         async with self._get_session() as session:
             result = await session.execute(
@@ -182,7 +201,12 @@ class UserRepository(RepositoryBase):
 
             return [
                 OrganizationSwitcher(
-                    id=org.id, name=org.name, logo=org.logo, role=member_role
+                    id=org.id,
+                    name=org.name,
+                    logo=org.logo,
+                    role=member_role,
+                    created_at=org.created_at,
+                    updated_at=org.updated_at,
                 )
                 for org, member_role in db_organizations
             ]

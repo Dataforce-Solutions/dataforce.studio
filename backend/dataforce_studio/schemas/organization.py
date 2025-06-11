@@ -13,10 +13,23 @@ class OrgRole(StrEnum):
     MEMBER = "member"
 
 
+class OrganizationCreate(BaseModel):
+    name: str
+    logo: HttpUrl | None = None
+
+
+class OrganizationUpdate(BaseModel):
+    id: int | None = None
+    name: str | None = None
+    logo: HttpUrl | None = None
+
+
 class Organization(BaseModel, BaseOrmConfig):
     id: int
     name: str
     logo: HttpUrl | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 class OrganizationSwitcher(Organization):
@@ -82,7 +95,5 @@ class OrganizationMemberCreate(BaseModel):
 
 
 class OrganizationDetails(Organization, BaseOrmConfig):
-    created_at: datetime
-    updated_at: datetime | None = None
     invites: list[OrganizationInvite]
     members: list[OrganizationMember]

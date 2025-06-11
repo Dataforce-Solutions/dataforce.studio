@@ -5,6 +5,7 @@ from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
+    OrganizationDeleteError,
     OrganizationLimitReachedError,
     ServiceError,
 )
@@ -13,11 +14,14 @@ from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
+    Organization,
+    OrganizationCreate,
     OrganizationDetails,
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
     OrganizationSwitcher,
+    OrganizationUpdate,
     OrgRole,
     UpdateOrganizationMember,
     UserInvite,
@@ -33,6 +37,64 @@ class OrganizationHandler:
     __permissions_handler = PermissionsHandler()
 
     __members_limit = 100
+
+    async def create_organization(
+        self, organization: OrganizationCreate
+    ) -> Organization:
+        db_org = await self.__user_repository.create_organization(
+            organization.name, organization.logo
+        )
+        return db_org.to_organization()
+
+    async def update_organization(
+        self,
+        user_id: int,
+        organization_id: int,
+        organization: OrganizationUpdate,
+    ) -> OrganizationDetails:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION,
+            Action.UPDATE,
+        )
+
+        org_obj = await self.__user_repository.update_organization(
+            organization_id, organization
+        )
+
+        if not org_obj:
+            raise NotFoundError("Organization not found")
+
+        organization_details = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+
+        if not organization_details:
+            raise NotFoundError("Organization not found")
+
+        return organization_details
+
+    async def delete_organization(self, user_id: int, organization_id: int) -> None:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION,
+            Action.DELETE,
+        )
+        organization = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+
+        if not organization:
+            raise NotFoundError("Organization not found")
+
+        if len(organization.members) > 1:
+            raise OrganizationDeleteError(
+                "Organization has members and cant be deleted"
+            )
+
+        return await self.__user_repository.delete_organization(organization_id)
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)
