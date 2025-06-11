@@ -37,7 +37,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __members_limit = 100
+    __members_limit = 50
 
     async def create_organization(
         self, user_id: int, organization: OrganizationCreate

@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, EmailStr, HttpUrl, field_validator
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 from dataforce_studio.schemas.orbit import Orbit
@@ -102,7 +102,12 @@ class OrganizationMemberCreate(BaseModel):
         return value
 
 
-class OrganizationDetails(Organization, BaseOrmConfig):
+class OrganizationDetails(Organization):
     invites: list[OrganizationInvite]
     members: list[OrganizationMember]
     orbits: list[Orbit]
+    members_limit: int = 0
+    orbits_limit: int = 0
+    total_orbits: int = 0
+    total_members: int = 0
+    members_by_role: dict[str, int] = Field(default_factory=dict)

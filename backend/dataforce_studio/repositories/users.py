@@ -27,7 +27,10 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
-from dataforce_studio.utils.organizations import generate_organization_name
+from dataforce_studio.utils.organizations import (
+    generate_organization_name,
+    get_members_roles_count,
+)
 
 
 class UserRepository(RepositoryBase, CrudMixin):
@@ -239,9 +242,18 @@ class UserRepository(RepositoryBase, CrudMixin):
                 .where(OrganizationOrm.id == organization_id)
             )
             db_organization = result.unique().scalar_one_or_none()
-            return (
-                db_organization.to_organization_details() if db_organization else None
-            )
+
+            if not db_organization:
+                return None
+
+            details = OrganizationDetails.model_validate(db_organization)
+            details.total_orbits = len(db_organization.orbits)
+            details.total_members = len(db_organization.members)
+            details.members_by_role = get_members_roles_count(db_organization.members)
+            details.members_limit = 50
+            details.orbits_limit = 10
+
+            return details
 
     async def get_organization_users(
         self, organization_id: int, role: OrgRole | None = None
