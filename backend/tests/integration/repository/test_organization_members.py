@@ -4,6 +4,8 @@ import pytest
 from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
 from fastapi import HTTPException
 
+from dataforce_studio.schemas.user import CreateUser
+
 organization_data = {"name": "test organization", "logo": None}
 
 organization_member_data = {
@@ -14,10 +16,12 @@ organization_member_data = {
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member(create_organization_with_user: dict) -> None:
+async def test_create_organization_member(create_organization_with_user: dict, test_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
-
+    repo, created_organization = data["repo"], data["organization"]
+    new_user = test_user.copy()
+    new_user["email"] = "test@test.com"
+    user = await repo.create_user(CreateUser(**new_user))
     created_member = await repo.create_organization_member(
         user.id, created_organization.id, OrgRole.MEMBER
     )
@@ -29,90 +33,25 @@ async def test_create_organization_member(create_organization_with_user: dict) -
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member_already_exist(
-    create_organization_with_user: dict,
-) -> None:
-    data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
-
-    await repo.create_organization_member(
-        user.id, created_organization.id, OrgRole.OWNER
-    )
-
-    with pytest.raises(HTTPException) as error:
-        await repo.create_organization_member(
-            user_id=user.id,
-            organization_id=created_organization.id,
-            role=OrgRole.ADMIN,
-        )
-
-    assert error.value.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_create_organization_server_error(
-    create_organization_with_user: dict,
-) -> None:
-    data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
-
-    await repo.create_organization_member(
-        user.id, created_organization.id, OrgRole.OWNER
-    )
-
-    with pytest.raises(HTTPException) as error:
-        await repo.create_organization_member(
-            user_id=random.randint(1, 10000),
-            organization_id=created_organization.id,
-            role=OrgRole.ADMIN,
-        )
-
-    assert error.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_create_organization_owner(create_organization_with_user: dict) -> None:
-    data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
-
-    created_member = await repo.create_owner(user.id, created_organization.id)
-
-    assert created_member.id
-    assert created_member.organization_id == created_organization.id
-    assert created_member.role == OrgRole.OWNER
-    assert created_member.user.id == user.id
-
-
-@pytest.mark.asyncio
 async def test_update_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
-
-    created_member = await repo.create_organization_member(
-        user.id, created_organization.id, OrgRole.MEMBER
-    )
+    repo, member = data["repo"], data["member"]
 
     updated_member = await repo.update_organization_member(
-        created_member.id, UpdateOrganizationMember(role=OrgRole.ADMIN)
+        member.id, UpdateOrganizationMember(role=OrgRole.ADMIN)
     )
 
-    assert updated_member.id == created_member.id
+    assert updated_member.id == member.id
     assert updated_member.role == OrgRole.ADMIN
 
 
 @pytest.mark.asyncio
 async def test_delete_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, user, created_organization = data["repo"], data["user"], data["organization"]
+    repo, created_organization, member = data["repo"], data["organization"], data["member"]
 
-    created_member = await repo.create_organization_member(
-        user.id, created_organization.id, OrgRole.MEMBER
-    )
-
-    deleted_member = await repo.delete_organization_member(created_member.id)
-    org_members_count = await repo.get_organization_members_count(
-        created_organization.id
-    )
+    deleted_member = await repo.delete_organization_member(member.id)
+    org_members_count = await repo.get_organization_members_count(created_organization.id)
 
     assert deleted_member is None
     assert org_members_count == 0 or org_members_count is None

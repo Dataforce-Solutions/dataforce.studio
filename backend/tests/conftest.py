@@ -165,37 +165,67 @@ def test_org_details() -> dict:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def create_organization_with_user(
-    create_database_and_apply_migrations: str, test_user: dict
+async def create_user_repo(
+        create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    created_organization = await repo.create_organization("test org", None)
-    await repo.create_user(CreateUser(**test_user))
-    fetched_user = await repo.get_user(test_user["email"])
+    return {
+        "engine": engine,
+        "repo": repo
+    }
+
+
+@pytest_asyncio.fixture(scope="function")
+async def create_organization_with_user(
+        create_database_and_apply_migrations: str, test_user: dict
+) -> dict:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+
+    user = await repo.create_user(CreateUser(**test_user))
+
+    created_organization = await repo.create_organization(user.id, "test org", None)
+    member = await repo.get_organization_member(created_organization.id, user.id)
 
     return {
         "engine": engine,
         "repo": repo,
-        "user": fetched_user,
+        "user": user,
         "organization": created_organization,
+        "member": member
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_organization_with_members(
-    create_database_and_apply_migrations: str,
+        create_database_and_apply_migrations: str,
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     invites_repo = InviteRepository(engine)
+    members, users, invites = [], [], []
 
-    organization = await repo.create_organization(
-        name="Test org with members", logo=None
+    user_main = await repo.create_user(
+        CreateUser(
+            email=f"userMAIN@gmail.com",
+            full_name=f"Test User MAIN",
+            disabled=False,
+            email_verified=True,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
     )
 
-    members, users, invites = [], [], []
+    users.append(user_main)
+
+    organization = await repo.create_organization(
+        user_id=user_main.id, name="Test org with members", logo=None
+    )
+    owner = await repo.get_organization_member(organization.id, user_main.id)
+    members.append(owner)
 
     for i in range(10):
         user = CreateUser(
@@ -236,19 +266,20 @@ async def create_organization_with_members(
         "organization": organization,
         "members": members,
         "invites": invites,
+        "user_owner": user_main
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_orbit(
-    create_database_and_apply_migrations: str, test_user: dict
+        create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
     repo = OrbitRepository(engine)
 
     user = await user_repo.create_user(CreateUser(**test_user))
-    created_organization = await user_repo.create_organization("test org", None)
+    created_organization = await user_repo.create_organization(user.id, "test org", None)
     created_orbit = await repo.create_orbit(
         created_organization.id, OrbitCreate(name="test orbit")
     )
@@ -264,12 +295,15 @@ async def create_orbit(
 
 @pytest_asyncio.fixture(scope="function")
 async def create_orbit_with_members(
-    create_database_and_apply_migrations: str, test_user: dict
+        create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
     repo = OrbitRepository(engine)
-    created_organization = await user_repo.create_organization("test org", None)
+
+    user = await user_repo.create_user(CreateUser(**test_user))
+
+    created_organization = await user_repo.create_organization(user.id, "test org", None)
     created_orbit = await repo.create_orbit(
         created_organization.id, OrbitCreate(name="test orbit")
     )
