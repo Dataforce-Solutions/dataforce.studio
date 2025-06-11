@@ -9,7 +9,7 @@ orbits_router = APIRouter(prefix="/{organization_id}/orbits", tags=["orbits"])
 orbit_handler = OrbitHandler()
 
 
-@orbits_router.get("/{orbit_id}", responses=endpoint_responses)
+@orbits_router.get("", responses=endpoint_responses)
 async def get_organization_orbits(
     request: Request, organization_id: int
 ) -> list[Orbit]:

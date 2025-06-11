@@ -45,6 +45,22 @@ class InviteRepository(RepositoryBase, CrudMixin):
 
             return result.scalars().all()
 
+    async def get_organization_invite_by_email(
+        self, organization_id: int, email: EmailStr
+    ) -> OrganizationInvite | None:
+        async with self._get_session() as session:
+            invite = await self.get_model_where(
+                session,
+                OrganizationInviteOrm,
+                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.email == email,
+                options=[
+                    joinedload(OrganizationInviteOrm.invited_by_user),
+                    joinedload(OrganizationInviteOrm.organization),
+                ],
+            )
+            return invite.to_organization_invite() if invite else None
+
     async def get_invites_by_organization_id(
         self, organization_id: int
     ) -> list[OrganizationInvite]:
