@@ -31,8 +31,10 @@ async def get_organization_details(
 
 
 @organization_router.post("", response_model=Organization)
-async def create_organization(organization: OrganizationCreate) -> Organization:
-    return await organization_handler.create_organization(organization)
+async def create_organization(
+    request: Request, organization: OrganizationCreate
+) -> Organization:
+    return await organization_handler.create_organization(request.user.id, organization)
 
 
 @organization_router.patch(

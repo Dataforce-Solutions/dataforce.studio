@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from pydantic import EmailStr, HttpUrl
+from pydantic import EmailStr
 from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,7 +20,7 @@ class OrganizationOrm(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     name: Mapped[str | None] = mapped_column(String, nullable=False)
-    logo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
+    logo: Mapped[str | None] = mapped_column(String, nullable=True)
 
     members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"

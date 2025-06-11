@@ -112,14 +112,24 @@ class UserRepository(RepositoryBase, CrudMixin):
         return changed
 
     async def create_organization(
-        self, name: str, logo: HttpUrl | None = None
+        self, user_id: int, name: str, logo: HttpUrl | None = None
     ) -> OrganizationOrm:
         async with self._get_session() as session:
-            db_organization = OrganizationOrm(name=name, logo=logo)
+            db_organization = OrganizationOrm(name=name, logo=str(logo))
             session.add(db_organization)
             await session.commit()
             await session.refresh(db_organization)
-        return db_organization
+
+            db_organization_member = OrganizationMemberOrm(
+                user_id=user_id,
+                organization_id=db_organization.id,
+                role=OrgRole.OWNER,
+            )
+            session.add(db_organization_member)
+
+            await session.commit()
+            await session.refresh(db_organization)
+            return db_organization
 
     async def update_organization(
         self,
@@ -127,6 +137,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         organization: OrganizationUpdate,
     ) -> Organization | None:
         organization.id = organization_id
+        organization.logo = str(organization.logo)
 
         async with self._get_session() as session:
             db_organization = await self.update_model(

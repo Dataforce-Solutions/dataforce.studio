@@ -39,10 +39,10 @@ class OrganizationHandler:
     __members_limit = 100
 
     async def create_organization(
-        self, organization: OrganizationCreate
+        self, user_id: int, organization: OrganizationCreate
     ) -> Organization:
         db_org = await self.__user_repository.create_organization(
-            organization.name, organization.logo
+            user_id, organization.name, organization.logo
         )
         return db_org.to_organization()
 
