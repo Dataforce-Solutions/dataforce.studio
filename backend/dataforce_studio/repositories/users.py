@@ -115,7 +115,8 @@ class UserRepository(RepositoryBase, CrudMixin):
         self, user_id: int, name: str, logo: HttpUrl | None = None
     ) -> OrganizationOrm:
         async with self._get_session() as session:
-            db_organization = OrganizationOrm(name=name, logo=str(logo))
+            org_logo = str(logo) if logo else None
+            db_organization = OrganizationOrm(name=name, logo=org_logo)
             session.add(db_organization)
             await session.commit()
             await session.refresh(db_organization)
@@ -137,7 +138,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         organization: OrganizationUpdate,
     ) -> Organization | None:
         organization.id = organization_id
-        organization.logo = str(organization.logo)
+        organization.logo = str(organization.logo) if organization.logo else None
 
         async with self._get_session() as session:
             db_organization = await self.update_model(

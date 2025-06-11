@@ -1,17 +1,25 @@
+import random
+
 import pytest
 from dataforce_studio.repositories.users import UserRepository
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from dataforce_studio.schemas.user import CreateUser
 
 organization_data = {"name": "test organization name", "logo": None}
 
 
 @pytest.mark.asyncio
-async def test_create_organization(create_database_and_apply_migrations: str) -> None:
+async def test_create_organization(create_database_and_apply_migrations: str, test_user: dict) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
+    new_user = test_user.copy()
+    new_user["email"] = "testcreateorganization@example.com"
+    user = await repo.create_user(CreateUser(**new_user))
+
     created_organization = await repo.create_organization(
-        organization_data["name"], organization_data["logo"]
+        user.id, organization_data["name"], organization_data["logo"]
     )
 
     assert created_organization.id
@@ -22,10 +30,9 @@ async def test_create_organization(create_database_and_apply_migrations: str) ->
 @pytest.mark.asyncio
 async def test_get_user_organizations(create_organization_with_members: dict) -> None:
     data = create_organization_with_members
-    repo, members = data["repo"], data["members"]
+    repo, members, user_owner = data["repo"], data["members"], data["user_owner"]
 
-    user_id = members[0].user.id
-    organizations = await repo.get_user_organizations(user_id)
+    organizations = await repo.get_user_organizations(user_owner.id)
 
     assert organizations
     assert hasattr(organizations[0], "id")
