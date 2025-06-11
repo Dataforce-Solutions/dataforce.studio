@@ -21,7 +21,7 @@ class OrganizationCreate(BaseModel):
 class OrganizationUpdate(BaseModel):
     id: int | None = None
     name: str | None = None
-    logo: HttpUrl | None = None
+    logo: HttpUrl | str | None = None
 
 
 class Organization(BaseModel, BaseOrmConfig):
