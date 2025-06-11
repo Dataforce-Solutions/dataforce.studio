@@ -6,7 +6,7 @@ import pytest_asyncio
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.orbit import OrbitCreate, OrbitMemberCreate, OrbitRole
+from dataforce_studio.schemas.orbit import OrbitCreate, OrbitMemberCreate, OrbitRole, Orbit
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationInvite,
@@ -153,14 +153,23 @@ def test_org() -> dict:
 
 @pytest_asyncio.fixture(scope="function")
 def test_org_details() -> dict:
+    test_org_details_id = 8888
+
     return {
-        "id": random.randint(1, 10000),
+        "id": test_org_details_id,
         "name": "Test organization",
         "logo": None,
         "created_at": datetime.datetime.now(),
         "updated_at": datetime.datetime.now(),
         "invites": [OrganizationInvite(**invite_get_data)],  # type: ignore[arg-type]
         "members": [OrganizationMember(**member_data)],  # type: ignore[arg-type]
+        "orbits": [
+            Orbit(
+                id=random.randint(1, 10000),
+                name="test orbit",
+                organization_id=test_org_details_id
+            )
+        ]
     }
 
 
