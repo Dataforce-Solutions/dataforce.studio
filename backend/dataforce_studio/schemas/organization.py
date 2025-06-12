@@ -1,9 +1,10 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, EmailStr, HttpUrl, field_validator
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
 from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.orbit import Orbit
 from dataforce_studio.schemas.user import UserOut
 
 
@@ -40,6 +41,13 @@ class CreateOrganizationInviteIn(BaseModel):
     email: EmailStr
     role: OrgRole
     organization_id: int
+
+    @field_validator("role")
+    @classmethod
+    def forbid_owner(cls, value: OrgRole) -> OrgRole:
+        if value == OrgRole.OWNER:
+            raise ValueError("Role 'OWNER' cant be assigned")
+        return value
 
 
 class CreateOrganizationInvite(BaseModel):
@@ -94,6 +102,12 @@ class OrganizationMemberCreate(BaseModel):
         return value
 
 
-class OrganizationDetails(Organization, BaseOrmConfig):
+class OrganizationDetails(Organization):
     invites: list[OrganizationInvite]
     members: list[OrganizationMember]
+    orbits: list[Orbit]
+    members_limit: int = 0
+    orbits_limit: int = 0
+    total_orbits: int = 0
+    total_members: int = 0
+    members_by_role: dict[str, int] = Field(default_factory=dict)

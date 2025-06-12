@@ -4,6 +4,7 @@ from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    InsufficientPermissionsError,
     NotFoundError,
     OrganizationDeleteError,
     OrganizationLimitReachedError,
@@ -36,7 +37,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __members_limit = 100
+    __members_limit = 50
 
     async def create_organization(
         self, user_id: int, organization: OrganizationCreate
@@ -133,6 +134,27 @@ class OrganizationHandler:
             Resource.ORGANIZATION_INVITE,
             Action.CREATE,
         )
+
+        member = await self.__user_repository.get_organization_member_by_email(
+            invite_.organization_id, invite_.email
+        )
+
+        if member:
+            if member.user.id == user_id:
+                raise InsufficientPermissionsError(
+                    "You can't add yourself to the organisation"
+                )
+            raise ServiceError("Already a member of the organisation")
+
+        existing_invite = (
+            await self.__invites_repository.get_organization_invite_by_email(
+                invite_.organization_id, invite_.email
+            )
+        )
+
+        if existing_invite:
+            raise ServiceError("Invite already exist for this email")
+
         invite = CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
         await self.check_org_members_limit(invite.organization_id)
 
