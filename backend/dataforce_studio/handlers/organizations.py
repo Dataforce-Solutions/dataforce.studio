@@ -4,7 +4,6 @@ from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
-    InsufficientPermissionsError,
     NotFoundError,
     OrganizationDeleteError,
     OrganizationLimitReachedError,
@@ -147,16 +146,17 @@ class OrganizationHandler:
             Action.CREATE,
         )
 
+        user_info = await self.__user_repository.get_public_user_by_id(user_id)
+
+        if user_info and invite_.email == user_info.email:
+            raise ServiceError("You can't invite yourself")
+
         member = await self.__user_repository.get_organization_member_by_email(
             invite_.organization_id, invite_.email
         )
 
         if member:
-            if member.user.id == user_id:
-                raise InsufficientPermissionsError(
-                    "You can't add yourself to the organisation"
-                )
-            raise ServiceError("Already a member of the organisation")
+            raise ServiceError("Already a member of the organization")
 
         existing_invite = (
             await self.__invites_repository.get_organization_invite_by_email(

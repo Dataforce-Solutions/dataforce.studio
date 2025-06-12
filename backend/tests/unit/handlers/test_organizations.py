@@ -5,7 +5,7 @@ import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
-    OrganizationLimitReachedError,
+    OrganizationLimitReachedError, InsufficientPermissionsError,
 )
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
@@ -229,3 +229,54 @@ async def test_delete_organization(
 
     assert deleted is None
     mock_delete_organization.assert_awaited_once_with(organization_id)
+
+
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_leave_from_organization(
+    mock_delete_organization_member_by_user_id: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    test_org_details: dict,
+) -> None:
+    user_id = random.randint(1, 10000)
+    organization_id = random.randint(1, 10000)
+
+    mock_delete_organization_member_by_user_id.return_value = None
+    mock_get_organization_member_role.return_value = OrgRole.MEMBER
+
+    deleted = await handler.leave_from_organization(user_id, organization_id)
+
+    assert deleted is None
+    mock_delete_organization_member_by_user_id.assert_awaited_once_with(user_id, organization_id)
+
+
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_leave_from_organization_owner(
+    mock_delete_organization_member_by_user_id: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    test_org_details: dict,
+) -> None:
+    user_id = random.randint(1, 10000)
+    organization_id = random.randint(1, 10000)
+
+    mock_delete_organization_member_by_user_id.return_value = None
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(InsufficientPermissionsError):
+        await handler.leave_from_organization(user_id, organization_id)
+

@@ -80,6 +80,11 @@ class UserRepository(RepositoryBase, CrudMixin):
             db_user = result.scalar_one_or_none()
             return db_user.to_public_user() if db_user else None
 
+    async def get_public_user_by_id(self, user_id: int) -> UserOut | None:
+        async with self._get_session() as session:
+            db_user = await self.get_model(session, UserOrm, user_id)
+            return db_user.to_public_user() if db_user else None
+
     async def delete_user(self, email: EmailStr) -> None:
         async with self._get_session() as session:
             result = await session.execute(
