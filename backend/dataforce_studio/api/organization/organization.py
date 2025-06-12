@@ -59,3 +59,14 @@ async def delete_organization(request: Request, organization_id: int) -> None:
     return await organization_handler.delete_organization(
         request.user.id, organization_id
     )
+
+
+@organization_router.delete(
+    "/{organization_id}/leave",
+    responses=endpoint_responses,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def leave_from_organization(request: Request, organization_id: int) -> None:
+    return await organization_handler.leave_from_organization(
+        request.user.id, organization_id
+    )

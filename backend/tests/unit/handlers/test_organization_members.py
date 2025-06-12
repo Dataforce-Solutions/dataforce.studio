@@ -43,6 +43,10 @@ async def test_get_organization_members_data(
 
 
 @patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -54,15 +58,18 @@ async def test_get_organization_members_data(
 async def test_update_organization_member_by_id(
     mock_update_organization_member: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
 ) -> None:
+    user_id = random.randint(1, 10000)
     expected = OrganizationMember(**member_data)
 
     mock_update_organization_member.return_value = expected
+    mock_get_organization_member_by_id.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     update_member = UpdateOrganizationMember(role=member_data["role"])
     actual = await handler.update_organization_member_by_id(
-        expected.user.id, expected.organization_id, expected.id, update_member
+        user_id, expected.organization_id, expected.id, update_member
     )
 
     assert actual == expected
@@ -87,6 +94,7 @@ async def test_delete_organization_member_by_id(
     mock_get_organization_member_role: AsyncMock,
     mock_get_organization_member_by_id: AsyncMock,
 ) -> None:
+    user_id = random.randint(1000, 10000)
     member = OrganizationMember(**member_data)
 
     mock_delete_organization_member.return_value = None
@@ -94,7 +102,7 @@ async def test_delete_organization_member_by_id(
     mock_get_organization_member_by_id.return_value = member
 
     actual = await handler.delete_organization_member_by_id(
-        member.user.id, member.organization_id, member.id
+        user_id, member.organization_id, member.id
     )
 
     assert actual is None

@@ -97,6 +97,18 @@ class OrganizationHandler:
 
         return await self.__user_repository.delete_organization(organization_id)
 
+    async def leave_from_organization(self, user_id: int, organization_id: int) -> None:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id,
+            user_id,
+            Resource.ORGANIZATION,
+            Action.LEAVE,
+        )
+
+        return await self.__user_repository.delete_organization_member_by_user_id(
+            user_id, organization_id
+        )
+
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
         return await self.__user_repository.get_user_organizations(user_id)
 
@@ -241,15 +253,22 @@ class OrganizationHandler:
         member_id: int,
         member: UpdateOrganizationMember,
     ) -> OrganizationMember | None:
-        if user_id == member_id:
-            raise ServiceError("You can not update your own data.")
-
         user_role = await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
             Resource.ORGANIZATION_USER,
             Action.CREATE,
         )
+
+        member_to_update = await self.__user_repository.get_organization_member_by_id(
+            member_id
+        )
+
+        if not member_to_update:
+            raise ServiceError("Member does not exist.")
+
+        if user_id == member_to_update.user.id:
+            raise ServiceError("You can not update your own data.")
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise ServiceError("Only Organization Owner can assign new admins.")
@@ -261,9 +280,6 @@ class OrganizationHandler:
     async def delete_organization_member_by_id(
         self, user_id: int, organization_id: int, member_id: int
     ) -> None:
-        if user_id == member_id:
-            raise ServiceError("You can not remove yourself from organization.")
-
         await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
@@ -274,6 +290,12 @@ class OrganizationHandler:
         member_to_delete = await self.__user_repository.get_organization_member_by_id(
             member_id
         )
+
+        if not member_to_delete:
+            raise ServiceError("Member does not exist.")
+
+        if user_id == member_to_delete.user.id:
+            raise ServiceError("You can not remove yourself from organization.")
 
         if member_to_delete and member_to_delete.role == OrgRole.OWNER:
             raise ServiceError("Organization Owner can not be removed.")
