@@ -1,4 +1,3 @@
-import datetime
 import random
 from unittest.mock import AsyncMock, patch
 
@@ -19,12 +18,21 @@ from dataforce_studio.schemas.organization import OrgRole
 
 handler = OrbitHandler()
 
-test_orbit = {"name": "test", "organization_id": random.randint(1, 10000)}
+test_orbit = {
+    "name": "test",
+    "organization_id": random.randint(1, 10000),
+    "total_members": 1,
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": "2025-05-17T09:52:38.234961Z",
+}
 
 test_orbit_created = {
     "id": random.randint(1, 10000),
     "name": "test",
     "organization_id": random.randint(1, 10000),
+    "total_members": 0,
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": None
 }
 
 test_orbit_id = random.randint(1, 10000)
@@ -51,8 +59,8 @@ test_orbit_details = {
     "members": [
         test_orbit_member,
     ],
-    "created_at": datetime.datetime.now(),
-    "updated_at": datetime.datetime.now(),
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": "2025-05-17T09:52:38.234961Z",
 }
 
 

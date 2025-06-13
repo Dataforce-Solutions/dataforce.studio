@@ -5,7 +5,8 @@ import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
-    OrganizationLimitReachedError, InsufficientPermissionsError,
+    OrganizationLimitReachedError,
+    InsufficientPermissionsError,
 )
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
@@ -254,7 +255,9 @@ async def test_leave_from_organization(
     deleted = await handler.leave_from_organization(user_id, organization_id)
 
     assert deleted is None
-    mock_delete_organization_member_by_user_id.assert_awaited_once_with(user_id, organization_id)
+    mock_delete_organization_member_by_user_id.assert_awaited_once_with(
+        user_id, organization_id
+    )
 
 
 @patch(
@@ -279,4 +282,3 @@ async def test_leave_from_organization_owner(
 
     with pytest.raises(InsufficientPermissionsError):
         await handler.leave_from_organization(user_id, organization_id)
-

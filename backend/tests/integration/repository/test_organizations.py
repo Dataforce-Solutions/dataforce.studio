@@ -10,7 +10,9 @@ organization_data = {"name": "test organization name", "logo": None}
 
 
 @pytest.mark.asyncio
-async def test_create_organization(create_database_and_apply_migrations: str, test_user: dict) -> None:
+async def test_create_organization(
+    create_database_and_apply_migrations: str, test_user: dict
+) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 

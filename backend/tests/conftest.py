@@ -6,7 +6,12 @@ import pytest_asyncio
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.orbit import OrbitCreate, OrbitMemberCreate, OrbitRole, Orbit
+from dataforce_studio.schemas.orbit import (
+    OrbitCreate,
+    OrbitMemberCreate,
+    OrbitRole,
+    Orbit,
+)
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationInvite,
@@ -167,28 +172,28 @@ def test_org_details() -> dict:
             Orbit(
                 id=random.randint(1, 10000),
                 name="test orbit",
-                organization_id=test_org_details_id
+                organization_id=test_org_details_id,
+                total_members=0,
+                created_at=datetime.datetime.now(),
+                updated_at=None
             )
-        ]
+        ],
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_user_repo(
-        create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    return {
-        "engine": engine,
-        "repo": repo
-    }
+    return {"engine": engine, "repo": repo}
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_organization_with_user(
-        create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
@@ -203,13 +208,13 @@ async def create_organization_with_user(
         "repo": repo,
         "user": user,
         "organization": created_organization,
-        "member": member
+        "member": member,
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_organization_with_members(
-        create_database_and_apply_migrations: str,
+    create_database_and_apply_migrations: str,
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
@@ -275,20 +280,22 @@ async def create_organization_with_members(
         "organization": organization,
         "members": members,
         "invites": invites,
-        "user_owner": user_main
+        "user_owner": user_main,
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def create_orbit(
-        create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
     repo = OrbitRepository(engine)
 
     user = await user_repo.create_user(CreateUser(**test_user))
-    created_organization = await user_repo.create_organization(user.id, "test org", None)
+    created_organization = await user_repo.create_organization(
+        user.id, "test org", None
+    )
     created_orbit = await repo.create_orbit(
         created_organization.id, OrbitCreate(name="test orbit")
     )
@@ -304,7 +311,7 @@ async def create_orbit(
 
 @pytest_asyncio.fixture(scope="function")
 async def create_orbit_with_members(
-        create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str, test_user: dict
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
@@ -312,7 +319,9 @@ async def create_orbit_with_members(
 
     user = await user_repo.create_user(CreateUser(**test_user))
 
-    created_organization = await user_repo.create_organization(user.id, "test org", None)
+    created_organization = await user_repo.create_organization(
+        user.id, "test org", None
+    )
     created_orbit = await repo.create_orbit(
         created_organization.id, OrbitCreate(name="test orbit")
     )

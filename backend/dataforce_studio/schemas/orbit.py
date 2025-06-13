@@ -17,12 +17,13 @@ class Orbit(BaseModel, BaseOrmConfig):
     id: int
     name: str
     organization_id: int
+    total_members: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 class OrbitDetails(Orbit):
     members: list["OrbitMember"] | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
