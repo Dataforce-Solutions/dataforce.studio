@@ -50,13 +50,13 @@ handler = OrganizationHandler()
 )
 @pytest.mark.asyncio
 async def test_send_invite(
-        mock_create_organization_invite: AsyncMock,
-        mock_get_organization_members_count: AsyncMock,
-        mock_send_organization_invite_email: MagicMock,
-        mock_get_organization_member_role: AsyncMock,
-        mock_get_invite: AsyncMock,
-        mock_get_public_user_by_id: AsyncMock,
-        test_user: dict
+    mock_create_organization_invite: AsyncMock,
+    mock_get_organization_members_count: AsyncMock,
+    mock_send_organization_invite_email: MagicMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_invite: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    test_user: dict,
 ) -> None:
     invite_id = random.randint(1, 10000)
     user = UserOut(**test_user, id=random.randint(1, 10000))
@@ -80,7 +80,6 @@ async def test_send_invite(
     mock_create_organization_invite.assert_awaited_once()
 
 
-
 @patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
@@ -91,9 +90,9 @@ async def test_send_invite(
 )
 @pytest.mark.asyncio
 async def test_send_invite_to_yourself(
-        mock_get_organization_member_role: AsyncMock,
-        mock_get_public_user_by_id: AsyncMock,
-        test_user: dict
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    test_user: dict,
 ) -> None:
     user = UserOut(**test_user, id=random.randint(1, 10000))
 
@@ -105,10 +104,8 @@ async def test_send_invite_to_yourself(
     mock_get_public_user_by_id.return_value = user
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-
     with pytest.raises(ServiceError, match="You can't invite yourself"):
         await handler.send_invite(user.id, invite)
-
 
 
 @patch(
@@ -121,8 +118,8 @@ async def test_send_invite_to_yourself(
 )
 @pytest.mark.asyncio
 async def test_cancel_invite(
-        mock_delete_organization_invite: AsyncMock,
-        mock_get_organization_member_role: AsyncMock,
+    mock_delete_organization_invite: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
 ) -> None:
     organization_id = random.randint(1, 10000)
     user_id = random.randint(1, 10000)
@@ -155,10 +152,10 @@ async def test_cancel_invite(
 )
 @pytest.mark.asyncio
 async def test_accept_invite(
-        mock_delete_organization_invites_for_user: AsyncMock,
-        mock_get_invite: AsyncMock,
-        mock_create_organization_member: AsyncMock,
-        mock_get_organization_members_count: AsyncMock,
+    mock_delete_organization_invites_for_user: AsyncMock,
+    mock_get_invite: AsyncMock,
+    mock_create_organization_member: AsyncMock,
+    mock_get_organization_members_count: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     invite = OrganizationInviteOrm(**invite_accept_data)
@@ -185,7 +182,7 @@ async def test_accept_invite(
 )
 @pytest.mark.asyncio
 async def test_reject_invite(
-        mock_delete_organization_invite: AsyncMock,
+    mock_delete_organization_invite: AsyncMock,
 ) -> None:
     invite_id = random.randint(1, 10000)
 
@@ -207,8 +204,8 @@ async def test_reject_invite(
 )
 @pytest.mark.asyncio
 async def test_get_organization_invites(
-        mock_get_organization_invites: AsyncMock,
-        mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_invites: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -229,7 +226,7 @@ async def test_get_organization_invites(
 )
 @pytest.mark.asyncio
 async def test_get_user_invites(
-        mock_get_user_invites: AsyncMock,
+    mock_get_user_invites: AsyncMock,
 ) -> None:
     invite = UserInvite(**invite_user_get_data)
     expected = [invite]

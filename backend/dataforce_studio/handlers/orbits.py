@@ -1,3 +1,5 @@
+from sqlalchemy.exc import IntegrityError
+
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
@@ -6,6 +8,7 @@ from dataforce_studio.infra.exceptions import (
     ServiceError,
 )
 from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -19,6 +22,7 @@ from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class OrbitHandler:
+    __user_repository = UserRepository(engine)
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
 
@@ -131,7 +135,21 @@ class OrbitHandler:
             Action.CREATE,
         )
 
-        return await self.__orbits_repository.create_orbit_member(member)
+        org_member = await self.__user_repository.get_organization_member(
+            organization_id, member.user_id
+        )
+
+        if not org_member:
+            raise ServiceError(
+                "User must be a member of the organization to be added to an orbit."
+            )
+
+        if user_id == member.user_id:
+            raise ServiceError("You can not add yourself to orbit.")
+        try:
+            return await self.__orbits_repository.create_orbit_member(member)
+        except IntegrityError as error:
+            raise ServiceError("Member already exist.") from error
 
     async def update_orbit_member(
         self,
@@ -140,7 +158,12 @@ class OrbitHandler:
         orbit_id: int,
         member: UpdateOrbitMember,
     ) -> OrbitMember:
-        if user_id == member.id:
+        member_obj = await self.__orbits_repository.get_orbit_member(member.id)
+
+        if not member_obj:
+            raise NotFoundError("Orbit Member not found")
+
+        if user_id == member_obj.user.id:
             raise ServiceError("You can not update your own data.")
 
         await self.__permissions_handler.check_orbit_action_access(
@@ -150,18 +173,22 @@ class OrbitHandler:
             Resource.ORBIT_USER,
             Action.UPDATE,
         )
+        updated = await self.__orbits_repository.update_orbit_member(member)
 
-        member_obj = await self.__orbits_repository.update_orbit_member(member)
-
-        if not member_obj:
+        if not updated:
             raise NotFoundError("Orbit Member not found")
 
-        return member_obj
+        return updated
 
     async def delete_orbit_member(
         self, user_id: int, organization_id: int, orbit_id: int, member_id: int
     ) -> None:
-        if user_id == member_id:
+        member_obj = await self.__orbits_repository.get_orbit_member(member_id)
+
+        if not member_obj:
+            raise NotFoundError("Orbit Member not found")
+
+        if user_id == member_obj.user.id:
             raise ServiceError("You can not remove yourself from orbit.")
 
         await self.__permissions_handler.check_orbit_action_access(

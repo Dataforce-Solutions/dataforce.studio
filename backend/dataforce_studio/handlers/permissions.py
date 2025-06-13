@@ -77,15 +77,17 @@ class PermissionsHandler:
         resource: Resource,
         action: Action,
     ) -> None:
-        await self.check_organization_permission(
+        org_role = await self.check_organization_permission(
             organization_id,
             user_id,
             resource,
             action,
         )
-        await self.check_orbit_permission(
-            orbit_id,
-            user_id,
-            resource,
-            action,
-        )
+
+        if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
+            await self.check_orbit_permission(
+                orbit_id,
+                user_id,
+                resource,
+                action,
+            )

@@ -1,10 +1,10 @@
-import datetime
 import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -19,12 +19,21 @@ from dataforce_studio.schemas.organization import OrgRole
 
 handler = OrbitHandler()
 
-test_orbit = {"name": "test", "organization_id": random.randint(1, 10000)}
+test_orbit = {
+    "name": "test",
+    "organization_id": random.randint(1, 10000),
+    "total_members": 1,
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": "2025-05-17T09:52:38.234961Z",
+}
 
 test_orbit_created = {
     "id": random.randint(1, 10000),
     "name": "test",
     "organization_id": random.randint(1, 10000),
+    "total_members": 0,
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": None,
 }
 
 test_orbit_id = random.randint(1, 10000)
@@ -51,8 +60,8 @@ test_orbit_details = {
     "members": [
         test_orbit_member,
     ],
-    "created_at": datetime.datetime.now(),
-    "updated_at": datetime.datetime.now(),
+    "created_at": "2025-05-17T09:52:38.234961Z",
+    "updated_at": "2025-05-17T09:52:38.234961Z",
 }
 
 
@@ -334,21 +343,34 @@ async def test_get_orbit_members(
     "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit_member",
     new_callable=AsyncMock,
 )
+@patch(
+    "dataforce_studio.handlers.orbits.UserRepository.get_organization_member",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_orbit_member(
+    mock_get_organization_member: AsyncMock,
     mock_create_orbit_member: AsyncMock,
     mock_get_orbit_members_count: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
+    user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
-    expected = OrbitMember(**test_orbit_member)
+
+    new_member = test_orbit_member.copy()
+    new_member["user_id"] = user_id
+
+    expected = OrbitMember(**new_member)
     create_member = OrbitMemberCreate(
-        user_id=test_orbit_member["user"]["id"],
+        user_id=user_id,
         orbit_id=test_orbit_member["orbit_id"],
         role=test_orbit_member["role"],
     )
 
+    mock_get_organization_member.return_value = OrganizationMemberOrm(
+        id=1, user_id=1, organization_id=organization_id, role=OrgRole.OWNER
+    )
     mock_create_orbit_member.return_value = expected
     mock_get_orbit_members_count.return_value = 0
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -374,23 +396,31 @@ async def test_create_orbit_member(
     "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit_member",
     new_callable=AsyncMock,
 )
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_update_orbit_member(
+    mock_get_orbit_member: AsyncMock,
     mock_update_orbit_member: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
+    user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
-    expected = OrbitMember(**test_orbit_member)
+    initial_member = OrbitMember(**test_orbit_member)
+    expected = initial_member
     expected.role = OrbitRole.ADMIN
     update_member = UpdateOrbitMember(id=expected.id, role=OrbitRole.ADMIN)
 
+    mock_get_orbit_member.return_value = initial_member
     mock_update_orbit_member.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
     result = await handler.update_orbit_member(
-        expected.user.id, organization_id, expected.orbit_id, update_member
+        user_id, organization_id, expected.orbit_id, update_member
     )
 
     assert result == expected
@@ -409,8 +439,13 @@ async def test_update_orbit_member(
     "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit_member",
     new_callable=AsyncMock,
 )
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_update_orbit_member_not_found(
+    mock_get_orbit_member: AsyncMock,
     mock_update_orbit_member: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
@@ -421,6 +456,7 @@ async def test_update_orbit_member_not_found(
 
     update_member = UpdateOrbitMember(id=random.randint(1, 10000), role=OrbitRole.ADMIN)
 
+    mock_get_orbit_member.return_value = None
     mock_update_orbit_member.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
@@ -431,7 +467,6 @@ async def test_update_orbit_member_not_found(
         )
 
     assert error.value.status_code == 404
-    mock_update_orbit_member.assert_awaited_once_with(update_member)
 
 
 @patch(
@@ -446,24 +481,30 @@ async def test_update_orbit_member_not_found(
     "dataforce_studio.handlers.orbits.OrbitRepository.delete_orbit_member",
     new_callable=AsyncMock,
 )
+@patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_delete_orbit_member(
+    mock_get_orbit_member: AsyncMock,
     mock_delete_orbit_member: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    member_id = random.randint(1, 10000)
 
+    member = OrbitMember(**test_orbit_member)
+
+    mock_get_orbit_member.return_value = member
     mock_delete_orbit_member.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
     deleted = await handler.delete_orbit_member(
-        user_id, organization_id, orbit_id, member_id
+        user_id, organization_id, member.orbit_id, member.id
     )
 
     assert deleted is None
-    mock_delete_orbit_member.assert_awaited_once_with(member_id)
+    mock_delete_orbit_member.assert_awaited_once_with(member.id)

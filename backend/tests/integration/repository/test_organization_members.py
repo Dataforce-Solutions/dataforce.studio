@@ -16,7 +16,9 @@ organization_member_data = {
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member(create_organization_with_user: dict, test_user: dict) -> None:
+async def test_create_organization_member(
+    create_organization_with_user: dict, test_user: dict
+) -> None:
     data = create_organization_with_user
     repo, created_organization = data["repo"], data["organization"]
     new_user = test_user.copy()
@@ -48,10 +50,16 @@ async def test_update_organization_member(create_organization_with_user: dict) -
 @pytest.mark.asyncio
 async def test_delete_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    repo, created_organization, member = data["repo"], data["organization"], data["member"]
+    repo, created_organization, member = (
+        data["repo"],
+        data["organization"],
+        data["member"],
+    )
 
     deleted_member = await repo.delete_organization_member(member.id)
-    org_members_count = await repo.get_organization_members_count(created_organization.id)
+    org_members_count = await repo.get_organization_members_count(
+        created_organization.id
+    )
 
     assert deleted_member is None
     assert org_members_count == 0 or org_members_count is None

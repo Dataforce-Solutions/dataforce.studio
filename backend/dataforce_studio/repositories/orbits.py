@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import selectinload
 
 from dataforce_studio.models import OrbitMembersOrm, OrbitOrm
@@ -9,15 +9,13 @@ from dataforce_studio.schemas.orbit import (
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
+    OrbitRole,
     OrbitUpdate,
     UpdateOrbitMember,
 )
 
 
 class OrbitRepository(RepositoryBase, CrudMixin):
-    # async def check_orbits_limit(self):
-    #     pass
-
     async def get_organization_orbits(self, organization_id: int) -> list[Orbit]:
         async with self._get_session() as session:
             result = await session.execute(
@@ -38,7 +36,16 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             )
             db_orbit = result.scalar_one_or_none()
 
-            return db_orbit.to_orbit_details() if db_orbit else None
+            if not db_orbit:
+                return None
+
+            db_orbit.members.sort(
+                key=lambda m: {OrbitRole.ADMIN: 1, OrbitRole.MEMBER: 2}.get(
+                    OrbitRole(m.role), 3
+                )
+            )
+
+            return db_orbit.to_orbit_details()
 
     async def get_orbit_simple(self, orbit_id: int) -> Orbit | None:
         async with self._get_session() as session, session.begin():
@@ -72,12 +79,28 @@ class OrbitRepository(RepositoryBase, CrudMixin):
     async def get_orbit_members(self, orbit_id: int) -> list[OrbitMember]:
         async with self._get_session() as session:
             result = await session.execute(
-                select(OrbitMembersOrm).filter(OrbitMembersOrm.orbit_id == orbit_id)
+                select(OrbitMembersOrm)
+                .filter(OrbitMembersOrm.orbit_id == orbit_id)
+                .order_by(
+                    case(
+                        (OrbitMembersOrm.role == OrbitRole.ADMIN, 1),
+                        (OrbitMembersOrm.role == OrbitRole.MEMBER, 2),
+                        else_=3,
+                    ),
+                )
             )
             db_orbit_members = result.scalars().all()
             return [member.to_orbit_member() for member in db_orbit_members]
 
-    async def get_orbit_member(self, *where_conditions) -> OrbitMembersOrm | None:
+    async def get_orbit_member(self, member_id: int) -> OrbitMember | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrbitMembersOrm).where(OrbitMembersOrm.id == member_id)
+            )
+            db_member = result.scalar_one_or_none()
+            return db_member.to_orbit_member() if db_member else None
+
+    async def get_orbit_member_where(self, *where_conditions) -> OrbitMembersOrm | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(OrbitMembersOrm).where(*where_conditions)
@@ -121,7 +144,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         return result.scalar() or 0
 
     async def get_orbit_member_role(self, orbit_id: int, user_id: int) -> str | None:
-        member = await self.get_orbit_member(
+        member = await self.get_orbit_member_where(
             OrbitMembersOrm.orbit_id == orbit_id, OrbitMembersOrm.user_id == user_id
         )
         return str(member.role) if member else None
