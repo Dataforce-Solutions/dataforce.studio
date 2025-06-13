@@ -92,7 +92,15 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             db_orbit_members = result.scalars().all()
             return [member.to_orbit_member() for member in db_orbit_members]
 
-    async def get_orbit_member(self, *where_conditions) -> OrbitMembersOrm | None:
+    async def get_orbit_member(self, member_id: int) -> OrbitMember | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrbitMembersOrm).where(OrbitMembersOrm.id == member_id)
+            )
+            db_member = result.scalar_one_or_none()
+            return db_member.to_orbit_member() if db_member else None
+
+    async def get_orbit_member_where(self, *where_conditions) -> OrbitMembersOrm | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(OrbitMembersOrm).where(*where_conditions)
@@ -136,7 +144,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         return result.scalar() or 0
 
     async def get_orbit_member_role(self, orbit_id: int, user_id: int) -> str | None:
-        member = await self.get_orbit_member(
+        member = await self.get_orbit_member_where(
             OrbitMembersOrm.orbit_id == orbit_id, OrbitMembersOrm.user_id == user_id
         )
         return str(member.role) if member else None

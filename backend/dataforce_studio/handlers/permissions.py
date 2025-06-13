@@ -84,7 +84,7 @@ class PermissionsHandler:
             action,
         )
 
-        if org_role != OrgRole.OWNER and org_role != OrgRole.ADMIN:
+        if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
             await self.check_orbit_permission(
                 orbit_id,
                 user_id,

@@ -175,7 +175,7 @@ def test_org_details() -> dict:
                 organization_id=test_org_details_id,
                 total_members=0,
                 created_at=datetime.datetime.now(),
-                updated_at=None
+                updated_at=None,
             )
         ],
     }
