@@ -80,6 +80,11 @@ class UserRepository(RepositoryBase, CrudMixin):
             db_user = result.scalar_one_or_none()
             return db_user.to_public_user() if db_user else None
 
+    async def get_public_user_by_id(self, user_id: int) -> UserOut | None:
+        async with self._get_session() as session:
+            db_user = await self.get_model(session, UserOrm, user_id)
+            return db_user.to_public_user() if db_user else None
+
     async def delete_user(self, email: EmailStr) -> None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -250,6 +255,8 @@ class UserRepository(RepositoryBase, CrudMixin):
             details.total_orbits = len(db_organization.orbits)
             details.total_members = len(db_organization.members)
             details.members_by_role = get_members_roles_count(db_organization.members)
+            # TODO update hardcoded limits after dynamical limits
+            #  are added for organizations
             details.members_limit = 50
             details.orbits_limit = 10
 
@@ -317,6 +324,14 @@ class UserRepository(RepositoryBase, CrudMixin):
     async def delete_organization_member(self, member_id: int) -> None:
         return await self.delete_organization_member_where(
             OrganizationMemberOrm.id == member_id
+        )
+
+    async def delete_organization_member_by_user_id(
+        self, user_id: int, organization_id: int
+    ) -> None:
+        return await self.delete_organization_member_where(
+            OrganizationMemberOrm.user_id == user_id,
+            OrganizationMemberOrm.organization_id == organization_id,
         )
 
     async def get_organization_members_where(
