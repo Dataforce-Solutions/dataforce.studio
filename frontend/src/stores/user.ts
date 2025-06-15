@@ -7,11 +7,13 @@ import type {
   IUpdateUserRequest,
 } from '@/lib/api/DataforceApi.interfaces'
 import { useAuthStore } from './auth'
-import { useRouter } from 'vue-router'
+import { useOrganizationStore } from './organization'
+import { useInvitationsStore } from './invitations'
 
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
-  const router = useRouter()
+  const invitationsStore = useInvitationsStore()
+  const organizationStore = useOrganizationStore()
 
   const user = ref<IUser | null>(null)
   const isPasswordHasBeenChanged = ref(false)
@@ -24,8 +26,9 @@ export const useUserStore = defineStore('user', () => {
 
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
-
     user.value = data
+    await invitationsStore.getInvitations()
+    await organizationStore.getAvailableOrganizations()
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {

@@ -1,31 +1,34 @@
 <template>
   <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
-    <nav class="nav">
-      <ul class="list">
-        <li v-for="item in sidebarMenu" :key="item.id" class="item">
-          <div
-            v-if="item.disabled && isSidebarOpened"
-            v-tooltip.bottom="item.tooltipMessage"
-            class="menu-link disabled"
-          >
-            <component :is="item.icon" :size="14" class="icon"></component>
-            <span>{{ item.label }}</span>
-          </div>
-          <div
-            v-else-if="item.disabled && !isSidebarOpened"
-            v-tooltip.right="item.tooltipMessage"
-            class="menu-link disabled"
-          >
-            <component :is="item.icon" :size="14" class="icon"></component>
-            <span>{{ item.label }}</span>
-          </div>
-          <router-link v-else :to="{ name: item.route }" class="menu-link" @click="sendAnalytics(item.analyticsOption)">
-            <component :is="item.icon" :size="14" class="icon"></component>
-            <span>{{ item.label }}</span>
-          </router-link>
-        </li>
-      </ul>
-    </nav>
+    <div>
+      <OrganizationManagePopover v-if="authStore.isAuth" style="margin-bottom: 8px;"></OrganizationManagePopover>
+      <nav class="nav">
+        <ul class="list">
+          <li v-for="item in sidebarMenu" :key="item.id" class="item">
+            <div
+              v-if="item.disabled && isSidebarOpened"
+              v-tooltip.bottom="item.tooltipMessage"
+              class="menu-link disabled"
+            >
+              <component :is="item.icon" :size="14" class="icon"></component>
+              <span>{{ item.label }}</span>
+            </div>
+            <div
+              v-else-if="item.disabled && !isSidebarOpened"
+              v-tooltip.right="item.tooltipMessage"
+              class="menu-link disabled"
+            >
+              <component :is="item.icon" :size="14" class="icon"></component>
+              <span>{{ item.label }}</span>
+            </div>
+            <router-link v-else :to="{ name: item.route }" class="menu-link" @click="sendAnalytics(item.analyticsOption)">
+              <component :is="item.icon" :size="14" class="icon"></component>
+              <span>{{ item.label }}</span>
+            </router-link>
+          </li>
+        </ul>
+      </nav>
+    </div>
     <div class="sidebar-bottom">
       <nav class="nav-bottom">
         <ul class="list">
@@ -59,8 +62,11 @@ import { onMounted, ref, watch } from 'vue'
 import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
+import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const { width } = useWindowSize()
+const authStore = useAuthStore()
 
 const isSidebarOpened = ref(true)
 

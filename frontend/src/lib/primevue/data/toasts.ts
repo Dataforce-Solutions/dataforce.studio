@@ -84,3 +84,17 @@ export const simpleSuccessToast = (detail: string, title?: string): ToastMessage
   detail: detail,
   life: 3000,
 })
+
+export const simpleErrorToast = (detail: string, title?: string): ToastMessageOptions => ({
+  severity: 'error',
+  summary: title || 'Error',
+  detail: detail,
+  life: 3000,
+})
+
+export const simpleWardToast = (detail: string, title?: string): ToastMessageOptions => ({
+  severity: 'warn',
+  summary: title || 'Warn',
+  detail: detail,
+  life: 3000,
+})

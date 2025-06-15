@@ -33,7 +33,7 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
 
           const { data: responseData } = await api.post<IPostRefreshTokenResponse>(
             '/auth/refresh',
-            data,
+            data.refresh_token,
           )
 
           const newToken = responseData.access_token
