@@ -5,6 +5,7 @@ from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.bucket_secrets import BucketSecretOrm
 from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationDetails,
@@ -31,6 +32,10 @@ class OrganizationOrm(TimestampMixin, Base):
     )
 
     orbits: Mapped[list["OrbitOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="organization", cascade="all, delete, delete-orphan"
+    )
+
+    bucket_secrets: Mapped[list["BucketSecretOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 

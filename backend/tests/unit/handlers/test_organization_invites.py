@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.exceptions import InsufficientPermissionsError, ServiceError
+from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInviteIn,

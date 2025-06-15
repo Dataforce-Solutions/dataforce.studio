@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     AUTH_SECRET_KEY: str
+    BUCKET_SECRET_KEY: str
 
     POSTGRESQL_DSN: str
 

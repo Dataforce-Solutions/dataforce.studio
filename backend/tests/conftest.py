@@ -3,14 +3,16 @@ import random
 
 import asyncpg
 import pytest_asyncio
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.bucket_secrets import BucketSecretCreate
 from dataforce_studio.schemas.orbit import (
+    Orbit,
     OrbitCreate,
     OrbitMemberCreate,
     OrbitRole,
-    Orbit,
 )
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
@@ -61,7 +63,6 @@ async def create_database_and_apply_migrations():  # noqa: ANN201
 
     await _create_database(admin_dsn, TEST_DB_NAME)
     await migrate_db(test_dsn)
-
     yield test_dsn
 
     await _drop_database(admin_dsn, TEST_DB_NAME)
@@ -176,6 +177,7 @@ def test_org_details() -> dict:
                 total_members=0,
                 created_at=datetime.datetime.now(),
                 updated_at=None,
+                bucket_secret_id=1,
             )
         ],
     }
@@ -197,17 +199,27 @@ async def create_organization_with_user(
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
+    secret_repo = BucketSecretRepository(engine)
 
     user = await repo.create_user(CreateUser(**test_user))
 
     created_organization = await repo.create_organization(user.id, "test org", None)
     member = await repo.get_organization_member(created_organization.id, user.id)
 
+    secret = await secret_repo.create_bucket_secret(
+        BucketSecretCreate(
+            organization_id=created_organization.id,
+            endpoint="s3",
+            bucket_name="test-bucket",
+        )
+    )
+
     return {
         "engine": engine,
         "repo": repo,
         "user": user,
         "organization": created_organization,
+        "bucket_secret": secret,
         "member": member,
     }
 
@@ -223,8 +235,8 @@ async def create_organization_with_members(
 
     user_main = await repo.create_user(
         CreateUser(
-            email=f"userMAIN@gmail.com",
-            full_name=f"Test User MAIN",
+            email="userMAIN@gmail.com",
+            full_name="Test User MAIN",
             disabled=False,
             email_verified=True,
             auth_method=AuthProvider.EMAIL,
@@ -271,7 +283,6 @@ async def create_organization_with_members(
                 invited_by=invited_by_user.id,
             )
         )
-        print(invite)
         invites.append(invite)
 
     return {
@@ -290,14 +301,23 @@ async def create_orbit(
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
+    secret_repo = BucketSecretRepository(engine)
     repo = OrbitRepository(engine)
 
     user = await user_repo.create_user(CreateUser(**test_user))
     created_organization = await user_repo.create_organization(
         user.id, "test org", None
     )
+    secret = await secret_repo.create_bucket_secret(
+        BucketSecretCreate(
+            organization_id=created_organization.id,
+            endpoint="s3",
+            bucket_name="test-bucket",
+        )
+    )
     created_orbit = await repo.create_orbit(
-        created_organization.id, OrbitCreate(name="test orbit")
+        created_organization.id,
+        OrbitCreate(name="test orbit", bucket_secret_id=secret.id),
     )
 
     return {
@@ -305,6 +325,7 @@ async def create_orbit(
         "repo": repo,
         "organization": created_organization,
         "orbit": created_orbit,
+        "bucket_secret": secret,
         "user": user,
     }
 
@@ -315,6 +336,7 @@ async def create_orbit_with_members(
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
+    secret_repo = BucketSecretRepository(engine)
     repo = OrbitRepository(engine)
 
     user = await user_repo.create_user(CreateUser(**test_user))
@@ -322,8 +344,16 @@ async def create_orbit_with_members(
     created_organization = await user_repo.create_organization(
         user.id, "test org", None
     )
+    secret = await secret_repo.create_bucket_secret(
+        BucketSecretCreate(
+            organization_id=created_organization.id,
+            endpoint="s3",
+            bucket_name="test-bucket",
+        )
+    )
     created_orbit = await repo.create_orbit(
-        created_organization.id, OrbitCreate(name="test orbit")
+        created_organization.id,
+        OrbitCreate(name="test orbit", bucket_secret_id=secret.id),
     )
 
     members = []
@@ -347,5 +377,6 @@ async def create_orbit_with_members(
         "repo": repo,
         "organization": created_organization,
         "orbit": created_orbit,
+        "bucket_secret": secret,
         "members": members,
     }

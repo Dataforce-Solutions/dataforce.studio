@@ -1,9 +1,5 @@
-import random
-
 import pytest
 from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
-from fastapi import HTTPException
-
 from dataforce_studio.schemas.user import CreateUser
 
 organization_data = {"name": "test organization", "logo": None}

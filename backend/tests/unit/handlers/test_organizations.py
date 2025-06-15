@@ -4,18 +4,18 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
+    InsufficientPermissionsError,
     NotFoundError,
     OrganizationLimitReachedError,
-    InsufficientPermissionsError,
 )
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
+    Organization,
+    OrganizationCreate,
     OrganizationDetails,
     OrganizationSwitcher,
-    OrgRole,
-    OrganizationCreate,
-    Organization,
     OrganizationUpdate,
+    OrgRole,
 )
 
 handler = OrganizationHandler()

@@ -1,5 +1,7 @@
 import pytest
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.bucket_secrets import BucketSecretCreate
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -15,10 +17,14 @@ from dataforce_studio.schemas.orbit import (
 @pytest.mark.asyncio
 async def test_create_orbit(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    engine, organization = data["engine"], data["organization"]
+    engine, organization, secret = (
+        data["engine"],
+        data["organization"],
+        data["bucket_secret"],
+    )
     repo = OrbitRepository(engine)
 
-    orbit = OrbitCreate(name="test orbit")
+    orbit = OrbitCreate(name="test orbit", bucket_secret_id=secret.id)
     created_orbit = await repo.create_orbit(organization.id, orbit)
 
     assert created_orbit.id
@@ -29,10 +35,14 @@ async def test_create_orbit(create_organization_with_user: dict) -> None:
 @pytest.mark.asyncio
 async def test_update_orbit(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    engine, organization = data["engine"], data["organization"]
+    engine, organization, secret = (
+        data["engine"],
+        data["organization"],
+        data["bucket_secret"],
+    )
     repo = OrbitRepository(engine)
 
-    orbit = OrbitCreate(name="test orbit")
+    orbit = OrbitCreate(name="test orbit", bucket_secret_id=secret.id)
     created_orbit = await repo.create_orbit(organization.id, orbit)
 
     new_name = created_orbit.name + "updated"
@@ -43,6 +53,33 @@ async def test_update_orbit(create_organization_with_user: dict) -> None:
     assert updated_orbit
     assert updated_orbit.id == created_orbit.id
     assert updated_orbit.name == new_name
+
+
+@pytest.mark.asyncio
+async def test_attach_bucket_secret(create_organization_with_user: dict) -> None:
+    data = create_organization_with_user
+    engine, organization, secret = (
+        data["engine"],
+        data["organization"],
+        data["bucket_secret"],
+    )
+    repo = OrbitRepository(engine)
+    secret_repo = BucketSecretRepository(engine)
+
+    orbit = await repo.create_orbit(
+        organization.id, OrbitCreate(name="test", bucket_secret_id=secret.id)
+    )
+    secret = await secret_repo.create_bucket_secret(
+        BucketSecretCreate(
+            organization_id=organization.id, endpoint="s3", bucket_name="test-bucket"
+        )
+    )
+
+    updated = await repo.update_orbit(
+        orbit.id, OrbitUpdate(name=orbit.name, bucket_secret_id=secret.id)
+    )
+
+    assert updated.bucket_secret_id == secret.id
 
 
 @pytest.mark.asyncio
@@ -74,11 +111,18 @@ async def test_get_orbit(create_orbit: dict) -> None:
 @pytest.mark.asyncio
 async def test_get_organization_orbits(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
-    engine, organization = data["engine"], data["organization"]
+    engine, organization, secret = (
+        data["engine"],
+        data["organization"],
+        data["bucket_secret"],
+    )
     repo = OrbitRepository(engine)
 
     for i in range(5):
-        await repo.create_orbit(organization.id, OrbitCreate(name=f"orbit #{i}"))
+        await repo.create_orbit(
+            organization.id,
+            OrbitCreate(name=f"orbit #{i}", bucket_secret_id=secret.id),
+        )
 
     orbits = await repo.get_organization_orbits(organization.id)
 
