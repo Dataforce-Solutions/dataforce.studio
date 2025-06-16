@@ -32,8 +32,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function updateOrganization(organizationId: number, payload: CreateOrganizationPayload) {
-    const response = await dataforceApi.updateOrganization(organizationId, payload)
-    return response
+    return await dataforceApi.updateOrganization(organizationId, payload)
   }
 
   async function deleteOrganization(organizationId: number) {
