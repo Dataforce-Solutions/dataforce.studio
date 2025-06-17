@@ -33,7 +33,7 @@
       <div class="users-list">
         <div v-for="member in members" class="row">
           <div class="cell cell-user">
-            <Avatar shape="circle" :image="member.user.photo" />
+            <Avatar :label="member.user.full_name[0]" shape="circle" :image="member.user.photo" />
             <div>
               <h4>{{ member.user.full_name }}</h4>
               <div class="email">{{ member.user.email }}</div>
@@ -42,7 +42,7 @@
           <div class="cell">{{ member.role }}</div>
           <div class="cell">-</div>
           <div class="cell">
-            <OrganizationUserSettings :member="member"></OrganizationUserSettings>
+            <OrganizationUserSettings v-if="member.role !== OrganizationRoleEnum.owner" :member="member"></OrganizationUserSettings>
           </div>
         </div>
       </div>

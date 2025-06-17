@@ -1,5 +1,5 @@
 <template>
-  <Button severity="contrast" variant="text" @click="onClick">
+  <Button severity="contrast" variant="text" @click="onClick" class="button">
     <template #icon>
       <LogOut :size="14" />
     </template>
@@ -37,4 +37,8 @@ async function leave() {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.button {
+  flex-shrink: 0;
+}
+</style>

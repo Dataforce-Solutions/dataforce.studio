@@ -9,7 +9,7 @@
       <div class="popover-content">
         <header class="header">
           <Avatar size="large" :label="currentOrganizationAvatarLabel" :image="organizationStore.currentOrganization?.logo" class="avatar" />
-          <div>
+          <div class="header-content">
             <div class="name">{{ organizationStore.currentOrganization?.name }}</div>
             <div class="members">{{ organizationStore.currentOrganization?.members.length }} member</div>
           </div>
@@ -138,6 +138,10 @@ async function onOrganizationClick(organizationId: number) {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
+  width: 100%;
+}
+.header-content {
+  width: 100%;
 }
 .avatar {
   border-radius: 6px;
@@ -145,6 +149,9 @@ async function onOrganizationClick(organizationId: number) {
 }
 .name {
   margin-bottom: 4px;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .members {
   font-weight: 300;

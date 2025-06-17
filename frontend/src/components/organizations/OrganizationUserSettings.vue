@@ -19,7 +19,7 @@
     </template>
     <div class="dialog-content">
       <div class="user-info">
-        <Avatar shape="circle" size="xlarge" :image="member.user.photo" />
+        <Avatar :label="member.user.full_name[0]" shape="circle" size="xlarge" :image="member.user.photo" />
         <div>
           <div class="user-name">{{ member.user.full_name }}</div>
           <div class="user-email">{{ member.user.email }}</div>
@@ -67,10 +67,6 @@ const OPTIONS = [
   {
     label: 'Member',
     value: OrganizationRoleEnum.member,
-  },
-  {
-    label: 'Owner',
-    value: OrganizationRoleEnum.owner,
   },
 ]
 

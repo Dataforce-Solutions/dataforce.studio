@@ -3,7 +3,7 @@
     <div class="user-buttons">
       <UserInvitations></UserInvitations>
       <d-button severity="help" class="user-open-button" @click="toggleMenu">
-        <d-avatar :image="getUserAvatar" shape="circle"></d-avatar>
+        <d-avatar :label="mainButtonLabel[0]" :image="getUserAvatar" shape="circle"></d-avatar>
         <span>{{ mainButtonLabel }}</span>
         <chevron-down :size="14" />
       </d-button>
@@ -11,7 +11,7 @@
     <d-dialog v-model:visible="isDialogVisible" position="topright" :closable="false" :draggable="false" modal dismissableMask :style="{ marginTop: '85px'}" class="modal-transparent-mask">
        <template #header>
           <header class="header">
-            <d-avatar :image="getUserAvatar" shape="circle" size="large"></d-avatar>
+            <d-avatar :label="getUserFullName ? getUserFullName[0] : getUserEmail?.[0]" :image="getUserAvatar" shape="circle" size="large"></d-avatar>
             <div class="user-info">
               <div class="user-name">{{ getUserFullName }}</div>
               <div class="user-email">{{ getUserEmail }}</div>
