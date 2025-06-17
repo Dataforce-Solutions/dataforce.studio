@@ -1,6 +1,6 @@
 <template>
   <div class="area" @click="inputRef?.click()">
-    <d-avatar :image="newImage || image" size="xlarge" shape="circle" style="object-fit: cover" />
+    <d-avatar :image="newImage || image" size="xlarge" :shape="shape" style="object-fit: cover" :class="{square: shape === 'square'}"/>
     <input
       ref="inputRef"
       type="file"
@@ -30,6 +30,10 @@ defineProps({
   label: {
     type: String,
     default: 'Change photo',
+  },
+  shape: {
+    type: String,
+    default: 'circle',
   },
 })
 
@@ -79,5 +83,9 @@ const onInputChange = (event: Event) => {
   width: 0;
   height: 0;
   opacity: 0;
+}
+.square {
+  border-radius: 6px;
+  overflow: hidden;
 }
 </style>

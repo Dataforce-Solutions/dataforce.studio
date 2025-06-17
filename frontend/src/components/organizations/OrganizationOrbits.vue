@@ -1,0 +1,103 @@
+<template>
+  <div>
+    <h3 class="label">List of Orbits for current organization ({{ organizationStore.currentOrganization?.orbits.length || 0 }})</h3>
+    <div class="users">
+      <div class="users-header">
+        <div class="row">
+          <div class="cell">Orbit</div>
+          <div class="cell">Number of members</div>
+          <div class="cell">Created</div>
+          <div class="cell"></div>
+        </div>
+      </div>
+      <div v-if="organizationStore.currentOrganization?.orbits.length" class="users-list">
+        <div v-for="orbit in organizationStore.currentOrganization.orbits" class="row">
+          <div class="cell cell-user">
+            <div>
+              <h4>{{ orbit.name }}</h4>
+            </div>
+          </div>
+          <div class="cell">{{ orbit.total_members }}</div>
+          <div class="cell">{{ new Date(orbit.created_at).toLocaleDateString() }}</div>
+          <div class="cell">
+            <OrganizationOrbitSettings :orbit-id="orbit.id"></OrganizationOrbitSettings>
+          </div>
+        </div>
+      </div>
+      <div v-else>No organizations yet...</div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { useOrganizationStore } from '@/stores/organization'
+import OrganizationOrbitSettings from './OrganizationOrbitSettings.vue'
+
+const organizationStore = useOrganizationStore()
+</script>
+
+<style scoped>
+.label {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 50px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.list {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.item {
+  display: inline-flex;
+  gap: 7.5px;
+  align-items: center;
+}
+.item-label {
+  font-weight: 500;
+}
+.users {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--p-card-background);
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: var(--card-shadow);
+}
+.users-header {
+  padding: 10px 0;
+  font-weight: 500;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--p-divider-border-color);
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr 180px 120px 35px;
+  align-items: center;
+  gap: 40px;
+}
+.cell-user {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.email {
+  font-size: 12px;
+  color: var(--p-text-muted-color);
+}
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+</style>

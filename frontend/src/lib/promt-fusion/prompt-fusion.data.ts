@@ -6,9 +6,9 @@ import GptModel from '@/assets/img/providers/gpt-model.svg'
 import OllamaModel from '@/assets/img/providers/ollama-model.svg'
 
 export const getProviders = (): BaseProviderInfo[] => {
-  const settings = LocalStorageService.getProviderSettings()
-  const savedOpenAiSettings = settings[ProvidersEnum.openAi]
-  const savedOllamaSettings = settings[ProvidersEnum.ollama]
+  const settings = LocalStorageService.get('dataforce.providersSettings')
+  const savedOpenAiSettings = settings?.[ProvidersEnum.openAi]
+  const savedOllamaSettings = settings?.[ProvidersEnum.ollama]
   const data = [
     {
       id: ProvidersEnum.openAi,

@@ -1,5 +1,5 @@
 <template>
-  <div class="wrapper" :style="`padding-left:${sidebarWidth}px`">
+  <div class="wrapper" :style="{ paddingLeft: sidebarWidth + 'px' }">
     <UiClosablePlug v-if="plugStore.visible" text="Some operations involving models may not behave correctly on mobile." :style="{
       position: 'fixed',
       top: headerSizes.height + 'px',
@@ -9,7 +9,7 @@
     }" @close="plugStore.close"/>
     <layout-header class="header" :is-burger-open="isBurgerOpen" @burger-click="() => (isBurgerOpen = !isBurgerOpen)"/>
     <transition>
-      <layout-sidebar v-show="isBurgerAvailable ? isBurgerOpen : true" class="sidebar" ref="sidebarRef"/>
+      <layout-sidebar v-show="isBurgerAvailable ? isBurgerOpen : true" class="sidebar"/>
     </transition>
     <layout-footer class="footer" :style="`left:${sidebarWidth}px`" />
     <main class="page">
@@ -25,36 +25,27 @@ import LayoutSidebar from '@/components/layout/LayoutSidebar.vue'
 import LayoutFooter from '@/components/layout/LayoutFooter.vue'
 import MobileNotAvailablePlug from '@/components/plugs/MobileNotAvailablePlug.vue'
 import UiClosablePlug from '@/components/ui/UiClosablePlug.vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlugStore } from '@/stores/plug'
 import { useLayout } from '@/hooks/useLayout'
+import { useWindowSize } from '@/hooks/useWindowSize'
 
 const router = useRouter()
 const route = useRoute()
 const plugStore = usePlugStore()
 const { headerSizes, sidebarSizes } = useLayout()
+const { width: windowWidth } = useWindowSize()
 
 const isBurgerOpen = ref(false)
-const windowWidth = ref(window.innerWidth)
 
 const isBurgerAvailable = computed(() => windowWidth.value <= 768)
 const mobileNotAvailable = computed(() => route.meta.mobileAvailable === false)
 const showMobileNotAvailablePlug = computed(() => mobileNotAvailable.value && windowWidth.value <= 768)
 const sidebarWidth = computed(() => sidebarSizes.value.width)
 
-function onWindowResize() {
-  windowWidth.value = window.innerWidth
-}
-
 router.afterEach(() => {
   isBurgerOpen.value = false
-})
-onMounted(() => {
-  window.addEventListener('resize', onWindowResize)
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', onWindowResize)
 })
 </script>
 

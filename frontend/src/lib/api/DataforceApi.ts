@@ -1,9 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance } from 'axios'
-
 import type {
   IGetUserResponse,
-  IPostChangePasswordRequest,
   IPostLogoutRequest,
   IPostRefreshTokenRequest,
   IPostRefreshTokenResponse,
@@ -20,9 +18,25 @@ import type {
   IGetGoogleLoginRequest,
   IResetPasswordRequest,
   ISendEmailRequest,
+  Organization,
+  Invitation,
+  CreateOrganizationPayload,
+  CreateOrganizationResponse,
+  OrganizationDetails,
+  AddMemberPayload,
+  Member,
+  UpdateMemberPayload,
+  BaseDetailResponse,
+  CreateInvitePayload,
+  CreateOrbitPayload,
+  Orbit,
+  AddMemberToOrbitPayload,
+  OrbitDetails,
+  OrbitMember,
 } from './DataforceApi.interfaces'
-
+import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
+import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
 
 export class DataforceApiClass {
   private api: AxiosInstance
@@ -62,7 +76,7 @@ export class DataforceApiClass {
   }
 
   public async refreshToken(data: IPostRefreshTokenRequest): Promise<IPostRefreshTokenResponse> {
-    const { data: responseData } = await this.api.post('/auth/refresh', data, {
+    const { data: responseData } = await this.api.post('/auth/refresh', data.refresh_token, {
       skipInterceptors: true,
     })
 
@@ -111,5 +125,120 @@ export class DataforceApiClass {
     await this.api.post('/stats/email-send', data, {
       skipInterceptors: true,
     })
+  }
+
+  public async getInvitations() {
+    const { data: responseData } = await this.api.get<Invitation[]>('/users/me/invitations')
+    return responseData
+  }
+
+  public async createInvite(organizationId: number, data: CreateInvitePayload) {
+    const { data: responseData } = await this.api.post<Invitation>(`/organizations/${organizationId}/invitations`, data)
+    return responseData
+  }
+
+  public async acceptInvitation(inviteId: number) {
+    await this.api.post(`/users/me/invitations/${inviteId}/accept`)
+  }
+
+  public async rejectInvitation(inviteId: number) {
+    await this.api.post(`/users/me/invitations/${inviteId}/reject`)
+  }
+
+  public async cancelInvitation(organizationId: number, inviteId: number) {
+    await this.api.delete(`organizations/${organizationId}/invitations/${inviteId}`)
+  }
+
+  public async getOrganizations() {
+    const { data: responseData } = await this.api.get<Organization[]>('/users/me/organizations')
+    return responseData
+  }
+
+  public async createOrganization(data: CreateOrganizationPayload) {
+    const { data: responseData } = await this.api.post<CreateOrganizationResponse>('/organizations', data)
+    return responseData
+  }
+
+  public async updateOrganization(organizationId: number, data: CreateOrganizationPayload) {
+    const { data: responseData } = await this.api.patch<OrganizationDetails>(`/organizations/${organizationId}`, data)
+    return responseData
+  }
+
+  public async deleteOrganization(organizationId: number) {
+    await this.api.delete(`organizations/${organizationId}`)
+  }
+
+  public async leaveOrganization(organizationId: number) {
+    await this.api.delete(`organizations/${organizationId}/leave`)
+  }
+
+  public async getOrganization(id: number) {
+    const { data: responseData } = await this.api.get<OrganizationDetails>(`/organizations/${id}`)
+    return responseData
+  }
+
+  public async getOrganizationMembers(organizationId: number) {
+    const { data: responseData } = await this.api.get<Member>(`/organizations/${organizationId}/members`)
+    return responseData
+  }
+
+  public async addMemberToOrganization(organizationId: number, data: AddMemberPayload) {
+    const { data: responseData } = await this.api.post<Member>(`/organizations/${organizationId}/members`, data)
+    return responseData
+  }
+
+  public async updateOrganizationMember(organizationId: number, memberId: number, data: UpdateMemberPayload) {
+    const { data: responseData } = await this.api.patch<Member>(`/organizations/${organizationId}/members/${memberId}`, data)
+    return responseData
+  }
+
+  public async deleteMemberFormOrganization(organizationId: number, memberId: number) {
+   const { data: responseData } = await this.api.delete<BaseDetailResponse>(`/organizations/${organizationId}/members/${memberId}`)
+   return responseData
+  }
+
+  public async getOrganizationOrbits(organizationId: number) {
+    const { data: responseData } = await this.api.get<Orbit[]>(`/organizations/${organizationId}/orbits`)
+    return responseData
+  }
+
+  public async createOrbit(data: CreateOrbitPayload) {
+    const { data: responseData } = await this.api.post<Orbit>(`/organizations/${data.organization_id}/orbits`, data)
+    return responseData
+  }
+
+  public async getOrbitDetails(organizationId: number, orbitId: number) {
+    const { data: responseData } = await this.api.get<OrbitDetails>(`/organizations/${organizationId}/orbits/${orbitId}`)
+    return responseData
+  }
+
+  public async updateOrbit(organizationId: number, data: { id: number, name: string }) {
+    const { data: responseData } = await this.api.patch<Orbit>(`/organizations/${organizationId}/orbits/${data.id}`, data)
+    return responseData
+  }
+
+  public async deleteOrbit(organizationId: number, orbitId: number) {
+    const { data: responseData } = await this.api.delete<BaseDetailResponse>(`/organizations/${organizationId}/orbits/${orbitId}`)
+    return responseData
+  }
+
+  public async getOrbitMembers(organizationId: number, orbitId: number) {
+    const { data: responseData } = await this.api.get<OrbitMember>(`/organizations/${organizationId}/orbits/${orbitId}/members`)
+    return responseData
+  }
+
+  public async addMemberToOrbit(organizationId: number, data: AddMemberToOrbitPayload) {
+    const { data: responseData } = await this.api.post<OrbitMember>(`/organizations/${organizationId}/orbits/${data.orbit_id}/members`, data);
+    return responseData
+  }
+
+  public async updateOrbitMember(organizationId: number, orbitId: number, data: { id: number, role: OrbitRoleEnum }) {
+    const { data: responseData } = await this.api.patch<OrbitMember>(`/organizations/${organizationId}/orbits/${orbitId}/members/${data.id}`, data)
+    return responseData
+  }
+
+  public async deleteOrbitMember(organizationId: number, orbitId: number, memberId: number) {
+    const { data: responseData } = await this.api.delete<BaseDetailResponse>(`/organizations/${organizationId}/orbits/${orbitId}/members/${memberId}`)
+    return responseData
   }
 }

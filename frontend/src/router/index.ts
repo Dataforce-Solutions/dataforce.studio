@@ -108,6 +108,11 @@ const router = createRouter({
       name: 'data-agent',
       component: () => import('../pages/DataAgentPage.vue'),
     },
+    {
+      path: '/organizations/:id',
+      name: 'organization',
+      component: () => import('../pages/OrganizationPage.vue'),
+    },
   ],
 })
 

@@ -1,3 +1,10 @@
+import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
+import { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
+
+export interface BaseDetailResponse {
+  detail: string
+}
+
 export interface IPostSignupRequest {
   email: string
   password: string
@@ -90,4 +97,107 @@ export interface IResetPasswordRequest {
 export interface ISendEmailRequest {
   email: string
   description: string
+}
+
+export interface Organization {
+  id: number
+  name: string
+  logo: string | null
+  role: OrganizationRoleEnum
+}
+
+export interface Invitation {
+  id: number
+  email: string
+  role: OrganizationRoleEnum
+  organization_id: number
+  invited_by_user: Omit<IGetUserResponse, 'auth_method'>
+  created_at: Date
+  organization: Omit<Organization, 'role'>
+}
+
+export interface CreateOrganizationPayload {
+  name: string
+  logo: string
+}
+
+export interface CreateOrganizationResponse {
+  id: number
+  name: string
+  logo: string
+  created_at: Date
+  updated_at: Date
+}
+
+export interface OrganizationDetails {
+  id: number
+  name: string
+  logo: string
+  created_at: Date
+  updated_at: Date
+  invites: Omit<Invitation, 'organization'>[]
+  members: Member[]
+  orbits: Orbit[]
+  members_limit: number
+  orbits_limit: number
+  total_orbits: number
+  total_members: number
+  members_by_role: Record<OrganizationRoleEnum, number>
+}
+
+export interface Member {
+  id: number
+  organization_id: number
+  role: OrganizationRoleEnum
+  user: Omit<IGetUserResponse, 'auth_method'>
+}
+
+export interface AddMemberPayload {
+  user_id: number
+  organization_id: number
+  role: OrganizationRoleEnum
+}
+
+export interface UpdateMemberPayload {
+  role: OrganizationRoleEnum
+}
+
+export interface CreateInvitePayload {
+  email: string
+  role: OrganizationRoleEnum
+  organization_id: number
+}
+
+export interface Orbit {
+  id: number
+  name: string
+  organization_id: number
+  total_members: number
+  created_at: Date
+  updated_at: Date | null
+}
+
+export interface CreateOrbitPayload {
+  name: string
+  organization_id: number
+}
+
+export interface AddMemberToOrbitPayload {
+  user_id: number
+  orbit_id: number
+  role: OrbitRoleEnum
+}
+
+export interface OrbitDetails {
+  id: number
+  name: string
+  organization_id: number
+  members: OrbitMember[]
+  created_at: Date
+  updated_at: Date
+}
+
+export interface OrbitMember extends Omit<Member, 'organization_id' | 'role'> {
+  orbit_id: number
+  role: OrbitRoleEnum
 }

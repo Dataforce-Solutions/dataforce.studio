@@ -117,3 +117,20 @@
 .p-select-list-container {
   font-size: 14px;
 }
+
+.popover-without-arrow::before,
+.popover-without-arrow::after {
+  display: none !important;
+}
+
+.p-dialog-content {
+  flex: 1 1 auto;
+}
+
+.p-dialog-footer.organization-edit-footer {
+  justify-content: space-between;
+}
+ 
+.p-avatar.p-avatar-image {
+  background-color: var(--p-avatar-background);
+}

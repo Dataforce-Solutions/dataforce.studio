@@ -29,4 +29,5 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --p-avatar-background: var(--p-button-secondary-background);
 }

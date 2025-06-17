@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 export const useLayout = () => {
   const header = ref<HTMLElement | null>()
   const sidebar = ref<HTMLElement | null>()
+  const footer = ref<HTMLElement | null>()
 
   const resizeObserver = new ResizeObserver((entries) => {
     entries.map((entry) => {
@@ -10,6 +11,8 @@ export const useLayout = () => {
         setHeaderSizes()
       } else if (entry.target.id === 'sidebar') {
         setSidebarSizes()
+      } else if (entry.target.id === 'footer') {
+        setFooterSizes()
       }
     })
   })
@@ -19,6 +22,10 @@ export const useLayout = () => {
     height: 0,
   })
   const sidebarSizes = ref({
+    width: 0,
+    height: 0,
+  })
+  const footerSizes = ref({
     width: 0,
     height: 0,
   })
@@ -37,6 +44,13 @@ export const useLayout = () => {
     }
   }
 
+  function setFooterSizes() {
+    if (footer.value) {
+      footerSizes.value.width = footer.value.clientWidth
+      footerSizes.value.height = footer.value.clientHeight
+    }
+  }
+
   onMounted(() => {
     header.value = document.getElementById('header')
     if (header.value) {
@@ -47,6 +61,11 @@ export const useLayout = () => {
     if (sidebar.value) {
       resizeObserver.observe(sidebar.value)
     }
+
+    footer.value = document.getElementById('footer')
+    if (footer.value) {
+      resizeObserver.observe(footer.value)
+    }
   })
 
   onUnmounted(() => {
@@ -56,7 +75,10 @@ export const useLayout = () => {
     if (sidebar.value) {
       resizeObserver.unobserve(sidebar.value)
     }
+    if (footer.value) {
+      resizeObserver.unobserve(footer.value)
+    }
   })
 
-  return { headerSizes, sidebarSizes }
+  return { headerSizes, sidebarSizes, footerSizes }
 }

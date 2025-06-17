@@ -45,14 +45,14 @@ function onSave() {
 }
 
 onBeforeMount(() => {
-  const settings = LocalStorageService.getProviderSettings()
-  saveApiKey.value = !!settings.saveApiKeys
+  const settings = LocalStorageService.get('dataforce.providersSettings')
+  saveApiKey.value = !!settings?.saveApiKeys
 })
 
 watch(saveApiKey, (val) => {
-  const settings = LocalStorageService.getProviderSettings()
+  const settings = LocalStorageService.get('dataforce.providersSettings') || {}
   settings.saveApiKeys = val
-  LocalStorageService.setProviderSettings(settings)
+  LocalStorageService.set('dataforce.providersSettings', settings)
 })
 </script>
 

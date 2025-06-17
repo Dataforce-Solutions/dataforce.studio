@@ -1,5 +1,5 @@
 <template>
-  <footer class="footer">
+  <footer id="footer" class="footer">
     <p>© DataForce Solutions GmbH 2024</p>
   </footer>
 </template>

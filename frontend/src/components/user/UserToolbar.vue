@@ -1,14 +1,17 @@
 <template>
   <div class="wrapper">
-    <d-button severity="help" class="user-open-button" @click="toggleMenu">
-      <d-avatar :image="getUserAvatar" shape="circle"></d-avatar>
-      <span>{{ mainButtonLabel }}</span>
-      <chevron-down :size="14" />
-    </d-button>
+    <div class="user-buttons">
+      <UserInvitations></UserInvitations>
+      <d-button severity="help" class="user-open-button" @click="toggleMenu">
+        <d-avatar :label="mainButtonLabel[0]" :image="getUserAvatar" shape="circle"></d-avatar>
+        <span>{{ mainButtonLabel }}</span>
+        <chevron-down :size="14" />
+      </d-button>
+    </div>
     <d-dialog v-model:visible="isDialogVisible" position="topright" :closable="false" :draggable="false" modal dismissableMask :style="{ marginTop: '85px'}" class="modal-transparent-mask">
        <template #header>
           <header class="header">
-            <d-avatar :image="getUserAvatar" shape="circle" size="large"></d-avatar>
+            <d-avatar :label="getUserFullName ? getUserFullName[0] : getUserEmail?.[0]" :image="getUserAvatar" shape="circle" size="large"></d-avatar>
             <div class="user-info">
               <div class="user-name">{{ getUserFullName }}</div>
               <div class="user-email">{{ getUserEmail }}</div>
@@ -62,6 +65,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, type Theme } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
 import { passwordChangedSuccessToast } from '@/lib/primevue/data/toasts'
+import UserInvitations from './UserInvitations.vue'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
@@ -138,6 +142,13 @@ watch(theme, () => {
 .wrapper {
   --menu-item-color: #334155;
 }
+
+.user-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .user-open-button {
   font-size: 0.875rem;
   font-weight: 500;
