@@ -4,7 +4,6 @@ from dataforce_studio.api.orbits.orbit_collections import collections_router
 from dataforce_studio.api.orbits.orbit_ml_models import ml_models_router
 from dataforce_studio.api.orbits.orbits import organization_orbits_router
 from dataforce_studio.api.orbits.orbits_members import orbit_members_router
-from dataforce_studio.api.organization.organization import organization_router
 from dataforce_studio.api.organization.organization_bucket_secrets import (
     bucket_secrets_router,
 )
@@ -17,7 +16,6 @@ organization_all_routers = APIRouter(
     dependencies=[Depends(is_user_authenticated)],
 )
 
-organization_all_routers.include_router(organization_router)
 organization_all_routers.include_router(invites_router)
 organization_all_routers.include_router(members_router)
 organization_all_routers.include_router(organization_orbits_router)

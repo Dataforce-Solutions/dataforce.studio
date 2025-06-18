@@ -12,7 +12,7 @@ from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
     OrbitMemberCreate,
-    OrbitRole,
+    OrbitRole, OrbitCreateIn,
 )
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
@@ -317,7 +317,7 @@ async def create_orbit(
     )
     created_orbit = await repo.create_orbit(
         created_organization.id,
-        OrbitCreate(name="test orbit", bucket_secret_id=secret.id),
+        OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id),
     )
 
     return {
@@ -353,7 +353,7 @@ async def create_orbit_with_members(
     )
     created_orbit = await repo.create_orbit(
         created_organization.id,
-        OrbitCreate(name="test orbit", bucket_secret_id=secret.id),
+        OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id),
     )
 
     members = []

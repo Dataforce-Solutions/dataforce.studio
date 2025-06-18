@@ -6,6 +6,7 @@ from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
+    OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
@@ -13,6 +14,7 @@ from dataforce_studio.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
+from dataforce_studio.utils.organizations import convert_orbit_simple_members
 
 
 class OrbitRepository(RepositoryBase, CrudMixin):
@@ -56,12 +58,22 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
             return db_orbit.to_orbit() if db_orbit else None
 
-    async def create_orbit(self, organization_id: int, orbit: OrbitCreate) -> Orbit:
-        orbit.organization_id = organization_id
-
+    async def create_orbit(
+        self, organization_id: int, orbit: OrbitCreateIn
+    ) -> OrbitDetails | None:
         async with self._get_session() as session:
-            db_orbit = await self.create_model(session, OrbitOrm, orbit)
-            return db_orbit.to_orbit()
+            orbit_create = OrbitCreate(
+                name=orbit.name,
+                bucket_secret_id=orbit.bucket_secret_id,
+                organization_id=organization_id,
+            )
+            db_orbit = await self.create_model(session, OrbitOrm, orbit_create)
+
+            if orbit.members:
+                members = convert_orbit_simple_members(db_orbit.id, orbit.members)
+                await self.create_models(session, OrbitMembersOrm, members)
+
+            return await self.get_orbit(db_orbit.id)
 
     async def update_orbit(self, orbit_id: int, orbit: OrbitUpdate) -> Orbit | None:
         orbit.id = orbit_id
@@ -111,6 +123,13 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             db_member = await self.create_model(session, OrbitMembersOrm, member)
             return db_member.to_orbit_member()
+
+    async def create_orbit_members(
+        self, members: list[OrbitMemberCreate]
+    ) -> list[OrbitMember]:
+        async with self._get_session() as session:
+            db_members = await self.create_models(session, OrbitMembersOrm, members)
+            return [member.to_orbit_member() for member in db_members]
 
     async def update_orbit_member(
         self, member: UpdateOrbitMember

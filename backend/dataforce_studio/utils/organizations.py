@@ -1,5 +1,6 @@
 from pydantic import EmailStr
 
+from dataforce_studio.schemas.orbit import OrbitMemberCreate, OrbitMemberCreateSimple
 from dataforce_studio.schemas.organization import OrgRole
 
 
@@ -21,3 +22,12 @@ def get_members_roles_count(members: list) -> dict:
             members_by_role[member.role] += 1
 
     return dict(members_by_role)
+
+
+def convert_orbit_simple_members(
+    orbit_id: int, members: list[OrbitMemberCreateSimple]
+) -> list[OrbitMemberCreate]:
+    return [
+        OrbitMemberCreate(orbit_id=orbit_id, user_id=m.user_id, role=m.role)
+        for m in members
+    ]
