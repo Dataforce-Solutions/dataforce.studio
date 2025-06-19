@@ -117,11 +117,9 @@ async def test_create_organization_orbit(
 
     assert result == mocked_orbit
 
-    expected_orbit = OrbitCreate(
-        **orbit_to_create.model_dump(), organization_id=mocked_orbit.organization_id
-    )
+
     mock_create_orbit.assert_awaited_once_with(
-        mocked_orbit.organization_id, expected_orbit
+        mocked_orbit.organization_id, orbit_to_create
     )
 
 
@@ -149,7 +147,7 @@ async def test_create_organization_orbit_secret_not_found(
     mock_get_org_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreate(**test_orbit)
+    orbit_to_create = OrbitCreateIn(**test_orbit)
 
     mock_get_orbits_count.return_value = 0
     mock_get_secret.return_value = None
@@ -157,7 +155,7 @@ async def test_create_organization_orbit_secret_not_found(
 
     with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
         await handler.create_organization_orbit(
-            user_id, orbit_to_create.organization_id, orbit_to_create
+            user_id, test_orbit["organization_id"], orbit_to_create
         )
 
     assert error.value.status_code == 404
@@ -188,19 +186,19 @@ async def test_create_organization_orbit_secret_wrong_org(
     mock_get_org_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreate(**test_orbit)
+    orbit_to_create = OrbitCreateIn(**test_orbit)
 
     class Secret:
         def __init__(self, organization_id: int) -> None:
             self.organization_id = organization_id
 
     mock_get_orbits_count.return_value = 0
-    mock_get_secret.return_value = Secret(orbit_to_create.organization_id + 1)
+    mock_get_secret.return_value = Secret(test_orbit["organization_id"] + 1)
     mock_get_org_role.return_value = OrgRole.OWNER
 
     with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
         await handler.create_organization_orbit(
-            user_id, orbit_to_create.organization_id, orbit_to_create
+            user_id, test_orbit["organization_id"], orbit_to_create
         )
 
     assert error.value.status_code == 404

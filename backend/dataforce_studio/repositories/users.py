@@ -408,6 +408,18 @@ class UserRepository(RepositoryBase, CrudMixin):
         member = await self.get_organization_member(organization_id, user_id)
         return str(member.role) if member else None
 
+    async def get_organization_members_by_user_ids(
+        self, organization_id: int, user_ids: list[int]
+    ) -> list[OrganizationMember]:
+        async with self._get_session() as session:
+            db_members = await self.get_models_where(
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.user_id.in_(user_ids),
+            )
+            return [member.to_organization_member() for member in db_members]
+
     async def create_stats_email_send_obj(
         self, stat: StatsEmailSendCreate
     ) -> StatsEmailSendOut:

@@ -23,10 +23,12 @@ async def get_organization_orbits(
     return await orbit_handler.get_organization_orbits(request.user.id, organization_id)
 
 
-@organization_orbits_router.post("", responses=endpoint_responses, response_model=Orbit)
+@organization_orbits_router.post(
+    "", responses=endpoint_responses, response_model=OrbitDetails
+)
 async def create_orbit(
     request: Request, organization_id: int, orbit: OrbitCreateIn
-) -> Orbit:
+) -> OrbitDetails:
     return await orbit_handler.create_organization_orbit(
         request.user.id, organization_id, orbit
     )

@@ -12,11 +12,11 @@ from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.orbit import (
     Orbit,
-    OrbitCreate,
     OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
+    OrbitMemberCreateSimple,
     OrbitUpdate,
     UpdateOrbitMember,
 )
@@ -31,7 +31,7 @@ class OrbitHandler:
 
     __orbits_limit = 10
 
-    async def check_organization_orbits_limit(self, organization_id: int) -> None:
+    async def _check_organization_orbits_limit(self, organization_id: int) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
             organization_id
         )
@@ -41,9 +41,32 @@ class OrbitHandler:
                 "Organization reached maximum number of orbits", 409
             )
 
+    async def _validate_orbit_members(
+        self,
+        user_id: int,
+        organization_id: int,
+        members: list[OrbitMemberCreate] | list[OrbitMemberCreateSimple],
+    ) -> None:
+        user_ids = [m.user_id for m in members]
+
+        if len(user_ids) != len(set(user_ids)):
+            raise ServiceError("Orbit members should contain only unique values.")
+
+        if user_id in user_ids:
+            raise ServiceError("You can not add yourself to orbit.")
+
+        org_members = await self.__user_repository.get_organization_members_by_user_ids(
+            organization_id, user_ids
+        )
+
+        invalid_user_ids = set(user_ids) - {m.user.id for m in org_members}
+
+        if invalid_user_ids:
+            raise ServiceError(f"Users {invalid_user_ids} are not in the organization.")
+
     async def create_organization_orbit(
         self, user_id: int, organization_id: int, orbit: OrbitCreateIn
-    ) -> Orbit:
+    ) -> OrbitDetails:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
@@ -51,19 +74,21 @@ class OrbitHandler:
             Action.CREATE,
         )
 
-        await self.check_organization_orbits_limit(organization_id)
+        await self._check_organization_orbits_limit(organization_id)
         secret = await self.__secret_repository.get_bucket_secret(
             orbit.bucket_secret_id
         )
         if not secret or secret.organization_id != organization_id:
             raise NotFoundError("Bucket secret not found")
 
-        orbit_create = OrbitCreate(
-            **orbit.model_dump(), organization_id=organization_id
-        )
-        return await self.__orbits_repository.create_orbit(
-            organization_id, orbit_create
-        )
+        if orbit.members:
+            await self._validate_orbit_members(user_id, organization_id, orbit.members)
+        created = await self.__orbits_repository.create_orbit(organization_id, orbit)
+
+        if not created:
+            raise ServiceError("Some errors when creating")
+
+        return created
 
     async def get_organization_orbits(
         self, user_id: int, organization_id: int

@@ -27,6 +27,20 @@ class CrudMixin:
         await session.refresh(db_obj)
         return db_obj
 
+    async def create_models(
+        self,
+        session: AsyncSession,
+        orm_class: type,
+        data_list: list[TPydantic],
+    ) -> list:
+        db_objects = [orm_class(**item.model_dump()) for item in data_list]
+        session.add_all(db_objects)
+        await session.flush()
+        await session.commit()
+        for obj in db_objects:
+            await session.refresh(obj)
+        return db_objects
+
     async def update_model_where(
         self,
         session: AsyncSession,

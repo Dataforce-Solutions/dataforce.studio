@@ -36,18 +36,22 @@ class OrbitUpdate(BaseModel, BaseOrmConfig):
 class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str
     bucket_secret_id: int
+    members: list["OrbitMemberCreateSimple"] | None = None
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
-    organization_id: int | None = None
     bucket_secret_id: int
+    organization_id: int | None = None
 
 
-class OrbitMemberCreate(BaseModel):
+class OrbitMemberCreateSimple(BaseModel):
     user_id: int
-    orbit_id: int
     role: OrbitRole
+
+
+class OrbitMemberCreate(OrbitMemberCreateSimple):
+    orbit_id: int
 
 
 class UpdateOrbitMember(BaseModel):
