@@ -1,10 +1,19 @@
+import datetime
+import random
+
 import pytest
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import Organization
+from dataforce_studio.schemas.organization import Organization, OrganizationCreate
 from dataforce_studio.schemas.user import CreateUser
 from sqlalchemy.ext.asyncio import create_async_engine
 
-organization_data = {"name": "test organization name", "logo": None}
+organization_data = {
+    "id": random.randint(2000, 10000),
+    "name": "test organization name",
+    "logo": None,
+    "created_at": datetime.datetime.now(),
+    "updated_at": datetime.datetime.now(),
+}
 
 
 @pytest.mark.asyncio
@@ -19,9 +28,8 @@ async def test_create_organization(
     new_user["email"] = "testcreateorganization@example.com"
     user = await repo.create_user(CreateUser(**new_user))
 
-
     created_organization = await repo.create_organization(
-        user.id, organization.name, organization.logo
+        user.id, OrganizationCreate(name=organization.name, logo=organization.logo)
     )
 
     assert created_organization.id

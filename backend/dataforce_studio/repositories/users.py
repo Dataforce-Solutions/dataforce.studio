@@ -1,4 +1,4 @@
-from pydantic import EmailStr, HttpUrl
+from pydantic import EmailStr
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -11,6 +11,7 @@ from dataforce_studio.models.user import UserOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
     Organization,
+    OrganizationCreate,
     OrganizationDetails,
     OrganizationMember,
     OrganizationMemberCreate,
@@ -113,24 +114,14 @@ class UserRepository(RepositoryBase, CrudMixin):
         return changed
 
     async def create_organization(
-        self, user_id: int, name: str, logo: HttpUrl | None = None
+        self, user_id: int, organization: OrganizationCreate
     ) -> OrganizationOrm:
         async with self._get_session() as session:
-            org_logo = str(logo) if logo else None
-            db_organization = OrganizationOrm(name=name, logo=org_logo)
-            session.add(db_organization)
-            await session.commit()
-            await session.refresh(db_organization)
-
-            db_organization_member = OrganizationMemberOrm(
-                user_id=user_id,
-                organization_id=db_organization.id,
-                role=OrgRole.OWNER,
+            db_organization = await self.create_model(
+                session, OrganizationOrm, organization
             )
-            session.add(db_organization_member)
-
-            await session.commit()
-            await session.refresh(db_organization)
+            await self.create_owner(user_id, db_organization.id)
+            # await session.refresh(db_organization)
             return db_organization
 
     async def update_organization(
@@ -208,7 +199,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             ]
 
     async def get_organization_details(
-            self, organization_id: int
+        self, organization_id: int
     ) -> OrganizationDetails | None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -237,6 +228,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             details.orbits_limit = 10
 
             return details
+
     async def get_organization_users(
         self, organization_id: int
     ) -> list[OrganizationMember]:

@@ -10,6 +10,7 @@ from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationDetails,
     OrganizationInvite,
+    OrganizationInviteSimple,
     OrganizationMember,
     UserInvite,
 )
@@ -121,3 +122,6 @@ class OrganizationInviteOrm(TimestampMixin, Base):
 
     def to_organization_invite(self) -> OrganizationInvite:
         return OrganizationInvite.model_validate(self)
+
+    def to_organization_invite_simple(self) -> OrganizationInviteSimple:
+        return OrganizationInviteSimple.model_validate(self)

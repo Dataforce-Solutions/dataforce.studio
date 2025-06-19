@@ -1,4 +1,13 @@
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, func, select, Sequence
+from collections.abc import Sequence
+
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+)
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models import CollectionOrm
@@ -37,6 +46,12 @@ class OrbitMembersOrm(TimestampMixin, Base):
 
     def to_orbit_member(self) -> OrbitMember:
         return OrbitMember.model_validate(self)
+
+    @classmethod
+    def to_orbit_members_list(
+        cls, members: Sequence["OrbitMembersOrm"]
+    ) -> list[OrbitMember]:
+        return [OrbitMember.model_validate(member) for member in members]
 
 
 class OrbitOrm(TimestampMixin, Base):
@@ -92,39 +107,3 @@ class OrbitOrm(TimestampMixin, Base):
     @classmethod
     def to_orbits_list(cls, orbits: Sequence["OrbitOrm"]) -> list[Orbit]:
         return [Orbit.model_validate(orbit) for orbit in orbits]
-
-
-class OrbitMembersOrm(TimestampMixin, Base):
-    __tablename__ = "orbit_members"
-    __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    orbit_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
-    )
-
-    role: Mapped[str] = mapped_column(String, nullable=False)
-
-    user: Mapped["UserOrm"] = relationship(
-        "UserOrm", back_populates="orbit_memberships", lazy="selectin"
-    )
-
-    orbit: Mapped["OrbitOrm"] = relationship(
-        "OrbitOrm", back_populates="members", lazy="selectin"
-    )
-
-    def __repr__(self) -> str:
-        return f"OrbitMember(id={self.id!r}, user_id={self.user_id!r})"
-
-    def to_orbit_member(self) -> OrbitMember:
-        return OrbitMember.model_validate(self)
-
-    @classmethod
-    def to_orbits_members_list(
-        cls, members: Sequence["OrbitMembersOrm"]
-    ) -> list[OrbitMember]:
-        return [OrbitMember.model_validate(member) for member in members]

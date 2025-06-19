@@ -67,6 +67,14 @@ class OrganizationInvite(BaseModel, BaseOrmConfig):
     created_at: datetime
 
 
+class OrganizationInviteSimple(BaseModel, BaseOrmConfig):
+    id: int
+    email: EmailStr
+    role: OrgRole
+    organization_id: int
+    created_at: datetime
+
+
 class UserInvite(OrganizationInvite):
     organization: Organization | None = None
 

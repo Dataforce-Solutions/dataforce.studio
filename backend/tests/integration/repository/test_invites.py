@@ -52,8 +52,9 @@ async def test_get_invite(create_organization_with_user: dict) -> None:
     repo = InviteRepository(engine)
 
     created_invite = await repo.create_organization_invite(
-        invite=get_invite_obj(organization, user)
+        get_invite_obj(organization, user)
     )
+    print('created: ', created_invite.__dict__)
     fetched_invite = await repo.get_invite(created_invite.id)
 
     assert fetched_invite.id == created_invite.id

@@ -1,4 +1,4 @@
-from sqlalchemy import case, func, select
+from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 
 from dataforce_studio.models import OrbitMembersOrm, OrbitOrm
@@ -55,12 +55,15 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         self, organization_id: int, orbit: OrbitCreateIn
     ) -> OrbitDetails | None:
         async with self._get_session() as session:
-            orbit_create = OrbitCreate(
-                name=orbit.name,
-                bucket_secret_id=orbit.bucket_secret_id,
-                organization_id=organization_id,
+            db_orbit = await self.create_model(
+                session,
+                OrbitOrm,
+                OrbitCreate(
+                    name=orbit.name,
+                    bucket_secret_id=orbit.bucket_secret_id,
+                    organization_id=organization_id,
+                ),
             )
-            db_orbit = await self.create_model(session, OrbitOrm, orbit_create)
 
             if orbit.members:
                 members = convert_orbit_simple_members(db_orbit.id, orbit.members)
@@ -81,19 +84,19 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
     async def get_orbit_members(self, orbit_id: int) -> list[OrbitMember]:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(OrbitMembersOrm)
-                .filter(OrbitMembersOrm.orbit_id == orbit_id)
-                .order_by(
+            db_members = await self.get_models_where(
+                session,
+                OrbitMembersOrm,
+                OrbitMembersOrm.orbit_id == orbit_id,
+                order_by=[
                     case(
                         (OrbitMembersOrm.role == OrbitRole.ADMIN, 1),
                         (OrbitMembersOrm.role == OrbitRole.MEMBER, 2),
                         else_=3,
                     ),
-                )
+                ],
             )
-            db_orbit_members = result.scalars().all()
-            return [member.to_orbit_member() for member in db_orbit_members]
+            return OrbitMembersOrm.to_orbit_members_list(db_members)
 
     async def get_orbit_member(self, member_id: int) -> OrbitMember | None:
         async with self._get_session() as session:

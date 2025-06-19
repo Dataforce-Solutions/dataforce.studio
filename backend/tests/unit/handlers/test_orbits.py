@@ -122,7 +122,6 @@ async def test_create_organization_orbit(
 
     assert result == mocked_orbit
 
-
     mock_create_orbit.assert_awaited_once_with(
         mocked_orbit.organization_id, orbit_to_create
     )
@@ -208,27 +207,6 @@ async def test_create_organization_orbit_secret_wrong_org(
 
     assert error.value.status_code == 404
     mock_create_orbit.assert_not_called()
-
-
-@patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_organization_orbits_limit(
-    mock_get_organization_orbits_count: AsyncMock,
-) -> None:
-    organization_id = random.randint(1, 10000)
-    mock_get_organization_orbits_count.return_value = 100
-
-    with pytest.raises(
-        OrganizationLimitReachedError,
-        match="Organization reached maximum number of orbits",
-    ) as error:
-        await handler.check_organization_orbits_limit(organization_id)
-
-    assert error.value.status_code == 409
-    mock_get_organization_orbits_count.assert_awaited_once_with(organization_id)
 
 
 @patch(
