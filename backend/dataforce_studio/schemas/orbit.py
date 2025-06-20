@@ -22,6 +22,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     total_collections: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
+    permissions: dict | None = None
 
 
 class OrbitDetails(Orbit):

@@ -78,7 +78,7 @@ class PermissionsHandler:
         user_id: int,
         resource: Resource,
         action: Action,
-    ) -> str | None:
+    ) -> tuple[None, str] | tuple[str, None]:
         org_role = await self.check_organization_permission(
             organization_id,
             user_id,
@@ -87,11 +87,12 @@ class PermissionsHandler:
         )
 
         if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
-            return await self.check_orbit_permission(
+            orbit_role = await self.check_orbit_permission(
                 orbit_id,
                 user_id,
                 resource,
                 action,
             )
+            return None, orbit_role
 
-        return None
+        return org_role, None

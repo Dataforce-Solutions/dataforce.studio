@@ -233,7 +233,7 @@ async def test_get_organization_orbits(
 
     assert result == expected
 
-    mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id)
+    mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id, OrgRole.OWNER)
 
 
 @patch(

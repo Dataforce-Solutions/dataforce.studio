@@ -125,7 +125,7 @@ async def test_get_organization_orbits(create_organization_with_user: dict) -> N
             OrbitCreateIn(name=f"orbit #{i}", bucket_secret_id=secret.id),
         )
 
-    orbits = await repo.get_organization_orbits(organization.id)
+    orbits = await repo.get_organization_orbits(organization.id, "owner")
 
     assert orbits
     assert isinstance(orbits, list)
