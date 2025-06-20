@@ -1,0 +1,26 @@
+.simple-table {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--p-card-background);
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: var(--card-shadow);
+}
+.simple-table__header {
+  padding: 10px 0;
+  font-weight: 500;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--p-divider-border-color);
+}
+.simple-table__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.simple-table__row {
+  display: grid;
+  align-items: center;
+  gap: 40px;
+}
+.simple-table__placeholder {
+  padding: 10px 0;
+}

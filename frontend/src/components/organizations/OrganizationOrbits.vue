@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div v-else>No organizations yet...</div>
+      <div v-else>All Orbits linked to this organization will be shown in this table once available.</div>
     </div>
   </div>
 </template>

@@ -96,7 +96,7 @@
 }
 
 .p-toast {
-  top: 105px !important;
+  top: 80px !important;
 }
 
 @media (max-width: 768px) {
@@ -109,7 +109,6 @@
   }
 
   .p-toast {
-    top: 80px !important;
     right: 5px !important;
   }
 }
@@ -130,7 +129,12 @@
 .p-dialog-footer.organization-edit-footer {
   justify-content: space-between;
 }
- 
+
 .p-avatar.p-avatar-image {
   background-color: var(--p-avatar-background);
+}
+
+.label.required::after {
+  content: ' *';
+  color: var(--p-badge-danger-background);
 }

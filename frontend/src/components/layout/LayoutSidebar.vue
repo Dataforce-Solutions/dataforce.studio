@@ -1,7 +1,14 @@
 <template>
   <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
     <div>
-      <OrganizationManagePopover v-if="authStore.isAuth" style="margin-bottom: 8px;"></OrganizationManagePopover>
+      <div style="margin-bottom: 8px;">
+        <OrganizationManagePopover v-if="authStore.isAuth"></OrganizationManagePopover>
+        <d-button v-else disabled variant="text" class="menu-link">
+          <Users :size="14" class="icon"></Users>
+          <span class="label">My Organization</span>
+          <ChevronDown :size="20" class="icon" />
+        </d-button>
+      </div>
       <nav class="nav">
         <ul class="list">
           <li v-for="item in sidebarMenu" :key="item.id" class="item">
@@ -57,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftToLine } from 'lucide-vue-next'
+import { ArrowLeftToLine, ChevronDown, Users } from 'lucide-vue-next'
 import { onMounted, ref, watch } from 'vue'
 import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
@@ -159,6 +166,13 @@ onMounted(() => {
   color: var(--p-menu-item-icon-color);
   flex: 0 0 auto;
   transition: color 0.3s;
+}
+
+.label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
 .menu-link.router-link-active .icon {

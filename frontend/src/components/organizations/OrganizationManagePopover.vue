@@ -145,6 +145,7 @@ async function onOrganizationClick(organizationId: number) {
 }
 .avatar {
   border-radius: 6px;
+  flex: 0 0 auto;
   overflow: hidden;
 }
 .name {
