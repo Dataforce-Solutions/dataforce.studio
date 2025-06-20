@@ -1,5 +1,5 @@
 import random
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 from dataforce_studio.handlers.orbits import OrbitHandler
@@ -430,6 +430,10 @@ async def test_get_orbit_members(
 
 
 @patch(
+    "dataforce_studio.handlers.emails.EmailHandler.send_added_to_orbit_email",
+    new_callable=MagicMock,
+)
+@patch(
     "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -456,6 +460,7 @@ async def test_create_orbit_member(
     mock_get_orbit_members_count: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_send_added_to_orbit_email: MagicMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)

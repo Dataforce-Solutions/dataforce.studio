@@ -43,6 +43,7 @@ class EmailHandler:
 
         self._email_client.send(message)
 
+    # TODO add user name
     def send_organization_invite_email(
         self, email: EmailStr, sender: str, organization: str, link: str
     ) -> None:
@@ -54,6 +55,22 @@ class EmailHandler:
         message.dynamic_template_data = {
             "invite_sender": sender or "",
             "organization": organization,
+            "open_platform_link": link,
+        }
+
+        self._email_client.send(message)
+
+    def send_added_to_orbit_email(
+        self, name: str, email: EmailStr, orbit: str, link: str
+    ) -> None:
+        message = Mail(
+            from_email=self.sender_email,
+            to_emails=str(email),
+        )
+        message.template_id = "d-f9f0925c82784b2f91a20c679ac532b3"
+        message.dynamic_template_data = {
+            "name": name,
+            "orbit": orbit or "",
             "open_platform_link": link,
         }
 

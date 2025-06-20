@@ -19,6 +19,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     organization_id: int
     bucket_secret_id: int
     total_members: int | None = None
+    total_collections: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -37,6 +38,7 @@ class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str
     bucket_secret_id: int
     members: list["OrbitMemberCreateSimple"] | None = None
+    notify_by_email: bool = False
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):

@@ -43,14 +43,6 @@ class OrbitPermission(BaseModel, BaseOrmConfig):
     action: Action
 
 
-class OrgPermissionOut(OrgPermission):
-    id: int
-
-
-class OrbitPermissionOut(OrbitPermission):
-    id: int
-
-
 organization_permissions = {
     OrgRole.OWNER: {
         Resource.ORGANIZATION: [Action.READ, Action.UPDATE, Action.DELETE],
