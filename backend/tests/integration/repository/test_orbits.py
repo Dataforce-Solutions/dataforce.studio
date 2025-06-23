@@ -88,7 +88,7 @@ async def test_delete_orbit(create_orbit: dict) -> None:
     repo, orbit = data["repo"], data["orbit"]
 
     deleted_orbit = await repo.delete_orbit(orbit.id)
-    fetched_orbit = await repo.get_orbit_simple(orbit.id)
+    fetched_orbit = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
 
     assert deleted_orbit is None
     assert fetched_orbit is None
@@ -99,7 +99,7 @@ async def test_get_orbit(create_orbit: dict) -> None:
     data = create_orbit
     repo, orbit = data["repo"], data["orbit"]
 
-    fetched_orbit = await repo.get_orbit(orbit.id)
+    fetched_orbit = await repo.get_orbit(orbit.id, orbit.organization_id)
 
     assert fetched_orbit
     assert isinstance(fetched_orbit, OrbitDetails)

@@ -112,7 +112,7 @@ class OrbitHandler:
             Action.READ,
         )
 
-        orbit = await self.__orbits_repository.get_orbit(orbit_id)
+        orbit = await self.__orbits_repository.get_orbit(orbit_id, organization_id)
 
         if not orbit:
             raise NotFoundError("Orbit not found")

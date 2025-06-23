@@ -16,6 +16,7 @@ class MLModelOrm(TimestampMixin, Base):
     metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
+    file_index: Mapped[dict] = mapped_column(JSONB, nullable=False)
     bucket_location: Mapped[str] = mapped_column(String, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     unique_identifier: Mapped[str] = mapped_column(String, nullable=False)

@@ -55,6 +55,7 @@ async def test_create_collection(
         id=1,
         created_at=datetime.utcnow(),
         orbit_id=orbit_id,
+        total_models=0,
         **data.model_dump(),
     )
 
@@ -75,7 +76,7 @@ async def test_create_collection(
         **data.model_dump(),
     )
     mock_create.assert_awaited_once_with(expected_db)
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id,organization_id)
 
 
 @patch(
@@ -120,7 +121,7 @@ async def test_create_collection_orbit_not_found(
 
     assert error.value.status_code == 404
     mock_create.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -159,7 +160,7 @@ async def test_get_orbit_collections_orbit_not_found(
 
     assert error.value.status_code == 404
     mock_get_collections.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -202,7 +203,7 @@ async def test_get_orbit_collections_orbit_wrong_org(
 
     assert error.value.status_code == 404
     mock_get_collections.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -251,7 +252,7 @@ async def test_create_collection_orbit_wrong_org(
 
     assert error.value.status_code == 404
     mock_create.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -290,6 +291,7 @@ async def test_update_collection(
         name="new",
         collection_type=CollectionType.MODEL,
         tags=None,
+        total_models=0,
         created_at=datetime.utcnow(),
         updated_at=None,
     )
@@ -415,7 +417,7 @@ async def test_update_collection_orbit_wrong_org(
 
     assert error.value.status_code == 404
     mock_update.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -463,6 +465,7 @@ async def test_delete_collection_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
+        total_models=0,
         created_at=datetime.utcnow(),
         updated_at=None,
     )
@@ -526,6 +529,7 @@ async def test_delete_collection_not_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
+        total_models=0,
         created_at=datetime.utcnow(),
         updated_at=None,
     )
@@ -541,6 +545,7 @@ async def test_delete_collection_not_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
+        total_models=0,
         created_at=datetime.utcnow(),
         updated_at=None,
     )
@@ -647,6 +652,7 @@ async def test_delete_collection_orbit_wrong_org(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
+        total_models=0,
         created_at=datetime.utcnow(),
         updated_at=None,
     )
@@ -667,4 +673,4 @@ async def test_delete_collection_orbit_wrong_org(
 
     assert error.value.status_code == 404
     mock_delete.assert_not_called()
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
