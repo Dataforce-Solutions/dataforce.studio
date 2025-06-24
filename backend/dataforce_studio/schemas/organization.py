@@ -29,6 +29,7 @@ class Organization(BaseModel, BaseOrmConfig):
     id: int
     name: str
     logo: HttpUrl | None = None
+    default: bool
     created_at: datetime
     updated_at: datetime | None = None
 

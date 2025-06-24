@@ -10,7 +10,6 @@ from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecretCreate
 from dataforce_studio.schemas.orbit import (
     Orbit,
-    OrbitCreate,
     OrbitMemberCreate,
     OrbitRole, OrbitCreateIn,
 )
@@ -107,6 +106,7 @@ invite_user_get_data = {
         "id": 1,
         "name": "test",
         "logo": "https://example.com/",
+        "default": False,
         "created_at": datetime.datetime.now(),
         "updated_at": datetime.datetime.now(),
     },
@@ -152,6 +152,7 @@ def test_org() -> dict:
         "id": random.randint(1, 10000),
         "name": "Test organization",
         "logo": None,
+        "default": False,
         "created_at": datetime.datetime.now(),
         "updated_at": datetime.datetime.now(),
     }
@@ -165,6 +166,7 @@ def test_org_details() -> dict:
         "id": test_org_details_id,
         "name": "Test organization",
         "logo": None,
+        "default": False,
         "created_at": datetime.datetime.now(),
         "updated_at": datetime.datetime.now(),
         "invites": [OrganizationInvite(**invite_get_data)],  # type: ignore[arg-type]

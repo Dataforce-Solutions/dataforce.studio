@@ -55,6 +55,7 @@ class MLModelStatus(StrEnum):
     PENDING_UPLOAD = "pending_upload"
     UPLOADED = "uploaded"
     PENDING_DELETION = "pending_deletion"
+    UPLOAD_FAILED = "upload_failed"
 
 
 class MLModelCreate(BaseModel):

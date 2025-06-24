@@ -225,6 +225,7 @@ class UserRepository(RepositoryBase, CrudMixin):
                     name=org.name,
                     logo=org.logo,
                     role=member_role,
+                    default=org.default,
                     created_at=org.created_at,
                     updated_at=org.updated_at,
                 )

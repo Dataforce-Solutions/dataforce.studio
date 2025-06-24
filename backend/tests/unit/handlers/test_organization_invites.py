@@ -10,7 +10,7 @@ from dataforce_studio.schemas.organization import (
     CreateOrganizationInviteIn,
     OrganizationInvite,
     OrgRole,
-    UserInvite,
+    UserInvite, Organization,
 )
 from dataforce_studio.schemas.user import UserOut
 
@@ -24,6 +24,10 @@ from tests.conftest import (
 handler = OrganizationHandler()
 
 
+@patch(
+    "dataforce_studio.handlers.organizations.InviteRepository.get_organization_invite_by_email",
+    new_callable=AsyncMock,
+)
 @patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
@@ -56,6 +60,7 @@ async def test_send_invite(
     mock_get_organization_member_role: AsyncMock,
     mock_get_invite: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
+    mock_get_organization_invite_by_email: AsyncMock,
     test_user: dict,
 ) -> None:
     invite_id = random.randint(1, 10000)
@@ -63,13 +68,27 @@ async def test_send_invite(
 
     invite = CreateOrganizationInviteIn(**invite_data)
     mocked_invite = OrganizationInvite(
-        **invite_data, id=invite_id, created_at=datetime.utcnow()
+        id=invite_id,
+        email=invite.email,
+        role=invite.role,
+        organization_id=invite.organization_id,
+        invited_by_user=user,
+        created_at=datetime.utcnow(),
+        organization=Organization(
+            id=invite.organization_id,
+            name="test org",
+            logo=None,
+            default=False,
+            created_at=datetime.now(),
+            updated_at=None,
+        )
     )
 
+    mock_get_organization_invite_by_email.return_value = None
+    mock_get_invite.return_value = mocked_invite
     mock_get_organization_members_count.return_value = 0
     mock_get_public_user_by_id.return_value = user
     mock_create_organization_invite.return_value = mocked_invite
-    mock_get_invite.return_value = mocked_invite
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.send_invite(user.id, invite)

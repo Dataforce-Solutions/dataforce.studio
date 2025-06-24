@@ -89,6 +89,9 @@ class OrganizationHandler:
         if not organization:
             raise NotFoundError("Organization not found")
 
+        if organization.default:
+            raise OrganizationDeleteError("Default organization can't be deleted")
+
         if len(organization.members) > 1:
             raise OrganizationDeleteError(
                 "Organization has members and cant be deleted"
@@ -121,6 +124,7 @@ class OrganizationHandler:
         organization = await self.__user_repository.get_organization_details(
             organization_id
         )
+
         if not organization:
             raise NotFoundError("Organization not found")
 

@@ -6,7 +6,7 @@ from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
-    OrganizationLimitReachedError,
+    OrganizationLimitReachedError, OrganizationDeleteError,
 )
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
@@ -230,6 +230,41 @@ async def test_delete_organization(
 
     assert deleted is None
     mock_delete_organization.assert_awaited_once_with(organization_id)
+
+
+
+
+@patch(
+    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.organizations.UserRepository.delete_organization",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_default_organization(
+    mock_get_organization_details: AsyncMock,
+    mock_delete_organization: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    test_org_details: dict,
+) -> None:
+    user_id = random.randint(1, 10000)
+    organization_id = random.randint(1, 10000)
+
+    default_org = test_org_details.copy()
+    default_org["default"] = True
+
+    mock_delete_organization.return_value = None
+    mock_get_organization_details.return_value = OrganizationDetails(**default_org)
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(OrganizationDeleteError):
+        await handler.delete_organization(user_id, organization_id)
 
 
 @patch(

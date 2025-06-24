@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
 from pydantic import EmailStr
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -22,6 +22,7 @@ class OrganizationOrm(TimestampMixin, Base):
 
     name: Mapped[str | None] = mapped_column(String, nullable=False)
     logo: Mapped[str | None] = mapped_column(String, nullable=True)
+    default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
