@@ -11,4 +11,8 @@ endpoint_responses: dict[int | str, dict[str, Any]] = {
         "description": "Not enough rights for performing action for the resource",
         "content": {"application/json": {"example": {"detail": "Not enough rights"}}},
     },
+    500: {
+        "description": "Internal Server Error",
+        "content": {"application/json": {"example": "Internal Server Error"}},
+    },
 }

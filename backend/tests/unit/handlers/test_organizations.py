@@ -112,16 +112,24 @@ async def test_get_organization_not_found(
 
 
 @patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.UserRepository.create_organization",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_organization(
-    mock_create_organization: AsyncMock, test_org: dict
+    mock_create_organization: AsyncMock,
+    mock_get_user_organizations_membership_count: AsyncMock,
+    test_org: dict
 ) -> None:
     user_id = random.randint(1, 10000)
     org_to_create = OrganizationCreateIn(name=test_org["name"], logo=test_org["logo"])
     expected = Organization(**test_org)
+
+    mock_get_user_organizations_membership_count.return_value = 0
     mock_create_organization.return_value = OrganizationOrm(**test_org)
 
     actual = await handler.create_organization(user_id, org_to_create)

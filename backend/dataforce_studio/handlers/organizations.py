@@ -43,10 +43,25 @@ class OrganizationHandler:
     __permissions_handler = PermissionsHandler()
 
     __members_limit = 50
+    __organization_membership_limit = 5
+
+    async def _organization_membership_limit_check(self, user_id: int) -> None:
+        membership_num = (
+            await self.__user_repository.get_user_organizations_membership_count(
+                user_id
+            )
+        )
+
+        if membership_num >= self.__organization_membership_limit:
+            raise OrganizationLimitReachedError(
+                "You’ve reached the limit of organizations you can join or create"
+            )
 
     async def create_organization(
         self, user_id: int, organization: OrganizationCreateIn
     ) -> Organization:
+        await self._organization_membership_limit_check(user_id)
+
         db_org = await self.__user_repository.create_organization(user_id, organization)
         return db_org.to_organization()
 
@@ -208,6 +223,7 @@ class OrganizationHandler:
         if not invite:
             raise NotFoundError("Invite not found")
 
+        await self._organization_membership_limit_check(user_id)
         await self.check_org_members_limit(invite.organization_id)
 
         try:
