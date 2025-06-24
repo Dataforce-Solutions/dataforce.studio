@@ -25,13 +25,18 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             )
             return OrbitOrm.to_orbits_list(db_orbits)
 
-    async def get_orbit(self, orbit_id: int) -> OrbitDetails | None:
-        async with self._get_session() as session, session.begin():
-            db_orbit = await self.get_model(
+    async def get_orbit(
+        self, orbit_id: int, organization_id: int
+    ) -> OrbitDetails | None:
+        async with self._get_session() as session:
+            db_orbit = await self.get_model_where(
                 session,
                 OrbitOrm,
-                orbit_id,
-                [selectinload(OrbitOrm.members).selectinload(OrbitMembersOrm.user)],
+                OrbitOrm.id == orbit_id,
+                OrbitOrm.organization_id == organization_id,
+                options=[
+                    selectinload(OrbitOrm.members).selectinload(OrbitMembersOrm.user)
+                ],
             )
 
             if not db_orbit:
@@ -45,9 +50,16 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
             return db_orbit.to_orbit_details()
 
-    async def get_orbit_simple(self, orbit_id: int) -> Orbit | None:
-        async with self._get_session() as session, session.begin():
-            db_orbit = await self.get_model(session, OrbitOrm, orbit_id)
+    async def get_orbit_simple(
+        self, orbit_id: int, organization_id: int
+    ) -> Orbit | None:
+        async with self._get_session() as session:
+            db_orbit = await self.get_model_where(
+                session,
+                OrbitOrm,
+                OrbitOrm.id == orbit_id,
+                OrbitOrm.organization_id == organization_id,
+            )
 
             return db_orbit.to_orbit() if db_orbit else None
 
@@ -69,7 +81,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                 members = convert_orbit_simple_members(db_orbit.id, orbit.members)
                 await self.create_models(session, OrbitMembersOrm, members)
 
-            return await self.get_orbit(db_orbit.id)
+            return await self.get_orbit(db_orbit.id, organization_id)
 
     async def update_orbit(self, orbit_id: int, orbit: OrbitUpdate) -> Orbit | None:
         orbit.id = orbit_id

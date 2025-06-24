@@ -95,7 +95,9 @@ class MLModelHandler:
     async def _check_orbit_and_collection_access(
         self, organization_id: int, orbit_id: int, collection_id: int
     ) -> tuple[Orbit, Collection]:
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection = await self.__collection_repository.get_collection(collection_id)
@@ -132,6 +134,7 @@ class MLModelHandler:
                 metrics=model.metrics,
                 manifest=model.manifest,
                 file_hash=model.file_hash,
+                file_index=model.file_index,
                 bucket_location=bucket_location,
                 size=model.size,
                 unique_identifier=unique_id,
@@ -243,7 +246,9 @@ class MLModelHandler:
         if not model:
             raise NotFoundError("ML model not found")
 
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit:
             raise NotFoundError("Orbit not found")
 
