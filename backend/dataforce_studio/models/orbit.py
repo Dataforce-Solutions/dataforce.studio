@@ -1,4 +1,13 @@
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, func, select
+from collections.abc import Sequence
+
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+)
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models import CollectionOrm
@@ -37,6 +46,12 @@ class OrbitMembersOrm(TimestampMixin, Base):
 
     def to_orbit_member(self) -> OrbitMember:
         return OrbitMember.model_validate(self)
+
+    @classmethod
+    def to_orbit_members_list(
+        cls, members: Sequence["OrbitMembersOrm"]
+    ) -> list[OrbitMember]:
+        return [OrbitMember.model_validate(member) for member in members]
 
 
 class OrbitOrm(TimestampMixin, Base):
@@ -88,3 +103,7 @@ class OrbitOrm(TimestampMixin, Base):
 
     def to_orbit_details(self) -> OrbitDetails:
         return OrbitDetails.model_validate(self)
+
+    @classmethod
+    def to_orbits_list(cls, orbits: Sequence["OrbitOrm"]) -> list[Orbit]:
+        return [Orbit.model_validate(orbit) for orbit in orbits]

@@ -1,9 +1,11 @@
 from pydantic import EmailStr
+from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    DatabaseConstraintError,
     NotFoundError,
     OrganizationDeleteError,
     OrganizationLimitReachedError,
@@ -28,6 +30,10 @@ from dataforce_studio.schemas.organization import (
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
+from dataforce_studio.utils.organizations import (
+    get_invited_by_name,
+    get_organization_email_name,
+)
 
 
 class OrganizationHandler:
@@ -41,9 +47,7 @@ class OrganizationHandler:
     async def create_organization(
         self, user_id: int, organization: OrganizationCreate
     ) -> Organization:
-        db_org = await self.__user_repository.create_organization(
-            user_id, organization.name, organization.logo
-        )
+        db_org = await self.__user_repository.create_organization(user_id, organization)
         return db_org.to_organization()
 
     async def update_organization(
@@ -167,29 +171,24 @@ class OrganizationHandler:
         if existing_invite:
             raise ServiceError("Invite already exist for this email")
 
-        invite = CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
-        await self.check_org_members_limit(invite.organization_id)
+        await self.check_org_members_limit(invite_.organization_id)
 
         db_created_invite = await self.__invites_repository.create_organization_invite(
-            invite
+            CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
         )
-        db_invite = await self.__invites_repository.get_invite(db_created_invite.id)
+        invite = await self.__invites_repository.get_invite(db_created_invite.id)
 
-        user_name = (
-            (db_invite.invited_by_user.full_name or db_invite.invited_by_user.email)
-            if db_invite.invited_by_user
-            else ""
-        )
-
-        org_name = db_invite.organization.name if db_invite.organization else ""
+        if not invite:
+            raise ServiceError("Cant select created invite")
 
         self.__email_handler.send_organization_invite_email(
-            db_invite.email,
-            user_name,
-            org_name,
+            invite.email if invite else "",
+            get_invited_by_name(invite),
+            get_organization_email_name(invite),
             config.APP_EMAIL_URL,
         )
-        return db_invite
+
+        return invite
 
     async def cancel_invite(
         self, user_id: int, organization_id: int, invite_id: int
@@ -206,10 +205,24 @@ class OrganizationHandler:
     async def accept_invite(self, invite_id: int, user_id: int) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
+        if not invite:
+            raise NotFoundError("Invite not found")
+
         await self.check_org_members_limit(invite.organization_id)
-        await self.__user_repository.create_organization_member(
-            user_id, invite.organization_id, invite.role
-        )
+
+        try:
+            await self.__user_repository.create_organization_member(
+                OrganizationMemberCreate(
+                    user_id=user_id,
+                    organization_id=invite.organization_id,
+                    role=invite.role,
+                )
+            )
+        except IntegrityError as error:
+            raise DatabaseConstraintError(
+                "Organization member already exist."
+            ) from error
+
         await self.__invites_repository.delete_organization_invites_for_user(
             invite.organization_id, invite.email
         )
@@ -314,7 +327,13 @@ class OrganizationHandler:
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise ServiceError("Only Organization Owner can add new admins.")
+        try:
+            created_member = await self.__user_repository.create_organization_member(
+                member
+            )
+        except IntegrityError as error:
+            raise DatabaseConstraintError(
+                "Organization member already exist."
+            ) from error
 
-        return await self.__user_repository.create_organization_member(
-            member.user_id, member.organization_id, member.role
-        )
+        return created_member

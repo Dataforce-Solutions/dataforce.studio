@@ -67,11 +67,20 @@ class OrganizationInvite(BaseModel, BaseOrmConfig):
     created_at: datetime
 
 
+class OrganizationInviteSimple(BaseModel, BaseOrmConfig):
+    id: int
+    email: EmailStr
+    role: OrgRole
+    organization_id: int
+    created_at: datetime
+
+
 class UserInvite(OrganizationInvite):
     organization: Organization | None = None
 
 
 class UpdateOrganizationMember(BaseModel):
+    id: int | None = None
     role: OrgRole
 
     @field_validator("role")
@@ -98,6 +107,19 @@ class OrganizationMemberCreate(BaseModel):
     @classmethod
     def forbid_owner(cls, value: OrgRole) -> OrgRole:
         if value == OrgRole.OWNER:
+            raise ValueError("Role 'OWNER' cant be assigned")
+        return value
+
+
+class OrganizationOwnerCreate(BaseModel):
+    user_id: int
+    organization_id: int
+    role: OrgRole
+
+    @field_validator("role")
+    @classmethod
+    def forbid_owner(cls, value: OrgRole) -> OrgRole:
+        if value != OrgRole.OWNER:
             raise ValueError("Role 'OWNER' cant be assigned")
         return value
 

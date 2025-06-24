@@ -1,11 +1,13 @@
 from collections.abc import Sequence
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-TOrm = TypeVar("TOrm")
+from dataforce_studio.models.base import Base
+
+TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
 
 
@@ -87,9 +89,26 @@ class CrudMixin:
     ) -> None:
         result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # type: ignore[attr-defined]
         db_obj = result.scalar_one_or_none()
+
         if db_obj:
             await session.delete(db_obj)
             await session.commit()
+
+    async def delete_model_where(
+        self, session: AsyncSession, orm_class: type[TOrm], *where_conditions
+    ) -> None:
+        result = await session.execute(select(orm_class).where(*where_conditions))  # type: ignore[attr-defined]
+        obj = result.scalar_one_or_none()
+
+        if obj:
+            await session.delete(obj)
+            await session.commit()
+
+    async def delete_models_where(
+        self, session: AsyncSession, orm_class: type[TOrm], *where_conditions
+    ) -> None:
+        await session.execute(delete(orm_class).where(*where_conditions))  # type: ignore[attr-defined]
+        await session.commit()
 
     async def get_model_where(
         self,
@@ -112,6 +131,7 @@ class CrudMixin:
         orm_class: type[TOrm],
         obj_id: int,
         options: list | None = None,
+        use_unique: bool = False,
     ) -> TOrm | None:
         result = await session.execute(
             select(orm_class)
@@ -119,6 +139,8 @@ class CrudMixin:
             .options(*(options or []))
         )
 
+        if use_unique:
+            return result.unique().scalar_one_or_none()
         return result.scalar_one_or_none()
 
     async def get_models_where(
@@ -128,11 +150,34 @@ class CrudMixin:
         *where_conditions,
         options: list | None = None,
         order_by: list | None = None,
-    ) -> Sequence[TOrm]:
-        result = await session.execute(
-            select(orm_class)
-            .where(*where_conditions)  # type: ignore[attr-defined]
-            .options(*(options or []))
+        join_condition: tuple | None = None,  # type: ignore[ANN401]
+        select_fields: list | None = None,
+        use_unique: bool = False,
+    ) -> Sequence[Any]:
+        stmt = select(*(select_fields or [orm_class]))
+
+        if join_condition:
+            stmt = stmt.join(*join_condition)
+
+        stmt = (
+            stmt.where(*where_conditions)
+            .options(*(options or []))  # type: ignore[attr-defined]
             .order_by(*(order_by or []))
         )
+
+        result = await session.execute(stmt)
+
+        if use_unique:
+            return result.unique().all()
         return result.scalars().all()
+
+    async def get_model_count(
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions,
+    ) -> int:
+        result = await session.execute(
+            select(func.count()).select_from(orm_class).where(*where_conditions)  # type: ignore[attr-defined]
+        )
+        return result.scalar() or 0

@@ -46,10 +46,8 @@ async def test_create_user_and_organization(
 
     created_user = await repo.create_user(user)
     fetched_user = await repo.get_user(user.email)
-    fetched_org = (await repo.get_user_organizations(fetched_user.id, OrgRole.OWNER))[0]
-    fetched_org_member = (
-        await repo.get_organization_users(fetched_org.id, OrgRole.OWNER)
-    )[0]
+    fetched_org = (await repo.get_user_organizations(fetched_user.id))[0]
+    fetched_org_member = (await repo.get_organization_users(fetched_org.id))[0]
 
     assert fetched_org.name == "Test's organization"
     # assert fetched_org_member.user_id == fetched_user.id
@@ -116,6 +114,6 @@ async def test_update_user_not_found(get_created_user: dict) -> None:
     repo = data["repo"]
     user_update_data = {"email": "user_not_found@example.com", "email_verified": True}
 
-    updated_user = await repo.update_user(UpdateUser(**user_update_data))
+    updated_user = await repo.update_user(UpdateUser.model_validate(user_update_data))
 
     assert updated_user is False

@@ -1,6 +1,9 @@
 import pytest
-from dataforce_studio.schemas.organization import OrgRole, UpdateOrganizationMember
 from dataforce_studio.schemas.user import CreateUser
+from dataforce_studio.schemas.organization import (
+    OrgRole,
+    UpdateOrganizationMember, OrganizationMemberCreate,
+)
 
 organization_data = {"name": "test organization", "logo": None}
 
@@ -21,7 +24,11 @@ async def test_create_organization_member(
     new_user["email"] = "test@test.com"
     user = await repo.create_user(CreateUser(**new_user))
     created_member = await repo.create_organization_member(
-        user.id, created_organization.id, OrgRole.MEMBER
+        OrganizationMemberCreate(
+            user_id=user.id,
+            organization_id=created_organization.id,
+            role=OrgRole.MEMBER
+        )
     )
 
     assert created_member.id

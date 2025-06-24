@@ -1,7 +1,7 @@
 from pydantic import EmailStr
 
 from dataforce_studio.schemas.orbit import OrbitMemberCreate, OrbitMemberCreateSimple
-from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.organization import OrganizationInvite, OrgRole
 
 
 def generate_organization_name(email: EmailStr, full_name: str | None = None) -> str:
@@ -31,3 +31,15 @@ def convert_orbit_simple_members(
         OrbitMemberCreate(orbit_id=orbit_id, user_id=m.user_id, role=m.role)
         for m in members
     ]
+
+
+def get_invited_by_name(invite: OrganizationInvite | None) -> str:
+    if not invite or not (user := invite.invited_by_user):
+        return ""
+    return user.full_name or user.email or ""
+
+
+def get_organization_email_name(invite: OrganizationInvite | None) -> str:
+    if not invite or not (organization := invite.organization):
+        return ""
+    return organization.name if organization else ""

@@ -1,7 +1,5 @@
-from fastapi import HTTPException, status
-from pydantic import EmailStr, HttpUrl
+from pydantic import EmailStr
 from sqlalchemy import case, func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
 from dataforce_studio.models.organization import (
@@ -13,8 +11,11 @@ from dataforce_studio.models.user import UserOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
     Organization,
+    OrganizationCreate,
     OrganizationDetails,
     OrganizationMember,
+    OrganizationMemberCreate,
+    OrganizationOwnerCreate,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -66,18 +67,16 @@ class UserRepository(RepositoryBase, CrudMixin):
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(UserOrm).filter(UserOrm.email == email)
+            db_user = await self.get_model_where(
+                session, UserOrm, UserOrm.email == email
             )
-            db_user = result.scalar_one_or_none()
             return db_user.to_user() if db_user else None
 
     async def get_public_user(self, email: EmailStr) -> UserOut | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(UserOrm).filter(UserOrm.email == email)
+            db_user = await self.get_model_where(
+                session, UserOrm, UserOrm.email == email
             )
-            db_user = result.scalar_one_or_none()
             return db_user.to_public_user() if db_user else None
 
     async def get_public_user_by_id(self, user_id: int) -> UserOut | None:
@@ -87,14 +86,9 @@ class UserRepository(RepositoryBase, CrudMixin):
 
     async def delete_user(self, email: EmailStr) -> None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(UserOrm).filter(UserOrm.email == email)
+            return await self.delete_model_where(
+                session, UserOrm, UserOrm.email == email
             )
-            user = result.scalar_one_or_none()
-
-            if user:
-                await session.delete(user)
-                await session.commit()
 
     async def update_user(
         self,
@@ -120,24 +114,14 @@ class UserRepository(RepositoryBase, CrudMixin):
         return changed
 
     async def create_organization(
-        self, user_id: int, name: str, logo: HttpUrl | None = None
+        self, user_id: int, organization: OrganizationCreate
     ) -> OrganizationOrm:
         async with self._get_session() as session:
-            org_logo = str(logo) if logo else None
-            db_organization = OrganizationOrm(name=name, logo=org_logo)
-            session.add(db_organization)
-            await session.commit()
-            await session.refresh(db_organization)
-
-            db_organization_member = OrganizationMemberOrm(
-                user_id=user_id,
-                organization_id=db_organization.id,
-                role=OrgRole.OWNER,
+            db_organization = await self.create_model(
+                session, OrganizationOrm, organization
             )
-            session.add(db_organization_member)
-
-            await session.commit()
-            await session.refresh(db_organization)
+            await self.create_owner(user_id, db_organization.id)
+            # await session.refresh(db_organization)
             return db_organization
 
     async def update_organization(
@@ -168,56 +152,39 @@ class UserRepository(RepositoryBase, CrudMixin):
         return result.scalar() or 0
 
     async def create_organization_member(
-        self, user_id: int, organization_id: int, role: OrgRole
+        self, member: OrganizationMemberCreate
     ) -> OrganizationMember:
         async with self._get_session() as session:
-            db_organization_member = OrganizationMemberOrm(
-                user_id=user_id, organization_id=organization_id, role=role
-            )
-            session.add(db_organization_member)
-            try:
-                await session.commit()
-                await session.refresh(db_organization_member)
-            except IntegrityError as e:
-                await session.rollback()
-                if "org_member" in str(e.orig):
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"User with ID {user_id} is already a member "
-                        f"of organization {organization_id}.",
-                    ) from e
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="An unexpected database error occurred.",
-                ) from e
-        return OrganizationMember.model_validate(db_organization_member)
+            db_member = await self.create_model(session, OrganizationMemberOrm, member)
+            return db_member.to_organization_member()
 
     async def create_owner(
         self, user_id: int, organization_id: int
     ) -> OrganizationMember:
-        return await self.create_organization_member(
-            user_id, organization_id, OrgRole.OWNER
-        )
-
-    async def get_user_organizations(
-        self, user_id: int, role: OrgRole | None = None
-    ) -> list[OrganizationSwitcher]:
         async with self._get_session() as session:
-            query = (
-                select(OrganizationOrm, OrganizationMemberOrm.role)
-                .join(
+            db_member = await self.create_model(
+                session,
+                OrganizationMemberOrm,
+                OrganizationOwnerCreate(
+                    user_id=user_id, organization_id=organization_id, role=OrgRole.OWNER
+                ),
+            )
+            return db_member.to_organization_member()
+
+    async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
+        async with self._get_session() as session:
+            db_organizations = await self.get_models_where(
+                session,
+                OrganizationOrm,
+                OrganizationMemberOrm.user_id == user_id,
+                order_by=[OrganizationOrm.name],
+                join_condition=(
                     OrganizationMemberOrm,
                     OrganizationMemberOrm.organization_id == OrganizationOrm.id,
-                )
-                .filter(OrganizationMemberOrm.user_id == user_id)
-                .order_by(OrganizationOrm.name)
+                ),
+                select_fields=[OrganizationOrm, OrganizationMemberOrm.role],
+                use_unique=True,
             )
-
-            if role is not None:
-                query = query.filter(OrganizationMemberOrm.role == role)
-
-            result = await session.execute(query)
-            db_organizations = result.unique().all()
 
             return [
                 OrganizationSwitcher(
@@ -263,52 +230,27 @@ class UserRepository(RepositoryBase, CrudMixin):
             return details
 
     async def get_organization_users(
-        self, organization_id: int, role: OrgRole | None = None
+        self, organization_id: int
     ) -> list[OrganizationMember]:
         async with self._get_session() as session:
-            query = select(OrganizationMemberOrm).filter(
-                OrganizationMemberOrm.organization_id == organization_id
+            db_members = await self.get_models_where(
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.organization_id == organization_id,
             )
-
-            if role is not None:
-                query = query.filter(OrganizationMemberOrm.role == role)
-
-            result = await session.execute(query)
-            db_organization_members = result.scalars().all()
-            return [
-                member.to_organization_member() for member in db_organization_members
-            ]
-
-    async def update_organization_member_where(
-        self, member: UpdateOrganizationMember, *where_conditions
-    ) -> OrganizationMember | None:
-        async with self._get_session() as session:
-            result = await session.execute(
-                select(OrganizationMemberOrm).where(*where_conditions)
-            )
-            db_member = result.scalar_one_or_none()
-
-            if not db_member:
-                return None
-
-            fields_to_update = member.model_dump(exclude_unset=True)
-            if not fields_to_update:
-                return db_member.to_organization_member()
-
-            for field, value in fields_to_update.items():
-                setattr(db_member, field, value)
-
-            await session.commit()
-            await session.refresh(db_member)
-
-            return db_member.to_organization_member()
+            return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def update_organization_member(
         self, member_id: int, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        return await self.update_organization_member_where(
-            member, OrganizationMemberOrm.id == member_id
-        )
+        member.id = member_id
+        async with self._get_session() as session:
+            db_member = await self.update_model(session, OrganizationMemberOrm, member)
+            return db_member.to_organization_member() if db_member else None
+
+    async def delete_organization_member(self, member_id: int) -> None:
+        async with self._get_session() as session:
+            return await self.delete_model(session, OrganizationMemberOrm, member_id)
 
     async def delete_organization_member_where(self, *where_conditions) -> None:
         async with self._get_session() as session:
@@ -321,11 +263,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                 await session.delete(member)
                 await session.commit()
 
-    async def delete_organization_member(self, member_id: int) -> None:
-        return await self.delete_organization_member_where(
-            OrganizationMemberOrm.id == member_id
-        )
-
     async def delete_organization_member_by_user_id(
         self, user_id: int, organization_id: int
     ) -> None:
@@ -334,15 +271,16 @@ class UserRepository(RepositoryBase, CrudMixin):
             OrganizationMemberOrm.organization_id == organization_id,
         )
 
-    async def get_organization_members_where(
-        self, *where_conditions
+    async def get_organization_members(
+        self, organization_id: int
     ) -> list[OrganizationMember]:
         async with self._get_session() as session, session.begin():
-            result = await session.execute(
-                select(OrganizationMemberOrm)
-                .options(joinedload(OrganizationMemberOrm.user))
-                .where(*where_conditions)
-                .order_by(
+            db_members = await self.get_models_where(
+                session,
+                OrganizationMemberOrm,
+                (OrganizationMemberOrm.organization_id == organization_id),
+                options=[joinedload(OrganizationMemberOrm.user)],
+                order_by=[
                     case(
                         (OrganizationMemberOrm.role == "OWNER", 0),
                         (OrganizationMemberOrm.role == "ADMIN", 1),
@@ -350,40 +288,27 @@ class UserRepository(RepositoryBase, CrudMixin):
                         else_=3,
                     ),
                     OrganizationMemberOrm.created_at,
-                )
+                ],
             )
-            members = result.scalars().all()
-            return [OrganizationMember.model_validate(member) for member in members]
 
-    async def get_organization_members(
-        self, organization_id: int
-    ) -> list[OrganizationMember]:
-        return await self.get_organization_members_where(
-            OrganizationMemberOrm.organization_id == organization_id
-        )
+            return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def get_organization_member(
         self, organization_id: int, user_id: int
     ) -> OrganizationMemberOrm | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(OrganizationMemberOrm).where(
-                    OrganizationMemberOrm.user_id == user_id,
-                    OrganizationMemberOrm.organization_id == organization_id,
-                )
+            return await self.get_model_where(
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.user_id == user_id,
+                OrganizationMemberOrm.organization_id == organization_id,
             )
-            return result.scalar_one_or_none()
 
     async def get_organization_member_by_id(
         self, member_id: int
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(OrganizationMemberOrm).where(
-                    OrganizationMemberOrm.id == member_id
-                )
-            )
-            db_member = result.scalar_one_or_none()
+            db_member = await self.get_model(session, OrganizationMemberOrm, member_id)
             return db_member.to_organization_member() if db_member else None
 
     async def get_organization_member_by_email(
@@ -424,10 +349,5 @@ class UserRepository(RepositoryBase, CrudMixin):
         self, stat: StatsEmailSendCreate
     ) -> StatsEmailSendOut:
         async with self._get_session() as session:
-            db_email_send = StatsEmailSendOrm(
-                email=stat.email, description=stat.description
-            )
-            session.add(db_email_send)
-            await session.commit()
-            await session.refresh(db_email_send)
-        return db_email_send.to_email_send()
+            db_email_send = await self.create_model(session, StatsEmailSendOrm, stat)
+            return db_email_send.to_email_send()

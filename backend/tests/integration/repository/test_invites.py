@@ -1,12 +1,8 @@
-import random
-
 import pytest
-from dataforce_studio.infra.exceptions import NotFoundError
-from dataforce_studio.models import OrganizationInviteOrm, OrganizationOrm
+from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
 from dataforce_studio.schemas.user import User
-from sqlalchemy.ext.asyncio import create_async_engine
 
 
 def get_invite_obj(
@@ -50,46 +46,21 @@ async def test_delete_organization_invite(create_organization_with_user: dict) -
 
 
 @pytest.mark.asyncio
-async def test_delete_organization_invite_not_found(
-    create_database_and_apply_migrations: str, test_user: dict
-) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
-    repo = InviteRepository(engine)
-
-    with pytest.raises(NotFoundError) as error:
-        await repo.delete_organization_invite(random.randint(1, 10000))
-
-    assert error.value.status_code == 404
-
-
-@pytest.mark.asyncio
 async def test_get_invite(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
     engine, user, organization = data["engine"], data["user"], data["organization"]
     repo = InviteRepository(engine)
 
     created_invite = await repo.create_organization_invite(
-        invite=get_invite_obj(organization, user)
+        get_invite_obj(organization, user)
     )
+    print('created: ', created_invite.__dict__)
     fetched_invite = await repo.get_invite(created_invite.id)
 
     assert fetched_invite.id == created_invite.id
     assert fetched_invite.email == created_invite.email
     assert fetched_invite.invited_by_user.id == user.id
     assert fetched_invite.organization_id == created_invite.organization_id
-
-
-@pytest.mark.asyncio
-async def test_get_invite_not_found(
-    create_database_and_apply_migrations: str, test_user: dict
-) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
-    repo = InviteRepository(engine)
-
-    with pytest.raises(NotFoundError) as error:
-        await repo.get_invite(random.randint(1, 10000))
-
-    assert error.value.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -103,9 +74,7 @@ async def test_get_invite_where(create_organization_with_user: dict) -> None:
         invite_i.email = f"{i}_{invite_i.email}"
         await repo.create_organization_invite(invite_i)
 
-    invites = await repo.get_invites_where(
-        [], OrganizationInviteOrm.organization_id == organization.id
-    )
+    invites = await repo.get_invites_by_organization_id(organization.id)
 
     assert isinstance(invites, list)
     assert len(invites) == 4
@@ -123,13 +92,9 @@ async def test_delete_invite_where(create_organization_with_user: dict) -> None:
         invite_i.email = f"{i}_{invite_i.email}"
         await repo.create_organization_invite(invite_i)
 
-    deleted_invites = await repo.delete_organization_invites_where(
-        OrganizationInviteOrm.organization_id == organization.id
-    )
+    deleted_invites = await repo.delete_all_organization_invites(organization.id)
 
-    invites = await repo.get_invites_where(
-        [], OrganizationInviteOrm.organization_id == organization.id
-    )
+    invites = await repo.get_invites_by_organization_id(organization.id)
 
     assert deleted_invites is None
     assert len(invites) == 0

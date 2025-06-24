@@ -5,6 +5,11 @@ import pytest
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.exceptions import NotFoundError
 from dataforce_studio.models import OrganizationMemberOrm
+from dataforce_studio.infra.exceptions import (
+    NotFoundError,
+    OrganizationLimitReachedError,
+    ServiceError,
+)
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -116,7 +121,6 @@ async def test_create_organization_orbit(
     )
 
     assert result == mocked_orbit
-
 
     mock_create_orbit.assert_awaited_once_with(
         mocked_orbit.organization_id, orbit_to_create

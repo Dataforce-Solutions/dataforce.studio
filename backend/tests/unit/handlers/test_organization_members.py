@@ -140,5 +140,9 @@ async def test_add_organization_member(
 
     assert actual == expected
     mock_create_organization_member.assert_awaited_once_with(
-        member_create.user_id, member_create.organization_id, member_create.role
+        OrganizationMemberCreate(
+            user_id=member_create.user_id,
+            organization_id=member_create.organization_id,
+            role=member_create.role,
+        )
     )
