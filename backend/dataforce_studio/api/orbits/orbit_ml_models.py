@@ -34,27 +34,6 @@ async def create_ml_model(
     return {"model": created_model, "url": url}
 
 
-@ml_models_router.post(
-    "/{model_id}/confirm-upload",
-    responses=endpoint_responses,
-    response_model=MLModel,
-)
-async def confirm_ml_model_upload(
-    request: Request,
-    organization_id: int,
-    orbit_id: int,
-    collection_id: int,
-    model_id: int,
-) -> MLModel:
-    return await ml_model_handler.confirm_upload(
-        request.user.id,
-        organization_id,
-        orbit_id,
-        collection_id,
-        model_id,
-    )
-
-
 @ml_models_router.patch(
     "/{model_id}",
     responses=endpoint_responses,
@@ -97,7 +76,7 @@ async def get_ml_models(
     )
 
 
-@ml_models_router.post("/{model_id}/download-url", responses=endpoint_responses)
+@ml_models_router.get("/{model_id}/download-url", responses=endpoint_responses)
 async def get_ml_model_download_url(
     request: Request,
     organization_id: int,
@@ -115,7 +94,7 @@ async def get_ml_model_download_url(
     return {"url": url}
 
 
-@ml_models_router.post("/{model_id}/delete-url", responses=endpoint_responses)
+@ml_models_router.get("/{model_id}/delete-url", responses=endpoint_responses)
 async def get_ml_model_delete_url(
     request: Request,
     organization_id: int,
@@ -133,8 +112,8 @@ async def get_ml_model_delete_url(
     return {"url": url}
 
 
-@ml_models_router.post(
-    "/{model_id}/confirm-delete",
+@ml_models_router.delete(
+    "/{model_id}",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )

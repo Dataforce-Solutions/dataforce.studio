@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -55,6 +56,7 @@ class MLModelStatus(StrEnum):
     PENDING_UPLOAD = "pending_upload"
     UPLOADED = "uploaded"
     PENDING_DELETION = "pending_deletion"
+    UPLOAD_FAILED = "upload_failed"
 
 
 class MLModelCreate(BaseModel):
@@ -89,6 +91,7 @@ class MLModelUpdate(BaseModel):
 class MLModelUpdateIn(BaseModel):
     id: int
     tags: list[str] | None = None
+    status: Literal[MLModelStatus.UPLOADED, MLModelStatus.UPLOAD_FAILED] | None = None
 
 
 class MLModel(BaseModel, BaseOrmConfig):

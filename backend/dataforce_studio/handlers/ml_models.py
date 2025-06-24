@@ -146,29 +146,6 @@ class MLModelHandler:
         url = await self._get_presigned_url(orbit.bucket_secret_id, bucket_location)
         return created_model, url
 
-    async def confirm_upload(
-        self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_id: int,
-    ) -> MLModel:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id,
-            orbit_id,
-            user_id,
-            Resource.MODEL,
-            Action.UPDATE,
-        )
-        await self._check_orbit_and_collection_access(
-            organization_id, orbit_id, collection_id
-        )
-        model = await self.__repository.confirm_upload(model_id)
-        if not model:
-            raise NotFoundError("ML model not found")
-        return model
-
     async def update_model(
         self,
         user_id: int,
@@ -190,7 +167,7 @@ class MLModelHandler:
         )
         updated = await self.__repository.update_ml_model(
             model_id,
-            MLModelUpdate(id=model_id, tags=model.tags),
+            MLModelUpdate(id=model_id, tags=model.tags, status=model.status),
         )
         if not updated:
             raise NotFoundError("ML model not found")
