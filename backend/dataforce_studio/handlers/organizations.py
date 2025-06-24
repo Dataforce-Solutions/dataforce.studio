@@ -17,7 +17,7 @@ from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
     Organization,
-    OrganizationCreate,
+    OrganizationCreateIn,
     OrganizationDetails,
     OrganizationInvite,
     OrganizationMember,
@@ -45,7 +45,7 @@ class OrganizationHandler:
     __members_limit = 50
 
     async def create_organization(
-        self, user_id: int, organization: OrganizationCreate
+        self, user_id: int, organization: OrganizationCreateIn
     ) -> Organization:
         db_org = await self.__user_repository.create_organization(user_id, organization)
         return db_org.to_organization()

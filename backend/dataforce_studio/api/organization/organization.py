@@ -5,7 +5,7 @@ from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.organization import (
     Organization,
-    OrganizationCreate,
+    OrganizationCreateIn,
     OrganizationDetails,
     OrganizationUpdate,
 )
@@ -32,7 +32,7 @@ async def get_organization_details(
 
 @organization_router.post("", response_model=Organization)
 async def create_organization(
-    request: Request, organization: OrganizationCreate
+    request: Request, organization: OrganizationCreateIn
 ) -> Organization:
     return await organization_handler.create_organization(request.user.id, organization)
 

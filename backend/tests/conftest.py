@@ -20,7 +20,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrgRole,
-    OrganizationMemberCreate, OrganizationCreate,
+    OrganizationMemberCreate, OrganizationCreateIn,
 )
 from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
@@ -206,7 +206,7 @@ async def create_organization_with_user(
     user = await repo.create_user(CreateUser(**test_user))
 
     created_organization = await repo.create_organization(
-        user.id, OrganizationCreate(name="test org")
+        user.id, OrganizationCreateIn(name="test org")
     )
     member = await repo.get_organization_member(created_organization.id, user.id)
 
@@ -252,7 +252,7 @@ async def create_organization_with_members(
     users.append(user_main)
 
     organization = await repo.create_organization(
-        user_main.id, OrganizationCreate(name="Test org with members")
+        user_main.id, OrganizationCreateIn(name="Test org with members")
     )
     owner = await repo.get_organization_member(organization.id, user_main.id)
     members.append(owner)
@@ -312,7 +312,7 @@ async def create_orbit(
 
     user = await user_repo.create_user(CreateUser(**test_user))
     created_organization = await user_repo.create_organization(
-        user.id, OrganizationCreate(name="test org")
+        user.id, OrganizationCreateIn(name="test org")
     )
     secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(
@@ -348,7 +348,7 @@ async def create_orbit_with_members(
     user = await user_repo.create_user(CreateUser(**test_user))
 
     created_organization = await user_repo.create_organization(
-        user.id, OrganizationCreate(name="test org")
+        user.id, OrganizationCreateIn(name="test org")
     )
     secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(

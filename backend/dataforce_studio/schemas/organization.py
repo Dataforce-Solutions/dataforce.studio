@@ -14,9 +14,14 @@ class OrgRole(StrEnum):
     MEMBER = "member"
 
 
-class OrganizationCreate(BaseModel):
+class OrganizationCreateIn(BaseModel):
     name: str
     logo: HttpUrl | None = None
+
+
+class OrganizationCreate(BaseModel):
+    name: str
+    logo: str | None = None
 
 
 class OrganizationUpdate(BaseModel):
