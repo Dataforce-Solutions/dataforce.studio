@@ -12,6 +12,7 @@ from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationCreate,
+    OrganizationCreateIn,
     OrganizationDetails,
     OrganizationMember,
     OrganizationMemberCreate,
@@ -114,14 +115,17 @@ class UserRepository(RepositoryBase, CrudMixin):
         return changed
 
     async def create_organization(
-        self, user_id: int, organization: OrganizationCreate
+        self, user_id: int, organization: OrganizationCreateIn
     ) -> OrganizationOrm:
         async with self._get_session() as session:
+            org_logo = str(organization.logo) if organization.logo else None
             db_organization = await self.create_model(
-                session, OrganizationOrm, organization
+                session,
+                OrganizationOrm,
+                OrganizationCreate(name=organization.name, logo=org_logo),
             )
             await self.create_owner(user_id, db_organization.id)
-            # await session.refresh(db_organization)
+
             return db_organization
 
     async def update_organization(

@@ -11,11 +11,10 @@ from dataforce_studio.infra.exceptions import (
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
     Organization,
-    OrganizationCreate,
     OrganizationDetails,
     OrganizationSwitcher,
     OrganizationUpdate,
-    OrgRole,
+    OrgRole, OrganizationCreateIn,
 )
 
 handler = OrganizationHandler()
@@ -121,7 +120,7 @@ async def test_create_organization(
     mock_create_organization: AsyncMock, test_org: dict
 ) -> None:
     user_id = random.randint(1, 10000)
-    org_to_create = OrganizationCreate(name=test_org["name"], logo=test_org["logo"])
+    org_to_create = OrganizationCreateIn(name=test_org["name"], logo=test_org["logo"])
     expected = Organization(**test_org)
     mock_create_organization.return_value = OrganizationOrm(**test_org)
 

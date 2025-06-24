@@ -3,7 +3,7 @@ import random
 
 import pytest
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import Organization, OrganizationCreate
+from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
 from dataforce_studio.schemas.user import CreateUser
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -29,7 +29,7 @@ async def test_create_organization(
     user = await repo.create_user(CreateUser(**new_user))
 
     created_organization = await repo.create_organization(
-        user.id, OrganizationCreate(name=organization.name, logo=organization.logo)
+        user.id, OrganizationCreateIn(name=organization.name, logo=organization.logo)
     )
 
     assert created_organization.id
