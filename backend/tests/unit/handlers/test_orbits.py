@@ -260,7 +260,7 @@ async def test_get_orbit(
     result = await handler.get_orbit(user_id, expected.organization_id, expected.id)
 
     assert result == expected
-    mock_get_orbit.assert_awaited_once_with(expected.id)
+    mock_get_orbit.assert_awaited_once_with(expected.id, expected.organization_id)
 
 
 @patch(
@@ -293,7 +293,7 @@ async def test_get_orbit_not_found(
         await handler.get_orbit(user_id, organization_id, orbit_id)
 
     assert error.value.status_code == 404
-    mock_get_orbit.assert_awaited_once_with(orbit_id)
+    mock_get_orbit.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(

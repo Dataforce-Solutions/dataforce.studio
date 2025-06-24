@@ -1,6 +1,6 @@
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models import Base
 from dataforce_studio.models.base import TimestampMixin
@@ -25,6 +25,13 @@ class CollectionOrm(TimestampMixin, Base):
     )
     models: Mapped[list["MLModelOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="collection", cascade="all, delete, delete-orphan"
+    )
+
+    total_models = column_property(
+        select(func.count(MLModelOrm.id))
+        .where(MLModelOrm.collection_id == id)
+        .correlate_except(MLModelOrm)
+        .scalar_subquery()
     )
 
     def __repr__(self) -> str:

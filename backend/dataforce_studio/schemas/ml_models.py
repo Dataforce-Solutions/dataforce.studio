@@ -33,6 +33,7 @@ class Collection(BaseModel, BaseOrmConfig):
     name: str
     collection_type: CollectionType
     tags: list[str] | None = None
+    total_models: int
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -61,6 +62,7 @@ class MLModelCreate(BaseModel):
     metrics: dict
     manifest: dict
     file_hash: str
+    file_index: dict
     bucket_location: str
     size: int
     unique_identifier: str
@@ -72,6 +74,7 @@ class MLModelIn(BaseModel):
     metrics: dict
     manifest: dict
     file_hash: str
+    file_index: dict
     size: int
     file_name: str
     tags: list[str] | None = None
@@ -94,6 +97,7 @@ class MLModel(BaseModel, BaseOrmConfig):
     metrics: dict
     manifest: dict
     file_hash: str
+    file_index: dict
     bucket_location: str
     size: int
     unique_identifier: str

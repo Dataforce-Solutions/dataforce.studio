@@ -36,7 +36,9 @@ class CollectionHandler:
             Resource.COLLECTION,
             Action.CREATE,
         )
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection_create = CollectionCreate(
@@ -54,7 +56,9 @@ class CollectionHandler:
             Resource.COLLECTION,
             Action.LIST,
         )
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         return await self.__repository.get_orbit_collections(orbit_id)
@@ -74,7 +78,9 @@ class CollectionHandler:
             Resource.COLLECTION,
             Action.UPDATE,
         )
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         updated = await self.__repository.update_collection(
@@ -100,7 +106,9 @@ class CollectionHandler:
             Resource.COLLECTION,
             Action.DELETE,
         )
-        orbit = await self.__orbit_repository.get_orbit_simple(orbit_id)
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection = await self.__repository.get_collection(collection_id)
