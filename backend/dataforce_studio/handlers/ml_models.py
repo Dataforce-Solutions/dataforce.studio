@@ -165,12 +165,27 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
+
+        model_obj = await self.__repository.get_ml_model(model_id)
+
+        if not model_obj:
+            raise NotFoundError("ML model not found")
+
+        if not model_obj.status == MLModelStatus.PENDING_UPLOAD:
+            raise ServiceError(
+                f"ML model status must be {MLModelStatus.PENDING_UPLOAD} "
+                f"to be updated to {MLModelStatus.UPLOADED} or "
+                f"{MLModelStatus.UPLOAD_FAILED} statuses"
+            )
+
         updated = await self.__repository.update_ml_model(
             model_id,
             MLModelUpdate(id=model_id, tags=model.tags, status=model.status),
         )
+
         if not updated:
             raise NotFoundError("ML model not found")
+
         return updated
 
     async def request_download_url(
