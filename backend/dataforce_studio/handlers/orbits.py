@@ -1,3 +1,4 @@
+from fastapi import BackgroundTasks
 from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.handlers.emails import EmailHandler
@@ -33,6 +34,19 @@ class OrbitHandler:
     __secret_repository = BucketSecretRepository(engine)
 
     __orbits_limit = 10
+
+    def notify_members(
+        self, orbit: OrbitDetails, background_tasks: BackgroundTasks
+    ) -> None:
+        if orbit.members:
+            for member in orbit.members:
+                background_tasks.add_task(
+                    self.__email_handler.send_added_to_orbit_email,
+                    member.user.full_name or "",
+                    member.user.email or "",
+                    orbit.name or "",
+                    config.APP_EMAIL_URL,
+                )
 
     async def _check_organization_orbits_limit(self, organization_id: int) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
