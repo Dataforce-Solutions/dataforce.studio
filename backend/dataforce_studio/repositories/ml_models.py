@@ -16,16 +16,6 @@ class MLModelRepository(RepositoryBase, CrudMixin):
             db_model = await self.create_model(session, MLModelOrm, model)
             return db_model.to_ml_model()
 
-    async def confirm_upload(self, model_id: int) -> MLModel | None:
-        async with self._get_session() as session:
-            db_model = await self.update_model_where(
-                session,
-                MLModelOrm,
-                MLModelUpdate(id=model_id, status=MLModelStatus.UPLOADED),
-                MLModelOrm.id == model_id,
-            )
-            return db_model.to_ml_model() if db_model else None
-
     async def update_status(
         self, model_id: int, status: MLModelStatus
     ) -> MLModel | None:
