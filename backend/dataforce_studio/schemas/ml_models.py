@@ -62,6 +62,8 @@ class MLModelStatus(StrEnum):
 
 class MLModelCreate(BaseModel):
     collection_id: int
+    file_name: str
+    description: str | None = None
     metrics: dict
     manifest: dict
     file_hash: str
@@ -74,23 +76,28 @@ class MLModelCreate(BaseModel):
 
 
 class MLModelIn(BaseModel):
+    file_name: str
+    description: str | None = None
     metrics: dict
     manifest: dict
     file_hash: str
     file_index: dict
     size: int
-    file_name: str
     tags: list[str] | None = None
 
 
 class MLModelUpdate(BaseModel):
     id: int
+    file_name: str | None = None
+    description: str | None = None
     status: MLModelStatus | None = None
     tags: list[str] | None = None
 
 
 class MLModelUpdateIn(BaseModel):
     id: int
+    file_name: str
+    description: str | None = None
     tags: list[str] | None = None
     status: (
         Literal[
@@ -105,6 +112,8 @@ class MLModelUpdateIn(BaseModel):
 class MLModel(BaseModel, BaseOrmConfig):
     id: int
     collection_id: int
+    file_name: str
+    description: str | None = None
     metrics: dict
     manifest: dict
     file_hash: str
@@ -116,3 +125,8 @@ class MLModel(BaseModel, BaseOrmConfig):
     status: MLModelStatus
     created_at: datetime
     updated_at: datetime | None = None
+
+
+class CreateMLModelResponse(BaseModel):
+    model: MLModel
+    url: str

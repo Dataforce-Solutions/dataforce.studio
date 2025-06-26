@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, status
 from dataforce_studio.handlers.ml_models import MLModelHandler
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.ml_models import (
+    CreateMLModelResponse,
     MLModel,
     MLModelIn,
     MLModelUpdateIn,
@@ -16,7 +17,9 @@ ml_models_router = APIRouter(
 ml_model_handler = MLModelHandler()
 
 
-@ml_models_router.post("", responses=endpoint_responses)
+@ml_models_router.post(
+    "", responses=endpoint_responses, response_model=CreateMLModelResponse
+)
 async def create_ml_model(
     request: Request,
     organization_id: int,

@@ -13,6 +13,8 @@ class MLModelOrm(TimestampMixin, Base):
     collection_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False
     )
+    file_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=True)
     metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
