@@ -31,6 +31,14 @@ class MLModelHandler:
     __collection_repository = CollectionRepository(engine)
     __permissions_handler = PermissionsHandler()
 
+    __model_transitions = {
+        MLModelStatus.PENDING_UPLOAD: {
+            MLModelStatus.UPLOADED,
+            MLModelStatus.UPLOAD_FAILED,
+        },
+        MLModelStatus.PENDING_DELETION: {MLModelStatus.DELETION_FAILED},
+    }
+
     async def _get_presigned_url(self, secret_id: int, object_name: str) -> str:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
@@ -171,11 +179,9 @@ class MLModelHandler:
         if not model_obj:
             raise NotFoundError("ML model not found")
 
-        if not model_obj.status == MLModelStatus.PENDING_UPLOAD:
+        if model.status not in self.__model_transitions.get(model_obj.status, set()):
             raise ServiceError(
-                f"ML model status must be {MLModelStatus.PENDING_UPLOAD} "
-                f"to be updated to {MLModelStatus.UPLOADED} or "
-                f"{MLModelStatus.UPLOAD_FAILED} statuses"
+                f"Invalid status transition from {model_obj.status} to {model.status}"
             )
 
         updated = await self.__repository.update_ml_model(

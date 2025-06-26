@@ -57,6 +57,7 @@ class MLModelStatus(StrEnum):
     UPLOADED = "uploaded"
     PENDING_DELETION = "pending_deletion"
     UPLOAD_FAILED = "upload_failed"
+    DELETION_FAILED = "deletion_failed"
 
 
 class MLModelCreate(BaseModel):
@@ -91,7 +92,14 @@ class MLModelUpdate(BaseModel):
 class MLModelUpdateIn(BaseModel):
     id: int
     tags: list[str] | None = None
-    status: Literal[MLModelStatus.UPLOADED, MLModelStatus.UPLOAD_FAILED] | None = None
+    status: (
+        Literal[
+            MLModelStatus.UPLOADED,
+            MLModelStatus.UPLOAD_FAILED,
+            MLModelStatus.DELETION_FAILED,
+        ]
+        | None
+    ) = None
 
 
 class MLModel(BaseModel, BaseOrmConfig):
