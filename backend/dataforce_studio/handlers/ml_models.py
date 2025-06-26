@@ -139,6 +139,8 @@ class MLModelHandler:
         created_model = await self.__repository.create_ml_model(
             MLModelCreate(
                 collection_id=collection_id,
+                file_name=model.file_name,
+                description=model.description,
                 metrics=model.metrics,
                 manifest=model.manifest,
                 file_hash=model.file_hash,
@@ -186,7 +188,13 @@ class MLModelHandler:
 
         updated = await self.__repository.update_ml_model(
             model_id,
-            MLModelUpdate(id=model_id, tags=model.tags, status=model.status),
+            MLModelUpdate(
+                id=model_id,
+                file_name=model.file_name,
+                description=model.description,
+                status=model.status,
+                tags=model.tags,
+            ),
         )
 
         if not updated:
