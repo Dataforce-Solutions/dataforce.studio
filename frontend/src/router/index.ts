@@ -96,7 +96,29 @@ const router = createRouter({
     {
       path: '/orbits',
       name: 'orbits',
-      component: () => import('../pages/OrbitsPage.vue'),
+      component: () => import('../pages/orbits/index.vue'),
+    },
+    {
+      path: '/orbit/:id',
+      name: 'orbit',
+      component: () => import('../pages/orbits/OrbitPage.vue'),
+      children: [
+        {
+          path: '',
+          name: 'orbit-registry',
+          component: () => import('../pages/orbits/OrbitRegistryView.vue'),
+        },
+        {
+          path: 'deployments',
+          name: 'orbit-deployments',
+          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+        },
+      ],
+    },
+    {
+      path: '/orbit/:id/collection/:collectionId',
+      name: 'collection',
+      component: () => import('../pages/collection/CollectionPage.vue'),
     },
     {
       path: '/notebooks',
@@ -111,7 +133,24 @@ const router = createRouter({
     {
       path: '/organizations/:id',
       name: 'organization',
-      component: () => import('../pages/OrganizationPage.vue'),
+      component: () => import('../pages/organization/index.vue'),
+      children: [
+        {
+          path: '',
+          name: 'organization-members',
+          component: () => import('../components/organizations/OrganizationMembers.vue'),
+        },
+        {
+          path: 'orbits',
+          name: 'organization-orbits',
+          component: () => import('../components/organizations/OrganizationOrbits.vue'),
+        },
+        {
+          path: 'buckets',
+          name: 'organization-buckets',
+          component: () => import('../components/organizations/registry/OrganizationRegistry.vue'),
+        },
+      ],
     },
     {
       path: '/:pathMatch(.*)*',

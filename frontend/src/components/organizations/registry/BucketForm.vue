@@ -76,9 +76,7 @@ import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
-import { Message } from 'primevue'
 
-const PROTOCOL_OPTIONS = ['SSL', 'TLS']
 
 type Props = {
   initialData?: BucketSecretCreator
@@ -101,7 +99,6 @@ const initialValues = ref<BucketSecretCreator>({
   secure: false,
   region: '',
 })
-const protocolModel = ref<(typeof PROTOCOL_OPTIONS)[number]>('TLS')
 
 const resolver = zodResolver(
   z.object({

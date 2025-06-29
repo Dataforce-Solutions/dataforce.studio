@@ -14,6 +14,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'express_tasks',
+    authRequired: false,
   },
   {
     id: 2,
@@ -23,6 +24,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'runtime',
+    authRequired: false,
   },
   {
     id: 4,
@@ -32,6 +34,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'notebook',
+    authRequired: false,
   },
   {
     id: 5,
@@ -41,6 +44,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'data-agent',
+    authRequired: false,
   },
   {
     id: 3,
@@ -50,6 +54,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'orbits',
+    authRequired: true,
   },
 ]
 

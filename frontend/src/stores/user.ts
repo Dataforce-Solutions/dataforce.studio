@@ -23,6 +23,7 @@ export const useUserStore = defineStore('user', () => {
   const isUserDisabled = computed(() => user.value?.disabled)
   const getUserAvatar = computed(() => user.value?.photo)
   const isUserLoggedWithSSO = computed(() => user.value?.auth_method !== 'email')
+  const getUserId = computed(() => user.value?.id)
 
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
@@ -64,6 +65,7 @@ export const useUserStore = defineStore('user', () => {
     isUserDisabled,
     isPasswordHasBeenChanged,
     isUserLoggedWithSSO,
+    getUserId,
     loadUser,
     changePassword,
     deleteAccount,

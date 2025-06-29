@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
+import type { Orbit } from '@/lib/api/DataforceApi.interfaces'
 
 export const signInResolver = zodResolver(
   z.object({
@@ -58,4 +59,47 @@ export const userChangePasswordResolver = zodResolver(
       message: 'Passwords must match',
       path: ['confirmPassword'],
     }),
+)
+
+export const orbitCreatorResolver = (orbitsList: Orbit[]) =>
+  zodResolver(
+    z.object({
+      name: z
+        .string()
+        .min(1)
+        .refine((val) => !orbitsList.find((orbit) => orbit.name === val), {
+          message: 'An Orbit with this name already exists',
+        }),
+      members: z.array(
+        z.object({
+          user_id: z.number(),
+          role: z.string(),
+        }),
+      ),
+      bucket_secret_id: z.number(),
+    }),
+  )
+
+export const collectionCreatorResolver = zodResolver(
+  z.object({
+    description: z.string(),
+    name: z.string().min(1),
+    collection_type: z.string().min(1),
+  }),
+)
+
+export const collectionEditorResolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
+    bucket_secret_id: z.string(),
+  }),
+)
+
+export const modelCreatorResolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
+    description: z.string(),
+    file: z.instanceof(FileList).refine((file) => file?.length == 1, 'File is required.'),
+    tags: z.array(z.string()),
+  }),
 )

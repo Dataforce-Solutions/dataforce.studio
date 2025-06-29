@@ -35,7 +35,7 @@
             </button>
             <router-link
               v-else
-              :to="{ name: 'organization', params: { id: organizationStore.currentOrganization.id } }"
+              :to="{ name: 'organization-members', params: { id: organizationStore.currentOrganization.id } }"
               :class="slotProps.class"
               @click="toggle"
             >
@@ -141,7 +141,7 @@ async function onOrganizationClick(organizationId: number) {
   width: 100%;
 }
 .header-content {
-  width: 100%;
+  width: calc(100% - 50px);
 }
 .avatar {
   border-radius: 6px;

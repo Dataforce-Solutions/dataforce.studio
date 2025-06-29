@@ -175,11 +175,23 @@ export interface Orbit {
   total_members: number
   created_at: Date
   updated_at: Date | null
+  bucket_secret_id: number
 }
 
 export interface CreateOrbitPayload {
   name: string
-  organization_id: number
+  bucket_secret_id: number
+  members: {
+    user_id: number
+    role: OrbitRoleEnum
+  }[]
+  notify: boolean
+}
+
+export interface UpdateOrbitPayload {
+  id: number
+  name: string
+  bucket_secret_id: number
 }
 
 export interface AddMemberToOrbitPayload {

@@ -54,6 +54,7 @@ import ModelTopFeatures from './ModelTopFeatures.vue'
 import { getMetricsCards, prepareRuntimeMetrics, toPercent } from '@/helpers/helpers'
 import { Model } from '@fnnx/web'
 import { ArrayDType, NDArray } from '@fnnx/common'
+import { FnnxService } from '@/lib/fnnx/FnnxService'
 
 const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1, FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1]
 
@@ -136,13 +137,7 @@ function extractType(string: string): ArrayDType | null {
 }
 
 onBeforeMount(() => {
-  const metadata = props.model.getMetadata()
-  for (const meta of metadata) {
-    const tag = meta.producer_tags.find((tag: FNNX_PRODUCER_TAGS_METADATA_ENUM) => availableTags.includes(tag))
-    if (tag) {
-      metrics.value = meta.payload.metrics
-    }
-  }
+  metrics.value = FnnxService.getModelMetrics(props.model, availableTags)
 })
 </script>
 

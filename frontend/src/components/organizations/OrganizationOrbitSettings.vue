@@ -97,10 +97,10 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
 import { UserCog, Trash2 } from 'lucide-vue-next'
 import { Dialog, AutoComplete, Button, useToast, Avatar, Select, useConfirm } from 'primevue'
-import { OrganizationRoleEnum } from './organization.interfaces'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { OrbitRoleEnum } from '../orbits/orbits.interfaces'
 import { deleteUserConfirmOptions } from '@/lib/primevue/data/confirm'
+import { useUserStore } from '@/stores/user'
 
 const OPTIONS = [
   {
@@ -123,6 +123,7 @@ const organizationsStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const confirm = useConfirm()
+const userStore = useUserStore()
 
 const visible = ref(false)
 const loading = ref(false)
@@ -143,6 +144,7 @@ function onComplete(event: AutoCompleteCompleteEvent) {
   if (!organizationsStore.currentOrganization?.members?.length) return
   searchedMembers.value = organizationsStore.currentOrganization.members.filter((member) => {
     if (orbitMembers.value.find((memberInOrbit) => memberInOrbit.id === member.id)) return false
+    if (member.user.id === userStore.getUserId) return false
 
     return (
       member.user.email.toLowerCase().includes(event.query.toLowerCase()) ||

@@ -1,5 +1,5 @@
 <template>
-  <Tabs :value="route.name as string">
+  <Tabs :value="$route.name as string">
     <TabList :pt="tabsListPT">
       <Tab
         :pt="tabPT"
@@ -7,6 +7,7 @@
         :key="tab.label"
         :value="tab.routeName"
         class="tab"
+        :disabled="tab.disabled"
         @click="$router.push({ name: tab.routeName })"
       >
         <component :is="tab.icon" :size="14" />
@@ -18,8 +19,7 @@
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { Users, Orbit, FolderDot } from 'lucide-vue-next'
-import { useRoute } from 'vue-router'
+import { Folders, Rocket } from 'lucide-vue-next'
 
 const tabsListPT = {
   tabList: { style: 'border-left: none; border-top: none; border-right: none;' },
@@ -29,23 +29,18 @@ const tabPT: TabPassThroughOptions = {}
 
 const items = [
   {
-    label: 'Members',
-    routeName: 'organization-members',
-    icon: Users,
-  },
-  {
-    label: 'Orbits',
-    routeName: 'organization-orbits',
-    icon: Orbit,
-  },
-  {
     label: 'Registry',
-    routeName: 'organization-buckets',
-    icon: FolderDot,
+    routeName: 'orbit-registry',
+    icon: Folders,
+    disabled: false,
+  },
+  {
+    label: 'Deployments',
+    routeName: 'orbit-deployments',
+    icon: Rocket,
+    disabled: true,
   },
 ]
-
-const route = useRoute()
 </script>
 
 <style scoped>

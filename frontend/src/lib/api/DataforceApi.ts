@@ -33,6 +33,7 @@ import type {
   AddMemberToOrbitPayload,
   OrbitDetails,
   OrbitMember,
+  UpdateOrbitPayload,
 } from './DataforceApi.interfaces'
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
 import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
@@ -211,8 +212,8 @@ export class DataforceApiClass {
     return responseData
   }
 
-  public async createOrbit(data: CreateOrbitPayload) {
-    const { data: responseData } = await this.api.post<Orbit>(`/organizations/${data.organization_id}/orbits`, data)
+  public async createOrbit(organization_id: number, data: CreateOrbitPayload) {
+    const { data: responseData } = await this.api.post<Orbit>(`/organizations/${organization_id}/orbits`, data)
     return responseData
   }
 
@@ -221,7 +222,7 @@ export class DataforceApiClass {
     return responseData
   }
 
-  public async updateOrbit(organizationId: number, data: { id: number, name: string }) {
+  public async updateOrbit(organizationId: number, data: UpdateOrbitPayload) {
     const { data: responseData } = await this.api.patch<Orbit>(`/organizations/${organizationId}/orbits/${data.id}`, data)
     return responseData
   }

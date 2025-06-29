@@ -1,0 +1,155 @@
+<template>
+  <Dialog
+    v-model:visible="visible"
+    header="Create a new collection"
+    modal
+    :draggable="false"
+    :pt="dialogPt"
+  >
+    <Form :initial-values="formData" :resolver="collectionCreatorResolver" @submit="onSubmit">
+      <div class="inputs">
+        <div class="field">
+          <label for="name" class="label required">Name</label>
+          <InputText
+            v-model="formData.name"
+            id="name"
+            name="name"
+            placeholder="Name your collection"
+            fluid
+          />
+        </div>
+        <div class="field">
+          <label for="collection_type" class="label required">Type</label>
+          <Select
+            v-model="formData.collection_type"
+            :options="[OrbitCollectionTypeEnum.model]"
+            placeholder="Select artifact types"
+            name="collection_type"
+            id="collection_type"
+            :pt="{
+              option: {
+                style: 'text-transform: capitalize',
+              },
+            }"
+          ></Select>
+        </div>
+        <div class="field">
+          <label for="description" class="label">Description</label>
+          <Textarea
+            v-model="formData.description"
+            name="description"
+            id="description"
+            placeholder="Describe your collection"
+            style="height: 72px; resize: none"
+          ></Textarea>
+        </div>
+        <div class="field">
+          <label for="tags" class="label">Tags</label>
+          <AutoComplete
+            v-model="formData.tags"
+            id="tags"
+            name="tags"
+            placeholder="Type to add tags"
+            fluid
+            multiple
+            :suggestions="autocompleteItems"
+            @complete="searchTags"
+          ></AutoComplete>
+        </div>
+      </div>
+
+      <Button type="submit" fluid rounded :loading="loading">Create</Button>
+    </Form>
+  </Dialog>
+</template>
+
+<script setup lang="ts">
+import type { DialogPassThroughOptions, AutoCompleteCompleteEvent } from 'primevue'
+import { Dialog, Button, InputText, Select, AutoComplete, Textarea, useToast } from 'primevue'
+import { Form, type FormSubmitEvent } from '@primevue/forms'
+import { computed, ref } from 'vue'
+import {
+  OrbitCollectionTypeEnum,
+  type OrbitCollectionCreator,
+} from '@/lib/api/orbit-collections/interfaces'
+import { useCollectionsStore } from '@/stores/collections'
+import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { collectionCreatorResolver } from '@/utils/forms/resolvers'
+
+const dialogPt: DialogPassThroughOptions = {
+  root: {
+    style: 'max-width: 500px; width: 100%;',
+  },
+  header: {
+    style: 'padding: 28px; text-transform: uppercase; font-size: 20px;',
+  },
+  content: {
+    style: 'padding: 0 28px 28px;',
+  },
+}
+
+const collectionsStore = useCollectionsStore()
+const toast = useToast()
+
+const visible = defineModel<boolean>('visible')
+
+const formData = ref<OrbitCollectionCreator>({
+  description: '',
+  name: '',
+  collection_type: undefined,
+  tags: [],
+})
+const loading = ref(false)
+
+const existingTags = computed(() => {
+  const tagsSet = collectionsStore.collectionsList.reduce((acc: Set<string>, item) => {
+    item.tags.map((tag) => {
+      acc.add(tag)
+    })
+    return acc
+  }, new Set<string>())
+  return Array.from(tagsSet)
+})
+const autocompleteItems = ref<string[]>([])
+
+function searchTags(event: AutoCompleteCompleteEvent) {
+  autocompleteItems.value = [
+    event.query,
+    ...existingTags.value.filter((tag) => tag.toLowerCase().includes(event.query.toLowerCase())),
+  ]
+}
+
+async function onSubmit({ valid }: FormSubmitEvent) {
+  if (!valid) return
+  try {
+    loading.value = true
+    await collectionsStore.createCollection({ ...formData.value })
+    visible.value = false
+    toast.add(simpleSuccessToast('Collection created'))
+  } catch (e: any) {
+    toast.add(
+      simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create collection'),
+    )
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+<style scoped>
+.inputs {
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.label {
+  align-self: flex-start;
+  font-size: 14px;
+}
+</style>

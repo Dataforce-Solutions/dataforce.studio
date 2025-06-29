@@ -105,3 +105,16 @@ export const parseProviderSettingsToObject = (settings: ProviderSetting[] | null
     return acc
   }, {}) || {}
 }
+
+export const getSha256 = async (buffer: ArrayBuffer): Promise<string> => {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return [...new Uint8Array(hashBuffer)]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export const getSizeText = (size: number) => {
+  return size < 1000 ? size + ' B'
+    : size < 10000000 ? size / 1000 + ' KB'
+    : size / 10000000 + ' MB'
+}
