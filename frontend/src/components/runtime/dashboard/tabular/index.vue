@@ -43,7 +43,8 @@
 </template>
 
 <script setup lang="ts">
-import { FNNX_PRODUCER_TAGS_METADATA_ENUM, Tasks, type RuntimeMetrics } from '@/lib/data-processing/interfaces'
+import { Tasks, type RuntimeMetrics } from '@/lib/data-processing/interfaces'
+import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/fnnx/FnnxService'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { SelectButton } from 'primevue'
@@ -137,7 +138,7 @@ function extractType(string: string): ArrayDType | null {
 }
 
 onBeforeMount(() => {
-  metrics.value = FnnxService.getModelMetrics(props.model, availableTags)
+  metrics.value = FnnxService.getTabularMetadata(props.model)
 })
 </script>
 

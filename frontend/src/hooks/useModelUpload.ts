@@ -1,7 +1,7 @@
 import { TarHandler } from '@/lib/tar-handler/TarHandler'
 import { useModelsStore } from '@/stores/models'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/data-processing/interfaces'
+import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/fnnx/FnnxService'
 import {
   MlModelStatusEnum,
   type CreateModelResponse,
@@ -27,11 +27,11 @@ export const useModelUpload = () => {
     const manifest = model.getManifest()
     const modelBuffer = await file.arrayBuffer()
     const fileIndex = new TarHandler(modelBuffer).scan()
-    const metrics = FnnxService.getModelMetrics(model, AVAILABLE_TAGS)
+    const metrics = FnnxService.getRegistryMetrics(model)
     const fileHash = await getSha256(modelBuffer)
 
     const payload: MlModelCreator = {
-      metrics: {},
+      metrics: metrics,
       manifest,
       file_index: Object.fromEntries(fileIndex.entries()),
       file_hash: fileHash,
