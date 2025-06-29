@@ -95,7 +95,6 @@ class MLModelUpdate(BaseModel):
 
 
 class MLModelUpdateIn(BaseModel):
-    id: int
     file_name: str
     description: str | None = None
     tags: list[str] | None = None

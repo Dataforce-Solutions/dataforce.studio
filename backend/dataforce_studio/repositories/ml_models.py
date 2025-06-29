@@ -50,18 +50,27 @@ class MLModelRepository(RepositoryBase, CrudMixin):
             db_versions = result.scalars().all()
             return [v.to_ml_model() for v in db_versions]
 
-    async def get_ml_model(self, model_id: int) -> MLModel | None:
+    async def get_ml_model(self, model_id: int, collection_id: int) -> MLModel | None:
         async with self._get_session() as session:
-            db_model = await self.get_model(session, MLModelOrm, model_id)
+            db_model = await self.get_model_where(
+                session,
+                MLModelOrm,
+                MLModelOrm.id == model_id,
+                MLModelOrm.collection_id == collection_id,
+            )
             return db_model.to_ml_model() if db_model else None
 
     async def update_ml_model(
-        self, model_id: int, model: MLModelUpdate
+        self, model_id: int, collection_id: int, model: MLModelUpdate
     ) -> MLModel | None:
         model.id = model_id
         async with self._get_session() as session:
-            db_model = await self.update_model(
-                session=session, orm_class=MLModelOrm, data=model
+            db_model = await self.update_model_where(
+                session,
+                MLModelOrm,
+                model,
+                MLModelOrm.id == model_id,
+                MLModelOrm.collection_id == collection_id,
             )
             return db_model.to_ml_model() if db_model else None
 

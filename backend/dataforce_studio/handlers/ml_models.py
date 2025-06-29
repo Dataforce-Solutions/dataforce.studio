@@ -176,7 +176,7 @@ class MLModelHandler:
             organization_id, orbit_id, collection_id
         )
 
-        model_obj = await self.__repository.get_ml_model(model_id)
+        model_obj = await self.__repository.get_ml_model(model_id, collection_id)
 
         if not model_obj:
             raise NotFoundError("ML model not found")
@@ -188,6 +188,7 @@ class MLModelHandler:
 
         updated = await self.__repository.update_ml_model(
             model_id,
+            collection_id,
             MLModelUpdate(
                 id=model_id,
                 file_name=model.file_name,
@@ -221,7 +222,7 @@ class MLModelHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id)
+        model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
             raise NotFoundError("ML model not found")
 
@@ -248,7 +249,7 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id)
+        model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
             raise NotFoundError("ML model not found")
 
@@ -280,7 +281,7 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id)
+        model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
             raise NotFoundError("ML model not found")
         if model.status != MLModelStatus.PENDING_DELETION:
@@ -327,7 +328,7 @@ class MLModelHandler:
         orbit, _ = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id)
+        model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
             raise NotFoundError("ML model not found")
 
