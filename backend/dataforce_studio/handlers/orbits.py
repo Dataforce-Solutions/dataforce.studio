@@ -107,17 +107,6 @@ class OrbitHandler:
         if not created_orbit:
             raise ServiceError("Some errors when creating")
 
-        if orbit.notify_by_email and created_orbit.members:
-            for member in created_orbit.members:
-                self.__email_handler.send_added_to_orbit_email(
-                    member.user.full_name
-                    if member.user and member.user.full_name
-                    else "",
-                    member.user.email if member.user and member.user.email else "",
-                    orbit.name if orbit else "",
-                    config.APP_EMAIL_URL,
-                )
-
         return created_orbit
 
     async def get_organization_orbits(
