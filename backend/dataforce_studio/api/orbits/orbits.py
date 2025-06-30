@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, BackgroundTasks, Request, status
 
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
@@ -27,11 +27,17 @@ async def get_organization_orbits(
     "", responses=endpoint_responses, response_model=OrbitDetails
 )
 async def create_orbit(
-    request: Request, organization_id: int, orbit: OrbitCreateIn
+    request: Request,
+    organization_id: int,
+    orbit: OrbitCreateIn,
+    background_tasks: BackgroundTasks,
 ) -> OrbitDetails:
-    return await orbit_handler.create_organization_orbit(
+    created_orbit = await orbit_handler.create_organization_orbit(
         request.user.id, organization_id, orbit
     )
+    if orbit.notify_by_email:
+        orbit_handler.notify_members(created_orbit, background_tasks)
+    return created_orbit
 
 
 @organization_orbits_router.get(

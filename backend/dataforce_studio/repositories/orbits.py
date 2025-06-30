@@ -78,8 +78,11 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             )
 
             if orbit.members:
-                members = convert_orbit_simple_members(db_orbit.id, orbit.members)
-                await self.create_models(session, OrbitMembersOrm, members)
+                await self.create_models(
+                    session,
+                    OrbitMembersOrm,
+                    convert_orbit_simple_members(db_orbit.id, orbit.members),
+                )
 
             return await self.get_orbit(db_orbit.id, organization_id)
 

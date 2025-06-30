@@ -1,5 +1,7 @@
+from fastapi import BackgroundTasks
 from sqlalchemy.exc import IntegrityError
 
+from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
@@ -21,15 +23,30 @@ from dataforce_studio.schemas.orbit import (
     UpdateOrbitMember,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.settings import config
 
 
 class OrbitHandler:
+    __email_handler = EmailHandler()
     __user_repository = UserRepository(engine)
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
 
     __orbits_limit = 10
+
+    def notify_members(
+        self, orbit: OrbitDetails, background_tasks: BackgroundTasks
+    ) -> None:
+        if orbit.members:
+            for member in orbit.members:
+                background_tasks.add_task(
+                    self.__email_handler.send_added_to_orbit_email,
+                    member.user.full_name or "",
+                    member.user.email or "",
+                    orbit.name or "",
+                    config.APP_EMAIL_URL,
+                )
 
     async def _check_organization_orbits_limit(self, organization_id: int) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
@@ -83,12 +100,14 @@ class OrbitHandler:
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
-        created = await self.__orbits_repository.create_orbit(organization_id, orbit)
+        created_orbit = await self.__orbits_repository.create_orbit(
+            organization_id, orbit
+        )
 
-        if not created:
+        if not created_orbit:
             raise ServiceError("Some errors when creating")
 
-        return created
+        return created_orbit
 
     async def get_organization_orbits(
         self, user_id: int, organization_id: int
@@ -185,9 +204,26 @@ class OrbitHandler:
         if user_id == member.user_id:
             raise ServiceError("You can not add yourself to orbit.")
         try:
-            return await self.__orbits_repository.create_orbit_member(member)
+            created_member = await self.__orbits_repository.create_orbit_member(member)
         except IntegrityError as error:
             raise ServiceError("Member already exist.") from error
+
+        orbit = await self.__orbits_repository.get_orbit_simple(
+            member.orbit_id,
+        )
+
+        self.__email_handler.send_added_to_orbit_email(
+            created_member.user.full_name
+            if created_member.user and created_member.user.full_name
+            else "",
+            created_member.user.email
+            if created_member.user and created_member.user.email
+            else "",
+            orbit.name if orbit else "",
+            config.APP_EMAIL_URL,
+        )
+
+        return created_member
 
     async def update_orbit_member(
         self,

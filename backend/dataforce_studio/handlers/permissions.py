@@ -58,7 +58,7 @@ class PermissionsHandler:
         user_id: int,
         resource: Resource,
         action: Action,
-    ) -> None:
+    ) -> str:
         member_role = await self.__orbits_repository.get_orbit_member_role(
             orbit_id, user_id
         )
@@ -69,6 +69,8 @@ class PermissionsHandler:
         if not self.has_orbit_permission(member_role, resource, action):
             raise InsufficientPermissionsError()
 
+        return member_role
+
     async def check_orbit_action_access(
         self,
         organization_id: int,
@@ -76,7 +78,7 @@ class PermissionsHandler:
         user_id: int,
         resource: Resource,
         action: Action,
-    ) -> None:
+    ) -> str | None:
         org_role = await self.check_organization_permission(
             organization_id,
             user_id,
@@ -85,9 +87,11 @@ class PermissionsHandler:
         )
 
         if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
-            await self.check_orbit_permission(
+            return await self.check_orbit_permission(
                 orbit_id,
                 user_id,
                 resource,
                 action,
             )
+
+        return None

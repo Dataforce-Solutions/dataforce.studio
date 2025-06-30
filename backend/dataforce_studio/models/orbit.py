@@ -95,6 +95,13 @@ class OrbitOrm(TimestampMixin, Base):
         .scalar_subquery()
     )
 
+    total_collections = column_property(
+        select(func.count(CollectionOrm.id))
+        .where(CollectionOrm.orbit_id == id)
+        .correlate_except(CollectionOrm)
+        .scalar_subquery()
+    )
+
     def __repr__(self) -> str:
         return f"Orbit(id={self.id!r})"
 
