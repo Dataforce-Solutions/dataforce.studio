@@ -349,6 +349,12 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return [member.to_organization_member() for member in db_members]
 
+    async def get_user_organizations_membership_count(self, user_id: int) -> int:
+        async with self._get_session() as session:
+            return await self.get_model_count(
+                session, OrganizationMemberOrm, OrganizationMemberOrm.user_id == user_id
+            )
+
     async def create_stats_email_send_obj(
         self, stat: StatsEmailSendCreate
     ) -> StatsEmailSendOut:

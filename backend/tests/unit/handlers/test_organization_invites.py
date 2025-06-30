@@ -148,6 +148,11 @@ async def test_cancel_invite(
 
 
 @patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
+    new_callable=AsyncMock,
+)
+
+@patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
 )
@@ -169,12 +174,14 @@ async def test_accept_invite(
     mock_get_invite: AsyncMock,
     mock_create_organization_member: AsyncMock,
     mock_get_organization_members_count: AsyncMock,
+    mock_get_user_organizations_membership_count: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     invite = OrganizationInviteOrm(**invite_accept_data)
 
     mock_get_invite.return_value = invite
     mock_get_organization_members_count.return_value = 0
+    mock_get_user_organizations_membership_count.return_value = 0
 
     result = await handler.accept_invite(invite.id, user_id)
 
@@ -183,7 +190,7 @@ async def test_accept_invite(
     mock_get_organization_members_count.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
-            user_id=user_id, organization_id=invite.organization_id, role=invite.role
+            user_id=user_id, organization_id=invite.organization_id, role=OrgRole(invite.role)
         )
     )
     mock_delete_organization_invites_for_user.assert_awaited_once_with(
