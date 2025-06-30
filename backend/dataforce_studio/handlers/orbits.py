@@ -209,7 +209,7 @@ class OrbitHandler:
             raise ServiceError("Member already exist.") from error
 
         orbit = await self.__orbits_repository.get_orbit_simple(
-            member.orbit_id,
+            member.orbit_id, organization_id
         )
 
         self.__email_handler.send_added_to_orbit_email(
