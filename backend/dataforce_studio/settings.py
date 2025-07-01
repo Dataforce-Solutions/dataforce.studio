@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     APP_EMAIL_URL: str
 
     SENDGRID_API_KEY: str
+    SENDER_EMAIL: str
+
+    TEMPLATE_ID_ACTIVATION_EMAIL: str
+    TEMPLATE_ID_RESET_PASSWORD_EMAIL: str
+    TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
+    TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
+
+    SUBJECT_ACTIVATION_EMAIL: str
+    SUBJECT_RESET_PASSWORD_EMAIL: str
 
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
