@@ -34,9 +34,6 @@ from dataforce_studio.utils.organizations import (
     get_invited_by_name,
     get_organization_email_name,
 )
-from dataforce_studio.utils.permissions import (
-    get_organization_permissions_by_role,
-)
 
 
 class OrganizationHandler:
@@ -47,6 +44,17 @@ class OrganizationHandler:
 
     __members_limit = 50
     __organization_membership_limit = 5
+
+    def _set_organizations_permissions(
+        self, organizations: list[OrganizationSwitcher]
+    ) -> list[OrganizationSwitcher]:
+        for org in organizations:
+            org.permissions = (
+                self.__permissions_handler.get_organization_permissions_by_role(
+                    org.role
+                )
+            )
+        return organizations
 
     async def _organization_membership_limit_check(self, user_id: int) -> None:
         membership_num = (
@@ -129,7 +137,8 @@ class OrganizationHandler:
         )
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
-        return await self.__user_repository.get_user_organizations(user_id)
+        organizations = await self.__user_repository.get_user_organizations(user_id)
+        return self._set_organizations_permissions(organizations)
 
     async def get_organization(
         self, user_id: int, organization_id: int
@@ -144,7 +153,9 @@ class OrganizationHandler:
         if not organization:
             raise NotFoundError("Organization not found")
 
-        organization.permissions = get_organization_permissions_by_role(role)
+        organization.permissions = (
+            self.__permissions_handler.get_organization_permissions_by_role(role)
+        )
         return organization
 
     async def check_org_members_limit(self, organization_id: int) -> None:

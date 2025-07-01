@@ -33,7 +33,6 @@ from dataforce_studio.utils.organizations import (
     generate_organization_name,
     get_members_roles_count,
 )
-from dataforce_studio.utils.permissions import get_organization_permissions_by_role
 
 
 class UserRepository(RepositoryBase, CrudMixin):
@@ -199,7 +198,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                     role=member_role,
                     created_at=org.created_at,
                     updated_at=org.updated_at,
-                    permissions=get_organization_permissions_by_role(member_role),
                 )
                 for org, member_role in db_organizations
             ]

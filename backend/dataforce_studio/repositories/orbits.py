@@ -15,32 +15,15 @@ from dataforce_studio.schemas.orbit import (
     UpdateOrbitMember,
 )
 from dataforce_studio.utils.organizations import convert_orbit_simple_members
-from dataforce_studio.utils.permissions import get_orbit_permissions_by_role
 
 
 class OrbitRepository(RepositoryBase, CrudMixin):
-    async def get_organization_orbits(
-        self, organization_id: int, org_role: str
-    ) -> list[Orbit]:
+    async def get_organization_orbits(self, organization_id: int) -> list[Orbit]:
         async with self._get_session() as session:
             db_orbits = await self.get_models_where(
                 session, OrbitOrm, OrbitOrm.organization_id == organization_id
             )
-
-            return [
-                Orbit(
-                    id=orbit.id,
-                    name=orbit.name,
-                    organization_id=orbit.organization_id,
-                    bucket_secret_id=orbit.bucket_secret_id,
-                    total_members=orbit.total_members,
-                    total_collections=orbit.total_collections,
-                    created_at=orbit.created_at,
-                    updated_at=orbit.updated_at,
-                    permissions=get_orbit_permissions_by_role(org_role, None),
-                )
-                for orbit in db_orbits
-            ]
+            return OrbitOrm.to_orbits_list(db_orbits)
 
     async def get_organization_orbits_for_user(
         self, organization_id: int, user_id: int
@@ -64,9 +47,9 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                     bucket_secret_id=orbit.bucket_secret_id,
                     total_members=orbit.total_members,
                     total_collections=orbit.total_collections,
+                    role=role,
                     created_at=orbit.created_at,
                     updated_at=orbit.updated_at,
-                    permissions=get_orbit_permissions_by_role(None, role),
                 )
                 for orbit, role in db_orbits
             ]
