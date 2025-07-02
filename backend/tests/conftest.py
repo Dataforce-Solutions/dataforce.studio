@@ -177,6 +177,7 @@ def test_org_details() -> dict:
                 name="test orbit",
                 organization_id=test_org_details_id,
                 total_members=0,
+                role=None,
                 created_at=datetime.datetime.now(),
                 updated_at=None,
                 bucket_secret_id=1,

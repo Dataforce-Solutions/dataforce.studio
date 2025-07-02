@@ -224,13 +224,13 @@ async def test_get_organization_orbits(
 ) -> None:
     user_id = random.randint(1, 10000)
     orbit = Orbit(**test_orbit_created)
-    expected = list(orbit)
+    expected = [orbit]
 
     mock_get_organization_orbits.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.get_organization_orbits(user_id, orbit.organization_id)
-
+    print(result)
     assert result == expected
 
     mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id)

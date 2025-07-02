@@ -5,3 +5,6 @@ wasm/test_*.py
 /backend/.coverage
 /backend/dataforce_studio/factories/
 /.gitignore
+__pycache__/
+*.py[cod]
+.DS_Store

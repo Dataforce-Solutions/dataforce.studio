@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
@@ -78,7 +80,7 @@ class PermissionsHandler:
         user_id: int,
         resource: Resource,
         action: Action,
-    ) -> str | None:
+    ) -> tuple[None, str] | tuple[str, None]:
         org_role = await self.check_organization_permission(
             organization_id,
             user_id,
@@ -87,11 +89,85 @@ class PermissionsHandler:
         )
 
         if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
-            return await self.check_orbit_permission(
+            orbit_role = await self.check_orbit_permission(
                 orbit_id,
                 user_id,
                 resource,
                 action,
             )
+            return None, orbit_role
 
-        return None
+        return org_role, None
+
+    def _get_organization_permissions_for_role_and_resources(
+        self,
+        role: OrgRole,
+        resources: Sequence[Resource],
+    ) -> dict[str, list[str]]:
+        all_permissions = organization_permissions.get(role, {})
+
+        result: dict[str, list[str]] = {}
+        for resource in resources:
+            if resource in all_permissions:
+                result[str(resource.value)] = [
+                    action.value for action in all_permissions[resource]
+                ]
+        return result
+
+    def get_orbit_permissions_for_role_and_resources(
+        self,
+        role: OrbitRole,
+        resources: Sequence[Resource],
+    ) -> dict[str, list[str]]:
+        all_permissions = orbit_permissions.get(role, {})
+
+        result: dict[str, list[str]] = {}
+        for resource in resources:
+            if resource in all_permissions:
+                result[str(resource.value)] = [
+                    action.value for action in all_permissions[resource]
+                ]
+        return result
+
+    def get_organization_permissions_by_role(
+        self, role: str | None
+    ) -> dict[str, list[str]] | None:
+        if not role:
+            return None
+        permissions = self._get_organization_permissions_for_role_and_resources(
+            OrgRole(role),
+            [
+                Resource.ORGANIZATION,
+                Resource.ORGANIZATION_USER,
+                Resource.ORGANIZATION_INVITE,
+                Resource.BILLING,
+                Resource.ORBIT,
+            ],
+        )
+        if Action.CREATE in permissions.get(Resource.ORBIT, []):
+            permissions[Resource.ORBIT] = [Action.CREATE]
+        else:
+            permissions.pop(Resource.ORBIT, None)
+        return permissions
+
+    def get_orbit_permissions_by_role(
+        self, org_role: str | None = None, role: str | None = None
+    ) -> dict[str, list[str]]:
+        if org_role and org_role in (OrgRole.OWNER, OrgRole.ADMIN):
+            return self._get_organization_permissions_for_role_and_resources(
+                OrgRole(org_role),
+                [
+                    Resource.ORBIT,
+                    Resource.ORBIT_USER,
+                    Resource.MODEL,
+                    Resource.COLLECTION,
+                ],
+            )
+
+        if not role:
+            return {}
+
+        return self.get_orbit_permissions_for_role_and_resources(
+            OrbitRole(role),
+            [Resource.ORBIT, Resource.ORBIT_USER, Resource.MODEL, Resource.COLLECTION],
+        )

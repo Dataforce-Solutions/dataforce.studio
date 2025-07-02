@@ -40,6 +40,7 @@ class Organization(BaseModel, BaseOrmConfig):
 
 class OrganizationSwitcher(Organization):
     role: OrgRole | None = None
+    permissions: dict | None = None
 
 
 class CreateOrganizationInviteIn(BaseModel):
@@ -138,3 +139,4 @@ class OrganizationDetails(Organization):
     total_orbits: int = 0
     total_members: int = 0
     members_by_role: dict[str, int] = Field(default_factory=dict)
+    permissions: dict | None = None

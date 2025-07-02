@@ -22,6 +22,7 @@ from dataforce_studio.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
+from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
 
@@ -47,6 +48,24 @@ class OrbitHandler:
                     orbit.name or "",
                     config.APP_EMAIL_URL,
                 )
+
+    def _set_user_orbits_permissions(self, orbits: list[Orbit]) -> list[Orbit]:
+        for orbit in orbits:
+            orbit.permissions = (
+                self.__permissions_handler.get_orbit_permissions_by_role(
+                    role=orbit.role
+                )
+            )
+        return orbits
+
+    def _set_orbits_permissions(
+        self, orbits: list[Orbit], org_role: str
+    ) -> list[Orbit]:
+        for orbit in orbits:
+            orbit.permissions = (
+                self.__permissions_handler.get_orbit_permissions_by_role(org_role)
+            )
+        return orbits
 
     async def _check_organization_orbits_limit(self, organization_id: int) -> None:
         orbits_count = await self.__orbits_repository.get_organization_orbits_count(
@@ -112,18 +131,30 @@ class OrbitHandler:
     async def get_organization_orbits(
         self, user_id: int, organization_id: int
     ) -> list[Orbit]:
-        await self.__permissions_handler.check_organization_permission(
+        org_role = await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
             Resource.ORBIT,
             Action.LIST,
         )
-        return await self.__orbits_repository.get_organization_orbits(organization_id)
+        if org_role in (OrgRole.OWNER, OrgRole.ADMIN):
+            orbits = await self.__orbits_repository.get_organization_orbits(
+                organization_id
+            )
+            return self._set_orbits_permissions(orbits, org_role)
+
+        orbits = await self.__orbits_repository.get_organization_orbits_for_user(
+            organization_id, user_id
+        )
+        return self._set_user_orbits_permissions(orbits)
 
     async def get_orbit(
         self, user_id: int, organization_id: int, orbit_id: int
     ) -> OrbitDetails:
-        await self.__permissions_handler.check_orbit_action_access(
+        (
+            org_role,
+            orbit_role,
+        ) = await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
             user_id,
@@ -135,6 +166,10 @@ class OrbitHandler:
 
         if not orbit:
             raise NotFoundError("Orbit not found")
+
+        orbit.permissions = self.__permissions_handler.get_orbit_permissions_by_role(
+            org_role, orbit_role
+        )
 
         return orbit
 

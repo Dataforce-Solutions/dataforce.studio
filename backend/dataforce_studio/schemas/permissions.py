@@ -57,8 +57,8 @@ organization_permissions = {
             Action.CREATE,
             Action.DELETE,
             Action.LIST,
-            Action.ACCEPT,
-            Action.REJECT,
+            # Action.ACCEPT,
+            # Action.REJECT,
             Action.READ,
         ],
         Resource.ORBIT: [
@@ -113,8 +113,8 @@ organization_permissions = {
             Action.CREATE,
             Action.DELETE,
             Action.LIST,
-            Action.ACCEPT,
-            Action.REJECT,
+            # Action.ACCEPT,
+            # Action.REJECT,
             Action.READ,
         ],
         Resource.ORBIT: [Action.CREATE, Action.UPDATE, Action.LIST, Action.READ],
@@ -142,8 +142,9 @@ organization_permissions = {
         ],
     },
     OrgRole.MEMBER: {
-        Resource.ORGANIZATION: [Action.READ, Action.LEAVE],
-        Resource.ORGANIZATION_INVITE: [Action.ACCEPT, Action.REJECT],
+        Resource.ORGANIZATION: [
+            Action.LEAVE
+        ],  # Resource.ORGANIZATION: [Action.READ, Action.LEAVE],
         Resource.ORBIT: [Action.LIST, Action.READ],
     },
 }

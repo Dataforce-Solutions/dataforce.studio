@@ -20,8 +20,10 @@ class Orbit(BaseModel, BaseOrmConfig):
     bucket_secret_id: int
     total_members: int | None = None
     total_collections: int | None = None
+    role: OrbitRole | None = None
     created_at: datetime
     updated_at: datetime | None = None
+    permissions: dict | None = None
 
 
 class OrbitDetails(Orbit):

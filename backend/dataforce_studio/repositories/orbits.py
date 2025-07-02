@@ -1,4 +1,4 @@
-from sqlalchemy import case
+from sqlalchemy import case, select
 from sqlalchemy.orm import selectinload
 
 from dataforce_studio.models import OrbitMembersOrm, OrbitOrm
@@ -24,6 +24,35 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                 session, OrbitOrm, OrbitOrm.organization_id == organization_id
             )
             return OrbitOrm.to_orbits_list(db_orbits)
+
+    async def get_organization_orbits_for_user(
+        self, organization_id: int, user_id: int
+    ) -> list[Orbit]:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(OrbitOrm, OrbitMembersOrm.role)
+                .join(OrbitMembersOrm, OrbitMembersOrm.orbit_id == OrbitOrm.id)
+                .where(
+                    OrbitOrm.organization_id == organization_id,
+                    OrbitMembersOrm.user_id == user_id,
+                )
+            )
+            db_orbits = result.all()
+
+            return [
+                Orbit(
+                    id=orbit.id,
+                    name=orbit.name,
+                    organization_id=orbit.organization_id,
+                    bucket_secret_id=orbit.bucket_secret_id,
+                    total_members=orbit.total_members,
+                    total_collections=orbit.total_collections,
+                    role=role,
+                    created_at=orbit.created_at,
+                    updated_at=orbit.updated_at,
+                )
+                for orbit, role in db_orbits
+            ]
 
     async def get_orbit(
         self, orbit_id: int, organization_id: int

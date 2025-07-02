@@ -45,6 +45,17 @@ class OrganizationHandler:
     __members_limit = 50
     __organization_membership_limit = 5
 
+    def _set_organizations_permissions(
+        self, organizations: list[OrganizationSwitcher]
+    ) -> list[OrganizationSwitcher]:
+        for org in organizations:
+            org.permissions = (
+                self.__permissions_handler.get_organization_permissions_by_role(
+                    org.role
+                )
+            )
+        return organizations
+
     async def _organization_membership_limit_check(self, user_id: int) -> None:
         membership_num = (
             await self.__user_repository.get_user_organizations_membership_count(
@@ -78,11 +89,9 @@ class OrganizationHandler:
             Action.UPDATE,
         )
 
-        org_obj = await self.__user_repository.update_organization(
+        if not await self.__user_repository.update_organization(
             organization_id, organization
-        )
-
-        if not org_obj:
+        ):
             raise NotFoundError("Organization not found")
 
         organization_details = await self.__user_repository.get_organization_details(
@@ -128,12 +137,13 @@ class OrganizationHandler:
         )
 
     async def get_user_organizations(self, user_id: int) -> list[OrganizationSwitcher]:
-        return await self.__user_repository.get_user_organizations(user_id)
+        organizations = await self.__user_repository.get_user_organizations(user_id)
+        return self._set_organizations_permissions(organizations)
 
     async def get_organization(
         self, user_id: int, organization_id: int
     ) -> OrganizationDetails:
-        await self.__permissions_handler.check_organization_permission(
+        role = await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.ORGANIZATION, Action.READ
         )
 
@@ -143,6 +153,9 @@ class OrganizationHandler:
         if not organization:
             raise NotFoundError("Organization not found")
 
+        organization.permissions = (
+            self.__permissions_handler.get_organization_permissions_by_role(role)
+        )
         return organization
 
     async def check_org_members_limit(self, organization_id: int) -> None:
