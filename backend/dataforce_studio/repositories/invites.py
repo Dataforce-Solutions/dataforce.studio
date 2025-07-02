@@ -87,10 +87,8 @@ class InviteRepository(RepositoryBase, CrudMixin):
             return await self.delete_models_where(
                 session,
                 OrganizationInviteOrm,
-                (
-                    OrganizationInviteOrm.organization_id == organization_id,
-                    OrganizationInviteOrm.email == email,
-                ),
+                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.email == email,
             )
 
     async def delete_all_organization_invites(self, organization_id: int) -> None:
