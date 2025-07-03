@@ -140,12 +140,34 @@ organization_permissions = {
             Action.DELETE,
             Action.DEPLOY,
         ],
+        Resource.MODEL: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+            Action.DEPLOY,
+        ],
     },
     OrgRole.MEMBER: {
-        Resource.ORGANIZATION: [
-            Action.LEAVE
-        ],  # Resource.ORGANIZATION: [Action.READ, Action.LEAVE],
+        Resource.ORGANIZATION: [Action.LEAVE],
         Resource.ORBIT: [Action.LIST, Action.READ],
+        Resource.MODEL: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+            Action.DEPLOY,
+        ],
+        Resource.COLLECTION: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+            Action.DEPLOY,
+        ],
     },
 }
 
