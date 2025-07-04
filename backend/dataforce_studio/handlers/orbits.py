@@ -103,7 +103,7 @@ class OrbitHandler:
     async def create_organization_orbit(
         self, user_id: int, organization_id: int, orbit: OrbitCreateIn
     ) -> OrbitDetails:
-        await self.__permissions_handler.check_organization_permission(
+        org_role = await self.__permissions_handler.check_organization_permission(
             organization_id,
             user_id,
             Resource.ORBIT,
@@ -119,12 +119,17 @@ class OrbitHandler:
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
+
         created_orbit = await self.__orbits_repository.create_orbit(
             organization_id, orbit
         )
 
         if not created_orbit:
-            raise ServiceError("Some errors when creating")
+            raise ServiceError("Some errors occurred when creating the orbit.")
+
+        created_orbit.permissions = (
+            self.__permissions_handler.get_orbit_permissions_by_role(org_role, None)
+        )
 
         return created_orbit
 
