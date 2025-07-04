@@ -8,7 +8,7 @@ from dataforce_studio.settings import config
 class EmailHandler:
     _email_client = SendGridAPIClient(config.SENDGRID_API_KEY)
 
-    def __init__(self, sender_email: EmailStr = "noreply@dataforce.studio") -> None:
+    def __init__(self, sender_email: EmailStr = config.SENDER_EMAIL) -> None:
         self.sender_email = sender_email
 
     def send_activation_email(
@@ -19,7 +19,7 @@ class EmailHandler:
             to_emails=str(email),
             subject="Welcome to Dataforce Studio",
         )
-        message.template_id = "d-6f44f2afe9c44bbfa523eba28092e078"
+        message.template_id = config.TEMPLATE_ID_ACTIVATION_EMAIL
         message.dynamic_template_data = {
             "name": name or "",
             "confirm_email_link": activation_link,
@@ -35,7 +35,7 @@ class EmailHandler:
             to_emails=str(email),
             subject="Reset Your Password",
         )
-        message.template_id = "d-1a3be5478f454efeb7afc791e69ec613"
+        message.template_id = config.TEMPLATE_ID_RESET_PASSWORD_EMAIL
         message.dynamic_template_data = {
             "reset_password_link": reset_password_link,
             "name": name or "",
@@ -43,7 +43,6 @@ class EmailHandler:
 
         self._email_client.send(message)
 
-    # TODO add user name
     def send_organization_invite_email(
         self, email: EmailStr, sender: str, organization: str, link: str
     ) -> None:
@@ -51,7 +50,7 @@ class EmailHandler:
             from_email=self.sender_email,
             to_emails=str(email),
         )
-        message.template_id = "d-e2074177754d47288a25da15d1c95eb2"
+        message.template_id = config.TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL
         message.dynamic_template_data = {
             "invite_sender": sender or "",
             "organization": organization,
@@ -67,7 +66,7 @@ class EmailHandler:
             from_email=self.sender_email,
             to_emails=str(email),
         )
-        message.template_id = "d-f9f0925c82784b2f91a20c679ac532b3"
+        message.template_id = config.TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL
         message.dynamic_template_data = {
             "name": name,
             "orbit": orbit or "",
