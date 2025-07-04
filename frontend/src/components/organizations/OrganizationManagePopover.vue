@@ -8,10 +8,10 @@
     <Popover ref="popover" class="popover-without-arrow" style="width: 330px">
       <div class="popover-content">
         <header class="header">
-          <Avatar size="large" :label="currentOrganizationAvatarLabel" :image="organizationStore.currentOrganization?.logo" class="avatar" />
+          <Avatar size="large" :label="currentOrganizationAvatarLabel" />
           <div class="header-content">
             <div class="name">{{ organizationStore.currentOrganization?.name }}</div>
-            <div class="members">{{ organizationStore.currentOrganization?.members.length }} member</div>
+            <div class="members">{{ organizationStore.currentOrganization?.members_count }} member</div>
           </div>
         </header>
         <div class="popover-label">Switch to Organization</div>
@@ -67,17 +67,14 @@ import { Popover, Avatar, Dialog } from 'primevue'
 import { useOrganizationStore } from '@/stores/organization'
 import OrganizationCreator from './OrganizationCreator.vue'
 import OrganizationLeavePopover from './OrganizationLeavePopover.vue'
-import { OrganizationRoleEnum } from './organization.interfaces'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const organizationStore = useOrganizationStore()
 
 const popover = ref()
 const isCreateMode = ref(false)
 
-const isSettingsDisabled = computed(() => {
-  const userRole = organizationStore.availableOrganizations.find(organization => organization.id === organizationStore.currentOrganization?.id)?.role
-  return !userRole || userRole === OrganizationRoleEnum.member
-})
+const isSettingsDisabled = computed(() => !organizationStore.currentOrganization?.permissions.organization.includes(PermissionEnum.read))
 const currentOrganizationAvatarLabel = computed(() => organizationStore.currentOrganization?.name.charAt(0).toUpperCase())
 
 function toggle(event: any) {

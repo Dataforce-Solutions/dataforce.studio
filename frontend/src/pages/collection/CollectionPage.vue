@@ -9,14 +9,18 @@
         height: `calc(100vh - ${headerSizes.height + footerSizes.height + 40}px )`,
       }"
     >
-      <CollectionHeader :title="collectionsStore.currentCollection.name" @add="modelCreatorVisible = true"></CollectionHeader>
+      <CollectionHeader
+        :title="collectionsStore.currentCollection.name"
+        :add-available="!!orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.create)"
+        @add="modelCreatorVisible = true"
+      ></CollectionHeader>
       <CollectionModelsTable class="table"></CollectionModelsTable>
-      <Button as-child v-slot="slotProps: any" severity="secondary">
+      <d-button as-child v-slot="slotProps" severity="secondary">
         <RouterLink :to="{ name: 'orbit-registry' }" class="navigate-button" :class="slotProps.class" style="flex: 0 0 auto;">
           <ArrowLeft :size="14" />
           <span>Back to Registry</span>
         </RouterLink>
-      </Button>
+      </d-button>
       <CollectionModelCreator v-model:visible="modelCreatorVisible"></CollectionModelCreator>
     </div>
 
@@ -25,12 +29,11 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeMount, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
 import { useOrbitsStore } from '@/stores/orbits'
-import { useOrganizationStore } from '@/stores/organization'
-import { useToast, Button } from 'primevue'
+import { useToast } from 'primevue'
 import { useLayout } from '@/hooks/useLayout'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ArrowLeft } from 'lucide-vue-next'
@@ -39,8 +42,11 @@ import CollectionModelsTable from '@/components/orbits/tabs/registry/collection/
 import CollectionModelCreator from '@/components/orbits/tabs/registry/collection/model/CollectionModelCreator.vue'
 import Ui404 from '@/components/ui/Ui404.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import { useOrganizationStore } from '@/stores/organization'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const route = useRoute()
+const router = useRouter()
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
@@ -71,16 +77,15 @@ async function init(organizationId: number) {
   }
 }
 
-watch(
-  () => organizationStore.currentOrganization?.id,
-  (organizationId) => {
-    if (!organizationId) return
-    init(organizationId)
-  },
-  {
-    immediate: true,
-  },
-)
+watch(() => organizationStore.currentOrganization?.id, async (id) => {
+  if (!id || +route.params.organizationId === id) return
+
+  await router.push({ name: 'orbits', params: { organizationId: id } })
+})
+
+onBeforeMount(() => {
+  init(+route.params.organizationId)
+})
 
 onUnmounted(() => {
   collectionsStore.resetCurrentCollection()

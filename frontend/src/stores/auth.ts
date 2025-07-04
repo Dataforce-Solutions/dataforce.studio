@@ -8,9 +8,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useUserStore } from './user'
 import { AnalyticsService } from '@/lib/analytics/AnalyticsService'
+import { useRoute, useRouter } from 'vue-router'
 
 export const useAuthStore = defineStore('auth', () => {
   const usersStore = useUserStore()
+  const route = useRoute()
+  const router = useRouter()
 
   const isAuth = ref(false)
 
@@ -38,6 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('refreshToken')
       usersStore.resetUser()
       isAuth.value = false
+      if (route.meta.requireAuth) router.push({ name: 'home' })
     }
   }
 

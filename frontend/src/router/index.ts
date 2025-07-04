@@ -94,14 +94,20 @@ const router = createRouter({
       },
     },
     {
-      path: '/orbits',
+      path: '/organization/:organizationId/orbits',
       name: 'orbits',
       component: () => import('../pages/orbits/index.vue'),
+      meta: {
+        requireAuth: true,
+      },
     },
     {
-      path: '/orbit/:id',
+      path: '/organization/:organizationId/orbit/:id',
       name: 'orbit',
       component: () => import('../pages/orbits/OrbitPage.vue'),
+      meta: {
+        requireAuth: true,
+      },
       children: [
         {
           path: '',
@@ -116,9 +122,12 @@ const router = createRouter({
       ],
     },
     {
-      path: '/orbit/:id/collection/:collectionId',
+      path: '/organization/:organizationId/orbit/:id/collection/:collectionId',
       name: 'collection',
       component: () => import('../pages/collection/CollectionPage.vue'),
+      meta: {
+        requireAuth: true,
+      },
     },
     {
       path: '/notebooks',
@@ -131,9 +140,12 @@ const router = createRouter({
       component: () => import('../pages/DataAgentPage.vue'),
     },
     {
-      path: '/organizations/:id',
+      path: '/organization/:id',
       name: 'organization',
       component: () => import('../pages/organization/index.vue'),
+      meta: {
+        requireAuth: true,
+      },
       children: [
         {
           path: '',

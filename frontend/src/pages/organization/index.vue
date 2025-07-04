@@ -41,28 +41,34 @@ const hasPermission = computed(() => {
   return true
 })
 
-onBeforeMount(async () => {
-  if (typeof route.params.id !== 'string') {
-    return
-  }
+async function init() {
   try {
+    organizationStore.resetCurrentOrganization()
     await organizationStore.setCurrentOrganizationId(+route.params.id)
+    organizationStore.getOrganizationDetails(+route.params.id)
   } catch (e: any) {
     toast.add(simpleErrorToast(e.details || 'Unable to retrieve organization data'))
   }
+}
+
+onBeforeMount(() => {
+  init()
 })
 
 watch(
   () => organizationStore.currentOrganization?.id,
-  (id) => {
-    router.push({
+  async (id) => {
+    if (!id || +route.params.id === id) return
+
+    await router.push({
       name: route.name,
       params: {
         ...route.params,
         id,
       },
-      query: route.query,
     })
+
+    init()
   },
 )
 </script>

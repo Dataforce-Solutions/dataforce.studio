@@ -5,29 +5,24 @@ import type {
 } from '@/lib/api/orbit-ml-models/interfaces'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useOrganizationStore } from './organization'
-import { useOrbitsStore } from './orbits'
-import { useCollectionsStore } from './collections'
 import { dataforceApi } from '@/lib/api'
 import axios from 'axios'
+import { useRoute } from 'vue-router'
 
 export const useModelsStore = defineStore('models', () => {
-  const organizationStore = useOrganizationStore()
-  const orbitsStore = useOrbitsStore()
-  const collectionsStore = useCollectionsStore()
+  const route = useRoute()
 
   const modelsList = ref<MlModel[]>([])
 
   const requestInfo = computed(() => {
-    if (!organizationStore.currentOrganization?.id)
-      throw new Error('Current organization not found')
-    if (!orbitsStore.currentOrbitDetails?.id) throw new Error('Current orbit not found')
-    if (!collectionsStore.currentCollection?.id) throw new Error('Current collection not found')
+    if (typeof route.params.organizationId !== 'string') throw new Error('Current organization not found')
+    if (typeof route.params.id !== 'string') throw new Error('Current orbit not found')
+    if (typeof route.params.collectionId !== 'string') throw new Error('Current collection not found')
 
     return {
-      organizationId: organizationStore.currentOrganization.id,
-      orbitId: orbitsStore.currentOrbitDetails.id,
-      collectionId: collectionsStore.currentCollection.id,
+      organizationId: +route.params.organizationId,
+      orbitId: +route.params.id,
+      collectionId: +route.params.collectionId,
     }
   })
 

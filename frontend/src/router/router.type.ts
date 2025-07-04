@@ -7,5 +7,6 @@ declare module 'vue-router' {
     layoutComponent?: VueElement
     mobileAvailable?: boolean
     showInvalidMessage?: number
+    requireAuth?: boolean
   }
 }

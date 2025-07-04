@@ -3,7 +3,11 @@
     <UiPageLoader v-if="loading"></UiPageLoader>
 
     <div v-else-if="organizationStore.currentOrganization">
-      <OrbitsListHeader class="header" @create-new="showCreator = true"></OrbitsListHeader>
+      <OrbitsListHeader
+        class="header"
+        :create-available="createAvailable"
+        @create-new="showCreator = true"
+      ></OrbitsListHeader>
       <OrbitsList
         :create-available="createAvailable"
         :orbits="orbitsStore.orbitsList"
@@ -18,7 +22,7 @@
 
 <script setup lang="ts">
 import { useOrbitsStore } from '@/stores/orbits'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { useOrganizationStore } from '@/stores/organization'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -27,15 +31,22 @@ import OrbitsListHeader from '@/components/orbits/OrbitsListHeader.vue'
 import OrbitsList from '@/components/orbits/OrbitsList.vue'
 import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const showCreator = ref(false)
 
-const createAvailable = computed(() => true)
+const createAvailable = computed(
+  () =>
+    !!organizationStore.currentOrganization?.permissions?.orbit?.includes(PermissionEnum.create),
+)
 
 async function loadOrbits(organizationId: number) {
   try {
@@ -50,14 +61,17 @@ async function loadOrbits(organizationId: number) {
 
 watch(
   () => organizationStore.currentOrganization?.id,
-  (id) => {
-    if (!id) return
+  async (id) => {
+    if (!id || +route.params.organizationId === id) return
+
+    await router.push({ name: route.name, params: { organizationId: id } })
     loadOrbits(id)
   },
-  {
-    immediate: true,
-  },
 )
+
+onBeforeMount(() => {
+  loadOrbits(+route.params.organizationId)
+})
 </script>
 
 <style scoped>

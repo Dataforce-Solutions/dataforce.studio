@@ -11,7 +11,7 @@
       </div>
       <nav class="nav">
         <ul class="list">
-          <li v-for="item in sidebarMenu" :key="item.id" class="item">
+          <li v-for="item in SIDEBAR_MENU" :key="item.id" class="item">
             <div
               v-if="item.disabled"
               v-tooltip.bottom="isSidebarOpened ? item.tooltipMessage : null"
@@ -34,7 +34,7 @@
 
             <router-link
               v-else
-              :to="{ name: item.route }"
+              :to="{ name: item.route, params: item.route === 'orbits' ? { organizationId: organizationsStore.currentOrganization?.id || 0 } : {} }"
               class="menu-link"
               @click="sendAnalytics(item.analyticsOption)"
             >
@@ -48,7 +48,7 @@
     <div class="sidebar-bottom">
       <nav class="nav-bottom">
         <ul class="list">
-          <li v-for="item in sidebarMenuBottom" :key="item.id" class="item">
+          <li v-for="item in SIDEBAR_MENU_BOTTOM" :key="item.id" class="item">
             <a v-if="item.link" :href="item.link" target="_blank" class="menu-link">
               <component :is="item.icon" :size="14" class="icon"></component>
               <span>{{ item.label }}</span>
@@ -75,14 +75,16 @@
 <script setup lang="ts">
 import { ArrowLeftToLine, ChevronDown, Users } from 'lucide-vue-next'
 import { onMounted, ref, watch } from 'vue'
-import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
+import { SIDEBAR_MENU, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useOrganizationStore } from '@/stores/organization'
 
 const { width } = useWindowSize()
 const authStore = useAuthStore()
+const organizationsStore = useOrganizationStore()
 
 const isSidebarOpened = ref(true)
 

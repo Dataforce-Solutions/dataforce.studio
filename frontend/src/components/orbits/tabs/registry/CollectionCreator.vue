@@ -96,7 +96,7 @@ const visible = defineModel<boolean>('visible')
 const formData = ref<OrbitCollectionCreator>({
   description: '',
   name: '',
-  collection_type: undefined,
+  collection_type: OrbitCollectionTypeEnum.model,
   tags: [],
 })
 const loading = ref(false)

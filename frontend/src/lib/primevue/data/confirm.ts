@@ -55,8 +55,8 @@ export const leaveOrganizationConfirmOptions = (accept: () => void): Confirmatio
   accept,
 })
 
-export const deleteUserConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'Deleting this account is a permanent action and cannot be reversed.',
+export const deleteUserConfirmOptions = (accept: () => void, message?: string): ConfirmationOptions => ({
+  message: message || 'Deleting this account is a permanent action and cannot be reversed.',
   header: 'Delete this user?',
   rejectProps: {
     label: 'cancel',

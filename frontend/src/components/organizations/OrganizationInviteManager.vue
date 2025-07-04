@@ -74,7 +74,7 @@ const toast = useToast()
 const visible = ref(false)
 const loading = ref(false)
 
-const invites = computed(() => organizationStore.currentOrganization?.invites || [])
+const invites = computed(() => organizationStore.organizationDetails?.invites || [])
 
 async function reject(organizationId: number, inviteId: number) {
   loading.value = true

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { IUser } from './user.interfaces'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { dataforceApi } from '@/lib/api'
 import type {
   IPostChangePasswordRequest,
@@ -28,8 +28,6 @@ export const useUserStore = defineStore('user', () => {
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
     user.value = data
-    await invitationsStore.getInvitations()
-    await organizationStore.getAvailableOrganizations()
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {
@@ -57,6 +55,19 @@ export const useUserStore = defineStore('user', () => {
 
     return response
   }
+
+  watch(
+    () => user.value?.id,
+    async (id) => {
+      if (id) {
+        await invitationsStore.getInvitations()
+        await organizationStore.getAvailableOrganizations()
+      } else {
+        invitationsStore.reset()
+        organizationStore.reset()
+      }
+    },
+  )
 
   return {
     getUserEmail,

@@ -4,6 +4,7 @@
       <div class="toolbar">
         <div>{{ selectedModels?.length || 0 }} Selected</div>
         <Button
+          v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.delete)"
           variant="text"
           severity="secondary"
           :disabled="!selectedModels?.length"
@@ -25,76 +26,77 @@
             },
           }"
           dataKey="id"
-          style="min-width: 1560px; font-size: 14px"
+          style="font-size: 14px"
         >
           <template #empty>
             <div class="placeholder">No models to show. Add model to the table.</div>
           </template>
-          <Column selectionMode="multiple" headerStyle="width: 30px"></Column>
-          <Column
-            field="modelName"
-            header="Model name"
-            :bodyStyle="columnBodyStyle + 'width: 180px; max-width: 180px;'"
-          >
+          <Column selectionMode="multiple"></Column>
+          <Column field="modelName" header="Model name">
             <template #body="{ data }">
-              <div
-                v-tooltip="data.modelName"
-                style="display: inline-block; max-width: 180px"
-                :style="columnBodyStyle"
-              >
+              <div v-tooltip="data.modelName" :style="columnBodyStyle + 'width: 180px'">
                 {{ data.modelName }}
               </div>
             </template>
           </Column>
-          <Column
-            field="createdTime"
-            header="Creation time"
-            :bodyStyle="columnBodyStyle + 'width: 180px; max-width: 180px;'"
-          ></Column>
-          <Column
-            field="description"
-            header="Description"
-            bodyStyle="width: 203px; max-width: 203px;"
-          >
+          <Column field="createdTime" header="Creation time">
             <template #body="{ data }">
-              <div v-tooltip="data.description" class="description">
+              <div :style="columnBodyStyle + 'width: 180px'">
+                {{ data.createdTime }}
+              </div>
+            </template>
+          </Column>
+          <Column field="description" header="Description">
+            <template #body="{ data }">
+              <div v-tooltip="data.description" class="description" style="width: 203px">
                 {{ data.description }}
               </div>
             </template></Column
           >
-          <Column
-            field="status"
-            header="Status"
-            :bodyStyle="columnBodyStyle + 'width: 203px; max-width: 203px;'"
-          >
+          <Column field="status" header="Status">
             <template #body="{ data }">
-              <div v-if="data.status === MlModelStatusEnum.deletion_failed">Deletion failed</div>
-              <div v-if="data.status === MlModelStatusEnum.pending_deletion">Pending deletion</div>
-              <div v-if="data.status === MlModelStatusEnum.pending_upload">Pending upload</div>
-              <div v-if="data.status === MlModelStatusEnum.upload_failed">Upload failed</div>
-              <div v-if="data.status === MlModelStatusEnum.uploaded">Uploaded</div>
+              <div style="width: 150px">
+                <div v-if="data.status === MlModelStatusEnum.deletion_failed">Deletion failed</div>
+                <div v-if="data.status === MlModelStatusEnum.pending_deletion">
+                  Pending deletion
+                </div>
+                <div v-if="data.status === MlModelStatusEnum.pending_upload">Pending upload</div>
+                <div v-if="data.status === MlModelStatusEnum.upload_failed">Upload failed</div>
+                <div v-if="data.status === MlModelStatusEnum.uploaded">Uploaded</div>
+              </div>
             </template>
           </Column>
-          <Column
-            field="tags"
-            header="Tags"
-            :bodyStyle="'width: 203px; max-width: 203px; overflow: hidden;'"
-          >
+          <Column field="tags" header="Tags">
             <template #body="{ data }">
-              <div class="tags">
+              <div class="tags" style="width: 203px; overflow: hidden">
                 <Tag v-for="(tag, index) in data.tags" :key="index" class="tag">{{ tag }}</Tag>
               </div>
             </template>
           </Column>
+          <Column field="size" header="Size">
+            <template #body="{ data }">
+              <div :style="columnBodyStyle + 'width: 100px'">
+                {{ data.size }}
+              </div>
+            </template>
+          </Column>
           <Column
-            field="size"
-            header="Size"
-            :bodyStyle="columnBodyStyle + 'width: 100px; max-width: 100px;'"
-          ></Column>
-          <!--<Column header="Loss" sortable style="width: 100px"></Column>
-          <Column header="NTE" sortable style="width: 100px"></Column>
-          <Column header="Tokenizer" style="width: 120px"></Column>
-          <Column header="Activation" style="width: 120px"></Column>-->
+            v-for="key in metricsKeys"
+            :key="key"
+            :header="key"
+            :field="'metrics.' + key"
+            sortable
+          >
+            <template #body="{ data }">
+              <div
+                v-tooltip="key in data.metrics ? '' + data.metrics[key] : null"
+                class="metric-column"
+                style="width: 100px"
+              >
+                {{ key in data.metrics ? data.metrics[key] : '-' }}
+              </div>
+            </template>
+          </Column>
         </DataTable>
       </div>
     </div>
@@ -111,27 +113,42 @@ import { useModelsStore } from '@/stores/models'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getSizeText } from '@/helpers/helpers'
 import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const columnBodyStyle = 'white-space: nowrap; overflow:hidden; text-overflow: ellipsis;'
 
 const modelsStore = useModelsStore()
 const toast = useToast()
 const confirm = useConfirm()
+const orbitsStore = useOrbitsStore()
 
 const selectedModels = ref([])
 const loading = ref(false)
 
 const tableData = computed(() =>
-  modelsStore.modelsList.map((item) => ({
-    id: item.id,
-    modelName: item.file_name,
-    createdTime: new Date(item.created_at).toLocaleString(),
-    description: item.description,
-    tags: item.tags,
-    size: getSizeText(item.size),
-    status: item.status,
-  })),
+  modelsStore.modelsList.map((item) => {
+    return {
+      id: item.id,
+      modelName: item.file_name,
+      createdTime: new Date(item.created_at).toLocaleString(),
+      description: item.description,
+      tags: item.tags,
+      size: getSizeText(item.size),
+      status: item.status,
+      metrics: item.metrics,
+    }
+  }),
 )
+
+const metricsKeys = computed(() => {
+  return tableData.value.reduce((acc: Set<string>, item) => {
+    for (const key in item.metrics) {
+      acc.add(key)
+    }
+    return acc
+  }, new Set<string>())
+})
 
 async function confirmDelete() {
   const modelsForDelete = selectedModels.value.map((model: any) => model.id)
@@ -201,16 +218,21 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 4px;
 }
+
 .tag {
   font-weight: 400;
 }
 
 .description {
-  max-width: 203px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.metric-column {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (min-width: 768px) {

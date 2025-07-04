@@ -8,11 +8,13 @@ import type {
   UpdateOrbitPayload,
 } from '@/lib/api/DataforceApi.interfaces'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 export const useOrbitsStore = defineStore('orbit', () => {
   const orbitsList = ref<Orbit[]>([])
   const currentOrbitDetails = ref<OrbitDetails | null>(null)
+
+  const getCurrentOrbitPermissions = computed(() => currentOrbitDetails.value?.permissions)
 
   async function loadOrbitsList(organizationId: number) {
     orbitsList.value = await dataforceApi.getOrganizationOrbits(organizationId)
@@ -68,6 +70,7 @@ export const useOrbitsStore = defineStore('orbit', () => {
   return {
     orbitsList,
     currentOrbitDetails,
+    getCurrentOrbitPermissions,
     createOrbit,
     addMemberToOrbit,
     getOrbitDetails,

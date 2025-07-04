@@ -12,7 +12,7 @@
         No buckets created for this organization.
       </div>
       <div v-for="bucket in bucketsStore.buckets" class="simple-table__row">
-        <div>{{ bucket.bucket_name }}</div>
+        <div style="overflow: hidden; text-overflow: ellipsis;">{{ bucket.bucket_name }}</div>
         <div>{{ new Date(bucket.created_at).toLocaleDateString() }}</div>
         <div>
           <Button

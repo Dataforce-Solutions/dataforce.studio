@@ -5,7 +5,7 @@ import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.s
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
 import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg'
 
-export const sidebarMenu = [
+export const SIDEBAR_MENU = [
   {
     id: 1,
     label: 'Express tasks',
@@ -58,7 +58,7 @@ export const sidebarMenu = [
   },
 ]
 
-export const sidebarMenuBottom = [
+export const SIDEBAR_MENU_BOTTOM = [
   {
     id: 1,
     label: 'Documentation',

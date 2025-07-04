@@ -6,7 +6,7 @@
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="initialValues" :resolver="resolver" @submit="onSubmit">
+    <Form :initial-values="initialValues" :resolver="resolver" :validate-on-value-update="false" @submit="onSubmit">
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Orbit name </label>
@@ -62,10 +62,7 @@
               <div v-if="!bucketsStore.buckets.length" class="select-footer">
                 <d-button variant="text" as-child v-slot="slotProps" size="small">
                   <RouterLink
-                    :to="{
-                      name: 'organization-buckets',
-                      params: { id: organizationStore.currentOrganization?.id },
-                    }"
+                    :to="{ name: 'organization-buckets', params: { id: +route.params.organizationId } }"
                     :class="slotProps.class"
                   >
                     <Plus :size="14" />
@@ -102,6 +99,7 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useUserStore } from '@/stores/user'
 import { orbitCreatorResolver } from '@/utils/forms/resolvers'
+import { useRoute } from 'vue-router'
 
 const dialogPt: DialogPassThroughOptions = {
   root: {
@@ -121,6 +119,12 @@ const multiSelectPt: MultiSelectPassThroughOptions = {
       class: 'p-inputtext-sm p-inputfield-sm',
     },
   },
+  overlay: {
+    style: 'max-width: 442px; overflow: hidden;',
+  },
+  optionLabel: {
+    style: 'overflow: hidden; text-overflow: ellipsis;'
+  }
 }
 
 const memberRoleOptions = [OrbitRoleEnum.admin, OrbitRoleEnum.member]
@@ -130,10 +134,11 @@ const bucketsStore = useBucketsStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const userStore = useUserStore()
+const route = useRoute()
 
 const membersList = computed(() => {
-  if (!organizationStore.currentOrganization) return []
-  return organizationStore.currentOrganization.members
+  if (!organizationStore.organizationDetails) return []
+  return organizationStore.organizationDetails.members
     .map((member) => member.user)
     .filter((user) => user.id !== userStore.getUserId)
 })
@@ -167,11 +172,11 @@ watch(
 )
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid || !organizationStore.currentOrganization) return
+  if (!valid) return
   try {
     loading.value = true
     const payload = initialValues.value as CreateOrbitPayload
-    await orbitsStore.createOrbit(organizationStore.currentOrganization.id, payload)
+    await orbitsStore.createOrbit(+route.params.organizationId, payload)
     toast.add(simpleSuccessToast('Orbit created'))
     loading.value = true
     visible.value = false
@@ -183,8 +188,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 }
 
 onBeforeMount(() => {
-  if (!organizationStore.currentOrganization) return
-  bucketsStore.getBuckets(organizationStore.currentOrganization.id)
+  bucketsStore.getBuckets(+route.params.organizationId)
 })
 </script>
 

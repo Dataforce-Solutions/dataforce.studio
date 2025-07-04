@@ -34,16 +34,18 @@
       </div>
     </Form>
     <template #footer>
-      <Button variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
-        delete Orbit
-      </Button>
+      <div>
+        <Button v-if="orbit.permissions.orbit.includes(PermissionEnum.delete)" variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
+          delete Orbit
+        </Button>
+      </div>
       <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
     </template>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import type { Orbit as OrbitType, UpdateOrbitPayload } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum, type Orbit as OrbitType, type UpdateOrbitPayload } from '@/lib/api/DataforceApi.interfaces'
 import { ref } from 'vue'
 import {
   Dialog,

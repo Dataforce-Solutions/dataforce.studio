@@ -4,24 +4,21 @@ import type {
 } from '@/lib/api/orbit-collections/interfaces'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useOrganizationStore } from './organization'
-import { useOrbitsStore } from './orbits'
 import { dataforceApi } from '@/lib/api'
+import { useRoute } from 'vue-router'
 
 export const useCollectionsStore = defineStore('collections', () => {
-  const organizationStore = useOrganizationStore()
-  const orbitsStore = useOrbitsStore()
+  const route = useRoute()
 
   const collectionsList = ref<OrbitCollection[]>([])
   const currentCollection = ref<OrbitCollection | null>(null)
 
   const requestInfo = computed(() => {
-    if (!organizationStore.currentOrganization?.id)
-      throw new Error('Current organization not found')
-    if (!orbitsStore.currentOrbitDetails?.id) throw new Error('Current orbit not found')
+    if (typeof route.params.organizationId !== 'string') throw new Error('Current organization not found')
+    if (typeof route.params.id !== 'string') throw new Error('Current orbit not found')
     return {
-      organizationId: organizationStore.currentOrganization.id,
-      orbitId: orbitsStore.currentOrbitDetails.id,
+      organizationId: +route.params.organizationId,
+      orbitId: +route.params.id,
     }
   })
 

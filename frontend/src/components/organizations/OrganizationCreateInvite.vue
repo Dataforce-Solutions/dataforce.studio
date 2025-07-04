@@ -72,10 +72,6 @@ const OPTIONS = [
     label: 'Member',
     value: OrganizationRoleEnum.member,
   },
-  {
-    label: 'Owner',
-    value: OrganizationRoleEnum.owner,
-  },
 ]
 
 const invitationsStore = useInvitationsStore()

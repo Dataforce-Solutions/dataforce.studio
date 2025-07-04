@@ -23,7 +23,7 @@
         </Tag>
       </div>
     </div>
-    <div class="right">
+    <div v-if="editAvailable" class="right">
       <Button severity="secondary" variant="text" @click.stop="isEditorVisible = true">
         <template #icon>
           <EllipsisVertical :size="14" />
@@ -47,6 +47,7 @@ import { useRouter } from 'vue-router'
 
 type Props = {
   data: OrbitCollection
+  editAvailable: boolean
 }
 
 const props = defineProps<Props>()

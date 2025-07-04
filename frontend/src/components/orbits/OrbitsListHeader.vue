@@ -16,15 +16,17 @@
 <script setup lang="ts">
 import { Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
-import { computed } from 'vue'
+
+type Props = {
+    createAvailable: boolean
+}
 
 type Emits = {
   createNew: []
 }
 
 defineEmits<Emits>()
-
-const createAvailable = computed(() => true)
+defineProps<Props>()
 </script>
 
 <style scoped>

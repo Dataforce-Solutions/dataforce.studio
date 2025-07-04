@@ -13,40 +13,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeMount, ref, watch } from 'vue'
 import { useToast } from 'primevue'
-import { useOrganizationStore } from '@/stores/organization'
 import { useOrbitsStore } from '@/stores/orbits'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import Ui404 from '@/components/ui/Ui404.vue'
 import OrbitTabs from '@/components/orbits/tabs/OrbitTabs.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import { useOrganizationStore } from '@/stores/organization'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 
 const loading = ref(false)
 
-watch(
-  () => organizationStore.currentOrganization?.id,
-  async (organizationId) => {
-    if (!organizationId || typeof route.params.id !== 'string') return
-    try {
-      loading.value = true
-      orbitsStore.setCurrentOrbitDetails(null)
-      const details = await orbitsStore.getOrbitDetails(organizationId, +route.params.id)
-      orbitsStore.setCurrentOrbitDetails(details)
-    } catch (e) {
-      toast.add(simpleErrorToast('Failed to load orbit data'))
-    } finally {
-      loading.value = false
-    }
-  },
-  { immediate: true },
-)
+async function loadOrbitDetails() {
+  try {
+    loading.value = true
+    orbitsStore.setCurrentOrbitDetails(null)
+    const details = await orbitsStore.getOrbitDetails(
+      +route.params.organizationId,
+      +route.params.id,
+    )
+    orbitsStore.setCurrentOrbitDetails(details)
+  } catch (e) {
+    toast.add(simpleErrorToast('Failed to load orbit data'))
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(() => organizationStore.currentOrganization?.id, async (id) => {
+  if (!id || +route.params.organizationId === id) return
+  
+  await router.push({ name: 'orbits', params: { organizationId: id }})
+})
+
+onBeforeMount(async () => {
+  loadOrbitDetails()
+})
 </script>
 
 <style scoped>

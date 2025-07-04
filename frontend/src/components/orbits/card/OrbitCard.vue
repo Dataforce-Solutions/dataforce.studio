@@ -19,8 +19,8 @@
 
       <ul class="list">
         <li class="item">
-          <span class="text">Number of Models: </span>
-          <span class="value"> 7</span>
+          <span class="text">Number of collections: </span>
+          <span class="value"> {{ data.total_collections }}</span>
         </li>
         <li class="item">
           <span class="text">Created Date: </span>

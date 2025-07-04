@@ -2,7 +2,7 @@
   <div>
     <header class="header">
       <h2 class="title">{{ orbitsStore.currentOrbitDetails?.name }}</h2>
-      <Button class="button" @click="showCreator = true">
+      <Button v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.create)" class="button" @click="showCreator = true">
         <Plus :size="14" />
         <span>Create collection</span>
       </Button>
@@ -18,7 +18,7 @@
         <p>Start by creating your first collection.</p>
       </div>
     </div>
-    <CollectionsList v-else></CollectionsList>
+    <CollectionsList v-else :edit-available="!!orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.update)"></CollectionsList>
   </div>
   <CollectionCreator v-model:visible="showCreator"></CollectionCreator>
 </template>
@@ -32,6 +32,7 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
 import CollectionsList from '@/components/orbits/tabs/registry/CollectionsList.vue'
 import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()

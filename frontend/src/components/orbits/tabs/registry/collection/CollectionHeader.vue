@@ -14,6 +14,7 @@ import { Plus } from 'lucide-vue-next'
 
 type Props = {
   title: string
+  addAvailable: boolean
 }
 
 type Emits = {

@@ -42,9 +42,11 @@
       </div>
     </Form>
     <template #footer>
-      <Button variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
-        delete collection
-      </Button>
+      <div>
+        <Button v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.delete)" variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
+          delete collection
+        </Button>
+      </div>
       <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
     </template>
   </Dialog>
@@ -71,6 +73,8 @@ import { deleteCollectionConfirmOptions } from '@/lib/primevue/data/confirm'
 
 import { useCollectionsStore } from '@/stores/collections'
 import { collectionEditorResolver } from '@/utils/forms/resolvers'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 
 const dialogPT: DialogPassThroughOptions = {
   footer: {
@@ -89,6 +93,7 @@ const visible = defineModel<boolean>('visible')
 const toast = useToast()
 const confirm = useConfirm()
 const collectionsStore = useCollectionsStore()
+const orbitsStore = useOrbitsStore()
 
 const initialValues = ref({
   name: props.data.name,

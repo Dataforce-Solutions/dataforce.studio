@@ -16,7 +16,7 @@
       :image="userStore.getUserAvatar"
     />-->
     <d-avatar
-      :label="getUserFullName?.[0] || getUserEmail?.[0]"
+      :label="userStore.getUserAvatar ? undefined : getUserFullName?.[0] || getUserEmail?.[0]"
       :image="userStore.getUserAvatar"
       shape="circle"
       size="xlarge"
