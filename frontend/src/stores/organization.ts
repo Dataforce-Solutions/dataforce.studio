@@ -92,7 +92,15 @@ export const useOrganizationStore = defineStore('organization', () => {
     memberId: number,
     payload: UpdateMemberPayload,
   ) {
-    return dataforceApi.updateOrganizationMember(organizationId, memberId, payload)
+    const info = await dataforceApi.updateOrganizationMember(organizationId, memberId, payload)
+    const currentOrganizationDetails = organizationDetails.value;
+    if (!currentOrganizationDetails) return;
+    currentOrganizationDetails.members = currentOrganizationDetails.members.map(member => {
+      if (member.id !== memberId) return member;
+      currentOrganizationDetails.members_by_role[member.role] = currentOrganizationDetails.members_by_role[member.role] - 1;
+      currentOrganizationDetails.members_by_role[info.role] = currentOrganizationDetails.members_by_role[info.role] + 1;
+      return info;
+    })
   }
 
   async function deleteMember(organizationId: number, memberId: number) {

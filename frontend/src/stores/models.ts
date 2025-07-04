@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import { dataforceApi } from '@/lib/api'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
+import { downloadFileFromBlob } from '@/helpers/helpers'
 
 export const useModelsStore = defineStore('models', () => {
   const route = useRoute()
@@ -101,6 +102,18 @@ export const useModelsStore = defineStore('models', () => {
     )
   }
 
+  async function downloadModel(modelId: number, name: string) {
+    const { url } = await dataforceApi.mlModels.getModelDownloadUrl(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+      requestInfo.value.collectionId,
+      modelId,
+    )
+    const response = await fetch(url)
+    const blob = await response.blob()
+    downloadFileFromBlob(blob, name + '.dfs')
+  }
+
   return {
     modelsList,
     initiateCreateModel,
@@ -109,5 +122,6 @@ export const useModelsStore = defineStore('models', () => {
     cancelModelUpload,
     resetList,
     deleteModels,
+    downloadModel,
   }
 })

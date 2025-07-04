@@ -15,6 +15,11 @@
             <Trash2 :size="14" />
           </template>
         </Button>
+        <Button variant="text" severity="secondary" rounded :disabled="selectedModels.length !== 1" @click="downloadClick">
+          <template #icon>
+            <Download :size="14" />
+          </template>
+        </Button>
       </div>
       <div class="table-wrapper">
         <DataTable
@@ -105,7 +110,7 @@
 
 <script setup lang="ts">
 import { Button, useToast, Tag, useConfirm } from 'primevue'
-import { Trash2 } from 'lucide-vue-next'
+import { Trash2, Download } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
 import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
 import { computed, onBeforeMount, onUnmounted, ref } from 'vue'
@@ -123,7 +128,7 @@ const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
 
-const selectedModels = ref([])
+const selectedModels = ref<{ id: number, modelName: string }[]>([])
 const loading = ref(false)
 
 const tableData = computed(() =>
@@ -176,6 +181,20 @@ async function confirmDelete() {
 async function onDeleteClick() {
   if (!selectedModels.value?.length || loading.value) return
   confirm.require(deleteModelConfirmOptions(confirmDelete, selectedModels.value?.length))
+}
+
+async function downloadClick() {
+  if (!selectedModels.value[0]?.id || loading.value) return
+  loading.value = true;
+  try {
+    const model = selectedModels.value[0]
+    await modelsStore.downloadModel(model.id, model.modelName)
+  } catch (e) {
+    toast.add(simpleErrorToast('Failed to load models'))
+  } finally {
+    selectedModels.value = []
+    loading.value = false
+  }
 }
 
 onBeforeMount(async () => {

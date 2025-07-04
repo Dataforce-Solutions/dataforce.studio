@@ -118,3 +118,13 @@ export const getSizeText = (size: number) => {
     : size < 10000000 ? size / 1000 + ' KB'
     : size / 10000000 + ' MB'
 }
+
+export const downloadFileFromBlob = (blob: Blob, fileName: string) => {
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}

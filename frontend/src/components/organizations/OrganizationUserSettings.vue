@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import type { Member } from '@/lib/api/DataforceApi.interfaces'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Button, Dialog, Avatar, Select, useConfirm, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { useOrganizationStore } from '@/stores/organization'
@@ -127,6 +127,10 @@ async function deleteUser() {
     loading.value = false
   }
 }
+
+watch(() => props.member.role, (role) => {
+  initialValues.value.role = role;
+})
 </script>
 
 <style scoped>
