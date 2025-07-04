@@ -27,9 +27,6 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
-    SUBJECT_ACTIVATION_EMAIL: str
-    SUBJECT_RESET_PASSWORD_EMAIL: str
-
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
         env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env",

@@ -17,7 +17,7 @@ class EmailHandler:
         message = Mail(
             from_email=self.sender_email,
             to_emails=str(email),
-            subject=config.SUBJECT_ACTIVATION_EMAIL,
+            subject="Welcome to Dataforce Studio",
         )
         message.template_id = config.TEMPLATE_ID_ACTIVATION_EMAIL
         message.dynamic_template_data = {
@@ -33,7 +33,7 @@ class EmailHandler:
         message = Mail(
             from_email=self.sender_email,
             to_emails=str(email),
-            subject=config.SUBJECT_RESET_PASSWORD_EMAIL,
+            subject="Reset Your Password",
         )
         message.template_id = config.TEMPLATE_ID_RESET_PASSWORD_EMAIL
         message.dynamic_template_data = {
