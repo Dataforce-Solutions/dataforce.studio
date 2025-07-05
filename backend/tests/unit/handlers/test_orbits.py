@@ -434,6 +434,10 @@ async def test_get_orbit_members(
 
 
 @patch(
+    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.emails.EmailHandler.send_added_to_orbit_email",
     new_callable=MagicMock,
 )
@@ -465,6 +469,7 @@ async def test_create_orbit_member(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
     mock_send_added_to_orbit_email: MagicMock,
+    mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -486,6 +491,11 @@ async def test_create_orbit_member(
     mock_get_orbit_members_count.return_value = 0
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
+    mock_get_orbit_simple.return_value = type(
+        "obj",
+        (),
+        {"bucket_secret_id": 1, "organization_id": organization_id, "name": "name"},
+    )
 
     result = await handler.create_orbit_member(
         test_orbit_member["user"]["id"], organization_id, create_member

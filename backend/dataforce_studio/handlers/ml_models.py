@@ -181,7 +181,9 @@ class MLModelHandler:
         if not model_obj:
             raise NotFoundError("ML model not found")
 
-        if model.status not in self.__model_transitions.get(model_obj.status, set()):
+        if model.status and model.status not in self.__model_transitions.get(
+            model_obj.status, set()
+        ):
             raise ServiceError(
                 f"Invalid status transition from {model_obj.status} to {model.status}"
             )
