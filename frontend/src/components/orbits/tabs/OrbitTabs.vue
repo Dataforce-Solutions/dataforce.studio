@@ -7,7 +7,6 @@
         :key="tab.label"
         :value="tab.routeName"
         class="tab"
-        :disabled="tab.disabled"
         @click="$router.push({ name: tab.routeName })"
       >
         <component :is="tab.icon" :size="14" />
@@ -32,13 +31,11 @@ const items = [
     label: 'Registry',
     routeName: 'orbit-registry',
     icon: Folders,
-    disabled: false,
   },
   {
     label: 'Deployments',
     routeName: 'orbit-deployments',
     icon: Rocket,
-    disabled: true,
   },
 ]
 </script>

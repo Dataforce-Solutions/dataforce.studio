@@ -42,7 +42,7 @@
           <div class="cell">{{ member.role }}</div>
           <div class="cell">-</div>
           <div class="cell">
-            <OrganizationUserSettings v-if="member.role !== OrganizationRoleEnum.owner" :member="member"></OrganizationUserSettings>
+            <OrganizationUserSettings v-if="member.role === OrganizationRoleEnum.member || (member.role === OrganizationRoleEnum.admin && isUserOwner)" :member="member"></OrganizationUserSettings>
           </div>
         </div>
       </div>
@@ -58,8 +58,10 @@ import { OrganizationRoleEnum } from './organization.interfaces'
 import OrganizationUserSettings from './OrganizationUserSettings.vue'
 import OrganizationCreateInvite from './OrganizationCreateInvite.vue'
 import OrganizationInviteManager from './OrganizationInviteManager.vue'
+import { useUserStore } from '@/stores/user'
 
 const organizationStore = useOrganizationStore()
+const userStore = useUserStore()
 
 const members = computed(() => organizationStore.organizationDetails?.members || [])
 const ownersCount = computed(
@@ -70,6 +72,9 @@ const adminsCount = computed(
 )
 const membersCount = computed(
   () => members.value.filter((member) => member.role === OrganizationRoleEnum.member).length,
+)
+const isUserOwner = computed(
+  () => members.value.find(member => member.user.id === userStore.getUserId)?.role === OrganizationRoleEnum.owner
 )
 </script>
 

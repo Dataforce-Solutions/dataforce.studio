@@ -39,7 +39,7 @@ const items = [
     icon: Orbit,
   },
   {
-    label: 'Registry',
+    label: 'Buckets',
     routeName: 'organization-buckets',
     icon: FolderDot,
   },
