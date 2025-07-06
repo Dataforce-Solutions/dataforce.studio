@@ -228,8 +228,8 @@ class UserRepository(RepositoryBase, CrudMixin):
             details.members_by_role = get_members_roles_count(db_organization.members)
             # TODO update hardcoded limits after dynamical limits
             #  are added for organizations
-            details.members_limit = 50
-            details.orbits_limit = 10
+            details.members_limit = 3
+            details.orbits_limit = 1
 
             return details
 
