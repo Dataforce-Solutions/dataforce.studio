@@ -12,7 +12,7 @@
       :pt="dialogPT"
     >
       <template #header>
-        <h2 class="creator-title">Create a new storage bucket</h2>
+        <h2 class="creator-title">Add a new storage bucket</h2>
       </template>
       <BucketForm @submit="create" :loading="loading"></BucketForm>
     </Dialog>

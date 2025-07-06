@@ -57,7 +57,7 @@ import { OrganizationRoleEnum } from './organization.interfaces'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { deleteUserConfirmOptions } from '@/lib/primevue/data/confirm'
+import { removeOrganizationUserConfirmOptions } from '@/lib/primevue/data/confirm'
 
 const OPTIONS = [
   {
@@ -113,7 +113,7 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   }
 }
 function onDelete() {
-  confirm.require(deleteUserConfirmOptions(deleteUser))
+  confirm.require(removeOrganizationUserConfirmOptions(deleteUser))
 }
 async function deleteUser() {
   try {

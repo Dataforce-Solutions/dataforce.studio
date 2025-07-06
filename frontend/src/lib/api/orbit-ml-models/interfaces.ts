@@ -15,6 +15,7 @@ export interface MlModelCreator {
   file_hash: string
   size: number
   file_name: string
+  model_name: string
   description: string
   tags: string[]
 }
@@ -23,6 +24,7 @@ export interface MlModel {
   id: number
   collection_id: number
   file_name: string
+  model_name: string
   description: string
   metrics: Record<string, object>
   manifest: Record<string, object>
@@ -40,6 +42,7 @@ export interface MlModel {
 export interface UpdateMlModelPayload {
   id: number
   file_name: string
+  model_name: string
   description: string
   tags: string[]
   status: MlModelStatusEnum

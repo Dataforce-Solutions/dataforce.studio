@@ -61,7 +61,7 @@
     </div>
 
     <div class="field field--protocol">
-      <label class="label">Secure</label>
+      <label class="label">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
@@ -96,7 +96,7 @@ const initialValues = ref<BucketSecretCreator>({
   access_key: '',
   secret_key: '',
   session_token: '',
-  secure: false,
+  secure: true,
   region: '',
 })
 

@@ -1,7 +1,6 @@
 import { TarHandler } from '@/lib/tar-handler/TarHandler'
 import { useModelsStore } from '@/stores/models'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/fnnx/FnnxService'
 import {
   MlModelStatusEnum,
   type CreateModelResponse,
@@ -11,11 +10,6 @@ import {
 import { getSha256 } from '@/helpers/helpers'
 import axios, { type AxiosProgressEvent } from 'axios'
 import { ref } from 'vue'
-
-const AVAILABLE_TAGS = [
-  FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1,
-  FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1,
-]
 
 export const useModelUpload = () => {
   const modelsStore = useModelsStore()
@@ -36,17 +30,19 @@ export const useModelUpload = () => {
       file_index: Object.fromEntries(fileIndex.entries()),
       file_hash: fileHash,
       size: file.size,
-      file_name: name,
+      file_name: file.name,
+      model_name: name,
       description,
       tags,
     }
     const response = await modelsStore.initiateCreateModel(payload)
 
-    await uploadToBucket(response, modelBuffer, name, description, tags)
+    await uploadToBucket(response, modelBuffer, file.name, name, description, tags)
 
     const confirmPayload: UpdateMlModelPayload = {
       id: response.model.id,
-      file_name: name,
+      file_name: file.name,
+      model_name: name,
       description,
       tags,
       status: MlModelStatusEnum.uploaded,
@@ -58,6 +54,7 @@ export const useModelUpload = () => {
     data: CreateModelResponse,
     buffer: ArrayBuffer,
     fileName: string,
+    modelName: string,
     description: string,
     tags: string[],
   ) {
@@ -71,6 +68,7 @@ export const useModelUpload = () => {
       await modelsStore.cancelModelUpload({
         id: data.model.id,
         file_name: fileName,
+        model_name: modelName,
         description,
         tags,
         status: MlModelStatusEnum.upload_failed,

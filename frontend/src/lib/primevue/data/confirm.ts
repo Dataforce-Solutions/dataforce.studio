@@ -55,9 +55,26 @@ export const leaveOrganizationConfirmOptions = (accept: () => void): Confirmatio
   accept,
 })
 
-export const deleteUserConfirmOptions = (accept: () => void, message?: string): ConfirmationOptions => ({
+export const deleteUserConfirmOptions = (
+  accept: () => void,
+  message?: string,
+): ConfirmationOptions => ({
   message: message || 'Deleting this account is a permanent action and cannot be reversed.',
   header: 'Delete this user?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const removeOrganizationUserConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'The user will lose access to all resources and data associated with your organization.',
+  header: 'Remove user from organization?',
   rejectProps: {
     label: 'cancel',
   },

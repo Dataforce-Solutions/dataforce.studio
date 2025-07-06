@@ -128,14 +128,15 @@ const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
 
-const selectedModels = ref<{ id: number, modelName: string }[]>([])
+const selectedModels = ref<{ id: number, modelName: string, fileName: string }[]>([])
 const loading = ref(false)
 
 const tableData = computed(() =>
   modelsStore.modelsList.map((item) => {
     return {
       id: item.id,
-      modelName: item.file_name,
+      modelName: item.model_name,
+      fileName: item.file_name,
       createdTime: new Date(item.created_at).toLocaleString(),
       description: item.description,
       tags: item.tags,
@@ -188,7 +189,7 @@ async function downloadClick() {
   loading.value = true;
   try {
     const model = selectedModels.value[0]
-    await modelsStore.downloadModel(model.id, model.modelName)
+    await modelsStore.downloadModel(model.id, model.fileName)
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load models'))
   } finally {
