@@ -11,7 +11,7 @@ export enum MlModelStatusEnum {
 export interface MlModelCreator {
   metrics: Record<string, object>
   manifest: Manifest
-  file_index: Record<string, object>
+  file_index: Record<string, [number, number]>
   file_hash: string
   size: number
   file_name: string
@@ -27,7 +27,7 @@ export interface MlModel {
   metrics: Record<string, object>
   manifest: Record<string, object>
   file_hash: string
-  file_index: Record<string, object>
+  file_index: Record<string, [number, number]>
   bucket_location: string
   size: number
   unique_identifier: string

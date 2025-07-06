@@ -14,11 +14,14 @@ class MLModelOrm(TimestampMixin, Base):
         Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False
     )
     file_name: Mapped[str] = mapped_column(String, nullable=False)
+    model_name: Mapped[str | None] = mapped_column(String, nullable=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
     metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
-    file_index: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    file_index: Mapped[dict[str, tuple[int, int]]] = mapped_column(
+        JSONB, nullable=False
+    )
     bucket_location: Mapped[str] = mapped_column(String, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     unique_identifier: Mapped[str] = mapped_column(String, nullable=False)

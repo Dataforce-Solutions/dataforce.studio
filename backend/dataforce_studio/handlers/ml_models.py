@@ -140,6 +140,7 @@ class MLModelHandler:
             MLModelCreate(
                 collection_id=collection_id,
                 file_name=model.file_name,
+                model_name=model.model_name,
                 description=model.description,
                 metrics=model.metrics,
                 manifest=model.manifest,
@@ -194,6 +195,7 @@ class MLModelHandler:
             MLModelUpdate(
                 id=model_id,
                 file_name=model.file_name,
+                model_name=model.model_name,
                 description=model.description,
                 status=model.status,
                 tags=model.tags,

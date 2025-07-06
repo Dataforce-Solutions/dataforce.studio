@@ -98,6 +98,7 @@ async def test_create_ml_model_with_tags(
         id=1,
         collection_id=collection_id,
         file_name='model',
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -128,6 +129,7 @@ async def test_create_ml_model_with_tags(
         file_index={},
         size=1,
         file_name="file.txt",
+        model_name=None,
         tags=["tag"],
     )
     result_model, url = await handler.create_ml_model(
@@ -187,6 +189,7 @@ async def test_get_ml_model(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -325,6 +328,7 @@ async def test_request_download_url(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -408,6 +412,7 @@ async def test_request_delete_url(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -489,6 +494,7 @@ async def test_confirm_deletion_pending(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -566,6 +572,7 @@ async def test_confirm_deletion_not_pending(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -647,6 +654,7 @@ async def test_update_model(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -666,6 +674,7 @@ async def test_update_model(
         id=model_id,
         collection_id=1,
         file_name="model",
+        model_name=None,
         metrics={},
         manifest=manifest_example_obj,
         file_hash="hash",
@@ -699,7 +708,7 @@ async def test_update_model(
     )
 
     assert result == expected
-    expected_update = MLModelUpdate(id=model_id, tags=tags)
+    expected_update = MLModelUpdate(id=model_id, model_name=None, tags=tags)
     mock_update.assert_awaited_once_with(
         model_id,
         collection_id,

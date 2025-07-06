@@ -108,11 +108,12 @@ class Manifest(BaseModel):
 class MLModelCreate(BaseModel):
     collection_id: int
     file_name: str
+    model_name: str | None = None
     description: str | None = None
     metrics: dict
     manifest: Manifest
     file_hash: str
-    file_index: dict
+    file_index: dict[str, tuple[int, int]]
     bucket_location: str
     size: int
     unique_identifier: str
@@ -122,11 +123,12 @@ class MLModelCreate(BaseModel):
 
 class MLModelIn(BaseModel):
     file_name: str
+    model_name: str | None = None
     description: str | None = None
     metrics: dict
     manifest: Manifest
     file_hash: str
-    file_index: dict
+    file_index: dict[str, tuple[int, int]]
     size: int
     tags: list[str] | None = None
 
@@ -134,6 +136,7 @@ class MLModelIn(BaseModel):
 class MLModelUpdate(BaseModel):
     id: int
     file_name: str | None = None
+    model_name: str | None = None
     description: str | None = None
     status: MLModelStatus | None = None
     tags: list[str] | None = None
@@ -141,6 +144,7 @@ class MLModelUpdate(BaseModel):
 
 class MLModelUpdateIn(BaseModel):
     file_name: str | None = None
+    model_name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
     status: (
@@ -157,11 +161,12 @@ class MLModel(BaseModel, BaseOrmConfig):
     id: int
     collection_id: int
     file_name: str
+    model_name: str | None = None
     description: str | None = None
     metrics: dict
     manifest: Manifest
     file_hash: str
-    file_index: dict
+    file_index: dict[str, tuple[int, int]]
     bucket_location: str
     size: int
     unique_identifier: str
