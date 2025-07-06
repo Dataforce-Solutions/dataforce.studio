@@ -71,6 +71,7 @@ watch(
 
 onBeforeMount(() => {
   loadOrbits(+route.params.organizationId)
+  organizationStore.getOrganizationDetails(+route.params.organizationId)
 })
 </script>
 
