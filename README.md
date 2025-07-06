@@ -6,7 +6,7 @@
     <br>
 </h1>
 
-<img alt="ui-img" src="https://raw.githubusercontent.com/OKUA1/public/refs/heads/main/202507_dfs_frame.png" style="width: 85%">
+<img alt="ui-img" src="https://raw.githubusercontent.com/OKUA1/public/refs/heads/main/202507_dfs_frame.png" style="width: 100%">
 <br/>
 
 <p align="center">
