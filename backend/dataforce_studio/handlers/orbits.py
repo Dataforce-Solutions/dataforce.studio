@@ -34,7 +34,7 @@ class OrbitHandler:
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
 
-    __orbits_limit = 10
+    __orbits_limit = 1
 
     def notify_members(
         self, orbit: OrbitDetails, background_tasks: BackgroundTasks
