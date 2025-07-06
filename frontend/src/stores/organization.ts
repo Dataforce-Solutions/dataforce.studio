@@ -10,11 +10,17 @@ import { dataforceApi } from '@/lib/api'
 import { ref } from 'vue'
 import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import { computed } from '@vue/reactivity'
 
 export const useOrganizationStore = defineStore('organization', () => {
   const availableOrganizations = ref<Organization[]>([])
-  const currentOrganization = ref<OrganizationDetails | null>(null)
+  const organizationDetails = ref<OrganizationDetails | null>(null)
+  const currentOrganizationId = ref<number | null>(null)
   const loading = ref(false)
+
+  const currentOrganization = computed(() => {
+    return availableOrganizations.value.find(organization => organization.id === currentOrganizationId.value) || null
+  })
 
   function setLoading(value: boolean) {
     loading.value = value
@@ -32,7 +38,11 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function updateOrganization(organizationId: number, payload: CreateOrganizationPayload) {
-    return await dataforceApi.updateOrganization(organizationId, payload)
+    const details = await dataforceApi.updateOrganization(organizationId, payload)
+    availableOrganizations.value = availableOrganizations.value.map(organization => {
+      return organization.id === organizationId ? { ...details, role: organization.role } : organization
+    })
+    organizationDetails.value = details
   }
 
   async function deleteOrganization(organizationId: number) {
@@ -48,39 +58,17 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function setCurrentOrganizationId(id: number) {
-    if (currentOrganization.value?.id === id) return
+    currentOrganizationId.value = id
+    LocalStorageService.set('dataforce:currentOrganizationId', `${id}`)
+  }
+
+  async function getOrganizationDetails(id: number) {
+    loading.value = true
     try {
-      setLoading(true)
-      const organizationDetails = await getOrganization(id)
-      LocalStorageService.set('dataforce:currentOrganizationId', organizationDetails.id.toString())
-      setCurrentOrganization(organizationDetails)
-    } catch (e) {
-      throw e
+      organizationDetails.value = await dataforceApi.getOrganization(id)
     } finally {
-      setLoading(false)
+      loading.value = false
     }
-  }
-
-  function setCurrentOrganization(organization: OrganizationDetails) {
-    currentOrganization.value = organization
-    availableOrganizations.value = availableOrganizations.value.map((item) => {
-      if (item.id === organization.id) {
-        return {
-          id: organization.id,
-          name: organization.name,
-          logo: organization.logo,
-          created_at: organization.created_at,
-          updated_at: organization.updated_at,
-          role: item.role,
-        }
-      } else {
-        return item
-      }
-    })
-  }
-
-  async function getOrganization(id: number) {
-    return dataforceApi.getOrganization(id)
   }
 
   async function setInitialOrganization() {
@@ -96,7 +84,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   function resetCurrentOrganization() {
-    currentOrganization.value = null
+    currentOrganizationId.value = null
   }
 
   async function updateMember(
@@ -104,26 +92,34 @@ export const useOrganizationStore = defineStore('organization', () => {
     memberId: number,
     payload: UpdateMemberPayload,
   ) {
-    return dataforceApi.updateOrganizationMember(organizationId, memberId, payload)
+    const info = await dataforceApi.updateOrganizationMember(organizationId, memberId, payload)
+    const currentOrganizationDetails = organizationDetails.value;
+    if (!currentOrganizationDetails) return;
+    currentOrganizationDetails.members = currentOrganizationDetails.members.map(member => {
+      if (member.id !== memberId) return member;
+      currentOrganizationDetails.members_by_role[member.role] = currentOrganizationDetails.members_by_role[member.role] - 1;
+      currentOrganizationDetails.members_by_role[info.role] = currentOrganizationDetails.members_by_role[info.role] + 1;
+      return info;
+    })
   }
 
   async function deleteMember(organizationId: number, memberId: number) {
     await dataforceApi.deleteMemberFormOrganization(organizationId, memberId)
-    if (!currentOrganization.value) return
-    const members = currentOrganization.value.members.filter((member) => member.id !== memberId)
-    currentOrganization.value = { ...currentOrganization.value, members: members }
+    if (!organizationDetails.value) return
+    const members = organizationDetails.value.members.filter((member) => member.id !== memberId)
+    organizationDetails.value = { ...organizationDetails.value, members: members }
   }
 
   function removeInviteFromCurrentOrganization(inviteId: number) {
-    if (!currentOrganization.value) return
-    currentOrganization.value = {
-      ...currentOrganization.value,
-      invites: currentOrganization.value.invites.filter((invite) => invite.id !== inviteId),
+    if (!organizationDetails.value) return
+    organizationDetails.value = {
+      ...organizationDetails.value,
+      invites: organizationDetails.value.invites.filter((invite) => invite.id !== inviteId),
     }
   }
 
   function addInviteToCurrentOrganization(invite: Invitation) {
-    currentOrganization.value?.invites.push(invite)
+    organizationDetails.value?.invites.push(invite)
   }
 
   async function leaveOrganization(organizationId: number) {
@@ -133,10 +129,16 @@ export const useOrganizationStore = defineStore('organization', () => {
     )
   }
 
+  function reset() {
+    availableOrganizations.value = []
+    resetCurrentOrganization()
+  }
+
   return {
     availableOrganizations,
     currentOrganization,
     loading,
+    organizationDetails,
     getAvailableOrganizations,
     createOrganization,
     updateOrganization,
@@ -149,6 +151,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     leaveOrganization,
     setCurrentOrganizationId,
     setLoading,
-    setCurrentOrganization,
+    getOrganizationDetails,
+    reset,
   }
 })

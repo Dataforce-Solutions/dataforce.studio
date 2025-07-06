@@ -63,7 +63,7 @@ const dialogPT = {
     style: 'padding: 18px;',
   },
   header: {
-    style: 'font-size: 20px; font-weight: 600; text-transform: uppercase;',
+    style: 'font-size: 20px; font-weight: 600; text-transform: uppercase; padding-bottom: 12px;',
   },
 }
 
@@ -74,7 +74,7 @@ const toast = useToast()
 const visible = ref(false)
 const loading = ref(false)
 
-const invites = computed(() => organizationStore.currentOrganization?.invites || [])
+const invites = computed(() => organizationStore.organizationDetails?.invites || [])
 
 async function reject(organizationId: number, inviteId: number) {
   loading.value = true

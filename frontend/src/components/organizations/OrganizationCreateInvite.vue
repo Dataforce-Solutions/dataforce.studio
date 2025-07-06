@@ -59,7 +59,7 @@ const dialogPT = {
     style: 'padding: 18px;',
   },
   header: {
-    style: 'font-size: 20px; font-weight: 600; text-transform: uppercase;',
+    style: 'font-size: 20px; font-weight: 600; text-transform: uppercase; padding-bottom: 12px;',
   },
 }
 
@@ -71,10 +71,6 @@ const OPTIONS = [
   {
     label: 'Member',
     value: OrganizationRoleEnum.member,
-  },
-  {
-    label: 'Owner',
-    value: OrganizationRoleEnum.owner,
   },
 ]
 

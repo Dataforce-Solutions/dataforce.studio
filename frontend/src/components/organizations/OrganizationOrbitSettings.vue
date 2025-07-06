@@ -4,16 +4,13 @@
       <UserCog :size="14" />
     </template>
   </Button>
-  <Dialog v-model:visible="visible" :draggable="false" modal style="width: 100%; max-width: 800px">
-    <template #header>
-      <h2 class="popup-title">Manage Orbit Members</h2>
-    </template>
+  <Dialog v-model:visible="visible" :draggable="false" modal :pt="dialogPt" header="Manage Orbit Members">
     <div class="dialog-content">
       <p class="text">Add or remove members and assign roles within this orbit.</p>
       <div class="form">
         <AutoComplete
           v-model="searchModel"
-          placeholder="Search users in organization users limit per organization"
+          placeholder="Search users in organization"
           inputId="multiple-ac-1"
           multiple
           fluid
@@ -41,7 +38,7 @@
           <div class="table-body">
             <div v-for="member in orbitMembers" class="table-row">
               <div class="cell cell-user">
-                <Avatar shape="circle" :image="member.user.photo" />
+                <Avatar :label="member.user.photo ? undefined : member.user.full_name[0]" shape="circle" :image="member.user.photo" class="avatar"/>
                 <div>
                   <h4>{{ member.user.full_name }}</h4>
                 </div>
@@ -90,17 +87,29 @@
 </template>
 
 <script setup lang="ts">
-import type { AutoCompleteCompleteEvent } from 'primevue'
+import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { Member, OrbitMember } from '@/lib/api/DataforceApi.interfaces'
 import { computed, ref, watch } from 'vue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
 import { UserCog, Trash2 } from 'lucide-vue-next'
 import { Dialog, AutoComplete, Button, useToast, Avatar, Select, useConfirm } from 'primevue'
-import { OrganizationRoleEnum } from './organization.interfaces'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { OrbitRoleEnum } from '../orbits/orbits.interfaces'
 import { deleteUserConfirmOptions } from '@/lib/primevue/data/confirm'
+import { useUserStore } from '@/stores/user'
+
+const dialogPt: DialogPassThroughOptions = {
+  root: {
+    style: 'max-width: 800px; width: 100%;',
+  },
+  header: {
+    style: 'padding: 36px 36px 12px; text-transform: uppercase; font-size: 20px; font-weight: 600;',
+  },
+  content: {
+    style: 'padding: 0 36px 36px;',
+  },
+}
 
 const OPTIONS = [
   {
@@ -123,6 +132,7 @@ const organizationsStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const confirm = useConfirm()
+const userStore = useUserStore()
 
 const visible = ref(false)
 const loading = ref(false)
@@ -140,9 +150,10 @@ const changedMembers = computed(() =>
 )
 
 function onComplete(event: AutoCompleteCompleteEvent) {
-  if (!organizationsStore.currentOrganization?.members?.length) return
-  searchedMembers.value = organizationsStore.currentOrganization.members.filter((member) => {
+  if (!organizationsStore.organizationDetails?.members?.length) return
+  searchedMembers.value = organizationsStore.organizationDetails.members.filter((member) => {
     if (orbitMembers.value.find((memberInOrbit) => memberInOrbit.id === member.id)) return false
+    if (member.user.id === userStore.getUserId) return false
 
     return (
       member.user.email.toLowerCase().includes(event.query.toLowerCase()) ||
@@ -152,7 +163,7 @@ function onComplete(event: AutoCompleteCompleteEvent) {
 }
 
 async function addUsers() {
-  const organizationId = organizationsStore.currentOrganization?.id
+  const organizationId = organizationsStore.organizationDetails?.id
   if (!organizationId) return
 
   const payloads = searchModel.value.map((member) => {
@@ -190,7 +201,7 @@ async function getOrbitDetails() {
 }
 
 function onTrashClick(memberId: number) {
-  confirm.require(deleteUserConfirmOptions(() => deleteMember(memberId)))
+  confirm.require(deleteUserConfirmOptions(() => deleteMember(memberId), 'You can add a user to your orbit at any time.'))
 }
 
 async function deleteMember(memberId: number) {

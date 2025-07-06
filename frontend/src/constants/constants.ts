@@ -5,7 +5,7 @@ import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.s
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
 import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg'
 
-export const sidebarMenu = [
+export const SIDEBAR_MENU = [
   {
     id: 1,
     label: 'Express tasks',
@@ -14,6 +14,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'express_tasks',
+    authRequired: false,
   },
   {
     id: 2,
@@ -23,6 +24,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'runtime',
+    authRequired: false,
   },
   {
     id: 4,
@@ -32,6 +34,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'notebook',
+    authRequired: false,
   },
   {
     id: 5,
@@ -41,6 +44,7 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'data-agent',
+    authRequired: false,
   },
   {
     id: 3,
@@ -50,10 +54,11 @@ export const sidebarMenu = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'orbits',
+    authRequired: true,
   },
 ]
 
-export const sidebarMenuBottom = [
+export const SIDEBAR_MENU_BOTTOM = [
   {
     id: 1,
     label: 'Documentation',

@@ -1,27 +1,43 @@
 <template>
   <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
     <div>
-      <OrganizationManagePopover v-if="authStore.isAuth" style="margin-bottom: 8px;"></OrganizationManagePopover>
+      <div style="margin-bottom: 8px">
+        <OrganizationManagePopover v-if="authStore.isAuth"></OrganizationManagePopover>
+        <d-button v-else disabled variant="text" class="menu-link">
+          <Users :size="14" class="icon"></Users>
+          <span class="label">My Organization</span>
+          <ChevronDown :size="20" class="icon" />
+        </d-button>
+      </div>
       <nav class="nav">
         <ul class="list">
-          <li v-for="item in sidebarMenu" :key="item.id" class="item">
+          <li v-for="item in SIDEBAR_MENU" :key="item.id" class="item">
             <div
-              v-if="item.disabled && isSidebarOpened"
-              v-tooltip.bottom="item.tooltipMessage"
+              v-if="item.disabled"
+              v-tooltip.bottom="isSidebarOpened ? item.tooltipMessage : null"
+              v-tooltip.right="!isSidebarOpened ? item.tooltipMessage : null"
               class="menu-link disabled"
             >
               <component :is="item.icon" :size="14" class="icon"></component>
               <span>{{ item.label }}</span>
             </div>
+
             <div
-              v-else-if="item.disabled && !isSidebarOpened"
-              v-tooltip.right="item.tooltipMessage"
+              v-else-if="item.authRequired && !authStore.isAuth"
+              v-tooltip.bottom="isSidebarOpened ? 'Available only to authorized users' : null"
+              v-tooltip.right="!isSidebarOpened ? 'Available only to authorized users' : null"
               class="menu-link disabled"
             >
               <component :is="item.icon" :size="14" class="icon"></component>
               <span>{{ item.label }}</span>
             </div>
-            <router-link v-else :to="{ name: item.route }" class="menu-link" @click="sendAnalytics(item.analyticsOption)">
+
+            <router-link
+              v-else
+              :to="{ name: item.route, params: item.route === 'orbits' ? { organizationId: organizationsStore.currentOrganization?.id || 0 } : {} }"
+              class="menu-link"
+              @click="sendAnalytics(item.analyticsOption)"
+            >
               <component :is="item.icon" :size="14" class="icon"></component>
               <span>{{ item.label }}</span>
             </router-link>
@@ -32,7 +48,7 @@
     <div class="sidebar-bottom">
       <nav class="nav-bottom">
         <ul class="list">
-          <li v-for="item in sidebarMenuBottom" :key="item.id" class="item">
+          <li v-for="item in SIDEBAR_MENU_BOTTOM" :key="item.id" class="item">
             <a v-if="item.link" :href="item.link" target="_blank" class="menu-link">
               <component :is="item.icon" :size="14" class="icon"></component>
               <span>{{ item.label }}</span>
@@ -57,16 +73,18 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftToLine } from 'lucide-vue-next'
+import { ArrowLeftToLine, ChevronDown, Users } from 'lucide-vue-next'
 import { onMounted, ref, watch } from 'vue'
-import { sidebarMenu, sidebarMenuBottom } from '@/constants/constants'
+import { SIDEBAR_MENU, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useOrganizationStore } from '@/stores/organization'
 
 const { width } = useWindowSize()
 const authStore = useAuthStore()
+const organizationsStore = useOrganizationStore()
 
 const isSidebarOpened = ref(true)
 
@@ -74,8 +92,9 @@ const toggleSidebar = () => {
   isSidebarOpened.value = !isSidebarOpened.value
 }
 function windowResizeHandler() {
-  if (window.innerWidth < 992 && isSidebarOpened.value === true)
+  if (window.innerWidth < 992 && isSidebarOpened.value === true) {
     isSidebarOpened.value = false
+  }
 }
 function sendAnalytics(option: string) {
   AnalyticsService.track(AnalyticsTrackKeysEnum.side_menu_select, { option })
@@ -129,6 +148,7 @@ onMounted(() => {
   border-radius: 4px;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   color: var(--p-menu-item-color);
   text-decoration: none;
@@ -159,6 +179,13 @@ onMounted(() => {
   color: var(--p-menu-item-icon-color);
   flex: 0 0 auto;
   transition: color 0.3s;
+}
+
+.label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
 .menu-link.router-link-active .icon {

@@ -1,10 +1,6 @@
 <template>
   <div class="info">
-    <Avatar
-      size="large"
-      :label="avatarLabel"
-      :image="organizationStore.currentOrganization?.logo"
-    />
+    <Avatar size="large" :label="avatarLabel" />
     <div class="name">{{ organizationStore.currentOrganization?.name }}</div>
     <Button severity="secondary" variant="text" @click="visible = true">
       <template #icon>
@@ -103,8 +99,7 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   try {
     loading.value = true
     if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
-    const details = await organizationStore.updateOrganization(organizationStore.currentOrganization.id, payload)
-    organizationStore.setCurrentOrganization(details)
+    await organizationStore.updateOrganization(organizationStore.currentOrganization.id, payload)
     toast.add(simpleSuccessToast('Your organization is ready. You can now switch to it from the organization menu.'))
     visible.value = false
   } catch (e: any) {

@@ -2,8 +2,11 @@ import type { CreateInvitePayload, Invitation } from '@/lib/api/DataforceApi.int
 import { dataforceApi } from '@/lib/api'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useOrganizationStore } from './organization'
 
 export const useInvitationsStore = defineStore('invitations', () => {
+  const organizationStore = useOrganizationStore()
+
   const invitations = ref<Invitation[]>([])
 
   async function getInvitations() {
@@ -13,6 +16,7 @@ export const useInvitationsStore = defineStore('invitations', () => {
   async function acceptInvitation(inviteId: number) {
     await dataforceApi.acceptInvitation(inviteId)
     invitations.value = invitations.value.filter((invitation) => invitation.id !== inviteId)
+    organizationStore.getAvailableOrganizations()
   }
 
   async function rejectInvitation(inviteId: number) {
@@ -28,5 +32,17 @@ export const useInvitationsStore = defineStore('invitations', () => {
     return dataforceApi.cancelInvitation(organizationId, inviteId)
   }
 
-  return { invitations, getInvitations, acceptInvitation, rejectInvitation, createInvite, cancelInvite }
+  function reset() {
+    invitations.value = []
+  }
+
+  return {
+    invitations,
+    getInvitations,
+    acceptInvitation,
+    rejectInvitation,
+    createInvite,
+    cancelInvite,
+    reset,
+  }
 })

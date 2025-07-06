@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { IUser } from './user.interfaces'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { dataforceApi } from '@/lib/api'
 import type {
   IPostChangePasswordRequest,
@@ -23,12 +23,11 @@ export const useUserStore = defineStore('user', () => {
   const isUserDisabled = computed(() => user.value?.disabled)
   const getUserAvatar = computed(() => user.value?.photo)
   const isUserLoggedWithSSO = computed(() => user.value?.auth_method !== 'email')
+  const getUserId = computed(() => user.value?.id)
 
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
     user.value = data
-    await invitationsStore.getInvitations()
-    await organizationStore.getAvailableOrganizations()
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {
@@ -57,6 +56,19 @@ export const useUserStore = defineStore('user', () => {
     return response
   }
 
+  watch(
+    () => user.value?.id,
+    async (id) => {
+      if (id) {
+        await invitationsStore.getInvitations()
+        await organizationStore.getAvailableOrganizations()
+      } else {
+        invitationsStore.reset()
+        organizationStore.reset()
+      }
+    },
+  )
+
   return {
     getUserEmail,
     getUserFullName,
@@ -64,6 +76,7 @@ export const useUserStore = defineStore('user', () => {
     isUserDisabled,
     isPasswordHasBeenChanged,
     isUserLoggedWithSSO,
+    getUserId,
     loadUser,
     changePassword,
     deleteAccount,

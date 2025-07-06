@@ -33,7 +33,7 @@
       <div class="users-list">
         <div v-for="member in members" class="row">
           <div class="cell cell-user">
-            <Avatar :label="member.user.full_name[0]" shape="circle" :image="member.user.photo" />
+            <Avatar :label="member.user.photo ? undefined : member.user.full_name[0]" shape="circle" :image="member.user.photo" />
             <div>
               <h4>{{ member.user.full_name }}</h4>
               <div class="email">{{ member.user.email }}</div>
@@ -61,7 +61,7 @@ import OrganizationInviteManager from './OrganizationInviteManager.vue'
 
 const organizationStore = useOrganizationStore()
 
-const members = computed(() => organizationStore.currentOrganization?.members || [])
+const members = computed(() => organizationStore.organizationDetails?.members || [])
 const ownersCount = computed(
   () => members.value.filter((member) => member.role === OrganizationRoleEnum.owner).length,
 )

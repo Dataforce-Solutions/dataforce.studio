@@ -1,16 +1,5 @@
 <template>
-  <div
-    v-if="organizationStore.loading"
-    :style="{
-      width: '100%',
-      height: `calc(100vh - ${headerSizes.height}px)`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }"
-  >
-    <ProgressSpinner></ProgressSpinner>
-  </div>
+  <UiPageLoader v-if="organizationStore.loading"></UiPageLoader>
 
   <div v-else-if="organizationStore.currentOrganization">
     <OrganizationLocked v-if="!hasPermission"></OrganizationLocked>
@@ -18,6 +7,9 @@
       <OrganizationInfo class="info"></OrganizationInfo>
       <OrganizationLimits class="limits"></OrganizationLimits>
       <OrganizationTabs></OrganizationTabs>
+      <div class="views">
+        <RouterView></RouterView>
+      </div>
     </div>
   </div>
   <div v-else class="title">Organization {{ route.params.id }} not found...</div>
@@ -27,20 +19,19 @@
 import { computed, onBeforeMount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOrganizationStore } from '@/stores/organization'
-import { useToast, ProgressSpinner } from 'primevue'
+import { useToast } from 'primevue'
+import { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import OrganizationInfo from '@/components/organizations/OrganizationInfo.vue'
 import OrganizationLimits from '@/components/organizations/OrganizationLimits.vue'
 import OrganizationTabs from '@/components/organizations/OrganizationTabs.vue'
 import OrganizationLocked from '@/components/organizations/OrganizationLocked.vue'
-import { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
-import { useLayout } from '@/hooks/useLayout'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 
 const route = useRoute()
 const router = useRouter()
 const organizationStore = useOrganizationStore()
 const toast = useToast()
-const { headerSizes } = useLayout()
 
 const hasPermission = computed(() => {
   const userRole = organizationStore.availableOrganizations.find(
@@ -50,21 +41,34 @@ const hasPermission = computed(() => {
   return true
 })
 
-onBeforeMount(async () => {
-  if (typeof route.params.id !== 'string') {
-    return
-  }
+async function init() {
   try {
+    organizationStore.resetCurrentOrganization()
     await organizationStore.setCurrentOrganizationId(+route.params.id)
+    organizationStore.getOrganizationDetails(+route.params.id)
   } catch (e: any) {
     toast.add(simpleErrorToast(e.details || 'Unable to retrieve organization data'))
   }
+}
+
+onBeforeMount(() => {
+  init()
 })
 
 watch(
   () => organizationStore.currentOrganization?.id,
-  (id) => {
-    router.push({ name: 'organization', params: { id } })
+  async (id) => {
+    if (!id || +route.params.id === id) return
+
+    await router.push({
+      name: route.name,
+      params: {
+        ...route.params,
+        id,
+      },
+    })
+
+    init()
   },
 )
 </script>
@@ -81,5 +85,8 @@ watch(
 }
 .title {
   padding-top: 30px;
+}
+.views {
+  padding-top: 24px;
 }
 </style>

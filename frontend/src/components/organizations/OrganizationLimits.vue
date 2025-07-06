@@ -1,21 +1,21 @@
 <template>
-  <div v-if="organizationStore.currentOrganization" class="limits">
+  <div v-if="organizationStore.organizationDetails" class="limits">
     <h3 class="limits-title">Monitor usage limits</h3>
     <p class="limits-text">
       Limits are based on the current plan. Upgrades will be available soon.
     </p>
     <div  class="items">
       <div class="item">
-        <UiCircleProgress :progress="((organizationStore.currentOrganization.total_members || 0) / organizationStore.currentOrganization.members_limit) * 100"></UiCircleProgress>
+        <UiCircleProgress :progress="((organizationStore.organizationDetails.total_members || 0) / organizationStore.organizationDetails.members_limit) * 100"></UiCircleProgress>
         <div class="item-content">
-          <div class="item-values">{{ organizationStore.currentOrganization?.members.length }}/{{ organizationStore.currentOrganization.members_limit }}</div>
+          <div class="item-values">{{ organizationStore.organizationDetails?.members.length }}/{{ organizationStore.organizationDetails.members_limit }}</div>
           <div class="item-label">users limit per organization</div>
         </div>
       </div>
       <div class="item">
-        <UiCircleProgress :progress="((organizationStore.currentOrganization.total_orbits || 0) / organizationStore.currentOrganization.orbits_limit) * 100"></UiCircleProgress>
+        <UiCircleProgress :progress="((organizationStore.organizationDetails.total_orbits || 0) / organizationStore.organizationDetails.orbits_limit) * 100"></UiCircleProgress>
         <div class="item-content">
-          <div class="item-values">{{ organizationStore.currentOrganization.total_orbits }}/{{ organizationStore.currentOrganization.orbits_limit }}</div>
+          <div class="item-values">{{ organizationStore.organizationDetails.total_orbits }}/{{ organizationStore.organizationDetails.orbits_limit }}</div>
           <div class="item-label">orbits limit per organization</div>
         </div>
       </div>

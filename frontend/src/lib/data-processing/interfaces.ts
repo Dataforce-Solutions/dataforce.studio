@@ -23,15 +23,7 @@ export enum Tasks {
   TABULAR_REGRESSION = 'tabular_regression',
 }
 
-export enum FNNX_PRODUCER_TAGS_METADATA_ENUM {
-  contains_classification_metrics_v1 = 'falcon.beastbyte.ai::tabular_classification_metrics:v1',
-  contains_regression_metrics_v1 = 'falcon.beastbyte.ai::tabular_regression_metrics:v1',
-}
 
-export enum FNNX_PRODUCER_TAGS_MANIFEST_ENUM {
-  tabular_classification_v1 = "dataforce.studio::tabular_classification:v1",
-  tabular_regression_v1 = "dataforce.studio::tabular_regression:v1",
-}
 
 export interface TaskPayload {
   data: object

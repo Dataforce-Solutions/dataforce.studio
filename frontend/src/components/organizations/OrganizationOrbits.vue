@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3 class="label">List of Orbits for current organization ({{ organizationStore.currentOrganization?.orbits.length || 0 }})</h3>
+    <h3 class="label">List of Orbits for current organization ({{ organizationStore.organizationDetails?.orbits.length || 0 }})</h3>
     <div class="users">
       <div class="users-header">
         <div class="row">
@@ -10,11 +10,11 @@
           <div class="cell"></div>
         </div>
       </div>
-      <div v-if="organizationStore.currentOrganization?.orbits.length" class="users-list">
-        <div v-for="orbit in organizationStore.currentOrganization.orbits" class="row">
-          <div class="cell cell-user">
+      <div v-if="organizationStore.organizationDetails?.orbits.length" class="users-list">
+        <div v-for="orbit in organizationStore.organizationDetails.orbits" class="row">
+          <div class="cell cell-user" style="overflow: hidden">
             <div>
-              <h4>{{ orbit.name }}</h4>
+              <h4 style="overflow: hidden; text-overflow: ellipsis;">{{ orbit.name }}</h4>
             </div>
           </div>
           <div class="cell">{{ orbit.total_members }}</div>
@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div v-else>No organizations yet...</div>
+      <div v-else>All Orbits linked to this organization will be shown in this table once available.</div>
     </div>
   </div>
 </template>

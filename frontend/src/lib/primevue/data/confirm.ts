@@ -55,14 +55,59 @@ export const leaveOrganizationConfirmOptions = (accept: () => void): Confirmatio
   accept,
 })
 
-export const deleteUserConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'Deleting this account is a permanent action and cannot be reversed.',
+export const deleteUserConfirmOptions = (accept: () => void, message?: string): ConfirmationOptions => ({
+  message: message || 'Deleting this account is a permanent action and cannot be reversed.',
   header: 'Delete this user?',
   rejectProps: {
     label: 'cancel',
   },
   acceptProps: {
     label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const deleteOrbitConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'Deleting this orbit is a permanent action and cannot be reversed.',
+  header: 'Delete orbit?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const deleteCollectionConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This action is permanent and cannot be undone.',
+  header: 'Delete collection?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const deleteModelConfirmOptions = (
+  accept: () => void,
+  count: number,
+): ConfirmationOptions => ({
+  message: 'This action is permanent and cannot be undone.',
+  header: count > 1 ? `Delete ${count}  models?` : 'Delete model?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: count > 1 ? 'delete models' : 'delete model',
     severity: 'warn',
     outlined: true,
   },

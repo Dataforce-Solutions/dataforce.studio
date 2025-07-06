@@ -33,13 +33,19 @@ import type {
   AddMemberToOrbitPayload,
   OrbitDetails,
   OrbitMember,
+  UpdateOrbitPayload,
 } from './DataforceApi.interfaces'
-import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
 import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
+import { BucketSecretsApi } from './bucket-secrets'
+import { OrbitCollectionsApi } from './orbit-collections'
+import { MlModelsApi } from './orbit-ml-models'
 
 export class DataforceApiClass {
   private api: AxiosInstance
+  public bucketSecrets: BucketSecretsApi
+  public orbitCollections: OrbitCollectionsApi
+  public mlModels: MlModelsApi
 
   constructor() {
     this.api = axios.create({
@@ -48,6 +54,10 @@ export class DataforceApiClass {
     })
 
     installDataforceInterceptors(this.api)
+
+    this.bucketSecrets = new BucketSecretsApi(this.api)
+    this.orbitCollections = new OrbitCollectionsApi(this.api)
+    this.mlModels = new MlModelsApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {
@@ -202,8 +212,8 @@ export class DataforceApiClass {
     return responseData
   }
 
-  public async createOrbit(data: CreateOrbitPayload) {
-    const { data: responseData } = await this.api.post<Orbit>(`/organizations/${data.organization_id}/orbits`, data)
+  public async createOrbit(organization_id: number, data: CreateOrbitPayload) {
+    const { data: responseData } = await this.api.post<Orbit>(`/organizations/${organization_id}/orbits`, data)
     return responseData
   }
 
@@ -212,7 +222,7 @@ export class DataforceApiClass {
     return responseData
   }
 
-  public async updateOrbit(organizationId: number, data: { id: number, name: string }) {
+  public async updateOrbit(organizationId: number, data: UpdateOrbitPayload) {
     const { data: responseData } = await this.api.patch<Orbit>(`/organizations/${organizationId}/orbits/${data.id}`, data)
     return responseData
   }

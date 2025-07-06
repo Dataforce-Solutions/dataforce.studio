@@ -1,18 +1,15 @@
 <template>
   <div class="content">
-    <h2 class="sub-title">Coming Soon</h2>
-    <h1 class="title">Orbits <Orbit :size="42" color="var(--p-primary-color)" /></h1>
-    <p class="text">
-      Orbits is a zero-trust orchestration module for managing and deploying models across any
-      infrastructure — cloud or on-prem.
-    </p>
-    <ui-email-form class="form" />
+    <h1 class="title">Error 404 <CircleX :size="42" color="var(--p-primary-color)" /></h1>
+    <p class="text">We’re sorry, but the page you’re looking for does not exist.</p>
+    <d-button as-child v-slot="slotProps">
+      <RouterLink :to="{ name: 'home' }" :class="slotProps.class">Back to main</RouterLink>
+    </d-button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Orbit } from 'lucide-vue-next';
-import UiEmailForm from '@/components/ui/UiEmailForm.vue'
+import { CircleX } from 'lucide-vue-next'
 </script>
 
 <style scoped>
@@ -25,12 +22,6 @@ import UiEmailForm from '@/components/ui/UiEmailForm.vue'
   justify-content: center;
   align-items: center;
   text-align: center;
-}
-
-.sub-title {
-  margin-bottom: 12px;
-  font-size: 20px;
-  color: var(--p-text-muted-color);
 }
 
 .title {

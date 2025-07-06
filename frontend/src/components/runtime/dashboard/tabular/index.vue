@@ -43,7 +43,8 @@
 </template>
 
 <script setup lang="ts">
-import { FNNX_PRODUCER_TAGS_METADATA_ENUM, Tasks, type RuntimeMetrics } from '@/lib/data-processing/interfaces'
+import { Tasks, type RuntimeMetrics } from '@/lib/data-processing/interfaces'
+import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/fnnx/FnnxService'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { SelectButton } from 'primevue'
@@ -54,6 +55,7 @@ import ModelTopFeatures from './ModelTopFeatures.vue'
 import { getMetricsCards, prepareRuntimeMetrics, toPercent } from '@/helpers/helpers'
 import { Model } from '@fnnx/web'
 import { ArrayDType, NDArray } from '@fnnx/common'
+import { FnnxService } from '@/lib/fnnx/FnnxService'
 
 const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1, FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1]
 
@@ -136,13 +138,7 @@ function extractType(string: string): ArrayDType | null {
 }
 
 onBeforeMount(() => {
-  const metadata = props.model.getMetadata()
-  for (const meta of metadata) {
-    const tag = meta.producer_tags.find((tag: FNNX_PRODUCER_TAGS_METADATA_ENUM) => availableTags.includes(tag))
-    if (tag) {
-      metrics.value = meta.payload.metrics
-    }
-  }
+  metrics.value = FnnxService.getTabularMetadata(props.model)
 })
 </script>
 

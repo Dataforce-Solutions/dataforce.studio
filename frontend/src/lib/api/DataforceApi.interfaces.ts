@@ -104,6 +104,10 @@ export interface Organization {
   name: string
   logo: string | null
   role: OrganizationRoleEnum
+  created_at: Date
+  updated_at: Date
+  members_count: number
+  permissions: OrganizationPermissions
 }
 
 export interface Invitation {
@@ -129,12 +133,7 @@ export interface CreateOrganizationResponse {
   updated_at: Date
 }
 
-export interface OrganizationDetails {
-  id: number
-  name: string
-  logo: string
-  created_at: Date
-  updated_at: Date
+export interface OrganizationDetails extends Omit<Organization, 'role'>{
   invites: Omit<Invitation, 'organization'>[]
   members: Member[]
   orbits: Orbit[]
@@ -175,11 +174,26 @@ export interface Orbit {
   total_members: number
   created_at: Date
   updated_at: Date | null
+  bucket_secret_id: number
+  total_collections: number
+  role: OrbitRoleEnum
+  permissions: OrbitPermissions
 }
 
 export interface CreateOrbitPayload {
   name: string
-  organization_id: number
+  bucket_secret_id: number
+  members: {
+    user_id: number
+    role: OrbitRoleEnum
+  }[]
+  notify: boolean
+}
+
+export interface UpdateOrbitPayload {
+  id: number
+  name: string
+  bucket_secret_id: number
 }
 
 export interface AddMemberToOrbitPayload {
@@ -188,16 +202,35 @@ export interface AddMemberToOrbitPayload {
   role: OrbitRoleEnum
 }
 
-export interface OrbitDetails {
-  id: number
-  name: string
-  organization_id: number
+export interface OrbitDetails extends Orbit {
   members: OrbitMember[]
-  created_at: Date
-  updated_at: Date
 }
 
 export interface OrbitMember extends Omit<Member, 'organization_id' | 'role'> {
   orbit_id: number
   role: OrbitRoleEnum
+}
+
+export interface OrganizationPermissions {
+  organization: [PermissionEnum.read, PermissionEnum.update, PermissionEnum.delete]
+  organization_user: Omit<PermissionEnum, PermissionEnum.deploy>
+  organization_invite: Omit<PermissionEnum, PermissionEnum.update & PermissionEnum.deploy>
+  billing: [PermissionEnum.read, PermissionEnum.update]
+  orbit: [PermissionEnum.create]
+}
+
+export interface OrbitPermissions {
+  orbit: Omit<PermissionEnum, PermissionEnum.deploy>
+  orbit_user: Omit<PermissionEnum, PermissionEnum.deploy>
+  model: PermissionEnum
+  collection: PermissionEnum
+}
+
+export enum PermissionEnum {
+  list = 'list',
+  read = 'read',
+  create = 'create',
+  update = 'update',
+  delete = 'delete',
+  deploy = 'deploy',
 }

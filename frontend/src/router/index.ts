@@ -94,9 +94,40 @@ const router = createRouter({
       },
     },
     {
-      path: '/orbits',
+      path: '/organization/:organizationId/orbits',
       name: 'orbits',
-      component: () => import('../pages/OrbitsPage.vue'),
+      component: () => import('../pages/orbits/index.vue'),
+      meta: {
+        requireAuth: true,
+      },
+    },
+    {
+      path: '/organization/:organizationId/orbit/:id',
+      name: 'orbit',
+      component: () => import('../pages/orbits/OrbitPage.vue'),
+      meta: {
+        requireAuth: true,
+      },
+      children: [
+        {
+          path: '',
+          name: 'orbit-registry',
+          component: () => import('../pages/orbits/OrbitRegistryView.vue'),
+        },
+        {
+          path: 'deployments',
+          name: 'orbit-deployments',
+          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+        },
+      ],
+    },
+    {
+      path: '/organization/:organizationId/orbit/:id/collection/:collectionId',
+      name: 'collection',
+      component: () => import('../pages/collection/CollectionPage.vue'),
+      meta: {
+        requireAuth: true,
+      },
     },
     {
       path: '/notebooks',
@@ -109,9 +140,34 @@ const router = createRouter({
       component: () => import('../pages/DataAgentPage.vue'),
     },
     {
-      path: '/organizations/:id',
+      path: '/organization/:id',
       name: 'organization',
-      component: () => import('../pages/OrganizationPage.vue'),
+      component: () => import('../pages/organization/index.vue'),
+      meta: {
+        requireAuth: true,
+      },
+      children: [
+        {
+          path: '',
+          name: 'organization-members',
+          component: () => import('../components/organizations/OrganizationMembers.vue'),
+        },
+        {
+          path: 'orbits',
+          name: 'organization-orbits',
+          component: () => import('../components/organizations/OrganizationOrbits.vue'),
+        },
+        {
+          path: 'buckets',
+          name: 'organization-buckets',
+          component: () => import('../components/organizations/registry/OrganizationRegistry.vue'),
+        },
+      ],
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: '404',
+      component: () => import('../pages/404Page.vue'),
     },
   ],
 })
