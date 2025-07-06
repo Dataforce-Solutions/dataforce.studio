@@ -32,21 +32,11 @@ class MLModelRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             await self.delete_model(session, MLModelOrm, model_id)
 
-    async def get_collection_models(
-        self, collection_id: int, uploaded_only: bool = True
-    ) -> list[MLModel]:
+    async def get_collection_models(self, collection_id: int) -> list[MLModel]:
         async with self._get_session() as session:
-            conditions = [MLModelOrm.collection_id == collection_id]
-            if uploaded_only:
-                conditions.append(
-                    MLModelOrm.status.in_(
-                        [
-                            MLModelStatus.UPLOADED.value,
-                            MLModelStatus.PENDING_DELETION.value,
-                        ]
-                    )
-                )
-            result = await session.execute(select(MLModelOrm).where(*conditions))
+            result = await session.execute(
+                select(MLModelOrm).where(MLModelOrm.collection_id == collection_id)
+            )
             db_versions = result.scalars().all()
             return [v.to_ml_model() for v in db_versions]
 

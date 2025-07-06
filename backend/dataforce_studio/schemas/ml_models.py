@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 
@@ -60,12 +60,57 @@ class MLModelStatus(StrEnum):
     DELETION_FAILED = "deletion_failed"
 
 
+class ModelIO(BaseModel):
+    name: str
+    content_type: str
+    dtype: str
+    tags: list[str] | None = None
+
+
+class JSON(ModelIO):
+    content_type: Literal["JSON"]
+
+
+class NDJSON(ModelIO):
+    content_type: Literal["NDJSON"]
+    dtype: str = Field(
+        ...,  # required field
+        pattern=r"^(Array\[.+\]|NDContainer\[.+\])$",
+        description="Must be in format 'Array[...]' or 'NDContainer[...]'",
+    )
+    shape: list[str | int]
+
+
+class Var(BaseModel):
+    name: str
+    description: str
+    tags: list[str] | None = None
+
+
+class Manifest(BaseModel):
+    variant: str
+
+    name: str | None = None
+    version: str | None = None
+    description: str | None = None
+
+    producer_name: str
+    producer_version: str
+    producer_tags: list[str]
+
+    inputs: list[NDJSON | JSON]
+    outputs: list[NDJSON | JSON]
+
+    dynamic_attributes: list[Var]
+    env_vars: list[Var]
+
+
 class MLModelCreate(BaseModel):
     collection_id: int
     file_name: str
     description: str | None = None
     metrics: dict
-    manifest: dict
+    manifest: Manifest
     file_hash: str
     file_index: dict
     bucket_location: str
@@ -79,7 +124,7 @@ class MLModelIn(BaseModel):
     file_name: str
     description: str | None = None
     metrics: dict
-    manifest: dict
+    manifest: Manifest
     file_hash: str
     file_index: dict
     size: int
@@ -95,7 +140,7 @@ class MLModelUpdate(BaseModel):
 
 
 class MLModelUpdateIn(BaseModel):
-    file_name: str
+    file_name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
     status: (
@@ -114,7 +159,7 @@ class MLModel(BaseModel, BaseOrmConfig):
     file_name: str
     description: str | None = None
     metrics: dict
-    manifest: dict
+    manifest: Manifest
     file_hash: str
     file_index: dict
     bucket_location: str
