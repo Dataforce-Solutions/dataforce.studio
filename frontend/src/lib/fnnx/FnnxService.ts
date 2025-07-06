@@ -50,8 +50,8 @@ class FnnxServiceClass {
     // extracts the first available metadata entry that a metadata tag
     const metadata = model.getMetadata()
     for (const meta of metadata) {
-      const tag = meta.producer_tags.find((tag: FNNX_PRODUCER_TAGS_METADATA_ENUM) =>
-        availableTags.includes(tag),
+      const tag = meta.producer_tags.find((tag) =>
+        availableTags.includes(tag as FNNX_PRODUCER_TAGS_METADATA_ENUM),
       )
       if (tag) return meta.payload
     }
@@ -60,15 +60,15 @@ class FnnxServiceClass {
 
   getTabularMetadata(model: Model) {
     const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1, FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1]
-    return this.getMetadataByTag(model, availableTags).metrics || null
+    return this.getMetadataByTag(model, availableTags)?.metrics || null
   }
 
-  getTypeTag(model: Model): FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null {
+  getTypeTag(model: Model) {
     // extracts the extract tag that is used to determine the type of the model
     const availableTags = Object.values(FNNX_PRODUCER_TAGS_MANIFEST_ENUM)
     const manifest = model.getManifest()
-    const tag = manifest.producer_tags.find((tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) =>
-      availableTags.includes(tag),
+    const tag = manifest.producer_tags.find((tag) =>
+      availableTags.includes(tag as FNNX_PRODUCER_TAGS_MANIFEST_ENUM),
     )
     return tag || null
   }

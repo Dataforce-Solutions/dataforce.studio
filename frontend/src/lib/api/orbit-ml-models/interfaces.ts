@@ -1,3 +1,5 @@
+import type { Manifest } from "@fnnx/common/dist/interfaces"
+
 export enum MlModelStatusEnum {
   pending_upload = 'pending_upload',
   uploaded = 'uploaded',
@@ -8,7 +10,7 @@ export enum MlModelStatusEnum {
 
 export interface MlModelCreator {
   metrics: Record<string, object>
-  manifest: Record<string, object>
+  manifest: Manifest
   file_index: Record<string, object>
   file_hash: string
   size: number
