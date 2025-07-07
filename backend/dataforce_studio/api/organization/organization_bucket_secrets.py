@@ -27,6 +27,13 @@ async def get_organization_bucket_secrets(
 
 
 @bucket_secrets_router.post(
+    "/validate", responses=endpoint_responses, response_model=bool
+)
+async def validate_bucket_credentials(secret: BucketSecretCreateIn) -> bool:
+    return await bucket_secret_handler.validate_bucket_credentials(secret)
+
+
+@bucket_secrets_router.post(
     "", responses=endpoint_responses, response_model=BucketSecretOut
 )
 async def create_bucket_secret(
