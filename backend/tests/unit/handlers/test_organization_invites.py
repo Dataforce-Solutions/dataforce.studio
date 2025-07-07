@@ -151,7 +151,6 @@ async def test_cancel_invite(
     "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
-
 @patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
@@ -190,7 +189,9 @@ async def test_accept_invite(
     mock_get_organization_members_count.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
-            user_id=user_id, organization_id=invite.organization_id, role=OrgRole(invite.role)
+            user_id=user_id,
+            organization_id=invite.organization_id,
+            role=OrgRole(invite.role),
         )
     )
     mock_delete_organization_invites_for_user.assert_awaited_once_with(
