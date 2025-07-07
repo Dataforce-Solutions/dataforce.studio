@@ -76,7 +76,7 @@ async def test_create_collection(
         **data.model_dump(),
     )
     mock_create.assert_awaited_once_with(expected_db)
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id,organization_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(

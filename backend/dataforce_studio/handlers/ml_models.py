@@ -189,17 +189,12 @@ class MLModelHandler:
                 f"Invalid status transition from {model_obj.status} to {model.status}"
             )
 
+        update_data = model.model_dump(exclude_unset=True)
+        update_data["id"] = model_id
         updated = await self.__repository.update_ml_model(
             model_id,
             collection_id,
-            MLModelUpdate(
-                id=model_id,
-                file_name=model.file_name,
-                model_name=model.model_name,
-                description=model.description,
-                status=model.status,
-                tags=model.tags,
-            ),
+            MLModelUpdate(**update_data),
         )
 
         if not updated:
