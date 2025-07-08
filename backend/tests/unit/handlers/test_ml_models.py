@@ -717,6 +717,10 @@ async def test_update_model(
 
 
 @patch(
+    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
@@ -743,6 +747,7 @@ async def test_update_model_not_found(
         mock_get_org_role: AsyncMock,
         mock_get_orbit_simple: AsyncMock,
         mock_get_collection: AsyncMock,
+        mock_get_ml_model: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -761,6 +766,7 @@ async def test_update_model_not_found(
         (),
         {"id": collection_id, "orbit_id": orbit_id},
     )
+    mock_get_ml_model.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 

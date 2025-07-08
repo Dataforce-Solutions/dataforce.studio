@@ -59,9 +59,9 @@ async def _drop_database(admin_dsn: str, db_name: str) -> None:
 @pytest_asyncio.fixture(scope="function")
 async def create_database_and_apply_migrations():  # noqa: ANN201
     admin_dsn = config.POSTGRESQL_DSN.replace("+asyncpg", "").replace(
-        "df_studio", "postgres"
+        "df_studio_test", "postgres"
     )
-    test_dsn = config.POSTGRESQL_DSN.replace("df_studio", TEST_DB_NAME)
+    test_dsn = config.POSTGRESQL_DSN
 
     await _create_database(admin_dsn, TEST_DB_NAME)
     await migrate_db(test_dsn)

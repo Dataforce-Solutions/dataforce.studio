@@ -58,8 +58,23 @@ jobs:
           port: 22
           envs: IMAGE_NAME,REGISTRY,GITHUB_SHA
           script: |
-            # Login to registry
             docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
+            
+            docker pull $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}
+            
+            # Run migrations on dev database
+            docker run --rm \
+              --env-file .env \
+              --network host \
+              $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7} \
+              python -c "
+            import asyncio
+            from utils.db import migrate_db
+            from dataforce_studio.settings import config
+            asyncio.run(migrate_db(config.POSTGRESQL_DSN))
+            print('Migrations applied successfully')
+            "
+            
             # Stop running container
             docker stop $IMAGE_NAME || true
             # Remove old container
