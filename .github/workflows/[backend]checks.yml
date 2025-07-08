@@ -55,8 +55,9 @@ jobs:
       - name: Running tests
         working-directory: backend
         env:
+          PYTEST_VERSION: 1
           POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
           AUTH_SECRET_KEY: test_secret_key_for_ci
-          BUCKET_SECRET_KEY: test_bucket_secret_key_for_ci
+          BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
         run: |
           uv run pytest
