@@ -113,3 +113,15 @@ class DatabaseConstraintError(ServiceError):
         self, message: str, status_code: int = status.HTTP_409_CONFLICT
     ) -> None:
         super().__init__(message=message, status_code=status_code)
+
+
+class BucketSecretInUseError(ServiceError):
+    def __init__(
+        self,
+        message: str = "Cannot delete bucket secret that is currently used by orbits",
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
