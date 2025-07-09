@@ -1,6 +1,8 @@
+from sqlalchemy.exc import IntegrityError
+
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.infra.exceptions import BucketSecretInUseError, NotFoundError
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreate,
@@ -71,4 +73,7 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE
         )
-        await self.__secret_repository.delete_bucket_secret(secret_id)
+        try:
+            await self.__secret_repository.delete_bucket_secret(secret_id)
+        except IntegrityError as e:
+            raise BucketSecretInUseError() from e
