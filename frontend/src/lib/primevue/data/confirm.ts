@@ -130,3 +130,17 @@ export const deleteModelConfirmOptions = (
   },
   accept,
 })
+
+export const deleteBucketConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This bucket will be permanently removed from your organization.',
+  header: 'Delete bucket?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})

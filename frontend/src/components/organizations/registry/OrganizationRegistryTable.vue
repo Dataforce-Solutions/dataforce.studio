@@ -15,17 +15,7 @@
         <div style="overflow: hidden; text-overflow: ellipsis;">{{ bucket.bucket_name }}</div>
         <div>{{ new Date(bucket.created_at).toLocaleDateString() }}</div>
         <div>
-          <Button
-            disabled
-            severity="secondary"
-            variant="text"
-            v-tooltip.top="'Not available yet'"
-            @click="deleteBucket(bucket.id)"
-          >
-            <template #icon>
-              <Trash2 :size="14" />
-            </template>
-          </Button>
+          <BucketSettings :bucket="bucket" />
         </div>
       </div>
     </div>
@@ -36,19 +26,13 @@
 import { useBucketsStore } from '@/stores/buckets'
 import { useOrganizationStore } from '@/stores/organization'
 import { onMounted, ref } from 'vue'
-import { Button } from 'primevue'
-import { Trash2 } from 'lucide-vue-next'
+import BucketSettings from './BucketSettings.vue'
 
 const bucketsStore = useBucketsStore()
 const organizationStore = useOrganizationStore()
 
 const loading = ref()
 
-async function deleteBucket(bucketId: number) {
-  const organizationId = organizationStore.currentOrganization?.id
-  if (!organizationId) return
-  bucketsStore.deleteBucket(organizationId, bucketId)
-}
 
 onMounted(async () => {
   try {

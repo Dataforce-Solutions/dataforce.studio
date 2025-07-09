@@ -100,15 +100,14 @@ class DatabaseServiceClass {
       const filePath = file.path || file.name
       if (!filePath) continue
 
-      if (
-        file.type === 'directory' ||
-        file.mimetype === 'application/x-directory' ||
-        filePath.endsWith('/')
-      ) {
+      if (file.type === 'directory' ||
+          file.mimetype === 'application/x-directory' ||
+          filePath.endsWith('/')) {
         continue
       }
 
       const content = file.content ?? file.data ?? file.body
+
 
       if (content === undefined) {
         console.log(`Skipping ${filePath} - no content found`)
@@ -119,6 +118,7 @@ class DatabaseServiceClass {
 
       try {
         let fileData: string | Uint8Array | ArrayBuffer | Blob
+
 
         if (content instanceof Blob) {
           fileData = content
@@ -195,7 +195,7 @@ class DatabaseServiceClass {
       })
     })
 
-    return files.map((file) => ({
+    return files.map(file => ({
       ...file,
       name: file.path || file.name,
     }))

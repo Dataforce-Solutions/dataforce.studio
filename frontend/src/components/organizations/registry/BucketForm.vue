@@ -1,5 +1,5 @@
 <template>
-  <Form v-slot="$form" :initial-values="initialValues" :resolver="resolver" @submit="onSubmit">
+  <Form id="bucketForm" v-slot="$form" :initial-values="initialValues" :resolver="resolver" @submit="onSubmit">
     <div class="inputs">
       <div class="field">
         <label for="endpoint" class="label required">Endpoint</label>

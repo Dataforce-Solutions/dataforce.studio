@@ -68,7 +68,7 @@ export const getBarOptions = (categories: string[]): ApexOptions => ({
       },
     },
   },
-  xaxis: {     
+  xaxis: {
     labels: {
       show: false,
     },
