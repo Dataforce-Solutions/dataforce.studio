@@ -38,7 +38,7 @@ const fetchNotebooks = async () => {
   }
 }
 
-const handleVisibilityChange = () => { 
+const handleVisibilityChange = () => {
   if (!document.hidden) {
     fetchNotebooks()
   }
