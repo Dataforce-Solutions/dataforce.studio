@@ -40,7 +40,24 @@ jobs:
         run: |
           uv run mypy dataforce_studio
 
+      - name: Set up test database service
+        run: |
+          docker run -d \
+            --name test-postgres \
+            -e POSTGRES_USER=test_user \
+            -e POSTGRES_PASSWORD=test_password \
+            -e POSTGRES_DB=df_studio_test \
+            -p 5432:5432 \
+            postgres:15
+          
+          timeout 30 bash -c 'until docker exec test-postgres pg_isready -U test_user -d df_studio_test; do sleep 1; done'
+
       - name: Running tests
         working-directory: backend
+        env:
+          PYTEST_VERSION: 1
+          POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+          AUTH_SECRET_KEY: test_secret_key_for_ci
+          BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
         run: |
           uv run pytest
