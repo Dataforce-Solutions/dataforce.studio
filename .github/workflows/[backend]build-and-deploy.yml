@@ -67,13 +67,7 @@ jobs:
               --env-file .env \
               --network host \
               $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7} \
-              python -c "
-            import asyncio
-            from utils.db import migrate_db
-            from dataforce_studio.settings import config
-            asyncio.run(migrate_db(config.POSTGRESQL_DSN))
-            print('Migrations applied successfully')
-            "
+              uv run alembic upgrade head
             
             # Stop running container
             docker stop $IMAGE_NAME || true
