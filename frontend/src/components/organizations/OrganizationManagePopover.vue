@@ -11,17 +11,27 @@
           <Avatar size="large" :label="currentOrganizationAvatarLabel" />
           <div class="header-content">
             <div class="name">{{ organizationStore.currentOrganization?.name }}</div>
-            <div class="members">{{ organizationStore.currentOrganization?.members_count }} member</div>
+            <div class="members">
+              {{ organizationStore.currentOrganization?.members_count }} member
+            </div>
           </div>
         </header>
         <div class="popover-label">Switch to Organization</div>
         <div
           v-for="organization in organizationStore.availableOrganizations"
           class="organization"
-          :class="{ 'active': organization.id === organizationStore.currentOrganization?.id }"
+          :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
         >
-          <button class="menu-item" @click="onOrganizationClick(organization.id)">{{ organization.name }}</button>
-          <OrganizationLeavePopover v-if="organization.id !== organizationStore.currentOrganization?.id" :organizationId="organization.id"></OrganizationLeavePopover>
+          <button class="menu-item" @click="onOrganizationClick(organization.id)">
+            {{ organization.name }}
+          </button>
+          <OrganizationLeavePopover
+            v-if="
+              organization.id !== organizationStore.currentOrganization?.id &&
+              organization.permissions.organization.includes(PermissionEnum.leave)
+            "
+            :organizationId="organization.id"
+          ></OrganizationLeavePopover>
         </div>
         <footer class="footer">
           <d-button severity="secondary" @click="onCreateClick">
