@@ -27,39 +27,42 @@ export const useModelsStore = defineStore('models', () => {
     }
   })
 
-  async function loadModelsList() {
+  async function loadModelsList(organizationId?: number, orbitId?: number, collectionId?: number) {
     modelsList.value = await dataforceApi.mlModels.getModelsList(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      organizationId ?? requestInfo.value.organizationId,
+      orbitId ?? requestInfo.value.orbitId,
+      collectionId ?? requestInfo.value.collectionId,
     )
   }
 
-  function initiateCreateModel(data: MlModelCreator) {
+  function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
     return dataforceApi.mlModels.createModel(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      info.organizationId,
+      info.orbitId,
+      info.collectionId,
       data,
     )
   }
 
-  async function confirmModelUpload(payload: UpdateMlModelPayload) {
+  async function confirmModelUpload(payload: UpdateMlModelPayload, requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
     const model = await dataforceApi.mlModels.updateModel(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      info.organizationId,
+      info.orbitId,
+      info.collectionId,
       payload.id,
       payload,
     )
     modelsList.value.push(model)
   }
 
-  async function cancelModelUpload(payload: UpdateMlModelPayload) {
+  async function cancelModelUpload(payload: UpdateMlModelPayload, requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
     await dataforceApi.mlModels.updateModel(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      info.organizationId,
+      info.orbitId,
+      info.collectionId,
       payload.id,
       payload,
     )

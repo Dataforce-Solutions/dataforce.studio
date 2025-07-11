@@ -22,17 +22,18 @@ export const useCollectionsStore = defineStore('collections', () => {
     }
   })
 
-  async function loadCollections() {
+  async function loadCollections(organizationId?: number, orbitId?: number) {
     collectionsList.value = await dataforceApi.orbitCollections.getCollectionsList(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
+      organizationId ?? requestInfo.value.organizationId,
+      orbitId ?? requestInfo.value.orbitId,
     )
   }
 
-  async function createCollection(payload: OrbitCollectionCreator) {
+  async function createCollection(payload: OrbitCollectionCreator, requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
     const collection = await dataforceApi.orbitCollections.createCollection(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
+      info.organizationId,
+      info.orbitId,
       payload,
     )
     collectionsList.value.push(collection)

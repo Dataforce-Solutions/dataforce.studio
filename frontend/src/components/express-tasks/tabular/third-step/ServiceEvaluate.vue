@@ -14,10 +14,7 @@
           <span>predict</span>
           <wand-sparkles width="14" height="14" />
         </d-button>
-        <d-button severity="secondary" @click="onDownloadClick">
-          <span>download</span>
-          <cloud-download width="14" height="14" />
-        </d-button>
+        <SplitButton label="export" severity="secondary" @click="onDownloadClick" :model="EXPORT_ITEMS" />
         <d-button label="finish" @click="finishConfirm" />
       </div>
     </header>
@@ -70,6 +67,7 @@
       </div>
     </div>
   </div>
+  <ModelUpload v-if="modelBlob && currentTask && !!organizationStore.currentOrganization" :model-blob="modelBlob" :current-task="currentTask" v-model:visible="modelUploadVisible"></ModelUpload>
 </template>
 
 <script setup lang="ts">
@@ -86,6 +84,9 @@ import MetricCard from '../../../ui/MetricCard.vue'
 import DetailedTable from './DetailedTable.vue'
 import PredictContent from '@/components/predict/index.vue'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
+import { SplitButton } from 'primevue'
+import ModelUpload from '@/components/model-upload/ModelUpload.vue'
+import { useOrganizationStore } from '@/stores/organization'
 
 type Props = {
   predictionFields: string[]
@@ -98,12 +99,32 @@ type Props = {
   downloadModelCallback: Function
   trainingModelId: string
   currentTask: Tasks | null
+  modelBlob: Blob | null
 }
 
 const props = defineProps<Props>()
 
 const router = useRouter()
 const confirm = useConfirm()
+const organizationStore = useOrganizationStore()
+
+const modelUploadVisible = ref(false)
+
+const EXPORT_ITEMS = [
+  {
+    label: 'Upload to Registry',
+    command: () => {
+      modelUploadVisible.value = true
+    },
+    disabled: () => !organizationStore.currentOrganization
+  },
+  {
+    label: 'Download model',
+    command: () => {
+      onDownloadClick()
+    },
+  },
+]
 
 const finishConfirm = () => {
   if (props.currentTask) {
