@@ -2,31 +2,33 @@
   <div class="content">
     <providers-component />
     <optimization-component :disabled="optimizationDisabled" />
-    <div class="other-buttons">
-      <d-button
-        v-tooltip.bottom="'Run the model'"
-        severity="secondary"
-        variant="text"
-        :disabled="!isPredictAvailable"
-        @click="promptFusionService.togglePredict()"
-      >
-        <template #icon>
-          <play :size="14" />
-        </template>
-      </d-button>
-      <d-button
-        v-tooltip.left="'Download the model'"
-        :disabled="!isPredictAvailable"
-        severity="secondary"
-        variant="text"
-        @click="onDownloadClick"
-      >
-        <template #icon>
-          <cloud-download :size="14" />
-        </template>
-      </d-button>
-    </div>
+    <SplitButton
+      severity="secondary"
+      :model="EXPORT_ITEMS"
+      :disabled="!isPredictAvailable"
+      @click="onDownloadClick"
+    >
+      <template #icon>
+        <cloud-download :size="14" />
+      </template>
+    </SplitButton>
+    <d-button
+      v-tooltip.bottom="'Run the model'"
+      severity="secondary"
+      :disabled="!isPredictAvailable"
+      @click="promptFusionService.togglePredict()"
+    >
+      <template #icon>
+        <play :size="14" />
+      </template>
+    </d-button>
   </div>
+  <ModelUpload
+    v-if="promptFusionService.modelBlob && !!organizationStore.currentOrganization"
+    v-model:visible="modelUploadVisible"
+    current-task="prompt_optimization"
+    :model-blob="promptFusionService.modelBlob"
+  ></ModelUpload>
 </template>
 
 <script setup lang="ts">
@@ -36,9 +38,31 @@ import ProvidersComponent from '@/components/express-tasks/prompt-fusion/step-ma
 import OptimizationComponent from '@/components/express-tasks/prompt-fusion/step-main/control-center/optimization/index.vue'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
+import ModelUpload from '@/components/model-upload/ModelUpload.vue'
+import { SplitButton } from 'primevue'
+import { useOrganizationStore } from '@/stores/organization'
+
+const EXPORT_ITEMS = [
+  {
+    label: 'Upload to Registry',
+    command: () => {
+      modelUploadVisible.value = true
+    },
+    disabled: () => !organizationStore.currentOrganization
+  },
+  {
+    label: 'Download model',
+    command: () => {
+      onDownloadClick()
+    },
+  },
+]
+
+const organizationStore = useOrganizationStore()
 
 const optimizationDisabled = ref(true)
 const isPredictAvailable = ref(false)
+const modelUploadVisible = ref(false)
 
 function setOptimizationState() {
   promptFusionService.changeAvailableModels()

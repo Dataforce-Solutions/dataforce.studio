@@ -76,6 +76,13 @@ import { useCollectionsStore } from '@/stores/collections'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { collectionCreatorResolver } from '@/utils/forms/resolvers'
 
+type Props = {
+  organizationId?: number
+  orbitId?: number
+}
+
+const props = defineProps<Props>()
+
 const dialogPt: DialogPassThroughOptions = {
   root: {
     style: 'max-width: 500px; width: 100%;',
@@ -119,11 +126,17 @@ function searchTags(event: AutoCompleteCompleteEvent) {
   ]
 }
 
+function getRequestInfo() {
+  if (props.organizationId && props.orbitId) {
+    return { organizationId: props.organizationId, orbitId: props.orbitId }
+  }
+}
+
 async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
   try {
     loading.value = true
-    await collectionsStore.createCollection({ ...formData.value })
+    await collectionsStore.createCollection({ ...formData.value }, getRequestInfo())
     visible.value = false
     toast.add(simpleSuccessToast('Collection created'))
   } catch (e: any) {

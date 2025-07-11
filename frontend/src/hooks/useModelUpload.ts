@@ -16,7 +16,13 @@ export const useModelUpload = () => {
 
   const progress = ref<number | null>(null)
 
-  async function upload(file: File, name: string, description: string, tags: string[]) {
+  async function upload(
+    file: File,
+    name: string,
+    description: string,
+    tags: string[],
+    requestInfo?: { organizationId: number; orbitId: number; collectionId: number },
+  ) {
     const model = await FnnxService.createModelFromFile(file)
     const manifest = model.getManifest()
     const modelBuffer = await file.arrayBuffer()
@@ -35,9 +41,9 @@ export const useModelUpload = () => {
       description,
       tags,
     }
-    const response = await modelsStore.initiateCreateModel(payload)
+    const response = await modelsStore.initiateCreateModel(payload, requestInfo)
 
-    await uploadToBucket(response, modelBuffer, file.name, name, description, tags)
+    await uploadToBucket(response, modelBuffer, file.name, name, description, tags, requestInfo)
 
     const confirmPayload: UpdateMlModelPayload = {
       id: response.model.id,
@@ -47,7 +53,7 @@ export const useModelUpload = () => {
       tags,
       status: MlModelStatusEnum.uploaded,
     }
-    return modelsStore.confirmModelUpload(confirmPayload)
+    return modelsStore.confirmModelUpload(confirmPayload, requestInfo)
   }
 
   async function uploadToBucket(
@@ -57,6 +63,7 @@ export const useModelUpload = () => {
     modelName: string,
     description: string,
     tags: string[],
+    requestInfo?: { organizationId: number; orbitId: number; collectionId: number },
   ) {
     try {
       progress.value = 0
@@ -65,14 +72,17 @@ export const useModelUpload = () => {
         onUploadProgress,
       })
     } catch (e) {
-      await modelsStore.cancelModelUpload({
-        id: data.model.id,
-        file_name: fileName,
-        model_name: modelName,
-        description,
-        tags,
-        status: MlModelStatusEnum.upload_failed,
-      })
+      await modelsStore.cancelModelUpload(
+        {
+          id: data.model.id,
+          file_name: fileName,
+          model_name: modelName,
+          description,
+          tags,
+          status: MlModelStatusEnum.upload_failed,
+        },
+        requestInfo,
+      )
       throw e
     } finally {
       progress.value = null

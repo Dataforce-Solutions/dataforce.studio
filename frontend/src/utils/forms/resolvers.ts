@@ -103,3 +103,13 @@ export const modelCreatorResolver = zodResolver(
     tags: z.array(z.string()),
   }),
 )
+
+export const modelUploadResolver = zodResolver(
+  z.object({
+    orbit: z.number(),
+    collection: z.number(),
+    name: z.string().min(1),
+    description: z.string(),
+    tags: z.array(z.string()),
+  })
+)

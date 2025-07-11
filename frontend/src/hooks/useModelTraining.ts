@@ -11,7 +11,7 @@ import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { predictErrorToast, trainingErrorToast } from '@/lib/primevue/data/toasts'
-import { getMetrics, toPercent } from '@/helpers/helpers'
+import { downloadFileFromBlob, getMetrics, toPercent } from '@/helpers/helpers'
 
 export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => {
   const toast = useToast()
@@ -108,14 +108,7 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
     const timestamp = Date.now()
     const filename = `${currentTask.value}_${timestamp}.dfs`
 
-    const url = URL.createObjectURL(modelBlob.value)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadFileFromBlob(modelBlob.value, filename)
   }
 
   async function deleteModels() {
@@ -138,6 +131,7 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
     getPredictedData,
     trainingModelId,
     currentTask,
+    modelBlob,
     startTraining,
     downloadModel,
     startPredict,

@@ -74,6 +74,7 @@
           :download-model-callback="downloadModel"
           :training-model-id="trainingModelId"
           :current-task="currentTask"
+          :model-blob="modelBlob"
         />
       </StepPanel>
     </StepPanels>
@@ -151,6 +152,7 @@ const {
   isTrainMode,
   trainingModelId,
   currentTask,
+  modelBlob,
   downloadModel,
 } = useModelTraining('tabular')
 
