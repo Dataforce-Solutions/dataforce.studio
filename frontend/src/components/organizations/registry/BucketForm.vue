@@ -1,5 +1,5 @@
 <template>
-  <Form id="bucketForm" v-slot="$form" :initial-values="initialValues" :resolver="resolver" @submit="onSubmit">
+  <Form id="bucketForm" v-slot="$form" :initialValues="initialValues" :resolver="resolver" @submit="onSubmit">
     <div class="inputs">
       <div class="field">
         <label for="endpoint" class="label required">Endpoint</label>
@@ -65,13 +65,13 @@
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
-    <Button type="submit" fluid rounded :loading="loading">Create</Button>
+    <Button v-if="showSubmitButton" type="submit" fluid rounded :loading="loading">Create</Button>
   </Form>
 </template>
 
 <script setup lang="ts">
 import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { onMounted, ref } from 'vue'
+import { ref, watch, withDefaults } from 'vue'
 import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
@@ -81,23 +81,38 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 type Props = {
   initialData?: BucketSecretCreator
   loading: boolean
+  showSubmitButton?: boolean
 }
 
 type Emits = {
   submit: [BucketSecretCreator]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showSubmitButton: true
+})
 const emits = defineEmits<Emits>()
 
 const initialValues = ref<BucketSecretCreator>({
-  endpoint: '',
-  bucket_name: '',
-  access_key: '',
-  secret_key: '',
-  session_token: '',
-  secure: true,
-  region: '',
+  endpoint: props.initialData?.endpoint || '',
+  bucket_name: props.initialData?.bucket_name || '',
+  access_key: props.initialData?.access_key || '',
+  secret_key: props.initialData?.secret_key || '',
+  session_token: props.initialData?.session_token || '',
+  secure: props.initialData?.secure ?? true,
+  region: props.initialData?.region || '',
+})
+
+watch(() => props.initialData, (data) => {
+  if (data) {
+    initialValues.value.endpoint = data.endpoint || ''
+    initialValues.value.bucket_name = data.bucket_name || ''
+    initialValues.value.access_key = data.access_key || ''
+    initialValues.value.secret_key = data.secret_key || ''
+    initialValues.value.session_token = data.session_token || ''
+    initialValues.value.secure = data.secure ?? true
+    initialValues.value.region = data.region || ''
+  }
 })
 
 const resolver = zodResolver(
@@ -117,13 +132,6 @@ function onSubmit({ valid }: FormSubmitEvent) {
   emits('submit', { ...initialValues.value })
 }
 
-function patchForm(data: BucketSecretCreator) {
-  initialValues.value = { ...data }
-}
-
-onMounted(() => {
-  if (props.initialData) patchForm(props.initialData)
-})
 </script>
 
 <style scoped>

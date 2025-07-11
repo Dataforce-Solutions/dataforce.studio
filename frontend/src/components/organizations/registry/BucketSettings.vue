@@ -25,7 +25,7 @@
         </div>
       </div>
       <div class="bucket-form-wrapper">
-        <BucketForm :initial-data="initialData" :loading="loading" @submit="onFormSubmit" />
+        <BucketForm :initial-data="initialData" :loading="loading" :show-submit-button="false" @submit="onFormSubmit" />
       </div>
     </div>
     <template #footer>
@@ -80,15 +80,7 @@ async function onFormSubmit(values: BucketSecretCreator) {
     visible.value = false
     loading.value = true
 
-    const updatedBucket: any = {
-      id: props.bucket.id,
-      bucket_name: values.bucket_name,
-      endpoint: values.endpoint,
-      region: values.region,
-      secure: values.secure,
-      access_key: values.access_key,
-      secret_key: values.secret_key,
-    }
+    const updatedBucket = { ...values, id: props.bucket.id }
 
     await bucketsStore.updateBucket(props.bucket.organization_id, props.bucket.id, updatedBucket)
     toast.add(simpleSuccessToast('Bucket have been updated.'))
@@ -147,7 +139,4 @@ async function deleteBucket() {
   color: var(--p-text-muted-color);
 }
 
-.bucket-form-wrapper :deep(button[type="submit"]) {
-  display: none;
-}
 </style>
