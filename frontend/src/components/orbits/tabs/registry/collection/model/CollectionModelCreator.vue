@@ -67,7 +67,7 @@ import { Form } from '@primevue/forms'
 import { Dialog, Button, InputText, Textarea, AutoComplete, useToast } from 'primevue'
 import { useModelUpload } from '@/hooks/useModelUpload'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { useModelsStore } from '@/stores/models'
+import { useModelsTags } from '@/hooks/useModelsTags'
 
 interface FormData {
   name: string
@@ -90,7 +90,7 @@ const dialogPt: DialogPassThroughOptions = {
 
 const { upload } = useModelUpload()
 const toast = useToast()
-const modelsStore = useModelsStore()
+const { getTagsByQuery } = useModelsTags()
 
 const visible = defineModel<boolean>('visible')
 const loading = ref(false)
@@ -112,22 +112,8 @@ const fileInfo = computed(() => {
   }
 })
 
-const existingTags = computed<string[]>(() => {
-  const tagsSet = modelsStore.modelsList.reduce((acc: Set<string>, item) => {
-    console.log(item.tags)
-    item.tags.map((tag) => {
-      acc.add(tag)
-    })
-    return acc
-  }, new Set<string>())
-  return Array.from(tagsSet)
-})
-
 function searchTags(event: AutoCompleteCompleteEvent) {
-  autocompleteItems.value = [
-    event.query,
-    ...existingTags.value.filter((tag) => tag.toLowerCase().includes(event.query.toLowerCase())),
-  ]
+  autocompleteItems.value = getTagsByQuery(event.query)
 }
 
 function onSelectFile(event: File) {

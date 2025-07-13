@@ -23,8 +23,6 @@ export enum Tasks {
   TABULAR_REGRESSION = 'tabular_regression',
 }
 
-
-
 export interface TaskPayload {
   data: object
   target: string
