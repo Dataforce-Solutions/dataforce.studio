@@ -3,6 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import jwt
 import pytest
+from jwt.exceptions import InvalidTokenError
+from passlib.context import CryptContext
+
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models.auth import Token
@@ -15,8 +18,6 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
-from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
 
 secret_key = "test"
 algorithm = "HS256"

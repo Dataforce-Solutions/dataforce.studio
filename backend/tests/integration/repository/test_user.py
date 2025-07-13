@@ -1,4 +1,6 @@
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.user import (
     AuthProvider,
@@ -7,7 +9,6 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
 
 
 @pytest.mark.asyncio

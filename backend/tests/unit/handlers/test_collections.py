@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.collections import CollectionHandler
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
 from dataforce_studio.schemas.ml_models import (
@@ -52,7 +53,7 @@ async def test_create_collection(
     )
     expected = Collection(
         id=1,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         orbit_id=orbit_id,
         total_models=0,
         **data.model_dump(),
@@ -291,7 +292,7 @@ async def test_update_collection(
         collection_type=CollectionType.MODEL,
         tags=None,
         total_models=0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -465,7 +466,7 @@ async def test_delete_collection_empty(
         collection_type=CollectionType.MODEL,
         tags=None,
         total_models=0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -529,7 +530,7 @@ async def test_delete_collection_not_empty(
         collection_type=CollectionType.MODEL,
         tags=None,
         total_models=0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -545,7 +546,7 @@ async def test_delete_collection_not_empty(
         collection_type=CollectionType.MODEL,
         tags=None,
         total_models=0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
     mock_get_count.return_value = 1
@@ -652,7 +653,7 @@ async def test_delete_collection_orbit_wrong_org(
         collection_type=CollectionType.MODEL,
         tags=None,
         total_models=0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
     mock_get_count.return_value = 0

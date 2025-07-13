@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.models import OrganizationInviteOrm
@@ -9,11 +10,11 @@ from dataforce_studio.schemas.organization import (
     CreateOrganizationInviteIn,
     Organization,
     OrganizationInvite,
+    OrganizationMemberCreate,
     OrgRole,
     UserInvite,
-    OrganizationMemberCreate,
 )
-from dataforce_studio.schemas.user import UserOut, AuthProvider
+from dataforce_studio.schemas.user import UserOut
 
 handler = OrganizationHandler()
 

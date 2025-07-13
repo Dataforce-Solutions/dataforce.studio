@@ -1,12 +1,13 @@
 from datetime import datetime
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
 )
+from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreateIn,

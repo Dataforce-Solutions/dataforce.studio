@@ -2,17 +2,18 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.ml_models import MLModelHandler
 from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
 from dataforce_studio.schemas.ml_models import (
+    Manifest,
     MLModel,
     MLModelIn,
     MLModelStatus,
     MLModelUpdate,
     MLModelUpdateIn,
-    Manifest,
 )
-from dataforce_studio.schemas.orbit import OrbitRole, Orbit
+from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
 
 handler = MLModelHandler()
@@ -80,7 +81,7 @@ async def test_create_ml_model_with_tags(
         unique_identifier="uid",
         tags=["tag"],
         status=MLModelStatus.PENDING_UPLOAD,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -190,7 +191,7 @@ async def test_get_ml_model(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -339,7 +340,7 @@ async def test_request_download_url(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -433,7 +434,7 @@ async def test_request_delete_url(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -525,7 +526,7 @@ async def test_confirm_deletion_pending(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.PENDING_DELETION,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -613,7 +614,7 @@ async def test_confirm_deletion_not_pending(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -706,7 +707,7 @@ async def test_update_model(
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -737,7 +738,7 @@ async def test_update_model(
         unique_identifier="uid",
         tags=tags,
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 

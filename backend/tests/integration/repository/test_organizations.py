@@ -2,10 +2,11 @@ import datetime
 import random
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
-from dataforce_studio.schemas.user import CreateUser, AuthProvider
-from sqlalchemy.ext.asyncio import create_async_engine
+from dataforce_studio.schemas.user import AuthProvider, CreateUser
 
 organization_data = {
     "id": random.randint(2000, 10000),
@@ -46,12 +47,25 @@ async def test_create_organization(
 
 
 @pytest.mark.asyncio
-async def test_get_user_organizations(create_organization_with_members: dict) -> None:
-    data = create_organization_with_members
-    repo, _members, user_owner = (
-        data["repo"],
-        data["members"],
-        data["user_owner"],
+async def test_get_user_organizations(
+    create_database_and_apply_migrations: str,
+) -> None:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+
+    user_owner = await repo.create_user(
+        CreateUser(
+            email="owner@example.com",
+            full_name="Owner User",
+            disabled=False,
+            email_verified=True,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+    )
+    await repo.create_organization(
+        user_owner.id, OrganizationCreateIn(name="Test Organization")
     )
 
     organizations = await repo.get_user_organizations(user_owner.id)
@@ -64,9 +78,26 @@ async def test_get_user_organizations(create_organization_with_members: dict) ->
 
 
 @pytest.mark.asyncio
-async def test_get_organization_details(create_organization_with_members: dict) -> None:
-    data = create_organization_with_members
-    repo, org = data["repo"], data["organization"]
+async def test_get_organization_details(
+    create_database_and_apply_migrations: str,
+) -> None:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+
+    user_owner = await repo.create_user(
+        CreateUser(
+            email="owner@example.com",
+            full_name="Owner User",
+            disabled=False,
+            email_verified=True,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+    )
+    org = await repo.create_organization(
+        user_owner.id, OrganizationCreateIn(name="Test Organization")
+    )
 
     organization = await repo.get_organization_details(org.id)
 
