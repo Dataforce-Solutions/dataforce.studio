@@ -1,18 +1,15 @@
-import random
-from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.infra.exceptions import NotFoundError
-from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
-    OrganizationLimitReachedError,
-    ServiceError,
 )
+from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
     Orbit,
-    OrbitCreate,
     OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
@@ -22,56 +19,9 @@ from dataforce_studio.schemas.orbit import (
     UpdateOrbitMember,
 )
 from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.user import UserOut
 
 handler = OrbitHandler()
-
-test_orbit = {
-    "name": "test",
-    "organization_id": random.randint(1, 10000),
-    "bucket_secret_id": random.randint(1, 10000),
-    "total_members": 1,
-    "created_at": "2025-05-17T09:52:38.234961Z",
-    "updated_at": "2025-05-17T09:52:38.234961Z",
-}
-
-test_orbit_created = {
-    "id": random.randint(1, 10000),
-    "name": "test",
-    "organization_id": random.randint(1, 10000),
-    "bucket_secret_id": random.randint(1, 10000),
-    "total_members": 0,
-    "created_at": "2025-05-17T09:52:38.234961Z",
-    "updated_at": None,
-}
-
-test_orbit_id = random.randint(1, 10000)
-
-test_orbit_member = {
-    "id": 8766,
-    "orbit_id": test_orbit_id,
-    "role": OrbitRole.MEMBER,
-    "user": {
-        "id": random.randint(1, 10000),
-        "email": "brandihernandez@example.org",
-        "full_name": "Kathy Hall",
-        "disabled": False,
-        "photo": None,
-    },
-    "created_at": "2025-05-17T09:52:38.234961Z",
-    "updated_at": "2025-05-17T09:52:38.234961Z",
-}
-
-test_orbit_details = {
-    "id": test_orbit_id,
-    "name": "test",
-    "organization_id": random.randint(1, 10000),
-    "bucket_secret_id": random.randint(1, 10000),
-    "members": [
-        test_orbit_member,
-    ],
-    "created_at": "2025-05-17T09:52:38.234961Z",
-    "updated_at": "2025-05-17T09:52:38.234961Z",
-}
 
 
 @patch(
@@ -97,20 +47,33 @@ async def test_create_organization_orbit(
     mock_get_organization_orbits_count: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    orbit_id = random.randint(1, 10000)
-    user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreate(**test_orbit)
+    organization_id = 1
+    bucket_secret_id = 1
+    orbit_id = 1
+    user_id = 1
+
     mock_get_bucket_secret.return_value = type(
         "obj",
         (),
         {
             "id": orbit_id,
-            "organization_id": test_orbit["organization_id"],
+            "organization_id": organization_id,
             "name": "test_secret",
         },
     )
-    orbit_to_create = OrbitCreateIn(**test_orbit)
-    mocked_orbit = Orbit(**test_orbit, id=orbit_id)
+    orbit_to_create = OrbitCreateIn(
+        name="test",
+        bucket_secret_id=bucket_secret_id,
+    )
+    mocked_orbit = Orbit(
+        id=orbit_id,
+        name="test",
+        organization_id=organization_id,
+        bucket_secret_id=bucket_secret_id,
+        total_members=0,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
 
     mock_create_orbit.return_value = mocked_orbit
     mock_get_organization_orbits_count.return_value = 0
@@ -150,8 +113,11 @@ async def test_create_organization_orbit_secret_not_found(
     mock_get_secret: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreateIn(**test_orbit)
+    user_id = 1
+    bucket_secret_id = 1
+    organization_id = 1
+
+    orbit_to_create = OrbitCreateIn(name="test", bucket_secret_id=bucket_secret_id)
 
     mock_get_orbits_count.return_value = 0
     mock_get_secret.return_value = None
@@ -159,7 +125,7 @@ async def test_create_organization_orbit_secret_not_found(
 
     with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
         await handler.create_organization_orbit(
-            user_id, test_orbit["organization_id"], orbit_to_create
+            user_id, organization_id, orbit_to_create
         )
 
     assert error.value.status_code == 404
@@ -189,20 +155,23 @@ async def test_create_organization_orbit_secret_wrong_org(
     mock_get_secret: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreateIn(**test_orbit)
+    user_id = 1
+    bucket_secret_id = 1
+    organization_id = 1
+
+    orbit_to_create = OrbitCreateIn(name="test", bucket_secret_id=bucket_secret_id)
 
     class Secret:
         def __init__(self, organization_id: int) -> None:
             self.organization_id = organization_id
 
     mock_get_orbits_count.return_value = 0
-    mock_get_secret.return_value = Secret(test_orbit["organization_id"] + 1)
+    mock_get_secret.return_value = Secret(organization_id + 1)
     mock_get_org_role.return_value = OrgRole.OWNER
 
     with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
         await handler.create_organization_orbit(
-            user_id, test_orbit["organization_id"], orbit_to_create
+            user_id, organization_id, orbit_to_create
         )
 
     assert error.value.status_code == 404
@@ -222,15 +191,23 @@ async def test_get_organization_orbits(
     mock_get_organization_orbits: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    orbit = Orbit(**test_orbit_created)
+    user_id = 1
+
+    orbit = Orbit(
+        id=1,
+        name="test",
+        organization_id=1,
+        bucket_secret_id=1,
+        total_members=0,
+        created_at=datetime.now(),
+    )
     expected = [orbit]
 
     mock_get_organization_orbits.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.get_organization_orbits(user_id, orbit.organization_id)
-    print(result)
+
     assert result == expected
 
     mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id)
@@ -254,8 +231,15 @@ async def test_get_orbit(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    expected = OrbitDetails(**test_orbit_details)
+    user_id = 1
+    expected = OrbitDetails(
+        id=1,
+        name="test",
+        organization_id=1,
+        bucket_secret_id=1,
+        members=None,
+        created_at=datetime.now(),
+    )
 
     mock_get_orbit.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -285,9 +269,9 @@ async def test_get_orbit_not_found(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
 
     mock_get_orbit.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -318,8 +302,15 @@ async def test_update_orbit(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    expected = OrbitDetails(**test_orbit_details)
+    user_id = 1
+    expected = OrbitDetails(
+        id=1,
+        name="test",
+        organization_id=1,
+        bucket_secret_id=1,
+        members=None,
+        created_at=datetime.now(),
+    )
 
     mock_update_orbit.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -352,9 +343,9 @@ async def test_update_orbit_not_found(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
     update_orbit = OrbitUpdate(name="new_name")
 
     mock_update_orbit.return_value = None
@@ -386,9 +377,9 @@ async def test_delete_orbit(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
 
     mock_delete_orbit.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -418,8 +409,20 @@ async def test_get_orbit_members(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    organization_id = random.randint(1, 10000)
-    expected = OrbitMember(**test_orbit_member)
+    organization_id = 1
+    expected = OrbitMember(
+        id=8766,
+        orbit_id=1,
+        role=OrbitRole.MEMBER,
+        user=UserOut(
+            id=5566,
+            email="brandihernandez@example.org",
+            full_name="Kathy Hall",
+            disabled=False,
+            photo=None,
+        ),
+        created_at=datetime.now(),
+    )
 
     mock_get_orbit_members.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -471,21 +474,36 @@ async def test_create_orbit_member(
     mock_send_added_to_orbit_email: MagicMock,
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    current_user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    user_id = 5566
+    member_id = 8766
 
-    new_member = test_orbit_member.copy()
-    new_member["user_id"] = user_id
-
-    expected = OrbitMember(**new_member)
+    expected = OrbitMember(
+        id=8766,
+        orbit_id=orbit_id,
+        role=OrbitRole.MEMBER,
+        user=UserOut(
+            id=user_id,
+            email="brandihernandez@example.org",
+            full_name="Kathy Hall",
+            disabled=False,
+            photo=None,
+        ),
+        created_at=datetime.now(),
+    )
     create_member = OrbitMemberCreate(
         user_id=user_id,
-        orbit_id=test_orbit_member["orbit_id"],
-        role=test_orbit_member["role"],
+        orbit_id=orbit_id,
+        role=OrbitRole.MEMBER,
     )
 
     mock_get_organization_member.return_value = OrganizationMemberOrm(
-        id=1, user_id=1, organization_id=organization_id, role=OrgRole.OWNER
+        id=member_id,
+        user_id=user_id,
+        organization_id=organization_id,
+        role=OrgRole.OWNER,
     )
     mock_create_orbit_member.return_value = expected
     mock_get_orbit_members_count.return_value = 0
@@ -498,7 +516,7 @@ async def test_create_orbit_member(
     )
 
     result = await handler.create_orbit_member(
-        test_orbit_member["user"]["id"], organization_id, create_member
+        current_user_id, organization_id, create_member
     )
 
     assert result == expected
@@ -528,14 +546,26 @@ async def test_update_orbit_member(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    initial_member = OrbitMember(**test_orbit_member)
-    expected = initial_member
+    user_id = 1
+    organization_id = 1
+
+    expected = OrbitMember(
+        id=8766,
+        orbit_id=1,
+        role=OrbitRole.MEMBER,
+        user=UserOut(
+            id=5566,
+            email="brandihernandez@example.org",
+            full_name="Kathy Hall",
+            disabled=False,
+            photo=None,
+        ),
+        created_at=datetime.now(),
+    )
     expected.role = OrbitRole.ADMIN
     update_member = UpdateOrbitMember(id=expected.id, role=OrbitRole.ADMIN)
 
-    mock_get_orbit_member.return_value = initial_member
+    mock_get_orbit_member.return_value = expected
     mock_update_orbit_member.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
@@ -571,11 +601,11 @@ async def test_update_orbit_member_not_found(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
 
-    update_member = UpdateOrbitMember(id=random.randint(1, 10000), role=OrbitRole.ADMIN)
+    update_member = UpdateOrbitMember(id=1, role=OrbitRole.ADMIN)
 
     mock_get_orbit_member.return_value = None
     mock_update_orbit_member.return_value = None
@@ -613,10 +643,22 @@ async def test_delete_orbit_member(
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    current_user_id = 1
+    organization_id = 1
 
-    member = OrbitMember(**test_orbit_member)
+    member = OrbitMember(
+        id=8766,
+        orbit_id=1,
+        role=OrbitRole.MEMBER,
+        user=UserOut(
+            id=5566,
+            email="brandihernandez@example.org",
+            full_name="Kathy Hall",
+            disabled=False,
+            photo=None,
+        ),
+        created_at=datetime.now(),
+    )
 
     mock_get_orbit_member.return_value = member
     mock_delete_orbit_member.return_value = None
@@ -624,7 +666,7 @@ async def test_delete_orbit_member(
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
     deleted = await handler.delete_orbit_member(
-        user_id, organization_id, member.orbit_id, member.id
+        current_user_id, organization_id, member.orbit_id, member.id
     )
 
     assert deleted is None

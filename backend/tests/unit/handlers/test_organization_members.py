@@ -1,7 +1,7 @@
-import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.schemas.organization import (
     OrganizationMember,
@@ -9,8 +9,7 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UpdateOrganizationMember,
 )
-
-from tests.conftest import member_data
+from dataforce_studio.schemas.user import UserOut
 
 handler = OrganizationHandler()
 
@@ -28,18 +27,29 @@ async def test_get_organization_members_data(
     mock_get_organization_members: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    expected = list(OrganizationMember(**member_data))
+    current_user_id = 123
+    expected = [
+        OrganizationMember(
+            id=789,
+            organization_id=456,
+            role=OrgRole.ADMIN,
+            user=UserOut(
+                id=current_user_id,
+                email="test@example.com",
+                full_name="Test User",
+                disabled=False,
+                photo=None,
+            ),
+        )
+    ]
 
     mock_get_organization_members.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-    actual = await handler.get_organization_members_data(
-        user_id, member_data["organization_id"]
-    )
+    actual = await handler.get_organization_members_data(current_user_id, 456)
 
     assert actual == expected
-    mock_get_organization_members.assert_awaited_once()
+    mock_get_organization_members.assert_awaited_once_with(456)
 
 
 @patch(
@@ -60,16 +70,27 @@ async def test_update_organization_member_by_id(
     mock_get_organization_member_role: AsyncMock,
     mock_get_organization_member_by_id: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    expected = OrganizationMember(**member_data)
+    current_user_id = 123
+    expected = OrganizationMember(
+        id=789,
+        organization_id=456,
+        role=OrgRole.ADMIN,
+        user=UserOut(
+            id=555,
+            email="test@example.com",
+            full_name="Test User",
+            disabled=False,
+            photo=None,
+        ),
+    )
 
     mock_update_organization_member.return_value = expected
     mock_get_organization_member_by_id.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-    update_member = UpdateOrganizationMember(role=member_data["role"])
+    update_member = UpdateOrganizationMember(role=OrgRole.ADMIN)
     actual = await handler.update_organization_member_by_id(
-        user_id, expected.organization_id, expected.id, update_member
+        current_user_id, expected.organization_id, expected.id, update_member
     )
 
     assert actual == expected
@@ -94,15 +115,26 @@ async def test_delete_organization_member_by_id(
     mock_get_organization_member_role: AsyncMock,
     mock_get_organization_member_by_id: AsyncMock,
 ) -> None:
-    user_id = random.randint(1000, 10000)
-    member = OrganizationMember(**member_data)
+    current_user_id = 123
+    member = OrganizationMember(
+        id=789,
+        organization_id=456,
+        role=OrgRole.ADMIN,
+        user=UserOut(
+            id=555,
+            email="test@example.com",
+            full_name="Test User",
+            disabled=False,
+            photo=None,
+        ),
+    )
 
     mock_delete_organization_member.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_organization_member_by_id.return_value = member
 
     actual = await handler.delete_organization_member_by_id(
-        user_id, member.organization_id, member.id
+        current_user_id, member.organization_id, member.id
     )
 
     assert actual is None
@@ -122,27 +154,32 @@ async def test_add_organization_member(
     mock_create_organization_member: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
+    current_user_id = 123
     member_create = OrganizationMemberCreate(
-        **{
-            "user_id": member_data["user"]["id"],
-            "organization_id": member_data["organization_id"],
-            "role": member_data["role"],
-        }
+        user_id=555,
+        organization_id=456,
+        role=OrgRole.ADMIN,
     )
-    expected = OrganizationMember(**member_data)
+
+    expected = OrganizationMember(
+        id=789,
+        organization_id=456,
+        role=OrgRole.ADMIN,
+        user=UserOut(
+            id=555,
+            email="test@example.com",
+            full_name="Test User",
+            disabled=False,
+            photo=None,
+        ),
+    )
 
     mock_create_organization_member.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     actual = await handler.add_organization_member(
-        member_create.user_id, member_create.organization_id, member_create
+        current_user_id, member_create.organization_id, member_create
     )
 
     assert actual == expected
-    mock_create_organization_member.assert_awaited_once_with(
-        OrganizationMemberCreate(
-            user_id=member_create.user_id,
-            organization_id=member_create.organization_id,
-            role=member_create.role,
-        )
-    )
+    mock_create_organization_member.assert_awaited_once_with(member_create)

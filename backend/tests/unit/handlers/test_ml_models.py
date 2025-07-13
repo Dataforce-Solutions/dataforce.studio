@@ -1,59 +1,22 @@
-import random
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.ml_models import MLModelHandler
 from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
 from dataforce_studio.schemas.ml_models import (
+    Manifest,
     MLModel,
     MLModelIn,
     MLModelStatus,
     MLModelUpdate,
-    MLModelUpdateIn, Manifest,
+    MLModelUpdateIn,
 )
-from dataforce_studio.schemas.orbit import OrbitRole, Orbit
+from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
 
 handler = MLModelHandler()
-
-
-manifest_example_obj = Manifest(**{
-            "variant": "pipeline",
-            "description": "",
-            "producer_name": "falcon.beastbyte.ai",
-            "producer_version": "0.8.0",
-            "producer_tags": [
-                "falcon.beastbyte.ai::tabular_classification:v1",
-                "dataforce.studio::tabular_classification:v1"
-            ],
-            "inputs": [
-                {
-                    "name": "sepal.length",
-                    "content_type": "NDJSON",
-                    "dtype": "Array[float32]",
-                    "shape": [
-                        "batch",
-                        1
-                    ],
-                    "tags": [
-                        "falcon.beastbyte.ai::numeric:v1"
-                    ]
-                },
-            ],
-            "outputs": [
-                {
-                    "name": "y_pred",
-                    "content_type": "NDJSON",
-                    "dtype": "Array[string]",
-                    "shape": [
-                        "batch"
-                    ]
-                }
-            ],
-            "dynamic_attributes": [],
-            "env_vars": []
-        })
 
 
 @patch(
@@ -82,25 +45,35 @@ manifest_example_obj = Manifest(**{
 )
 @pytest.mark.asyncio
 async def test_create_ml_model_with_tags(
-        mock_get_presigned: AsyncMock,
-        mock_create_model: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_presigned: AsyncMock,
+    mock_create_model: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=1,
         collection_id=collection_id,
-        file_name='model',
+        file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -108,7 +81,7 @@ async def test_create_ml_model_with_tags(
         unique_identifier="uid",
         tags=["tag"],
         status=MLModelStatus.PENDING_UPLOAD,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -124,7 +97,17 @@ async def test_create_ml_model_with_tags(
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
     ml_model_in = MLModelIn(
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         size=1,
@@ -172,18 +155,18 @@ async def test_create_ml_model_with_tags(
 )
 @pytest.mark.asyncio
 async def test_get_ml_model(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=model_id,
@@ -191,14 +174,24 @@ async def test_get_ml_model(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -251,18 +244,18 @@ async def test_get_ml_model(
 )
 @pytest.mark.asyncio
 async def test_get_ml_model_not_found(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     mock_get_model.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
@@ -311,18 +304,18 @@ async def test_get_ml_model_not_found(
 )
 @pytest.mark.asyncio
 async def test_request_download_url(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=model_id,
@@ -330,14 +323,24 @@ async def test_request_download_url(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -394,19 +397,19 @@ async def test_request_download_url(
 )
 @pytest.mark.asyncio
 async def test_request_delete_url(
-        mock_get_delete_url: AsyncMock,
-        mock_update_status: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_get_delete_url: AsyncMock,
+    mock_update_status: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=model_id,
@@ -414,14 +417,24 @@ async def test_request_delete_url(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -477,18 +490,18 @@ async def test_request_delete_url(
 )
 @pytest.mark.asyncio
 async def test_confirm_deletion_pending(
-        mock_delete: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_delete: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=model_id,
@@ -496,14 +509,24 @@ async def test_confirm_deletion_pending(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.PENDING_DELETION,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -555,18 +578,18 @@ async def test_confirm_deletion_pending(
 )
 @pytest.mark.asyncio
 async def test_confirm_deletion_not_pending(
-        mock_delete: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_delete: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     model = MLModel(
         id=model_id,
@@ -574,14 +597,24 @@ async def test_confirm_deletion_not_pending(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -638,32 +671,43 @@ async def test_confirm_deletion_not_pending(
 )
 @pytest.mark.asyncio
 async def test_update_model(
-        mock_update: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_model: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_model: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
+
     model = MLModel(
         id=model_id,
         collection_id=1,
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -676,7 +720,17 @@ async def test_update_model(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=Manifest(
+            variant="pipeline",
+            description="",
+            producer_name="falcon.beastbyte.ai",
+            producer_version="0.8.0",
+            producer_tags=[],
+            inputs=[],
+            outputs=[],
+            dynamic_attributes=[],
+            env_vars=[],
+        ),
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -684,7 +738,7 @@ async def test_update_model(
         unique_identifier="uid",
         tags=tags,
         status=MLModelStatus.UPLOADED,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         updated_at=None,
     )
 
@@ -738,17 +792,17 @@ async def test_update_model(
 )
 @pytest.mark.asyncio
 async def test_update_model_not_found(
-        mock_update: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    model_id = 1
+    collection_id = 1
 
     mock_update.return_value = None
     mock_get_orbit_simple.return_value = type(
