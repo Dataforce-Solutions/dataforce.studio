@@ -1,4 +1,3 @@
-import datetime
 import random
 
 import asyncpg
@@ -9,18 +8,15 @@ from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecretCreate
 from dataforce_studio.schemas.orbit import (
-    Orbit,
-    OrbitCreate,
     OrbitMemberCreate,
     OrbitRole,
     OrbitCreateIn,
 )
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
-    OrganizationInvite,
-    OrganizationMember,
     OrgRole,
-    OrganizationMemberCreate, OrganizationCreateIn,
+    OrganizationMemberCreate,
+    OrganizationCreateIn,
 )
 from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
@@ -70,71 +66,6 @@ async def create_database_and_apply_migrations():  # noqa: ANN201
     await _drop_database(admin_dsn, TEST_DB_NAME)
 
 
-invite_data = {
-    "email": "test@example.com",
-    "role": OrgRole.MEMBER,
-    "organization_id": random.randint(1, 10000),
-    "invited_by": random.randint(1, 10000),
-}
-
-invite_get_data = {
-    "id": random.randint(1, 10000),
-    "email": "test@example.com",
-    "role": OrgRole.MEMBER,
-    "organization_id": random.randint(1, 10000),
-    "invited_by_user": {
-        "id": 66,
-        "email": "robertstimothy@example.org",
-        "full_name": "Terry Lewis",
-        "disabled": False,
-        "photo": None,
-    },
-    "created_at": datetime.datetime.now(),
-}
-
-invite_user_get_data = {
-    "id": random.randint(1, 10000),
-    "email": "test@example.com",
-    "role": OrgRole.MEMBER,
-    "organization_id": random.randint(1, 10000),
-    "invited_by_user": {
-        "id": 66,
-        "email": "robertstimothy@example.org",
-        "full_name": "Terry Lewis",
-        "disabled": False,
-        "photo": None,
-    },
-    "created_at": datetime.datetime.now(),
-    "organization": {
-        "id": 1,
-        "name": "test",
-        "logo": "https://example.com/",
-        "created_at": datetime.datetime.now(),
-        "updated_at": datetime.datetime.now(),
-    },
-}
-
-invite_accept_data = {
-    "id": random.randint(1, 10000),
-    "email": "test@example.com",
-    "role": OrgRole.MEMBER,
-    "organization_id": random.randint(1, 10000),
-    "invited_by": random.randint(1, 10000),
-}
-member_data = {
-    "id": random.randint(1, 10000),
-    "organization_id": random.randint(1, 10000),
-    "role": OrgRole.ADMIN,
-    "user": {
-        "id": random.randint(1, 10000),
-        "email": "test@gmail.com",
-        "full_name": "Full Name",
-        "disabled": False,
-        "photo": None,
-    },
-}
-
-
 @pytest_asyncio.fixture(scope="function")
 def test_user() -> dict:
     return {
@@ -146,54 +77,6 @@ def test_user() -> dict:
         "photo": None,
         "hashed_password": "hashed_password",
     }
-
-
-@pytest_asyncio.fixture(scope="function")
-def test_org() -> dict:
-    return {
-        "id": random.randint(1, 10000),
-        "name": "Test organization",
-        "logo": None,
-        "created_at": datetime.datetime.now(),
-        "updated_at": datetime.datetime.now(),
-    }
-
-
-@pytest_asyncio.fixture(scope="function")
-def test_org_details() -> dict:
-    test_org_details_id = 8888
-
-    return {
-        "id": test_org_details_id,
-        "name": "Test organization",
-        "logo": None,
-        "created_at": datetime.datetime.now(),
-        "updated_at": datetime.datetime.now(),
-        "invites": [OrganizationInvite(**invite_get_data)],  # type: ignore[arg-type]
-        "members": [OrganizationMember(**member_data)],  # type: ignore[arg-type]
-        "orbits": [
-            Orbit(
-                id=random.randint(1, 10000),
-                name="test orbit",
-                organization_id=test_org_details_id,
-                total_members=0,
-                role=None,
-                created_at=datetime.datetime.now(),
-                updated_at=None,
-                bucket_secret_id=1,
-            )
-        ],
-    }
-
-
-@pytest_asyncio.fixture(scope="function")
-async def create_user_repo(
-    create_database_and_apply_migrations: str, test_user: dict
-) -> dict:
-    engine = create_async_engine(create_database_and_apply_migrations)
-    repo = UserRepository(engine)
-
-    return {"engine": engine, "repo": repo}
 
 
 @pytest_asyncio.fixture(scope="function")

@@ -4,7 +4,7 @@ import random
 import pytest
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
-from dataforce_studio.schemas.user import CreateUser
+from dataforce_studio.schemas.user import CreateUser, AuthProvider
 from sqlalchemy.ext.asyncio import create_async_engine
 
 organization_data = {
@@ -18,15 +18,22 @@ organization_data = {
 
 @pytest.mark.asyncio
 async def test_create_organization(
-    create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str,
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     organization = Organization.model_validate(organization_data)
 
-    new_user = test_user.copy()
-    new_user["email"] = "testcreateorganization@example.com"
-    user = await repo.create_user(CreateUser(**new_user))
+    create_user = CreateUser(
+        email="testcreateorganization@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password="hashed_password",
+    )
+    user = await repo.create_user(create_user)
 
     created_organization = await repo.create_organization(
         user.id, OrganizationCreateIn(name=organization.name, logo=organization.logo)

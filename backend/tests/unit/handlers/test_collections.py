@@ -1,4 +1,3 @@
-import random
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
@@ -42,9 +41,9 @@ async def test_create_collection(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -76,7 +75,7 @@ async def test_create_collection(
         **data.model_dump(),
     )
     mock_create.assert_awaited_once_with(expected_db)
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id,organization_id)
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
 
 
 @patch(
@@ -102,9 +101,9 @@ async def test_create_collection_orbit_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -147,9 +146,9 @@ async def test_get_orbit_collections_orbit_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
 
     mock_get_orbit_simple.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
@@ -186,9 +185,9 @@ async def test_get_orbit_collections_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
 
     class Orbit:
         def __init__(self, organization_id: int) -> None:
@@ -229,9 +228,9 @@ async def test_create_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -278,10 +277,10 @@ async def test_update_collection(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     data_in = CollectionUpdateIn(name="new")
     expected = Collection(
@@ -342,10 +341,10 @@ async def test_update_collection_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     data_in = CollectionUpdateIn(name="new")
 
@@ -395,10 +394,10 @@ async def test_update_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     data_in = CollectionUpdateIn(name="new")
 
@@ -453,10 +452,10 @@ async def test_delete_collection_empty(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -517,10 +516,10 @@ async def test_delete_collection_not_empty(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -585,10 +584,10 @@ async def test_delete_collection_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     class Orbit:
         def __init__(self, organization_id: int) -> None:
@@ -640,10 +639,10 @@ async def test_delete_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    orbit_id = random.randint(1, 10000)
-    collection_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
 
     mock_get_collection.return_value = Collection(
         id=collection_id,

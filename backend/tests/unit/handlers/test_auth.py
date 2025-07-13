@@ -1,4 +1,3 @@
-import random
 from time import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -32,48 +31,6 @@ passwords = {
     "hashed_password": "$2b$12$rr/FMTnWz0BGDTiG//l.YuzZe9ZIpZTPZD5FeAVDDdqgchIDUyD66",
 }
 
-user_data = {
-    "id": random.randint(1, 10000),
-    "email": "testuser@example.com",
-    "full_name": "Test User",
-    "disabled": False,
-    "email_verified": True,
-    "auth_method": AuthProvider.EMAIL,
-    "photo": None,
-    "hashed_password": passwords["hashed_password"],
-}
-
-create_user_data = {
-    "email": user_data["email"],
-    "password": passwords["password"],
-    "full_name": user_data["full_name"],
-    "photo": user_data["photo"],
-}
-
-
-@pytest.fixture
-def get_create_user() -> dict:
-    create_user = CreateUserIn.model_validate(create_user_data)
-    user = User.model_validate(user_data)
-    return {"create_user": create_user, "user": user}
-
-
-@pytest.fixture
-def get_tokens() -> Token:
-    now = int(time())
-    access_payload = {"sub": create_user_data["email"], "exp": now + 3600}
-    refresh_payload = {
-        "sub": create_user_data["email"],
-        "type": "refresh",
-        "exp": now + 7200,
-    }
-
-    return Token(
-        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
-        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
-        token_type="bearer",
-    )
-
 
 @patch("passlib.context.CryptContext.hash")
 def test_get_password_hash(patched_hash: Mock) -> None:
@@ -103,7 +60,16 @@ def test_verify_password(mock_verify: Mock) -> None:
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user(mock_get_user: AsyncMock, mock_verify: Mock) -> None:
-    expected = User.model_validate(user_data)
+    expected = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
 
     mock_verify.return_value = True
     mock_get_user.return_value = expected
@@ -118,24 +84,30 @@ async def test_authenticate_user(mock_get_user: AsyncMock, mock_verify: Mock) ->
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_user_not_found(mock_get_user: AsyncMock) -> None:
-    expected = User.model_validate(user_data)
+    test_email = "testuser@example.com"
 
     mock_get_user.return_value = None
 
     with pytest.raises(AuthError, match="Invalid email or password") as error:
-        await handler._authenticate_user(expected.email, passwords["password"])
+        await handler._authenticate_user(test_email, passwords["password"])
 
     assert error.value.status_code == 400
-    mock_get_user.assert_awaited_once_with(expected.email)
+    mock_get_user.assert_awaited_once_with(test_email)
 
 
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_invalid_auth_method(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["auth_method"] = AuthProvider.GOOGLE
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.GOOGLE,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Invalid auth method") as error:
@@ -148,10 +120,16 @@ async def test_authenticate_user_invalid_auth_method(mock_get_user: AsyncMock) -
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_password_is_invalid(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["hashed_password"] = None
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=None,
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Password is invalid") as error:
@@ -167,7 +145,16 @@ async def test_authenticate_user_password_is_invalid(mock_get_user: AsyncMock) -
 async def test_authenticate_user_password_not_verified(
     mock_get_user: AsyncMock, mock_verify: Mock
 ) -> None:
-    expected = User.model_validate(user_data)
+    expected = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
 
     mock_verify.return_value = False
     mock_get_user.return_value = expected
@@ -182,10 +169,16 @@ async def test_authenticate_user_password_not_verified(
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_email_not_verified(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["email_verified"] = False
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=False,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Email not verified") as error:
@@ -197,7 +190,8 @@ async def test_authenticate_user_email_not_verified(mock_get_user: AsyncMock) ->
 
 @pytest.mark.asyncio
 async def test_create_tokens() -> None:
-    actual = handler._create_tokens(user_data["email"])
+    test_email = "testuser@example.com"
+    actual = handler._create_tokens(test_email)
 
     assert actual
     assert actual.access_token
@@ -207,11 +201,12 @@ async def test_create_tokens() -> None:
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")
 def test_verify_token_valid(mock_jwt_decode: MagicMock) -> None:
-    mock_jwt_decode.return_value = {"sub": user_data["email"]}
+    test_email = "testuser@example.com"
+    mock_jwt_decode.return_value = {"sub": test_email}
 
     actual = handler._verify_token("token")
 
-    assert actual == user_data["email"]
+    assert actual == test_email
     mock_jwt_decode.assert_called_once()
 
 
@@ -252,10 +247,12 @@ async def test_handle_signup(
     mock_create_user: AsyncMock,
     mock_get_user: AsyncMock,
     mock_hash: Mock,
-    get_create_user: dict,
 ) -> None:
-    data = get_create_user
-    create_user_in = data["create_user"]
+    create_user_in = CreateUserIn(
+        email="testuser@example.com",
+        password="test_password",
+        full_name="Test User",
+    )
     create_user = CreateUser(
         **create_user_in.model_dump(exclude={"password"}),
         hashed_password=passwords["hashed_password"],
@@ -276,11 +273,22 @@ async def test_handle_signup(
 
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
-async def test_handle_signup_already_exist(
-    mock_get_user: AsyncMock, get_create_user: dict
-) -> None:
-    data = get_create_user
-    create_user_in, user = data["create_user"], data["user"]
+async def test_handle_signup_already_exist(mock_get_user: AsyncMock) -> None:
+    create_user_in = CreateUserIn(
+        email="testuser@example.com",
+        password="test_password",
+        full_name="Test User",
+    )
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
     create_user = CreateUser(
         **create_user_in.model_dump(exclude={"password"}),
         hashed_password=passwords["hashed_password"],
@@ -301,23 +309,41 @@ async def test_handle_signup_already_exist(
 async def test_handle_signin(
     mock_create_tokens: MagicMock,
     mock_authenticate_user: AsyncMock,
-    get_create_user: dict,
-    get_tokens: Token,
 ) -> None:
-    data = get_create_user
-    create_user, user = data["create_user"], data["user"]
-    expected = {"token": get_tokens, "user_id": user.id}
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
+
+    now = int(time())
+    access_payload = {"sub": user.email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": user.email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
+
+    expected = {"token": tokens, "user_id": user.id}
 
     mock_authenticate_user.return_value = user
-    mock_create_tokens.return_value = get_tokens
+    mock_create_tokens.return_value = tokens
 
-    actual = await handler.handle_signin(create_user.email, create_user.password)
+    actual = await handler.handle_signin(user.email, passwords["password"])
 
     assert actual == expected
-    mock_authenticate_user.assert_awaited_once_with(
-        create_user.email, create_user.password
-    )
-    mock_create_tokens.assert_called_once_with(create_user.email)
+    mock_authenticate_user.assert_awaited_once_with(user.email, passwords["password"])
+    mock_create_tokens.assert_called_once_with(user.email)
 
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")
@@ -338,11 +364,30 @@ async def test_handle_refresh_token(
     mock_get_user: AsyncMock,
     mock_create_tokens: MagicMock,
     mock_jwt_decode: MagicMock,
-    get_create_user: dict,
-    get_tokens: Token,
 ) -> None:
-    user = get_create_user["user"]
-    tokens = get_tokens
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
+
+    now = int(time())
+    access_payload = {"sub": user.email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": user.email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
 
     mock_jwt_decode.return_value = {
         "sub": user.email,
@@ -350,7 +395,7 @@ async def test_handle_refresh_token(
         "exp": int(time()) + 300,
     }
     mock_is_token_blacklisted.return_value = False
-    mock_get_user.return_value = get_create_user["user"]
+    mock_get_user.return_value = user
     mock_create_tokens.return_value = tokens
 
     result = await handler.handle_refresh_token(tokens.refresh_token)
@@ -365,13 +410,25 @@ async def test_handle_refresh_token(
 @patch("dataforce_studio.handlers.auth.jwt.decode")
 @pytest.mark.asyncio
 async def test_handle_refresh_token_type_isnt_refresh(
-    mock_jwt_decode: MagicMock, get_create_user: dict, get_tokens: Token
+    mock_jwt_decode: MagicMock,
 ) -> None:
-    user = get_create_user["user"]
-    tokens = get_tokens
+    test_email = "testuser@example.com"
+
+    now = int(time())
+    access_payload = {"sub": test_email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": test_email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
 
     mock_jwt_decode.return_value = {
-        "sub": user.email,
+        "sub": test_email,
         "type": "bearer",
         "exp": int(time()) + 300,
     }
@@ -384,10 +441,21 @@ async def test_handle_refresh_token_type_isnt_refresh(
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")
 @pytest.mark.asyncio
-async def test_handle_refresh_token_email_is_none(
-    mock_jwt_decode: MagicMock, get_tokens: Token
-) -> None:
-    tokens = get_tokens
+async def test_handle_refresh_token_email_is_none(mock_jwt_decode: MagicMock) -> None:
+    test_email = "testuser@example.com"
+
+    now = int(time())
+    access_payload = {"sub": test_email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": test_email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
 
     mock_jwt_decode.return_value = {
         "sub": None,
@@ -410,14 +478,24 @@ async def test_handle_refresh_token_email_is_none(
 async def test_handle_refresh_token_has_been_revoked(
     mock_is_token_blacklisted: AsyncMock,
     mock_jwt_decode: MagicMock,
-    get_create_user: dict,
-    get_tokens: Token,
 ) -> None:
-    user = get_create_user["user"]
-    tokens = get_tokens
+    test_email = "testuser@example.com"
+
+    now = int(time())
+    access_payload = {"sub": test_email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": test_email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
 
     mock_jwt_decode.return_value = {
-        "sub": user.email,
+        "sub": test_email,
         "type": "refresh",
         "exp": int(time()) + 300,
     }
@@ -441,14 +519,24 @@ async def test_handle_refresh_token_user_not_found(
     mock_is_token_blacklisted: AsyncMock,
     mock_get_user: AsyncMock,
     mock_jwt_decode: MagicMock,
-    get_create_user: dict,
-    get_tokens: Token,
 ) -> None:
-    user = get_create_user["user"]
-    tokens = get_tokens
+    test_email = "testuser@example.com"
+
+    now = int(time())
+    access_payload = {"sub": test_email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": test_email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
 
     mock_jwt_decode.return_value = {
-        "sub": user.email,
+        "sub": test_email,
         "type": "refresh",
         "exp": int(time()) + 300,
     }
@@ -460,7 +548,7 @@ async def test_handle_refresh_token_user_not_found(
 
     assert error.value.status_code == 404
     mock_is_token_blacklisted.assert_awaited_once_with(tokens.refresh_token)
-    mock_get_user.assert_awaited_once_with(user.email)
+    mock_get_user.assert_awaited_once_with(test_email)
 
 
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
@@ -474,7 +562,18 @@ async def test_update_user(
     email = "test@example.com"
     update_payload = UpdateUserIn(full_name="Updated Name")
 
-    mock_get_user.return_value = user_data
+    test_user = User(
+        id=1,
+        email=email,
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
+
+    mock_get_user.return_value = test_user
     mock_update_user.return_value = True
 
     result = await handler.update_user(email, update_payload)
@@ -519,7 +618,15 @@ async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
 )
 @pytest.mark.asyncio
 async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
-    user = UserOut.model_validate(user_data)
+    user = UserOut(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+    )
     mock_get_public_user.return_value = user
 
     result = await handler.handle_get_current_user(user.email)
@@ -536,14 +643,14 @@ async def test_handle_get_current_user(mock_get_public_user: AsyncMock) -> None:
 async def test_handle_get_current_user_not_found(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    user = UserOut.model_validate(user_data)
+    test_email = "testuser@example.com"
     mock_get_public_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
-        await handler.handle_get_current_user(user.email)
+        await handler.handle_get_current_user(test_email)
 
     assert error.value.status_code == 404
-    mock_get_public_user.assert_awaited_once_with(user.email)
+    mock_get_public_user.assert_awaited_once_with(test_email)
 
 
 @patch(
@@ -554,9 +661,15 @@ async def test_handle_get_current_user_not_found(
 async def test_handle_get_current_account_is_disabled(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    disabled_user_data = user_data.copy()
-    disabled_user_data["disabled"] = True
-    user = UserOut.model_validate(disabled_user_data)
+    user = UserOut(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=True,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+    )
 
     mock_get_public_user.return_value = user
 
@@ -618,12 +731,32 @@ async def test_handle_google_auth(
     mock_create_tokens: MagicMock,
     mock_get: AsyncMock,
     mock_post: AsyncMock,
-    get_tokens: Token,
-    get_create_user: dict,
 ) -> None:
-    data = get_create_user
-    user = data["user"]
-    expected = {"token": get_tokens, "user_id": user.id}
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
+
+    now = int(time())
+    access_payload = {"sub": user.email, "exp": now + 3600}
+    refresh_payload = {
+        "sub": user.email,
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
+
+    expected = {"token": tokens, "user_id": user.id}
 
     mock_post.return_value.status_code = 200
     mock_post.return_value.json = MagicMock(
@@ -641,7 +774,7 @@ async def test_handle_google_auth(
 
     mock_get_user.return_value = None
     mock_create_user.return_value = user
-    mock_create_tokens.return_value = get_tokens
+    mock_create_tokens.return_value = tokens
 
     result = await handler.handle_google_auth("code")
 
@@ -680,11 +813,13 @@ async def test_google_auth_no_access_token(mock_post: AsyncMock) -> None:
 @patch("httpx.AsyncClient.post", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_google_auth_userinfo_failure(
-    mock_post: AsyncMock, mock_get: AsyncMock, get_tokens: Token
+    mock_post: AsyncMock, mock_get: AsyncMock
 ) -> None:
+    test_access_token = "fake_access_token"
+
     mock_post.return_value.status_code = 200
     mock_post.return_value.json = MagicMock(
-        return_value={"access_token": get_tokens.access_token}
+        return_value={"access_token": test_access_token}
     )
 
     mock_get.return_value.status_code = 400
@@ -699,12 +834,12 @@ async def test_google_auth_userinfo_failure(
 @patch("httpx.AsyncClient.get", new_callable=AsyncMock)
 @patch("httpx.AsyncClient.post", new_callable=AsyncMock)
 @pytest.mark.asyncio
-async def test_google_auth_no_email(
-    mock_post: AsyncMock, mock_get: AsyncMock, get_tokens: Token
-) -> None:
+async def test_google_auth_no_email(mock_post: AsyncMock, mock_get: AsyncMock) -> None:
+    test_access_token = "fake_access_token"
+
     mock_post.return_value.status_code = 200
     mock_post.return_value.json = MagicMock(
-        return_value={"access_token": get_tokens.access_token}
+        return_value={"access_token": test_access_token}
     )
 
     mock_get.return_value.status_code = 200
@@ -734,12 +869,25 @@ async def test_google_auth_updates_non_google_user(
     mock_create_tokens: MagicMock,
     mock_post: AsyncMock,
     mock_get: AsyncMock,
-    get_tokens: Token,
 ) -> None:
-    tokens = get_tokens
+    test_access_token = "fake_access_token"
+
+    now = int(time())
+    access_payload = {"sub": "user@example.com", "exp": now + 3600}
+    refresh_payload = {
+        "sub": "user@example.com",
+        "type": "refresh",
+        "exp": now + 7200,
+    }
+    tokens = Token(
+        access_token=jwt.encode(access_payload, secret_key, algorithm=algorithm),
+        refresh_token=jwt.encode(refresh_payload, secret_key, algorithm=algorithm),
+        token_type="bearer",
+    )
+
     mock_post.return_value.status_code = 200
     mock_post.return_value.json = MagicMock(
-        return_value={"access_token": tokens.access_token}
+        return_value={"access_token": test_access_token}
     )
 
     mock_get.return_value.status_code = 200
@@ -768,7 +916,7 @@ async def test_google_auth_updates_non_google_user(
 
 @patch.object(AuthHandler, "_create_token")
 def test_generate_password_reset_token(mock_create_token: MagicMock) -> None:
-    email = user_data["email"]
+    email = "testuser@example.com"
 
     mock_create_token.return_value = "test_token"
     actual = handler._generate_password_reset_token(email)
@@ -793,9 +941,17 @@ async def test_send_password_reset_email(
     mock_generate_password_reset_token: MagicMock,
     mock_get_user: AsyncMock,
     mock_send_email: MagicMock,
-    get_create_user: dict,
 ) -> None:
-    user = get_create_user["user"]
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
     token = "token"
     link = f"https://example.com/reset?token=${token}"
 
@@ -814,12 +970,12 @@ async def test_send_password_reset_email(
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_send_password_reset_email_user_not_found(
-    mock_get_user: AsyncMock, get_create_user: dict
+    mock_get_user: AsyncMock,
 ) -> None:
-    user = get_create_user["user"]
+    test_email = "testuser@example.com"
     mock_get_user.return_value = None
 
-    actual = await handler.send_password_reset_email(user.email)
+    actual = await handler.send_password_reset_email(test_email)
 
     assert actual is None
 
@@ -844,11 +1000,17 @@ async def test_handle_email_confirmation(
     mock_update_user: AsyncMock,
     mock_get_user: AsyncMock,
     mock_jwt_decode: MagicMock,
-    get_create_user: dict,
 ) -> None:
-    data_user = get_create_user["user"]
-    user = data_user.model_copy()
-    user.email_verified = False
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=False,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
 
     mock_jwt_decode.return_value = {"sub": user.email}
     mock_get_user.return_value = user
@@ -890,9 +1052,10 @@ async def test_handle_email_confirmation_cant_get_email(
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_email_confirmation_user_not_found(
-    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock, get_create_user: dict
+    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock
 ) -> None:
-    mock_jwt_decode.return_value = {"sub": get_create_user["user"].email}
+    test_email = "testuser@example.com"
+    mock_jwt_decode.return_value = {"sub": test_email}
     mock_get_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -907,10 +1070,18 @@ async def test_handle_email_confirmation_user_not_found(
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_email_confirmation_already_verified(
-    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock, get_create_user: dict
+    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock
 ) -> None:
-    user = get_create_user["user"]
-    user.email_verified = True
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
 
     mock_jwt_decode.return_value = {"sub": user.email}
     mock_get_user.return_value = user
@@ -935,9 +1106,17 @@ async def test_handle_reset_password(
     mock_update: AsyncMock,
     mock_get_user: AsyncMock,
     mock_jwt_decode: MagicMock,
-    get_create_user: dict,
 ) -> None:
-    user = get_create_user["user"]
+    user = User(
+        id=1,
+        email="testuser@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password=passwords["hashed_password"],
+    )
     new_password = "new_pass"
     update_user = UpdateUser(email=user.email, hashed_password=user.hashed_password)
     mock_jwt_decode.return_value = {"sub": user.email, "exp": int(time()) + 3600}
@@ -954,12 +1133,10 @@ async def test_handle_reset_password(
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")
 @pytest.mark.asyncio
-async def test_handle_reset_expired(
-    mock_jwt_decode: MagicMock, get_create_user: dict
-) -> None:
-    user = get_create_user["user"]
+async def test_handle_reset_expired(mock_jwt_decode: MagicMock) -> None:
+    test_email = "testuser@example.com"
     new_password = "new_pass"
-    mock_jwt_decode.return_value = {"sub": user.email, "exp": None}
+    mock_jwt_decode.return_value = {"sub": test_email, "exp": None}
 
     with pytest.raises(AuthError, match="Token expired") as error:
         await handler.handle_reset_password("token", new_password)
@@ -985,11 +1162,11 @@ async def test_handle_reset_password_cant_get_email(mock_jwt_decode: MagicMock) 
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_reset_password_user_not_found(
-    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock, get_create_user: dict
+    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock
 ) -> None:
-    user = get_create_user["user"]
+    test_email = "testuser@example.com"
     new_password = "new_pass"
-    mock_jwt_decode.return_value = {"sub": user.email, "exp": int(time()) + 3600}
+    mock_jwt_decode.return_value = {"sub": test_email, "exp": int(time()) + 3600}
     mock_get_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -997,7 +1174,7 @@ async def test_handle_reset_password_user_not_found(
 
     assert error.value.status_code == 404
     mock_jwt_decode.assert_called_once()
-    mock_get_user.assert_awaited_once_with(user.email)
+    mock_get_user.assert_awaited_once_with(test_email)
 
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")

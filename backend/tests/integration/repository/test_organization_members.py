@@ -1,8 +1,9 @@
 import pytest
-from dataforce_studio.schemas.user import CreateUser
+from dataforce_studio.schemas.user import CreateUser, AuthProvider
 from dataforce_studio.schemas.organization import (
     OrgRole,
-    UpdateOrganizationMember, OrganizationMemberCreate,
+    UpdateOrganizationMember,
+    OrganizationMemberCreate,
 )
 
 organization_data = {"name": "test organization", "logo": None}
@@ -15,19 +16,25 @@ organization_member_data = {
 
 
 @pytest.mark.asyncio
-async def test_create_organization_member(
-    create_organization_with_user: dict, test_user: dict
-) -> None:
+async def test_create_organization_member(create_organization_with_user: dict) -> None:
     data = create_organization_with_user
     repo, created_organization = data["repo"], data["organization"]
-    new_user = test_user.copy()
-    new_user["email"] = "test@test.com"
-    user = await repo.create_user(CreateUser(**new_user))
+
+    create_user = CreateUser(
+        email="test@test.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=True,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password="hashed_password",
+    )
+    user = await repo.create_user(create_user)
     created_member = await repo.create_organization_member(
         OrganizationMemberCreate(
             user_id=user.id,
             organization_id=created_organization.id,
-            role=OrgRole.MEMBER
+            role=OrgRole.MEMBER,
         )
     )
 
