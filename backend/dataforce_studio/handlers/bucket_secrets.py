@@ -1,6 +1,9 @@
+from minio import Minio
+from minio.error import S3Error
+
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreate,
@@ -15,12 +18,38 @@ class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
     __permissions_handler = PermissionsHandler()
 
+    def _validate_bucket_credentials(self, secret: BucketSecretCreateIn) -> None:
+        try:
+            client = Minio(
+                endpoint=secret.endpoint,
+                access_key=secret.access_key or "",
+                secret_key=secret.secret_key or "",
+                session_token=secret.session_token,
+                secure=secret.secure if secret.secure is not None else True,
+                region=secret.region,
+                cert_check=secret.cert_check if secret.cert_check is not None else True,
+            )
+
+            client.bucket_exists(secret.bucket_name)
+
+        except S3Error as e:
+            raise ServiceError("Bucket validation failed") from e
+        except Exception as e:
+            raise ServiceError("Failed to validate bucket credentials") from e
+
+    async def validate_bucket_credentials(self, secret: BucketSecretCreateIn) -> bool:
+        self._validate_bucket_credentials(secret)
+        return True
+
     async def create_bucket_secret(
         self, user_id: int, organization_id: int, secret: BucketSecretCreateIn
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.CREATE
         )
+
+        self._validate_bucket_credentials(secret)
+
         secret_create = BucketSecretCreate(
             **secret.model_dump(), organization_id=organization_id
         )
