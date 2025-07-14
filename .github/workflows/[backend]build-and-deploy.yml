@@ -45,11 +45,11 @@ jobs:
       - name: Push image to DigitalOcean Container Registry
         run: docker push $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}
 
-  deploy:
+  migrate:
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
-      - name: Deploy to DigitalOcean droplet via SSH action
+      - name: Run database migrations
         uses: appleboy/ssh-action@v0.1.3
         with:
           host: ${{ secrets.HOST }}
@@ -62,12 +62,27 @@ jobs:
             
             docker pull $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7}
             
-            # Run migrations on dev database
+            # Run migrations on database
             docker run --rm \
               --env-file .env \
               --network host \
               $REGISTRY/$IMAGE_NAME:${GITHUB_SHA::7} \
               uv run alembic upgrade head
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: migrate
+    steps:
+      - name: Deploy to DigitalOcean droplet via SSH action
+        uses: appleboy/ssh-action@v0.1.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSHKEY }}
+          port: 22
+          envs: IMAGE_NAME,REGISTRY,GITHUB_SHA
+          script: |
+            docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
             
             # Stop running container
             docker stop $IMAGE_NAME || true
