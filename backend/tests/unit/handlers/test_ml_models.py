@@ -3,57 +3,54 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.ml_models import MLModelHandler
 from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
 from dataforce_studio.schemas.ml_models import (
+    Manifest,
     MLModel,
     MLModelIn,
     MLModelStatus,
     MLModelUpdate,
-    MLModelUpdateIn, Manifest,
+    MLModelUpdateIn,
 )
-from dataforce_studio.schemas.orbit import OrbitRole, Orbit
+from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
 
 handler = MLModelHandler()
 
 
-manifest_example_obj = Manifest(**{
-            "variant": "pipeline",
-            "description": "",
-            "producer_name": "falcon.beastbyte.ai",
-            "producer_version": "0.8.0",
-            "producer_tags": [
-                "falcon.beastbyte.ai::tabular_classification:v1",
-                "dataforce.studio::tabular_classification:v1"
-            ],
-            "inputs": [
-                {
-                    "name": "sepal.length",
-                    "content_type": "NDJSON",
-                    "dtype": "Array[float32]",
-                    "shape": [
-                        "batch",
-                        1
-                    ],
-                    "tags": [
-                        "falcon.beastbyte.ai::numeric:v1"
-                    ]
-                },
-            ],
-            "outputs": [
-                {
-                    "name": "y_pred",
-                    "content_type": "NDJSON",
-                    "dtype": "Array[string]",
-                    "shape": [
-                        "batch"
-                    ]
-                }
-            ],
-            "dynamic_attributes": [],
-            "env_vars": []
-        })
+manifest_example_obj = Manifest(
+    **{
+        "variant": "pipeline",
+        "description": "",
+        "producer_name": "falcon.beastbyte.ai",
+        "producer_version": "0.8.0",
+        "producer_tags": [
+            "falcon.beastbyte.ai::tabular_classification:v1",
+            "dataforce.studio::tabular_classification:v1",
+        ],
+        "inputs": [
+            {
+                "name": "sepal.length",
+                "content_type": "NDJSON",
+                "dtype": "Array[float32]",
+                "shape": ["batch", 1],
+                "tags": ["falcon.beastbyte.ai::numeric:v1"],
+            },
+        ],
+        "outputs": [
+            {
+                "name": "y_pred",
+                "content_type": "NDJSON",
+                "dtype": "Array[string]",
+                "shape": ["batch"],
+            }
+        ],
+        "dynamic_attributes": [],
+        "env_vars": [],
+    }
+)
 
 
 @patch(
@@ -82,12 +79,12 @@ manifest_example_obj = Manifest(**{
 )
 @pytest.mark.asyncio
 async def test_create_ml_model_with_tags(
-        mock_get_presigned: AsyncMock,
-        mock_create_model: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_presigned: AsyncMock,
+    mock_create_model: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -97,7 +94,7 @@ async def test_create_ml_model_with_tags(
     model = MLModel(
         id=1,
         collection_id=collection_id,
-        file_name='model',
+        file_name="model",
         model_name=None,
         metrics={},
         manifest=manifest_example_obj,
@@ -172,12 +169,12 @@ async def test_create_ml_model_with_tags(
 )
 @pytest.mark.asyncio
 async def test_get_ml_model(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -251,12 +248,12 @@ async def test_get_ml_model(
 )
 @pytest.mark.asyncio
 async def test_get_ml_model_not_found(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -311,12 +308,12 @@ async def test_get_ml_model_not_found(
 )
 @pytest.mark.asyncio
 async def test_request_download_url(
-        mock_get_download_url: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_get_download_url: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -394,13 +391,13 @@ async def test_request_download_url(
 )
 @pytest.mark.asyncio
 async def test_request_delete_url(
-        mock_get_delete_url: AsyncMock,
-        mock_update_status: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_get_delete_url: AsyncMock,
+    mock_update_status: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -477,12 +474,12 @@ async def test_request_delete_url(
 )
 @pytest.mark.asyncio
 async def test_confirm_deletion_pending(
-        mock_delete: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_delete: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -555,12 +552,12 @@ async def test_confirm_deletion_pending(
 )
 @pytest.mark.asyncio
 async def test_confirm_deletion_not_pending(
-        mock_delete: AsyncMock,
-        mock_get_model: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
+    mock_delete: AsyncMock,
+    mock_get_model: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -638,12 +635,12 @@ async def test_confirm_deletion_not_pending(
 )
 @pytest.mark.asyncio
 async def test_update_model(
-        mock_update: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_model: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_model: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -742,12 +739,12 @@ async def test_update_model(
 )
 @pytest.mark.asyncio
 async def test_update_model_not_found(
-        mock_update: AsyncMock,
-        mock_get_orbit_role: AsyncMock,
-        mock_get_org_role: AsyncMock,
-        mock_get_orbit_simple: AsyncMock,
-        mock_get_collection: AsyncMock,
-        mock_get_ml_model: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit_role: AsyncMock,
+    mock_get_org_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_ml_model: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)

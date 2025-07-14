@@ -1,10 +1,11 @@
 import pytest
-from dataforce_studio.schemas.user import CreateUser
+
 from dataforce_studio.schemas.organization import (
+    OrganizationMemberCreate,
     OrgRole,
     UpdateOrganizationMember,
-    OrganizationMemberCreate,
 )
+from dataforce_studio.schemas.user import CreateUser
 
 organization_data = {"name": "test organization", "logo": None}
 

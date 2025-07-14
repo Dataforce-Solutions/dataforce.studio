@@ -2,6 +2,7 @@ import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.schemas.organization import (
     OrganizationMember,
@@ -9,7 +10,6 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UpdateOrganizationMember,
 )
-
 from tests.conftest import member_data
 
 handler = OrganizationHandler()

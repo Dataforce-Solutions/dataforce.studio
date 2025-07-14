@@ -2,10 +2,11 @@ import datetime
 import random
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
 from dataforce_studio.schemas.user import CreateUser
-from sqlalchemy.ext.asyncio import create_async_engine
 
 organization_data = {
     "id": random.randint(2000, 10000),

@@ -2,6 +2,7 @@ import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
@@ -11,11 +12,11 @@ from dataforce_studio.infra.exceptions import (
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
     Organization,
+    OrganizationCreateIn,
     OrganizationDetails,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
-    OrganizationCreateIn,
 )
 
 handler = OrganizationHandler()

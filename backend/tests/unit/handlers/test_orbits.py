@@ -1,15 +1,13 @@
 import random
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.infra.exceptions import NotFoundError
-from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.infra.exceptions import (
     NotFoundError,
-    OrganizationLimitReachedError,
-    ServiceError,
 )
+from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -230,7 +228,7 @@ async def test_get_organization_orbits(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     result = await handler.get_organization_orbits(user_id, orbit.organization_id)
-    print(result)
+
     assert result == expected
 
     mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id)
