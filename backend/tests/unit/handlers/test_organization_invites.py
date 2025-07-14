@@ -3,18 +3,18 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import ServiceError
 from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInviteIn,
     OrganizationInvite,
+    OrganizationMemberCreate,
     OrgRole,
     UserInvite,
-    OrganizationMemberCreate,
 )
 from dataforce_studio.schemas.user import UserOut
-
 from tests.conftest import (
     invite_accept_data,
     invite_data,
@@ -151,7 +151,6 @@ async def test_cancel_invite(
     "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
-
 @patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
@@ -190,7 +189,9 @@ async def test_accept_invite(
     mock_get_organization_members_count.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
-            user_id=user_id, organization_id=invite.organization_id, role=OrgRole(invite.role)
+            user_id=user_id,
+            organization_id=invite.organization_id,
+            role=OrgRole(invite.role),
         )
     )
     mock_delete_organization_invites_for_user.assert_awaited_once_with(

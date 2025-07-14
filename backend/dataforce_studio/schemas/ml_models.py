@@ -1,10 +1,19 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
 from dataforce_studio.schemas.base import BaseOrmConfig
+
+MLModelNamesField = Annotated[
+    str,
+    Field(
+        pattern=r"^[^\s<>:\"/\\|?*{}\[\]`~#%;'^)+!(]+$",
+        description="mustn't contain whitespace or characters: "
+        "< > : \" / \\ | ? * { } [ ] ` ~ # % ; ' ^ ) + ! (",
+    ),
+]
 
 
 class CollectionType(StrEnum):
@@ -122,7 +131,7 @@ class MLModelCreate(BaseModel):
 
 
 class MLModelIn(BaseModel):
-    file_name: str
+    file_name: MLModelNamesField
     model_name: str | None = None
     description: str | None = None
     metrics: dict
@@ -143,7 +152,7 @@ class MLModelUpdate(BaseModel):
 
 
 class MLModelUpdateIn(BaseModel):
-    file_name: str | None = None
+    file_name: MLModelNamesField | None = None
     model_name: str | None = None
     description: str | None = None
     tags: list[str] | None = None

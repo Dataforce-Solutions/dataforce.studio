@@ -1,9 +1,11 @@
 import pytest
-from dataforce_studio.schemas.user import CreateUser
+
 from dataforce_studio.schemas.organization import (
+    OrganizationMemberCreate,
     OrgRole,
-    UpdateOrganizationMember, OrganizationMemberCreate,
+    UpdateOrganizationMember,
 )
+from dataforce_studio.schemas.user import CreateUser
 
 organization_data = {"name": "test organization", "logo": None}
 
@@ -27,7 +29,7 @@ async def test_create_organization_member(
         OrganizationMemberCreate(
             user_id=user.id,
             organization_id=created_organization.id,
-            role=OrgRole.MEMBER
+            role=OrgRole.MEMBER,
         )
     )
 

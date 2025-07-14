@@ -1,7 +1,8 @@
 import pytest
 import pytest_asyncio
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -9,7 +10,6 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
 
 
 @pytest_asyncio.fixture(scope="function")

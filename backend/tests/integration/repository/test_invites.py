@@ -1,4 +1,5 @@
 import pytest
+
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
@@ -54,7 +55,6 @@ async def test_get_invite(create_organization_with_user: dict) -> None:
     created_invite = await repo.create_organization_invite(
         get_invite_obj(organization, user)
     )
-    print('created: ', created_invite.__dict__)
     fetched_invite = await repo.get_invite(created_invite.id)
 
     assert fetched_invite.id == created_invite.id

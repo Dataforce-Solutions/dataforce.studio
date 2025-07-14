@@ -2,6 +2,7 @@ import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
@@ -11,10 +12,11 @@ from dataforce_studio.infra.exceptions import (
 from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.schemas.organization import (
     Organization,
+    OrganizationCreateIn,
     OrganizationDetails,
     OrganizationSwitcher,
     OrganizationUpdate,
-    OrgRole, OrganizationCreateIn,
+    OrgRole,
 )
 
 handler = OrganizationHandler()
@@ -123,7 +125,7 @@ async def test_get_organization_not_found(
 async def test_create_organization(
     mock_create_organization: AsyncMock,
     mock_get_user_organizations_membership_count: AsyncMock,
-    test_org: dict
+    test_org: dict,
 ) -> None:
     user_id = random.randint(1, 10000)
     org_to_create = OrganizationCreateIn(name=test_org["name"], logo=test_org["logo"])
@@ -136,9 +138,7 @@ async def test_create_organization(
 
     assert actual
     assert actual == expected
-    mock_create_organization.assert_awaited_once_with(
-        user_id, org_to_create
-    )
+    mock_create_organization.assert_awaited_once_with(user_id, org_to_create)
 
 
 @patch(
