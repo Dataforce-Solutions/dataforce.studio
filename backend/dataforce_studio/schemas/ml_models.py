@@ -132,7 +132,7 @@ class MLModelCreate(BaseModel):
 
 class MLModelIn(BaseModel):
     file_name: MLModelNamesField
-    model_name: MLModelNamesField | None = None
+    model_name: str | None = None
     description: str | None = None
     metrics: dict
     manifest: Manifest
@@ -153,7 +153,7 @@ class MLModelUpdate(BaseModel):
 
 class MLModelUpdateIn(BaseModel):
     file_name: MLModelNamesField | None = None
-    model_name: MLModelNamesField | None = None
+    model_name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
     status: (
