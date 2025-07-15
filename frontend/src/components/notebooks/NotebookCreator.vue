@@ -1,7 +1,7 @@
 <template>
   <div>
     <Button label="Create instance" @click="visible = true" />
-    <Dialog v-model:visible="visible" modal header="Create instance" :style="{ width: '25rem' }">
+    <Dialog v-model:visible="visible" modal header="CREATE A NEW INSTANCE" :pt="dialogPt">
       <NotebookCreateUpdateForm :loading="loading" @submit="onSubmit"></NotebookCreateUpdateForm>
     </Dialog>
   </div>
@@ -9,9 +9,21 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Button, Dialog, useToast } from 'primevue'
+import { Button, Dialog, useToast, type DialogPassThroughOptions } from 'primevue'
 import NotebookCreateUpdateForm from './NotebookCreateUpdateForm.vue'
 import { useNotebooksStore } from '@/stores/notebooks'
+
+const dialogPt: DialogPassThroughOptions = {
+  root: {
+    style: 'max-width: 500px; width: 100%;',
+  },
+  header: {
+    style: 'padding: 28px; text-transform: uppercase; font-size: 20px;',
+  },
+  content: {
+    style: 'padding: 0 28px 28px;',
+  },
+}
 
 const notebooksStore = useNotebooksStore()
 const toast = useToast()

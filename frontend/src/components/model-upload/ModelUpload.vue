@@ -114,7 +114,8 @@ import CollectionCreator from '../orbits/tabs/registry/CollectionCreator.vue'
 
 type Props = {
   modelBlob: Blob
-  currentTask: Tasks | 'prompt_optimization'
+  currentTask?: Tasks | 'prompt_optimization'
+  fileName?: string
 }
 
 const props = defineProps<Props>()
@@ -207,7 +208,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   try {
     loading.value = true
     const timestamp = Date.now()
-    const filename = `${props.currentTask}_${timestamp}.dfs`
+    const filename = props.fileName ? props.fileName : `${props.currentTask}_${timestamp}.dfs`
     const file = new File([props.modelBlob], filename)
     const ids = getRequestInfo()
     await upload(

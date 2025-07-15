@@ -9,21 +9,20 @@
     :validateOnSubmit="true"
     :validateOnBlur="false"
   >
-    <div class="input-wrapper">
-      <d-float-label variant="on">
-        <d-input-text id="fullname" name="fullname" fluid v-model="initialValues.fullname" />
-        <label class="label" for="fullname">Name</label>
-      </d-float-label>
+    <div>
+      <label class="label" for="fullname">{{ updateMode ? 'New name' : 'Name' }}</label>
+      <d-input-text
+        id="fullname"
+        name="fullname"
+        fluid
+        v-model="initialValues.fullname"
+        placeholder="Instance name"
+      />
       <d-message v-if="$form.fullname?.invalid" severity="error" size="small" variant="simple">
         {{ $form.fullname.error?.message }}
       </d-message>
     </div>
-    <Button
-      type="submit"
-      severity="secondary"
-      :loading="loading"
-      :label="updateMode ? 'Update' : 'Create'"
-    />
+    <Button type="submit" :loading="loading" :label="updateMode ? 'Confirm' : 'Create'" rounded />
   </d-form>
 </template>
 
@@ -64,7 +63,11 @@ function onFormSubmit({ values, valid }: FormSubmitEvent) {
 .form {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  padding-top: 10px;
+  gap: 28px;
+}
+
+.label {
+  display: inline-block;
+  margin-bottom: 7px;
 }
 </style>

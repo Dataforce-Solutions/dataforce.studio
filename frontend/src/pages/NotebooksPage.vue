@@ -10,6 +10,6 @@ import Notebooks from '@/components/notebooks/index.vue'
 
 <style scoped>
 .notebooks-page {
-  padding-top: 40px;
+  padding-top: 32px;
 }
 </style>
