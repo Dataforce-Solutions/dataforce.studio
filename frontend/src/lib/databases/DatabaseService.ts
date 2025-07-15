@@ -95,30 +95,30 @@ class DatabaseServiceClass {
     const store = tx.objectStore(FILES_STORE)
     const allFiles = await store.getAll()
     const zip = new jszip()
-    
+
     for (const file of allFiles) {
       const filePath = file.path || file.name
       if (!filePath) continue
-      
-      if (file.type === 'directory' || 
-          file.mimetype === 'application/x-directory' ||
-          filePath.endsWith('/')) {
+
+      if (
+        file.type === 'directory' ||
+        file.mimetype === 'application/x-directory' ||
+        filePath.endsWith('/')
+      ) {
         continue
       }
 
       const content = file.content ?? file.data ?? file.body
-      
-  
+
       if (content === undefined) {
         console.log(`Skipping ${filePath} - no content found`)
         continue
       }
-      
+
       const format = file?.format || file?.type
-      
+
       try {
         let fileData: string | Uint8Array | ArrayBuffer | Blob
-        
 
         if (content instanceof Blob) {
           fileData = content
@@ -126,7 +126,10 @@ class DatabaseServiceClass {
           fileData = content
         } else if (content instanceof Uint8Array) {
           fileData = content
-        } else if (format === 'json' || (typeof content === 'object' && content !== null && !(content instanceof Date))) {
+        } else if (
+          format === 'json' ||
+          (typeof content === 'object' && content !== null && !(content instanceof Date))
+        ) {
           fileData = JSON.stringify(content, null, 2)
         } else if (typeof content === 'string') {
           fileData = content
@@ -136,31 +139,41 @@ class DatabaseServiceClass {
           // Fallback: try to convert to string
           fileData = String(content)
         }
-        
+
         const cleanPath = filePath.replace(/\/$/, '')
-    
+
         zip.file(cleanPath, fileData)
       } catch (e) {
         console.error(`Failed to process file ${filePath}:`, e)
         continue
       }
     }
-    
+
     const fileCount = Object.keys(zip.files).length
     if (fileCount === 0) {
       db.close()
       throw new Error('No files found to backup')
     }
-    
+
     console.log(`Creating zip with ${fileCount} files`)
-    
-    const zipBlob = await zip.generateAsync({ 
-      type: 'blob', 
+
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
       compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
+      compressionOptions: { level: 6 },
     })
     saveAs(zipBlob, `${databaseName}-backup.zip`)
     db.close()
+  }
+
+  async getFileBlob(file: DataforceFile) {
+    const byteCharacters = atob(file.content)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    return new Blob([byteArray], { type: file.mimetype })
   }
 
   private async getVersion(name: string) {
@@ -176,15 +189,15 @@ class DatabaseServiceClass {
     const allFiles = await store.getAll()
     const files = allFiles.filter((file) => {
       const fullPath = file?.path || file?.name || ''
-      
+
       return DATAFORCE_FILES_EXTENSIONS.find((extension) => {
         return fullPath.endsWith(extension)
       })
     })
-    
-    return files.map(file => ({
+
+    return files.map((file) => ({
       ...file,
-      name: file.path || file.name
+      name: file.path || file.name,
     }))
   }
 }

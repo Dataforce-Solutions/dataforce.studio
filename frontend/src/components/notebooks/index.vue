@@ -3,11 +3,12 @@
     <div class="top">
       <div class="headings">
         <h1 class="main-title">Notebooks</h1>
-        <p class="sub-title">A zero-setup, in-browser environment powered by Jupyter.</p>
       </div>
       <NotebookCreator></NotebookCreator>
     </div>
-    <NotebooksList></NotebooksList>
+    <div class="notebook-content">
+      <NotebooksList></NotebooksList>
+    </div>
   </div>
 </template>
 
@@ -38,7 +39,7 @@ const fetchNotebooks = async () => {
   }
 }
 
-const handleVisibilityChange = () => { 
+const handleVisibilityChange = () => {
   if (!document.hidden) {
     fetchNotebooks()
   }
@@ -66,6 +67,12 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 30px;
   align-items: flex-end;
-  margin-bottom: 20px;
+  margin-bottom: 44px;
+}
+
+.notebook-content {
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--p-card-background);
 }
 </style>

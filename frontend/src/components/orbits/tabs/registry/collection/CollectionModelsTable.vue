@@ -20,6 +20,11 @@
             <Download :size="14" />
           </template>
         </Button>
+        <Button variant="text" severity="secondary" rounded v-tooltip="'Go to deployments'" @click="$router.push({ name: 'orbit-deployments' })">
+          <template #icon>
+            <Rocket :size="14" />
+          </template>
+        </Button>
       </div>
       <div class="table-wrapper">
         <DataTable
@@ -110,7 +115,7 @@
 
 <script setup lang="ts">
 import { Button, useToast, Tag, useConfirm } from 'primevue'
-import { Trash2, Download } from 'lucide-vue-next'
+import { Trash2, Download, Rocket } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
 import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
 import { computed, onBeforeMount, onUnmounted, ref } from 'vue'
