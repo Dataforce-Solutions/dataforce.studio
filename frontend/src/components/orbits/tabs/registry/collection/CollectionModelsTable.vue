@@ -20,7 +20,7 @@
             <Download :size="14" />
           </template>
         </Button>
-        <Button variant="text" severity="secondary" rounded v-tooltip="'Go to deployments'" @click="$router.push({ name: 'orbit-deployments' })">
+        <Button variant="text" severity="secondary" rounded v-tooltip="'Deploy'" @click="$router.push({ name: 'orbit-deployments' })">
           <template #icon>
             <Rocket :size="14" />
           </template>
