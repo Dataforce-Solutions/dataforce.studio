@@ -139,9 +139,11 @@ member_data = {
 
 
 @pytest_asyncio.fixture(scope="function")
-def test_user() -> dict:
+def test_user(email: str | None = None) -> dict:
     return {
-        "email": "testuser@example.com",
+        "email": email
+        if email
+        else f"test_user{random.randint(1000, 99999)}_{random.randint(1000, 99999)}@example.com",
         "full_name": "Test User",
         "disabled": False,
         "email_verified": True,
@@ -243,7 +245,7 @@ async def create_organization_with_members(
 
     user_main = await repo.create_user(
         CreateUser(
-            email="userMAIN@gmail.com",
+            email=f"userMAIN{random.randint(1000, 999999)}@gmail.com",
             full_name="Test User MAIN",
             disabled=False,
             email_verified=True,
@@ -263,7 +265,7 @@ async def create_organization_with_members(
 
     for i in range(10):
         user = CreateUser(
-            email=f"user{i}@gmail.com",
+            email=f"user{random.randint(1000, 999999)}@gmail.com",
             full_name=f"Test User {i}",
             disabled=False,
             email_verified=True,
@@ -287,7 +289,7 @@ async def create_organization_with_members(
         invited_by_user = random.choice(users)
         invite = await invites_repo.create_organization_invite(
             CreateOrganizationInvite(
-                email=f"invited_{i}_@gmail.com",
+                email=f"invited_{random.randint(1000, 999999)}_@gmail.com",
                 role=OrgRole.MEMBER,
                 organization_id=organization.id,
                 invited_by=invited_by_user.id,
@@ -370,7 +372,7 @@ async def create_orbit_with_members(
 
     for i in range(10):
         new_user = test_user.copy()
-        new_user["email"] = f"email_user_{i}@example.com"
+        new_user["email"] = f"email_user_{random.randint(1000, 999999)}@example.com"
         created_user = await user_repo.create_user(CreateUser(**new_user))
         member = await repo.create_orbit_member(
             OrbitMemberCreate(
