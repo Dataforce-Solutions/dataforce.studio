@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from dataforce_studio.api.orbits.orbit_collections import collections_router
 from dataforce_studio.api.orbits.orbit_ml_models import ml_models_router
@@ -9,11 +9,9 @@ from dataforce_studio.api.organization.organization_bucket_secrets import (
 )
 from dataforce_studio.api.organization.organization_invites import invites_router
 from dataforce_studio.api.organization.organization_members import members_router
-from dataforce_studio.infra.dependencies import is_user_authenticated
 
 organization_all_routers = APIRouter(
     prefix="/organizations",
-    dependencies=[Depends(is_user_authenticated)],
 )
 
 organization_all_routers.include_router(invites_router)

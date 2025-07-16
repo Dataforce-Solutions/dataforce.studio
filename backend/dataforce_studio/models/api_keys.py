@@ -2,7 +2,7 @@ from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.api_keys import APIKeyCreateOut, APIKeyOut
+from dataforce_studio.schemas.api_keys import APIKeyAuthOut, APIKeyCreateOut, APIKeyOut
 
 
 class APIKeyOrm(TimestampMixin, Base):
@@ -23,3 +23,6 @@ class APIKeyOrm(TimestampMixin, Base):
 
     def to_api_key_full(self) -> APIKeyCreateOut:
         return APIKeyCreateOut.model_validate(self)
+
+    def to_api_key_with_user(self) -> APIKeyAuthOut:
+        return APIKeyAuthOut.model_validate(self)

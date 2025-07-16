@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from dataforce_studio.handlers.orbits import OrbitHandler
+from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.orbit import (
     OrbitMember,
@@ -9,7 +10,9 @@ from dataforce_studio.schemas.orbit import (
 )
 
 orbit_members_router = APIRouter(
-    prefix="/{organization_id}/orbits/{orbit_id}/members", tags=["orbits-members"]
+    prefix="/{organization_id}/orbits/{orbit_id}/members",
+    dependencies=[Depends(is_user_authenticated)],
+    tags=["orbits-members"],
 )
 
 orbit_handler = OrbitHandler()
