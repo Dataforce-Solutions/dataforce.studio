@@ -18,6 +18,8 @@ from dataforce_studio.schemas.user import (
     UpdateUserIn,
     User,
     UserOut,
+    SignInUser,
+    SignInResponse,
 )
 
 secret_key = "test"
@@ -307,16 +309,17 @@ async def test_handle_signin(
 ) -> None:
     data = get_create_user
     create_user, user = data["create_user"], data["user"]
-    expected = {"token": get_tokens, "user_id": user.id}
+    sign_in_user = SignInUser(email=create_user.email, password=create_user.password)
+    expected = SignInResponse(token=get_tokens, user_id=user.id)
 
     mock_authenticate_user.return_value = user
     mock_create_tokens.return_value = get_tokens
 
-    actual = await handler.handle_signin(create_user.email, create_user.password)
+    actual = await handler.handle_signin(sign_in_user)
 
     assert actual == expected
     mock_authenticate_user.assert_awaited_once_with(
-        create_user.email, create_user.password
+        sign_in_user.email, sign_in_user.password
     )
     mock_create_tokens.assert_called_once_with(create_user.email)
 

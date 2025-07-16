@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from dataforce_studio.schemas.organization import (
@@ -23,7 +25,9 @@ async def test_create_organization_member(
     data = create_organization_with_user
     repo, created_organization = data["repo"], data["organization"]
     new_user = test_user.copy()
-    new_user["email"] = "test@test.com"
+    new_user["email"] = (
+        f"test_create_organization_member_{random.randint(1000, 99999)}@test.com"
+    )
     user = await repo.create_user(CreateUser(**new_user))
     created_member = await repo.create_organization_member(
         OrganizationMemberCreate(

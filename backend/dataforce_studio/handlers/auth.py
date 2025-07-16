@@ -19,6 +19,8 @@ from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
+    SignInResponse,
+    SignInUser,
     UpdateUser,
     UpdateUserIn,
     User,
@@ -121,11 +123,10 @@ class AuthHandler:
     def _get_email_confirmation_link(self, token: str) -> str:
         return config.CONFIRM_EMAIL_URL + token
 
-    async def handle_signin(self, email: EmailStr, password: str) -> dict[str, Any]:
-        user = await self._authenticate_user(email, password)
-        user_id = user.id
+    async def handle_signin(self, user: SignInUser) -> SignInResponse:
+        db_user = await self._authenticate_user(user.email, user.password)
         tokens = self._create_tokens(user.email)
-        return {"token": tokens, "user_id": user_id}
+        return SignInResponse(token=tokens, user_id=db_user.id)
 
     async def handle_refresh_token(self, refresh_token: str) -> Token:
         try:

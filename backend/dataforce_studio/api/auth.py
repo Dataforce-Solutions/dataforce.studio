@@ -9,7 +9,13 @@ from starlette.responses import RedirectResponse
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import is_user_authenticated
 from dataforce_studio.models.auth import Token
-from dataforce_studio.schemas.user import CreateUserIn, UpdateUserIn, UserOut
+from dataforce_studio.schemas.user import (
+    CreateUserIn,
+    SignInResponse,
+    SignInUser,
+    UpdateUserIn,
+    UserOut,
+)
 from dataforce_studio.settings import config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -25,12 +31,9 @@ async def signup(create_user: CreateUserIn) -> dict[str, str]:
     return await auth_handler.handle_signup(create_user)
 
 
-@auth_router.post("/signin")
-async def signin(
-    email: Annotated[EmailStr, Body()],
-    password: Annotated[str, Body(min_length=8)],
-) -> dict[str, Any]:
-    return await auth_handler.handle_signin(email, password)
+@auth_router.post("/signin", response_model=SignInResponse)
+async def signin(user: SignInUser) -> SignInResponse:
+    return await auth_handler.handle_signin(user)
 
 
 @auth_router.get("/google/login")

@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from dataforce_studio.models import OrganizationOrm
@@ -10,7 +12,7 @@ def get_invite_obj(
     organization: OrganizationOrm, user: User
 ) -> CreateOrganizationInvite:
     return CreateOrganizationInvite(
-        email="test@gmail.com",
+        email=f"test_create_organization_invite_{random.randint(1000, 99999)}@gmail.com",
         role=OrgRole.MEMBER,
         organization_id=organization.id,
         invited_by=user.id,
