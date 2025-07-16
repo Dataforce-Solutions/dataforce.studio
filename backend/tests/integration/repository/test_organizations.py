@@ -26,7 +26,9 @@ async def test_create_organization(
     organization = Organization.model_validate(organization_data)
 
     new_user = test_user.copy()
-    new_user["email"] = "testcreateorganization@example.com"
+    new_user["email"] = (
+        f"test_create_organization_{random.randint(1000, 99999)}@example.com"
+    )
     user = await repo.create_user(CreateUser(**new_user))
 
     created_organization = await repo.create_organization(

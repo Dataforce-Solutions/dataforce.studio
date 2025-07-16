@@ -1,3 +1,5 @@
+import random
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -35,7 +37,7 @@ async def test_create_user_and_organization(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     user = CreateUser(
-        email="test@email.com",
+        email=f"test_create_user_and_organization_{random.randint(1000, 99999)}@email.com",
         full_name="Test User",
         disabled=False,
         email_verified=True,
@@ -97,15 +99,16 @@ async def test_delete_user(get_created_user: dict) -> None:
 
 @pytest.mark.asyncio
 async def test_update_user(get_created_user: dict) -> None:
-    data = get_created_user
-    repo, user = data["repo"], data["user"]
-    user_update_data = {"email": user.email, "email_verified": True}
+    repo = get_created_user["repo"]
+    original_user = get_created_user["user"]
 
-    await repo.update_user(UpdateUser(**user_update_data))
-    fetched_user = await repo.get_user(user.email)
+    user_update_data = UpdateUser(email=original_user.email, email_verified=True)
 
-    assert fetched_user.email == user_update_data["email"]
-    assert fetched_user.email_verified == user_update_data["email_verified"]
+    await repo.update_user(user_update_data)
+    fetched_user = await repo.get_user(user_update_data.email)
+
+    assert fetched_user.email == user_update_data.email
+    assert fetched_user.email_verified == user_update_data.email_verified
 
 
 @pytest.mark.asyncio
