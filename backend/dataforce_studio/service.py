@@ -9,7 +9,7 @@ from dataforce_studio.api.email_routes import email_routers
 from dataforce_studio.api.organization.organization import organization_router
 from dataforce_studio.api.organization_routes import organization_all_routers
 from dataforce_studio.api.user_routes import users_routers
-from dataforce_studio.infra.exceptions import ServiceError
+from dataforce_studio.infra.exceptions import ApplicationError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
 
 
@@ -41,10 +41,10 @@ class AppService(FastAPI):
         )
 
     def include_error_handlers(self) -> None:
-        @self.exception_handler(ServiceError)
+        @self.exception_handler(ApplicationError)
         async def service_error_handler(
             request: Request,
-            exc: ServiceError,
+            exc: ApplicationError,
         ) -> JSONResponse:
             return JSONResponse(
                 status_code=exc.status_code,

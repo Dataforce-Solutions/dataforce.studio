@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
+from dataforce_studio.infra.dependencies import is_user_authenticated_jwt_api_key
 from dataforce_studio.schemas.organization import OrganizationSwitcher
 
-user_router = APIRouter(prefix="", tags=["users-me"])
+user_router = APIRouter(
+    prefix="",
+    dependencies=[Depends(is_user_authenticated_jwt_api_key)],
+    tags=["users-me"],
+)
 
 organization_handler = OrganizationHandler()
 

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.ml_models import MLModelHandler
+from dataforce_studio.infra.dependencies import is_user_authenticated_jwt_api_key
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.ml_models import (
     CreateMLModelResponse,
@@ -11,6 +12,7 @@ from dataforce_studio.schemas.ml_models import (
 
 ml_models_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models",
+    dependencies=[Depends(is_user_authenticated_jwt_api_key)],
     tags=["orbit-ml-models"],
 )
 
