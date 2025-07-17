@@ -96,7 +96,7 @@ export class DataforceApiClass {
   public async forgotPassword(
     data: IPostForgotPasswordRequest,
   ): Promise<IPostForgotPasswordResponse> {
-    const { data: responseData } = await this.api.post('/auth/forgot-password', data, {
+    const { data: responseData } = await this.api.post('/auth/forgot-password', data.email, {
       skipInterceptors: true,
     })
 
