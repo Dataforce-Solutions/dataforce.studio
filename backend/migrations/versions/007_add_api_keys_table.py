@@ -2,7 +2,7 @@
 
 Revision ID: 007
 Revises: 006
-Create Date: 2025-07-16 13:35:38.822419
+Create Date: 2025-07-17 18:08:49.351010
 
 """
 from typing import Sequence, Union
@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.create_table('api_keys',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('key', sa.String(), nullable=False),
+    sa.Column('hash', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

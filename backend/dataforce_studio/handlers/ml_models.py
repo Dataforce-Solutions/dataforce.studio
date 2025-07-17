@@ -6,7 +6,7 @@ from minio import Minio
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
+from dataforce_studio.infra.exceptions import ApplicationError, NotFoundError
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.ml_models import MLModelRepository
@@ -185,7 +185,7 @@ class MLModelHandler:
         if model.status and model.status not in self.__model_transitions.get(
             model_obj.status, set()
         ):
-            raise ServiceError(
+            raise ApplicationError(
                 f"Invalid status transition from {model_obj.status} to {model.status}"
             )
 
@@ -284,7 +284,7 @@ class MLModelHandler:
         if not model:
             raise NotFoundError("ML model not found")
         if model.status != MLModelStatus.PENDING_DELETION:
-            raise ServiceError(
+            raise ApplicationError(
                 f"Unable to confirm deletion with status '{model.status}'",
                 status_code=status.HTTP_409_CONFLICT,
             )

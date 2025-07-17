@@ -13,8 +13,7 @@ class APIKeyOrm(TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    key: Mapped[str] = mapped_column(String, nullable=False)
-    # expire_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    hash: Mapped[str] = mapped_column(String, nullable=False)
 
     user: Mapped["UserOrm"] = relationship("UserOrm", back_populates="api_keys")  # type: ignore[name-defined]  # noqa: F821
 

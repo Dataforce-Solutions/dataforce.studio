@@ -23,6 +23,6 @@ async def get_user_api_key(request: Request) -> APIKeyOut | None:
     return await api_keys_handler.get_user_api_key(request.user.id)
 
 
-@api_keys_router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user_api_key(request: Request, key_id: int) -> None:
-    return await api_keys_handler.delete_user_api_key(request.user.id, key_id)
+@api_keys_router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_api_key(request: Request) -> None:
+    return await api_keys_handler.delete_user_api_key(request.user.id)

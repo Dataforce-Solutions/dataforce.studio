@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dataforce_studio.handlers.ml_models import MLModelHandler
-from dataforce_studio.infra.exceptions import NotFoundError, ServiceError
+from dataforce_studio.infra.exceptions import NotFoundError, ApplicationError
 from dataforce_studio.schemas.ml_models import (
     Manifest,
     MLModel,
@@ -596,7 +596,7 @@ async def test_confirm_deletion_not_pending(
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
-    with pytest.raises(ServiceError):
+    with pytest.raises(ApplicationError):
         await handler.confirm_deletion(
             user_id,
             organization_id,

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.exceptions import ServiceError
+from dataforce_studio.infra.exceptions import ApplicationError
 from dataforce_studio.models import OrganizationInviteOrm
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInviteIn,
@@ -117,7 +117,7 @@ async def test_send_invite_to_yourself(
     mock_get_public_user_by_id.return_value = user
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
-    with pytest.raises(ServiceError, match="You can't invite yourself"):
+    with pytest.raises(ApplicationError, match="You can't invite yourself"):
         await handler.send_invite(user.id, invite)
 
 

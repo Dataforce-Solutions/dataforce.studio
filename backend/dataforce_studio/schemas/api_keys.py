@@ -6,7 +6,7 @@ from dataforce_studio.schemas.user import UserOut
 
 class APIKeyCreate(BaseModel):
     user_id: int
-    key: str
+    hash: str
 
 
 class APIKeyOut(BaseModel, BaseOrmConfig):

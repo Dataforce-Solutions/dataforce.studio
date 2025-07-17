@@ -1,10 +1,10 @@
 from fastapi import status
 
 
-class ServiceError(Exception):
+class ApplicationError(Exception):
     def __init__(
         self,
-        message: str = "Service error",
+        message: str = "Application error",
         status_code: int = status.HTTP_400_BAD_REQUEST,
     ) -> None:
         self.message = message
@@ -12,7 +12,7 @@ class ServiceError(Exception):
         super().__init__(self.message)
 
 
-class AuthError(ServiceError):
+class AuthError(ApplicationError):
     def __init__(
         self,
         message: str = "Authentication error",
@@ -24,7 +24,7 @@ class AuthError(ServiceError):
         )
 
 
-class OrganizationLimitReachedError(ServiceError):
+class OrganizationLimitReachedError(ApplicationError):
     def __init__(
         self,
         message: str = "Organization reached users limit",
@@ -36,7 +36,7 @@ class OrganizationLimitReachedError(ServiceError):
         )
 
 
-class OrganizationDeleteError(ServiceError):
+class OrganizationDeleteError(ApplicationError):
     def __init__(
         self,
         message: str = "Organization cant be deleted",
@@ -48,7 +48,7 @@ class OrganizationDeleteError(ServiceError):
         )
 
 
-class CollectionDeleteError(ServiceError):
+class CollectionDeleteError(ApplicationError):
     def __init__(
         self,
         message: str = "Collection cant be deleted",
@@ -60,7 +60,7 @@ class CollectionDeleteError(ServiceError):
         )
 
 
-class OrbitLimitReachedError(ServiceError):
+class OrbitLimitReachedError(ApplicationError):
     def __init__(
         self,
         message: str = "Orbit reached users limit",
@@ -72,7 +72,7 @@ class OrbitLimitReachedError(ServiceError):
         )
 
 
-class GoogleCodeMissingError(ServiceError):
+class GoogleCodeMissingError(ApplicationError):
     def __init__(
         self,
         message: str = "Google code is missing",
@@ -84,7 +84,7 @@ class GoogleCodeMissingError(ServiceError):
         )
 
 
-class NotFoundError(ServiceError):
+class NotFoundError(ApplicationError):
     def __init__(
         self,
         message: str = "Not found",
@@ -96,7 +96,7 @@ class NotFoundError(ServiceError):
         )
 
 
-class InsufficientPermissionsError(ServiceError):
+class InsufficientPermissionsError(ApplicationError):
     def __init__(
         self,
         message: str = "Not enough rights",
@@ -108,14 +108,14 @@ class InsufficientPermissionsError(ServiceError):
         )
 
 
-class DatabaseConstraintError(ServiceError):
+class DatabaseConstraintError(ApplicationError):
     def __init__(
         self, message: str, status_code: int = status.HTTP_409_CONFLICT
     ) -> None:
         super().__init__(message=message, status_code=status_code)
 
 
-class BucketSecretInUseError(ServiceError):
+class BucketSecretInUseError(ApplicationError):
     def __init__(
         self,
         message: str = "Cannot delete bucket secret that is currently used by orbits",
@@ -127,7 +127,7 @@ class BucketSecretInUseError(ServiceError):
         )
 
 
-class UserAPIKeyCreateError(ServiceError):
+class UserAPIKeyCreateError(ApplicationError):
     def __init__(
         self,
         message: str = "User can have only one api key",
@@ -139,7 +139,7 @@ class UserAPIKeyCreateError(ServiceError):
         )
 
 
-class APIKeyNotFoundError(ServiceError):
+class APIKeyNotFoundError(ApplicationError):
     def __init__(
         self,
         message: str = "API key not found",

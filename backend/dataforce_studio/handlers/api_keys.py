@@ -3,12 +3,10 @@ import hmac
 import secrets
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
-
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     APIKeyNotFoundError,
-    InsufficientPermissionsError,
+    DatabaseConstraintError,
     UserAPIKeyCreateError,
 )
 from dataforce_studio.repositories.api_keys import APIKeyRepository
@@ -50,22 +48,20 @@ class APIKeyHandler:
             key = self._generate_api_key()
 
             created_key = await self.__api_key_repository.create_api_key(
-                APIKeyCreate(user_id=user_id, key=self._get_key_hash(key))
+                APIKeyCreate(user_id=user_id, hash=self._get_key_hash(key))
             )
             created_key.key = key
             return created_key
-        except IntegrityError as error:
+        except DatabaseConstraintError as error:
             raise UserAPIKeyCreateError() from error
 
     async def get_user_api_key(self, user_id: int) -> APIKeyOut | None:
         return await self.__api_key_repository.get_api_key_by_user_id(user_id)
 
-    async def delete_user_api_key(self, user_id: int, key_id: int) -> None:
-        key = await self.__api_key_repository.get_api_key(key_id)
+    async def delete_user_api_key(self, user_id: int) -> None:
+        key = await self.__api_key_repository.get_api_key(user_id)
 
         if not key:
             raise APIKeyNotFoundError()
-        if not key.user_id == user_id:
-            raise InsufficientPermissionsError("Only your own API key can be deleted.")
 
-        await self.__api_key_repository.delete_api_key(key_id)
+        await self.__api_key_repository.delete_api_key_by_user_id(user_id)
