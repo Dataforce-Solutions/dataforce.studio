@@ -212,7 +212,7 @@ export interface OrbitMember extends Omit<Member, 'organization_id' | 'role'> {
 }
 
 export interface OrganizationPermissions {
-  organization: [PermissionEnum.read, PermissionEnum.update, PermissionEnum.delete]
+  organization: [PermissionEnum.read, PermissionEnum.update, PermissionEnum.delete, PermissionEnum.leave]
   organization_user: Omit<PermissionEnum, PermissionEnum.deploy>
   organization_invite: Omit<PermissionEnum, PermissionEnum.update & PermissionEnum.deploy>
   billing: [PermissionEnum.read, PermissionEnum.update]
