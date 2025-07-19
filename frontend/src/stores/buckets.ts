@@ -15,6 +15,15 @@ export const useBucketsStore = defineStore('buckets', () => {
     buckets.value.push(bucket)
   }
 
+  async function updateBucket(organizationId: number, bucketId: number, data: BucketSecretCreator & { id: number }) {
+    const updatedBucket = await dataforceApi.bucketSecrets.updateBucketSecret(organizationId, bucketId, data)
+    const index = buckets.value.findIndex(bucket => bucket.id === bucketId)
+    if (index !== -1) {
+      buckets.value[index] = updatedBucket
+    }
+    return updatedBucket
+  }
+
   async function deleteBucket(organizationId: number, bucketId: number) {
     await dataforceApi.bucketSecrets.deleteBucketSecret(organizationId, bucketId)
     buckets.value = buckets.value.filter((bucket) => bucket.id !== bucketId)
@@ -24,6 +33,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     buckets,
     getBuckets,
     createBucket,
+    updateBucket,
     deleteBucket,
   }
 })

@@ -1,8 +1,11 @@
 <template>
-  <Form v-slot="$form" :initial-values="initialValues" :resolver="resolver" @submit="onSubmit">
+  <Form id="bucketForm" v-slot="$form" :initialValues="initialValues" :resolver="resolver" @submit="onSubmit">
     <div class="inputs">
       <div class="field">
-        <label for="endpoint" class="label required">Endpoint</label>
+        <label for="endpoint" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Endpoint</label>
         <InputText
           v-model="initialValues.endpoint"
           id="endpoint"
@@ -14,7 +17,10 @@
         <div v-if="($form as any).endpoint?.invalid" class="message">Please enter a valid endpoint URL</div>
       </div>
       <div class="field">
-        <label for="bucket_name" class="label required">Bucket name</label>
+        <label for="bucket_name" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Bucket name</label>
         <InputText
           v-model="initialValues.bucket_name"
           id="bucket_name"
@@ -26,7 +32,10 @@
         <div v-if="($form as any).bucket_name?.invalid" class="message">Please enter a name for the bucket</div>
       </div>
       <div class="field">
-        <label for="access_key" class="label">Access key</label>
+        <label for="access_key" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Access key</label>
         <InputText
           v-model="initialValues.access_key"
           id="access_key"
@@ -37,7 +46,10 @@
         />
       </div>
       <div class="field">
-        <label for="secret_key" class="label">Secret key</label>
+        <label for="secret_key" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Secret key</label>
         <InputText
           v-model="initialValues.secret_key"
           id="secret_key"
@@ -48,7 +60,10 @@
         />
       </div>
       <div class="field">
-        <label for="region" class="label">Region</label>
+        <label for="region" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Region</label>
         <InputText
           v-model="initialValues.region"
           id="region"
@@ -61,43 +76,61 @@
     </div>
 
     <div class="field field--protocol">
-      <label class="label">Secure (http/https)</label>
+      <label :class="{
+        'label required': !update,
+        'label--medium': update,
+        }">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
-    <Button type="submit" fluid rounded :loading="loading">Create</Button>
+    <Button v-if="showSubmitButton" type="submit" fluid rounded :loading="loading">Create</Button>
   </Form>
 </template>
 
 <script setup lang="ts">
 import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { onMounted, ref } from 'vue'
+import { ref, watch, withDefaults } from 'vue'
 import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 
-
 type Props = {
   initialData?: BucketSecretCreator
   loading: boolean
+  showSubmitButton?: boolean
+  update?: boolean
 }
 
 type Emits = {
   submit: [BucketSecretCreator]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showSubmitButton: true
+})
 const emits = defineEmits<Emits>()
 
 const initialValues = ref<BucketSecretCreator>({
-  endpoint: '',
-  bucket_name: '',
-  access_key: '',
-  secret_key: '',
-  session_token: '',
-  secure: true,
-  region: '',
+  endpoint: props.initialData?.endpoint || '',
+  bucket_name: props.initialData?.bucket_name || '',
+  access_key: props.initialData?.access_key || '',
+  secret_key: props.initialData?.secret_key || '',
+  session_token: props.initialData?.session_token || '',
+  secure: props.initialData?.secure ?? true,
+  region: props.initialData?.region || '',
+})
+
+watch(() => props.initialData, (data) => {
+  if (data) {
+    initialValues.value.endpoint = data.endpoint || ''
+    initialValues.value.bucket_name = data.bucket_name || ''
+    initialValues.value.access_key = data.access_key || ''
+    initialValues.value.secret_key = data.secret_key || ''
+    initialValues.value.session_token = data.session_token || ''
+    initialValues.value.secure = data.secure ?? true
+    initialValues.value.region = data.region || ''
+  }
 })
 
 const resolver = zodResolver(
@@ -117,13 +150,6 @@ function onSubmit({ valid }: FormSubmitEvent) {
   emits('submit', { ...initialValues.value })
 }
 
-function patchForm(data: BucketSecretCreator) {
-  initialValues.value = { ...data }
-}
-
-onMounted(() => {
-  if (props.initialData) patchForm(props.initialData)
-})
 </script>
 
 <style scoped>
@@ -154,5 +180,8 @@ onMounted(() => {
 .message {
   font-size: 12px;
   line-height: 1.75;
+}
+.label--medium {
+  font-weight: 500;
 }
 </style>

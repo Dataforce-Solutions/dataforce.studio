@@ -133,7 +133,7 @@ export interface CreateOrganizationResponse {
   updated_at: Date
 }
 
-export interface OrganizationDetails extends Omit<Organization, 'role'>{
+export interface OrganizationDetails extends Omit<Organization, 'role'> {
   invites: Omit<Invitation, 'organization'>[]
   members: Member[]
   orbits: Orbit[]
@@ -212,7 +212,7 @@ export interface OrbitMember extends Omit<Member, 'organization_id' | 'role'> {
 }
 
 export interface OrganizationPermissions {
-  organization: [PermissionEnum.read, PermissionEnum.update, PermissionEnum.delete]
+  organization: [PermissionEnum.read, PermissionEnum.update, PermissionEnum.delete, PermissionEnum.leave]
   organization_user: Omit<PermissionEnum, PermissionEnum.deploy>
   organization_invite: Omit<PermissionEnum, PermissionEnum.update & PermissionEnum.deploy>
   billing: [PermissionEnum.read, PermissionEnum.update]
@@ -233,4 +233,5 @@ export enum PermissionEnum {
   update = 'update',
   delete = 'delete',
   deploy = 'deploy',
+  leave = 'leave',
 }
