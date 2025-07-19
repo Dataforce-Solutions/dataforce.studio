@@ -2,7 +2,10 @@
   <Form id="bucketForm" v-slot="$form" :initialValues="initialValues" :resolver="resolver" @submit="onSubmit">
     <div class="inputs">
       <div class="field">
-        <label for="endpoint" class="label required">Endpoint</label>
+        <label for="endpoint" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Endpoint</label>
         <InputText
           v-model="initialValues.endpoint"
           id="endpoint"
@@ -14,7 +17,10 @@
         <div v-if="($form as any).endpoint?.invalid" class="message">Please enter a valid endpoint URL</div>
       </div>
       <div class="field">
-        <label for="bucket_name" class="label required">Bucket name</label>
+        <label for="bucket_name" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Bucket name</label>
         <InputText
           v-model="initialValues.bucket_name"
           id="bucket_name"
@@ -26,7 +32,10 @@
         <div v-if="($form as any).bucket_name?.invalid" class="message">Please enter a name for the bucket</div>
       </div>
       <div class="field">
-        <label for="access_key" class="label">Access key</label>
+        <label for="access_key" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Access key</label>
         <InputText
           v-model="initialValues.access_key"
           id="access_key"
@@ -37,7 +46,10 @@
         />
       </div>
       <div class="field">
-        <label for="secret_key" class="label">Secret key</label>
+        <label for="secret_key" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Secret key</label>
         <InputText
           v-model="initialValues.secret_key"
           id="secret_key"
@@ -48,7 +60,10 @@
         />
       </div>
       <div class="field">
-        <label for="region" class="label">Region</label>
+        <label for="region" :class="{
+          'label required': !update,
+          'label--medium': update,
+          }">Region</label>
         <InputText
           v-model="initialValues.region"
           id="region"
@@ -61,7 +76,10 @@
     </div>
 
     <div class="field field--protocol">
-      <label class="label">Secure (http/https)</label>
+      <label :class="{
+        'label required': !update,
+        'label--medium': update,
+        }">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
@@ -77,11 +95,11 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 
-
 type Props = {
   initialData?: BucketSecretCreator
   loading: boolean
   showSubmitButton?: boolean
+  update?: boolean
 }
 
 type Emits = {
@@ -162,5 +180,8 @@ function onSubmit({ valid }: FormSubmitEvent) {
 .message {
   font-size: 12px;
   line-height: 1.75;
+}
+.label--medium {
+  font-weight: 500;
 }
 </style>

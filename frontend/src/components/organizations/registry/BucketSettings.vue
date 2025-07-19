@@ -13,19 +13,13 @@
   >
     <template #header>
       <h2 class="popup-title">
-        <Database :size="20" class="popup-title-icon" />
+        <Bolt :size="20" class="popup-title-icon" />
         <span>bucket settings</span>
       </h2>
     </template>
     <div class="dialog-content">
-      <div class="bucket-info">
-        <div>
-          <div class="bucket-name">{{ bucket.bucket_name }}</div>
-          <div class="bucket-endpoint">{{ bucket.endpoint }}</div>
-        </div>
-      </div>
       <div class="bucket-form-wrapper">
-        <BucketForm :initial-data="initialData" :loading="loading" :show-submit-button="false" @submit="onFormSubmit" />
+        <BucketForm :initial-data="initialData" :loading="loading" :show-submit-button="false" update @submit="onFormSubmit" />
       </div>
     </div>
     <template #footer>
@@ -42,7 +36,7 @@ import type { BucketSecret, BucketSecretCreator } from '@/lib/api/bucket-secrets
 import { computed, ref } from 'vue'
 import { Button, Dialog, useConfirm, useToast } from 'primevue'
 import { useBucketsStore } from '@/stores/buckets'
-import { Bolt, Database } from 'lucide-vue-next'
+import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteBucketConfirmOptions } from '@/lib/primevue/data/confirm'
 import BucketForm from './BucketForm.vue'
@@ -100,7 +94,7 @@ async function deleteBucket() {
     visible.value = false
     loading.value = true
     await bucketsStore.deleteBucket(props.bucket.organization_id, props.bucket.id)
-    toast.add(simpleSuccessToast('The bucket has been successfully deleted.'))
+    toast.add(simpleSuccessToast(`Bucket “${props.bucket.bucket_name}” was deleted.`))
   } catch (e: any) {
     toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to delete bucket'))
   } finally {
