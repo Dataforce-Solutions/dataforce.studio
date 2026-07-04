@@ -29,8 +29,8 @@
 <script setup lang="ts">
 import { Background } from '@vue-flow/background'
 import { VueFlow } from '@vue-flow/core'
-import { useLineageStore } from '@/stores/lineage/index.js'
-import { unlinkArtifactConfirmOptions } from '@/lib/primevue/data/confirm.js'
+import { useLineageStore } from '@/stores/lineage'
+import { unlinkArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useConfirm } from 'primevue'
 import LineageNode from './LineageNode.vue'
 import CustomArrowEdge from '../ui/vue-flow/CustomArrowEdge.vue'

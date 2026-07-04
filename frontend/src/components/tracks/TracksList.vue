@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Track } from '@/lib/api/orbit-tracks/interfaces.js'
+import type { Track } from '@/lib/api/orbit-tracks/interfaces'
 import TrackCard from './TrackCard.vue'
 import { VirtualScroller, type VirtualScrollerLazyEvent } from 'primevue'
 

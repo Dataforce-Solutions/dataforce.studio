@@ -75,15 +75,21 @@ export const useLineageStore = defineStore('lineage', () => {
   }
 
   function replaceArtifact(artifact: Artifact) {
-    if (!replaceableArtifactId.value) return
-    const nodeToReplace = nodes.value.find((node) => node.id === replaceableArtifactId.value)
+    const oldId = replaceableArtifactId.value
+    if (!oldId) return
+    const nodeToReplace = nodes.value.find((node) => node.id === oldId)
     if (!nodeToReplace) return
-    removeNodes([nodeToReplace])
-    addNodes({
-      ...nodeToReplace,
-      id: artifact.id,
-      data: prepareNodeData(artifact),
-    })
+    const newId = artifact.id
+    const updatedNodes = nodes.value.map((node) =>
+      node.id === oldId ? { ...node, id: newId, data: prepareNodeData(artifact) } : node,
+    )
+    const updatedEdges = edges.value.map((edge) => ({
+      ...edge,
+      source: edge.source === oldId ? newId : edge.source,
+      target: edge.target === oldId ? newId : edge.target,
+    }))
+    setNodes(updatedNodes)
+    setEdges(updatedEdges)
   }
 
   function prepareNodeData(artifact: Artifact): LineageNodeData {

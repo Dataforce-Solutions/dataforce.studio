@@ -16,11 +16,9 @@
     />
     <template #footer>
       <Button
-        label="Link"
+        label="Replace"
         fluid
         rounded
-        type="submit"
-        form="link-artifact-form"
         :loading="loading"
         :disabled="!selectedArtifact"
         @click="onSubmit"
