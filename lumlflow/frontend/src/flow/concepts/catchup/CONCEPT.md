@@ -96,15 +96,22 @@ via *promote to asset*. It is shown non-functionally (the textarea is read-only)
 
 ## Unsynced badges — a finding about the substrate
 
-`unsyncedCause` from `engine.ts` returns `null` on every asset in every fixture, because it
-only fires when a `Materialization.state === 'unsynced'` and no fixture ever emits that
-state. `catchup/staleness.ts` consults it first and then falls back to `upstreamUpdates`,
-which detects the churn fixture's *real* staleness — the sweep branches forked before the
-`RawChurn` dedupe and never took it — with early cutoff already applied. That maps onto the
-same taxonomy the badge renders: the pinned asset itself is `definition-changed`; the ten
-assets below it are `parent-rematerialized`. The distinction is exactly the point — one
-asset was edited, ten merely read different bytes — and it lights up only on the three
-sweep branches, which is correct. On `main` and the feature branches the badge is silent.
+As originally written, `unsyncedCause` returned `null` on every asset in every fixture: it
+fired only on a stored `Materialization.state === 'unsynced'`, which no fixture emits. This
+concept shipped a workaround built on `upstreamUpdates`, and so did the canvas concept —
+two local definitions of stale, which would have made the bake-off compare different
+numbers rather than different designs.
+
+The engine was fixed instead: staleness is now *derived* per branch, measured against the
+branch's own baseline, because it is a property of (branch, asset) rather than of a
+materialization — the same version is in sync in the branch that authored it and stale in
+one pinning a different upstream. `catchup/staleness.ts` is now a batched loop over the
+engine with no logic of its own.
+
+The workaround also had a blind spot worth recording: `deps-rewired` is invisible to an
+`inputVersionIds` heuristic, because a rewired asset's recorded inputs do not contradict
+the branch's selection. It would have silently missed `model/logreg` — the structural
+rewire, which is the case the badge most needs to catch.
 
 ## What breaks at scale
 
