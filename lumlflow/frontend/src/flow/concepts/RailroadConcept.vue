@@ -73,7 +73,8 @@
       </div>
 
       <Message v-if="cacheHits" severity="success" :closable="false" class="shrink-0">
-        Reusing {{ cacheHits }} materializations from cache — nothing recomputes on this switch.
+        Reusing {{ cacheHits }} materialization{{ cacheHits === 1 ? '' : 's' }} from cache —
+        nothing recomputes here.
       </Message>
 
       <Card class="flex-1 min-h-0" :pt="framePt">

@@ -12,7 +12,7 @@
  * roughly 900 nodes and be unusable. That is the finding, not a bug in the data.
  */
 
-import type { AssetVersion, Branch, FlowSession, Materialization } from '../types'
+import type { AssetVersion, Branch, FlowSession, Materialization, Transaction } from '../types'
 import { curve, makeMaterialization, makeVersion, seeded } from './helpers'
 
 const rand = seeded(20260809)
@@ -181,6 +181,69 @@ for (let i = 0; i < 19; i++) {
   }
 }
 
+/**
+ * Model and sweep work lands on the fork that asked for it; the trunk keeps the
+ * shared pipeline. Putting every transaction on `main` leaves a rail with
+ * nineteen empty lanes and no history at any fork point.
+ */
+function buildTransactions(): Transaction[] {
+  const expBranches = Object.values(branches).filter((branch) => branch.branchId !== 'main')
+  const forked = new Set<string>()
+
+  // Every fork is an event in its own right, so a lane that never went on to
+  // produce an asset is still a line with a beginning rather than a bare stripe.
+  const transactions: Transaction[] = expBranches.map((branch) => {
+    forked.add(branch.branchId)
+    return {
+      txId: `ltx-fork-${branch.branchId}`,
+      step: branch.forkedAtStep,
+      branchId: branch.branchId,
+      author: 'agent-1',
+      intent: `Fork for ${branch.name}`,
+      ops: [
+        { op: 'fork-branch', branchId: branch.branchId, fromBranchId: 'main', name: branch.name },
+      ],
+      settled: true,
+    }
+  })
+
+  const onFork = (assetId: string): boolean =>
+    assetId.startsWith('l_model_') || assetId.startsWith('l_sweep_') || assetId.startsWith('l_eval_')
+
+  versions.forEach((version, index) => {
+    const step = version.createdAtStep
+    const candidates = expBranches.filter((branch) => branch.forkedAtStep <= step)
+    const branch =
+      onFork(version.assetId) && candidates.length
+        ? candidates[index % candidates.length]
+        : branches.main
+
+    const ops: Transaction['ops'] = []
+    if (branch.branchId !== 'main' && !forked.has(branch.branchId)) {
+      forked.add(branch.branchId)
+      ops.push({
+        op: 'fork-branch',
+        branchId: branch.branchId,
+        fromBranchId: 'main',
+        name: branch.name,
+      })
+    }
+    ops.push({ op: 'create-asset', assetId: version.assetId, version })
+
+    transactions.push({
+      txId: `ltx-${index}`,
+      step,
+      branchId: branch.branchId,
+      author: version.authoredBy,
+      intent: version.intent,
+      ops,
+      settled: index % 5 === 4,
+    })
+  })
+
+  return transactions
+}
+
 export const largeSession: FlowSession = {
   sessionId: 'session-large',
   name: 'events model bake-off',
@@ -197,14 +260,6 @@ export const largeSession: FlowSession = {
     'agent-3': { agentId: 'agent-3', label: 'codex-1', color: '#d97706', activeBranchId: 'exp-7', activeAssetId: 'l_sweep_gbm_2' },
     'agent-4': { agentId: 'agent-4', label: 'gemini-1', color: '#db2777', activeBranchId: 'exp-11', activeAssetId: 'l_leaderboard' },
   },
-  transactions: versions.map((version, index) => ({
-    txId: `ltx-${index}`,
-    step: version.createdAtStep,
-    branchId: 'main',
-    author: version.authoredBy,
-    intent: version.intent,
-    ops: [{ op: 'create-asset' as const, assetId: version.assetId, version }],
-    settled: index % 5 === 4,
-  })),
+  transactions: buildTransactions(),
   headBranchId: 'main',
 }

@@ -7,7 +7,7 @@
  * *inside* the EvalBundle rather than being assets of their own.
  */
 
-import type { AssetVersion, Branch, FlowSession, Materialization } from '../types'
+import type { AssetVersion, Branch, FlowSession, Materialization, Transaction } from '../types'
 import { makeMaterialization, makeVersion, seeded } from './helpers'
 
 const versions: AssetVersion[] = []
@@ -292,6 +292,51 @@ for (const version of versions) {
   assets[version.assetId].push(version)
 }
 
+/**
+ * Work happens on the fork that asked for it, not all on `main`.
+ *
+ * A rail keyed on the branch a transaction landed in renders empty lanes if
+ * every transaction claims the trunk, and the fork points carry no history.
+ */
+function branchForStep(step: number): string {
+  if (step >= 12) return 'model-sonnet'
+  if (step >= 8) return 'prompt-cited'
+  return 'main'
+}
+
+function buildTransactions(): Transaction[] {
+  const forked = new Set<string>(['main'])
+  const transactions: Transaction[] = []
+
+  versions.forEach((version, index) => {
+    const branchId = branchForStep(version.createdAtStep)
+    const ops: Transaction['ops'] = []
+
+    if (!forked.has(branchId)) {
+      forked.add(branchId)
+      ops.push({
+        op: 'fork-branch',
+        branchId,
+        fromBranchId: 'main',
+        name: branches[branchId].name,
+      })
+    }
+    ops.push({ op: 'create-asset', assetId: version.assetId, version })
+
+    transactions.push({
+      txId: `etx-${index}`,
+      step: version.createdAtStep,
+      branchId,
+      author: version.authoredBy,
+      intent: version.intent,
+      ops,
+      settled: version.definition.kind === 'eval',
+    })
+  })
+
+  return transactions
+}
+
 export const llmEvalSession: FlowSession = {
   sessionId: 'session-llm-eval',
   name: 'support QA eval',
@@ -306,14 +351,6 @@ export const llmEvalSession: FlowSession = {
     'agent-1': { agentId: 'agent-1', label: 'claude-1', color: '#2563eb', activeBranchId: 'prompt-cited', activeAssetId: 'e_prompt' },
     'agent-2': { agentId: 'agent-2', label: 'claude-2', color: '#0d9488', activeBranchId: 'model-sonnet', activeAssetId: 'e_answers' },
   },
-  transactions: versions.map((version, index) => ({
-    txId: `etx-${index}`,
-    step: version.createdAtStep,
-    branchId: 'main',
-    author: version.authoredBy,
-    intent: version.intent,
-    ops: [{ op: 'create-asset' as const, assetId: version.assetId, version }],
-    settled: index % 2 === 1,
-  })),
+  transactions: buildTransactions(),
   headBranchId: 'main',
 }
