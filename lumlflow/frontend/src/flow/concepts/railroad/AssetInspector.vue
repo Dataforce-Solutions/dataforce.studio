@@ -134,8 +134,7 @@ import ArtifactView from '../../components/ArtifactView.vue'
 import CostChip from '../../components/CostChip.vue'
 import ScratchConsole from '../../components/ScratchConsole.vue'
 import StatusBadges from '../../components/StatusBadges.vue'
-import { downstreamOf, resolveSlice, versionsOf } from '../../engine'
-import { railroadUnsyncedCause } from './staleness'
+import { downstreamOf, resolveSlice, unsyncedCause, versionsOf } from '../../engine'
 import type { ArtifactValue, AssetId, BranchId, FlowSession, PreflightCost } from '../../types'
 
 /**
@@ -175,7 +174,7 @@ const branchName = computed(() => props.session.branches[props.branchId]?.name ?
 
 const cause = computed(() =>
   props.assetId && slice.value[props.assetId]
-    ? railroadUnsyncedCause(props.session, props.branchId, props.assetId)
+    ? unsyncedCause(props.session, props.branchId, props.assetId)
     : null,
 )
 

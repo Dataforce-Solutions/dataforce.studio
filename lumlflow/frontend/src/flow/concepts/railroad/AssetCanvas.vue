@@ -114,9 +114,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import StatusBadges from '../../components/StatusBadges.vue'
-import { formatCost, resolveSlice, versionsOf } from '../../engine'
+import { formatCost, resolveSlice, unsyncedCause, versionsOf } from '../../engine'
 import { NODE_HEIGHT, NODE_WIDTH, familyOf, type CanvasLayout } from './layout'
-import { unsyncedCauses } from './staleness'
 import type { Pulse } from './usePulses'
 import type { Agent, AssetId, BranchId, FlowSession, UnsyncedCause } from '../../types'
 
@@ -160,7 +159,15 @@ onMounted(() => {
 onBeforeUnmount(() => observer?.disconnect())
 
 const slice = computed(() => resolveSlice(props.session, props.branchId))
-const causes = computed(() => unsyncedCauses(props.session, props.branchId))
+/** Resolved once for the whole canvas rather than once per node in the template. */
+const causes = computed<Record<AssetId, UnsyncedCause | null>>(() =>
+  Object.fromEntries(
+    Object.keys(slice.value).map((assetId) => [
+      assetId,
+      unsyncedCause(props.session, props.branchId, assetId),
+    ]),
+  ),
+)
 const marked = computed(() => new Set(props.markedAssetIds))
 
 const highlightRoot = computed(() => hovered.value ?? props.filterRootId)

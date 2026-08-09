@@ -53,15 +53,14 @@ cutoff), `divergence`, `integrityWarnings`, `cacheSkipSet`, `checkpoints`. Faked
 edit does not produce a version, `accept` on an upstream update is inert, `promote to asset`
 renders the proposal and its cost instead of mutating the graph.
 
-One extension was necessary. `engine.unsyncedCause` reads `Materialization.state === 'unsynced'`,
-and **no fixture ever stores that state** — so the mandatory changed-vs-rematerialized badge
-would have been dead everywhere. `staleness.ts` derives it from data that *is* present:
-a materialization records `inputVersionIds`, so a branch selecting a different version of a
-*direct* parent than the one consumed is detectably out of sync. Classification is the engine's,
-verbatim, and the rule stays non-transitive. It is worth checking the result on two branches:
-on `feat/tenure-buckets` only `TrainTestSplit` lights up (`rematerialized`) and `TrainGBM` below
-it does not; on the sweep branches `CleanChurn` reads `changed` while its siblings read
-`rematerialized`. That difference is the entire argument for keeping the two labels apart.
+Staleness comes straight from `engine.unsyncedCause`, which now derives it per (branch, asset)
+against the branch's own baseline. The canvas renders the three causes distinctly via the shared
+`StatusBadges`, and the fixture makes the case for keeping them apart on its own: `main` reads
+clean; `feat/tenure-buckets` shows `Features` as **changed** with `TrainTestSplit` below it as
+merely **rematerialized**; `model/logreg` shows `HoldoutEval` as **rewired**; the sweep branches
+show the divergent `RawChurn` pin as **changed** with five downstream assets as
+**rematerialized**. One edited asset, everything under it downstream noise — collapse the two
+labels and every one of those branches reads as six equally alarming problems.
 
 ## What breaks at scale
 
@@ -78,10 +77,10 @@ Tried on the `large` fixture (94 assets, 20 branches). It renders and stays usab
   regression: the other three lenses are the response, and `by outcome` cuts it to the handful of
   events where AUC moved. But the default lens on a large session should probably not be
   `everything`.
-- **`resolveSlice` is O(assets) and several derived views call it.** Batched where it mattered
-  (`unsyncedCauses` resolves the slice once for the whole canvas); `upstreamUpdates` still runs
-  per branch chip on every render, which is 20 × O(assets) on the large fixture. Fine at this
-  size, not fine at ten times it.
+- **`resolveSlice` is O(assets) and several derived views call it.** `unsyncedCause` resolves two
+  slices per asset and `upstreamUpdates` runs per branch chip on every render — on the large
+  fixture that is roughly 20 × O(assets) and 94 × 2 × O(assets) per frame. Fine at this size,
+  not fine at ten times it; the engine would want a memoised slice cache keyed by (branch, step).
 
 ## What I would do differently with more time
 
