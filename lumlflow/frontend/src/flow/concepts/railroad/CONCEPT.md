@@ -1,97 +1,82 @@
-# Concept 1 — Canvas + focused railroad
+# Concept 1 — Canvas + drawn rail
 
 Route: `/flow/railroad`
 
 ## The mental model
 
-Two surfaces, joined by brushing, never merged into one drawing.
+Two surfaces. Left: **the rail** — the session's history *drawn*, a trunk with stops and
+forks diverging from the point they split at. Right: **the canvas** — one slice at a time,
+output-first cards, laid out once and never again.
 
-**Left: the canvas.** One variant at a time, laid out once and never again. Positions come
-from the *union* of every version of every asset in the session (`layout.ts`), not from the
-selected branch and not from the current playback step. Switch branches, seek to step 8, filter
-to a family — every node keeps its pixel. The consequence is that motion on the canvas carries
-exactly one meaning: *something happened here*. It is never the layout re-solving.
+The rail is the only navigator. There is no fork dropdown and no step slider: a fork is not
+a name you pick from a list, it is a line you can see leaving the trunk, and time is not a
+scrubber under the canvas, it is the axis the rail is drawn along. Selecting any stop does
+both things at once — shows that fork's slice and seeks playback to that moment. The header
+above the rail names the fork you are on; the emphasized lane shows it spatially.
 
-**Right: the railroad.** History as a *scoped query* over the event log, not a second topology.
-It covers the selected branch's lineage plus the forks cut off it, always in step order, and
-collapses under a switchable lens: `this asset` / `by author` / `by outcome` / `everything`.
+## How the rail is drawn (`railLayout.ts`)
 
-**Between them: brushing.** Click a node → the railroad re-scopes to that asset's history.
-Click a checkpoint → the canvas seeks there and marks what that transaction touched. Both
-directions change *visibility only*. Nothing moves.
+- **Lanes are branches.** Trunk leftmost, forks to the right in fork order, each in its
+  `Branch.color`. A fork's curve leaves the parent lane at the step it actually split.
+- **Stops are settled states** — `checkpoints()` from the engine, plus fork points and lane
+  heads. Not every transaction deserves a stop: consecutive routine transactions fold into a
+  single small hollow marker carrying who and what (`3 edits · codex-1`, assets in the
+  tooltip), because a bare hidden count is not scent. A failed materialization tints its
+  marker red without earning a full stop.
+- **A fork with no transactions of its own** (the generated fixtures put every transaction
+  on the trunk) still gets a head stop, placed at the step where the newest version it
+  *selected differently from its parent* was authored — the lane spans the work it contains.
+- **Every position is a pure function of the full session.** Selection and playback change
+  stroke, opacity and label visibility — never geometry. Stops beyond the current playback
+  step render pale and hollow, which is what lets the same drawing double as the scrubber:
+  click behind the head and the future literally fades until you return to it.
+- The live head carries a slow pulse; the current position a ring in the lane's colour.
 
-## What the concept bets on
+Transport is three icon buttons above the rail (previous stop, play/pause, next stop).
+`PlaybackBar` — with its slider — is untouched and still used by concepts 2 and 3.
 
-1. **Structure × time is navigable if history is scoped, not drawn.** Every attempt to render
-   the full asset-version lattice ends in a hairball. Here the second dimension is a filtered
-   list beside a stable picture, and selection is what scopes it.
-2. **Layout stability is worth a lot of whitespace.** Nodes are placed by longest-path layer over
-   the union graph, so a branch that deletes `TrainGBM` leaves a hole where `TrainGBM` was, and
-   an asset that does not exist yet at this step simply is not drawn. Holes are information.
-3. **Motion is an attention channel with a budget.** Spent only on reactlog's phases:
-   `invalidating` (edges visibly tear apart, node desaturates) is a distinct phase from
-   `materializing` (edge redraws). `usePulses.ts` synthesises this sequence on each step,
-   because a settled fixture only stores resting states. Seek to step 22 (the `RawChurn` data
-   fix) to watch the whole graph below it tear down and rebuild.
-4. **A lens that can hide "where am I" is a trap.** The current checkpoint, every branch head,
-   the live head and every fork point stay visible in all four lenses (jj's `@`). Collapsed runs
-   carry authors, assets touched and a metric delta — never a bare count.
+## Output-first cards
 
-## Where editing lives
+The materialization is the body of every card; code stays behind the Source accordion.
+A materialization with several outputs shows its most readable one (`artifact.ts`:
+experiment > eval > plot > frame > note > metric > model) — "first output wins" used to
+show a parameter dump where the training run was.
 
-**A side panel, on the right. Nodes never expand.** Stated in the UI (bottom bar and the empty
-inspector), and load-bearing rather than cosmetic: an inline editor is a node that changes size,
-and a node that changes size moves its neighbours, which is precisely what the stable canvas
-exists to prevent. The panel shows the agent-authored definition read-only by default; **take
-over** makes it editable and prices the edit before you commit it — a definition change
-recomputes this asset and everything below it, everything else stays cached.
+**Experiment and eval assets** render as findings: headline metrics as large figures, metric
+curves as real charts (`MetricCurve.vue` — gridlines, min/max, hover readout; palette order
+validated for colour-vision-deficiency separation). Because the card cannot hold everything,
+it carries **a link out to the tracker** (`/experiments/:groupId/:experimentId`): an
+experiment materialized in a flow *is* a tracked experiment, so the natural reference is the
+surface that already exists for it — traces, attachments, comparisons and all. A maximized
+dialog was rejected because it would re-embed a whole product inside a card; the link is
+honest about the boundary. In this prototype the group is the flow's project and the run id
+is the run name (for evals, the materialized version id); a real integration would store the
+tracker's run id on the materialization.
+
+## What breaks at scale, and how it degrades
+
+Tried on the `large` fixture (~150 assets, 20 branches):
+
+- **Lanes compress** from 24px to 12px apart past 8 forks so the label column stays inside
+  the card; per-lane branch-name labels turn off past 8 lanes (tooltips remain) because
+  twenty names over twenty lines is noise, not scent.
+- **The rail becomes a vertical scroll surface** (~60 rows). That is deliberate: the time
+  axis scrolls, the marker auto-scrolls into view, and folding keeps the row count at
+  checkpoints + folded runs rather than one row per transaction.
+- Archived branches are dropped from the rail entirely.
+- The canvas findings from the previous round stand: it needs semantic zoom past ~100 nodes,
+  and the fan-out from `Split` to twenty models is still a hairball.
 
 ## What is real vs. what is faked
 
-Everything numeric comes from `engine.ts`: `preflightCost`, `upstreamUpdates` (with early
-cutoff), `divergence`, `integrityWarnings`, `cacheSkipSet`, `checkpoints`. Faked: taking over an
-edit does not produce a version, `accept` on an upstream update is inert, `promote to asset`
-renders the proposal and its cost instead of mutating the graph.
+All numbers come from `engine.ts` (`checkpoints`, `resolveSlice`, `unsyncedCause`,
+`cacheSkipSet`, `preflightCost` via the cache banner). Faked: the tracker link does not
+resolve to real tracker data, and export renders a preview without writing anything.
 
-Staleness comes straight from `engine.unsyncedCause`, which now derives it per (branch, asset)
-against the branch's own baseline. The canvas renders the three causes distinctly via the shared
-`StatusBadges`, and the fixture makes the case for keeping them apart on its own: `main` reads
-clean; `feat/tenure-buckets` shows `Features` as **changed** with `TrainTestSplit` below it as
-merely **rematerialized**; `model/logreg` shows `HoldoutEval` as **rewired**; the sweep branches
-show the divergent `RawChurn` pin as **changed** with five downstream assets as
-**rematerialized**. One edited asset, everything under it downstream noise — collapse the two
-labels and every one of those branches reads as six equally alarming problems.
+## What I would still cut or fix
 
-## What breaks at scale
-
-Tried on the `large` fixture (94 assets, 20 branches). It renders and stays usable, but:
-
-- **The canvas becomes a scroll surface, not an overview.** ~13 columns wide; wide layers wrap
-  into sub-columns of 11 so the 40 diagnostics do not produce a 2,500px column. You navigate by
-  hover-highlight and double-click-to-family, not by looking. There is no minimap and no zoom
-  control — with more time, both, plus semantic zoom that collapses a wrapped sub-column into one
-  "18 EDA plots" node until you enter it.
-- **The fan-out from `Split` to twenty models is a hairball.** Twenty near-parallel bezier curves
-  from one port. Bundled edges, or a port-per-consumer, would fix it; neither is done.
-- **`everything` lens on 96 events is a 5,000px scroll.** This is the honest answer, not a
-  regression: the other three lenses are the response, and `by outcome` cuts it to the handful of
-  events where AUC moved. But the default lens on a large session should probably not be
-  `everything`.
-- **`resolveSlice` is O(assets) and several derived views call it.** `unsyncedCause` resolves two
-  slices per asset and `upstreamUpdates` runs per branch chip on every render — on the large
-  fixture that is roughly 20 × O(assets) and 94 × 2 × O(assets) per frame. Fine at this size,
-  not fine at ten times it; the engine would want a memoised slice cache keyed by (branch, step).
-
-## What I would do differently with more time
-
-- **Semantic zoom on the canvas**, so the stable layout survives past ~100 nodes. This is the
-  single biggest gap, and the concept's bet does not really pay off until it exists.
-- **A real fork affordance.** You can select and compare variants but not cut one from a
-  checkpoint — the gesture the whole model is built around is missing from the prototype.
-- **Diff the definition in the inspector**, not just show the current source. "What did the agent
-  actually change" currently requires reading two versions side by side, which you cannot do.
-- **Make the railroad's collapsed-run expansion animate.** It changes in place as promised, but
-  instantly, so the "expand where it sits" property is asserted rather than felt.
-- **Rethink `by outcome` when there is no target metric.** It currently means "any transaction
-  that carried metrics", which on the large fixture is most experiment transactions. A chosen
-  target metric plus a magnitude threshold would make it a genuine lens rather than a filter.
+- The Canvas/Notebook toggle could arguably fold into one adaptive view.
+- Fork stubs whose head step collides with a trunk row suppress their name label; a smarter
+  label layout (nudge within the row, never across rows) would keep more names visible.
+- `buildRailLayout` runs on every session change; fine here, but a large live session would
+  want it memoised alongside the slice cache the engine already needs.

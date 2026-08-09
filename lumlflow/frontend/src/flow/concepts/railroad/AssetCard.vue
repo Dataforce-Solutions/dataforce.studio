@@ -14,7 +14,6 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
             <h3 class="text-lg font-medium truncate">{{ version.definition.name }}</h3>
-            <Tag :value="version.definition.kind" severity="secondary" />
             <Tag v-if="cause" :value="causeLabel" :severity="causeSeverity" />
             <Tag v-if="version.status === 'failed'" value="failed" severity="danger" />
           </div>
@@ -50,6 +49,16 @@
           Not materialized in this branch.
         </Message>
 
+        <a
+          v-if="trackerRef"
+          :href="trackerRef.href"
+          class="inline-flex items-center gap-1.5 text-sm text-primary hover:underline self-start"
+          @click.stop
+        >
+          <ExternalLink :size="14" />
+          {{ trackerRef.label }}
+        </a>
+
         <div class="flex items-center gap-3 flex-wrap text-sm">
           <span class="flex items-center gap-1.5 text-muted-color">
             <span
@@ -61,14 +70,6 @@
           <span class="text-muted-color">·</span>
           <span class="text-muted-color truncate flex-1 min-w-32">{{ version.intent }}</span>
           <Tag :value="formatCost(materialization?.costSeconds ?? 0)" severity="secondary" />
-        </div>
-
-        <div v-if="version.definition.deps.length" class="text-sm text-muted-color">
-          reads
-          <span v-for="(dep, index) in depNames" :key="dep">
-            <span class="text-color">{{ dep }}</span
-            ><span v-if="index < depNames.length - 1">, </span>
-          </span>
         </div>
 
         <Accordion :value="showSource ? '0' : undefined">
@@ -102,6 +103,7 @@ import {
 import {
   Box,
   Database,
+  ExternalLink,
   FileText,
   FlaskConical,
   Gauge,
@@ -111,7 +113,8 @@ import {
 } from 'lucide-vue-next'
 import ArtifactView from '../../components/ArtifactView.vue'
 import { formatCost } from '../../engine'
-import type { ArtifactValue, AssetVersion, FlowSession, UnsyncedCause } from '../../types'
+import { experimentRef, primaryArtifactValue } from './artifact'
+import type { AssetVersion, FlowSession, UnsyncedCause } from '../../types'
 
 /**
  * One asset, rendered output-first.
@@ -143,16 +146,9 @@ const cardPt: CardPassThroughOptions = {
 
 const materialization = computed(() => props.session.materializations[props.version.versionId])
 
-const primaryValue = computed<ArtifactValue | null>(() => {
-  const values = Object.values(materialization.value?.values ?? {})
-  return (values[0] as ArtifactValue | undefined) ?? null
-})
+const primaryValue = computed(() => primaryArtifactValue(materialization.value))
 
-const depNames = computed(() =>
-  props.version.definition.deps.map(
-    (depId) => props.session.assets[depId]?.at(-1)?.definition.name ?? depId,
-  ),
-)
+const trackerRef = computed(() => experimentRef(props.session, props.version, primaryValue.value))
 
 const kindIcon = computed(() => {
   switch (props.version.definition.kind) {

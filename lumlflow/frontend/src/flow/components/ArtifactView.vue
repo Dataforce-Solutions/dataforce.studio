@@ -82,65 +82,60 @@
       <dd class="font-mono text-xs">{{ value.signature }}</dd>
     </dl>
 
-    <div v-else-if="value.type === 'experiment'">
-      <p class="font-medium mb-1">{{ value.runName }}</p>
-      <div class="flex flex-wrap gap-2 mb-2">
-        <span
-          v-for="(metric, name) in value.finalMetrics"
-          :key="name"
-          class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 text-xs"
-        >
-          {{ name }} <span class="font-medium">{{ metric.toFixed(3) }}</span>
-        </span>
+    <div v-else-if="value.type === 'experiment'" class="flex flex-col gap-4">
+      <p class="font-medium">{{ value.runName }}</p>
+      <div class="flex flex-wrap gap-x-8 gap-y-3">
+        <div v-for="(metric, name) in value.finalMetrics" :key="name">
+          <p class="text-2xl font-medium tabular-nums leading-tight">{{ metric.toFixed(3) }}</p>
+          <p class="text-xs text-muted-color mt-0.5">{{ name }}</p>
+        </div>
       </div>
-      <svg viewBox="0 0 240 80" class="w-full h-24">
-        <polyline
+      <div class="grid gap-x-6 gap-y-4" :class="value.curves.length > 1 ? 'grid-cols-2' : ''">
+        <MetricCurve
           v-for="(series, index) in value.curves"
           :key="series.name"
-          :points="curvePolyline(series.points)"
-          fill="none"
-          :stroke="seriesColor(index)"
-          stroke-width="1.5"
+          :name="series.name"
+          :points="series.points"
+          :color="seriesColor(index)"
         />
-      </svg>
-      <p class="text-xs text-muted-color font-mono">{{ value.checkpointRef }}</p>
+      </div>
     </div>
 
-    <div v-else-if="value.type === 'eval'">
-      <div class="flex flex-wrap gap-2 mb-2">
-        <span
-          v-for="(score, name) in value.scores"
-          :key="name"
-          class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 text-xs"
-        >
-          {{ name }} <span class="font-medium">{{ score.toFixed(3) }}</span>
-        </span>
+    <div v-else-if="value.type === 'eval'" class="flex flex-col gap-4">
+      <div class="flex flex-wrap gap-x-8 gap-y-3">
+        <div v-for="(score, name) in value.scores" :key="name">
+          <p class="text-2xl font-medium tabular-nums leading-tight">{{ score.toFixed(3) }}</p>
+          <p class="text-xs text-muted-color mt-0.5">{{ name }}</p>
+        </div>
       </div>
-      <p class="text-xs text-muted-color mb-2">
-        {{ value.sampleCount }} samples · {{ value.datasetRef }}
+      <p class="text-xs text-muted-color">
+        {{ value.sampleCount.toLocaleString() }} samples · {{ value.datasetRef }}
       </p>
-      <div v-if="value.traces.length" class="space-y-1">
+      <div v-if="value.traces.length" class="flex flex-col gap-2">
         <div
-          v-for="trace in value.traces.slice(0, 4)"
+          v-for="trace in value.traces.slice(0, 3)"
           :key="trace.sampleId"
-          class="border-l-2 pl-2 border-surface-200 dark:border-surface-700"
+          class="rounded-md border border-surface-200 dark:border-surface-700 px-3 py-2"
         >
           <p class="text-xs text-muted-color">{{ trace.prompt }}</p>
-          <p class="text-xs">{{ trace.output }}</p>
-          <p class="text-xs text-muted-color">score {{ trace.score }} · {{ trace.latencyMs }}ms</p>
+          <p class="text-xs mt-1">{{ trace.output }}</p>
+          <p class="text-xs text-muted-color mt-1 tabular-nums">
+            score {{ trace.score.toFixed(2) }} · {{ trace.latencyMs }} ms
+          </p>
         </div>
       </div>
     </div>
 
-    <p v-else-if="value.type === 'metric'">
-      <span class="text-muted-color">{{ value.name }}</span>
-      <span class="ml-2 font-medium">{{ value.value.toFixed(4) }}</span>
-    </p>
+    <div v-else-if="value.type === 'metric'">
+      <p class="text-2xl font-medium tabular-nums leading-tight">{{ value.value.toFixed(4) }}</p>
+      <p class="text-xs text-muted-color mt-0.5">{{ value.name }}</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MetricCurve from './MetricCurve.vue'
 import type { ArtifactValue } from '../types'
 
 const props = defineProps<{ value: ArtifactValue }>()
@@ -182,20 +177,8 @@ const polyline = (series: [number, number][]): string =>
 
 const barWidth = (count: number): number => Math.max(4, (plotWidth - padding * 2) / (count * 1.6))
 
-const curvePolyline = (series: [number, number][]): string => {
-  const ys = series.map((point) => point[1])
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-  const span = maxY - minY || 1
-  return series
-    .map(([, y], index) => {
-      const px = 4 + (index / Math.max(1, series.length - 1)) * 232
-      const py = 76 - ((y - minY) / span) * 68
-      return `${px},${py}`
-    })
-    .join(' ')
-}
-
-const palette = ['#2563eb', '#0d9488', '#d97706', '#dc2626', '#7c3aed']
+// Fixed assignment order, validated for adjacent-pair CVD separation — do not
+// reorder without re-running the palette check.
+const palette = ['#2563eb', '#d97706', '#0d9488', '#dc2626', '#7c3aed']
 const seriesColor = (index: number): string => palette[index % palette.length]
 </script>

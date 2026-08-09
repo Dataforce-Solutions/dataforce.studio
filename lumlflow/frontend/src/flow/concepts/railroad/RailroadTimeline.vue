@@ -1,166 +1,215 @@
 <template>
-  <div class="h-full flex flex-col gap-4">
-    <Select
-      v-model="lens"
-      :options="lensOptions"
-      option-label="label"
-      option-value="value"
-      size="small"
-      fluid
-    />
+  <div ref="scroller" class="h-full overflow-auto rail-scroll">
+    <svg :width="layout.width" :height="layout.height" class="block">
+      <g v-for="lane in layout.lanes" :key="lane.branchId" :opacity="laneOpacity(lane)">
+        <path
+          v-if="lane.fork"
+          :d="forkPath(lane)"
+          fill="none"
+          :stroke="lane.color"
+          :stroke-width="lane.branchId === currentBranchId ? 2.5 : 1.5"
+          stroke-linecap="round"
+        />
+        <line
+          v-if="lane.bottomY > lane.topY"
+          :x1="lane.x"
+          :y1="lane.topY"
+          :x2="lane.x"
+          :y2="lane.bottomY"
+          :stroke="lane.color"
+          :stroke-width="lane.branchId === currentBranchId ? 2.5 : 1.5"
+          stroke-linecap="round"
+        />
+      </g>
 
-    <div class="flex-1 overflow-auto flex flex-col gap-1">
-      <template v-for="entry in entries" :key="entry.key">
-        <button
-          v-if="entry.kind === 'collapsed'"
-          class="text-left text-sm text-muted-color px-3 py-2 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
-          @click="expanded.add(entry.key)"
-        >
-          {{ entry.count }} more · {{ entry.authors.join(', ') }}
-          <span v-if="entry.assets">· {{ entry.assets }}</span>
-        </button>
+      <circle
+        v-if="marker"
+        :cx="marker.x"
+        :cy="marker.y"
+        r="9"
+        fill="none"
+        :stroke="marker.color"
+        stroke-width="2"
+      />
 
-        <button
-          v-else
-          class="text-left px-3 py-2 rounded flex gap-3 items-start"
-          :class="
-            entry.tx.txId === selectedTxId
-              ? 'bg-primary-50 dark:bg-primary-950/40'
-              : 'hover:bg-surface-100 dark:hover:bg-surface-800'
-          "
-          @click="emit('select', entry.tx.txId)"
+      <g
+        v-for="stop in layout.stops"
+        :key="stop.key"
+        class="cursor-pointer rail-stop"
+        :opacity="stopOpacity(stop)"
+        @click="emit('select', stop.branchId, stop.step)"
+      >
+        <title>step {{ stop.step }} · {{ stop.detail }} — {{ stop.label }}</title>
+        <circle :cx="stop.x" :cy="stop.y" r="13" fill="transparent" />
+        <circle
+          v-if="stop.liveHead"
+          class="rail-ping"
+          :cx="stop.x"
+          :cy="stop.y"
+          r="9"
+          fill="none"
+          :stroke="laneColor(stop.branchId)"
+          stroke-width="2"
+        />
+        <circle
+          class="rail-dot"
+          :cx="stop.x"
+          :cy="stop.y"
+          :r="stop.kind === 'checkpoint' ? 5 : 3"
+          :fill="stop.kind === 'checkpoint' ? laneColor(stop.branchId) : 'var(--p-content-background)'"
+          :stroke="stop.failed ? 'var(--p-red-500)' : stop.kind === 'checkpoint' ? 'var(--p-content-background)' : laneColor(stop.branchId)"
+          stroke-width="1.5"
+        />
+        <text
+          v-if="showLaneNames && stop.laneHead && stop.branchId !== currentBranchId && !selectedLabelYs.has(stop.y)"
+          :x="stop.x + 11"
+          :y="stop.y + 4"
+          class="text-[11px] font-medium rail-halo"
+          :fill="laneColor(stop.branchId)"
         >
-          <span
-            class="mt-1.5 w-2 h-2 rounded-full shrink-0"
-            :style="{ background: session.agents[entry.tx.author]?.color }"
-          />
-          <span class="min-w-0 flex-1">
-            <span class="block text-sm truncate">{{ entry.tx.intent }}</span>
-            <span class="block text-xs text-muted-color">
-              step {{ entry.tx.step }} · {{ session.branches[entry.tx.branchId]?.name }}
-            </span>
-          </span>
-          <Tag v-if="entry.isHead" value="head" severity="contrast" />
-        </button>
-      </template>
-    </div>
+          {{ laneName(stop.branchId) }}
+        </text>
+        <text
+          v-if="stop.branchId === currentBranchId"
+          :x="layout.labelX"
+          :y="stop.y + 4"
+          class="text-xs"
+          :class="stop.kind === 'checkpoint' ? '' : 'text-muted-color'"
+          fill="currentColor"
+        >
+          {{ truncate(stop.label) }}
+        </text>
+      </g>
+    </svg>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
-import { Select, Tag } from 'primevue'
-import type { AssetId, BranchId, FlowSession, Transaction } from '../../types'
+import { computed, ref, watch } from 'vue'
+import { buildRailLayout, ROW_HEIGHT, type RailLane, type RailStop } from './railLayout'
+import type { BranchId, FlowSession } from '../../types'
 
 /**
- * History as a scoped query, not a second topology.
+ * The rail, drawn: lanes are forks, time flows down, stops are checkpoints.
  *
- * Every attempt to draw the full asset-version lattice ends in a hairball, so
- * the second dimension is a filtered list beside a stable picture. The lens
- * only changes what is visible — entries never reorder, because a timeline that
- * reshuffles on selection is the same disease the stable canvas exists to cure.
+ * It receives the *full* session — not the playback-filtered one — so every
+ * position is fixed for the life of the session. Selection and playback change
+ * emphasis and opacity only; stops beyond the current step render hollow, which
+ * is what makes the same drawing double as the scrubber.
  */
 const props = defineProps<{
   session: FlowSession
-  branchId: BranchId
-  selectedAssetId: AssetId | null
-  selectedTxId: string | null
+  currentBranchId: BranchId
+  currentStep: number
 }>()
 
-const emit = defineEmits<{ select: [string] }>()
+const emit = defineEmits<{ select: [BranchId, number] }>()
 
-const lens = defineModel<'branch' | 'asset' | 'all'>('lens', { default: 'branch' })
-const expanded = reactive(new Set<string>())
+const scroller = ref<HTMLDivElement | null>(null)
 
-const lensOptions = computed(() => [
-  { label: 'This branch', value: 'branch' },
-  {
-    label: props.selectedAssetId
-      ? `Changes to ${assetName(props.selectedAssetId)}`
-      : 'Changes to selected asset',
-    value: 'asset',
+const layout = computed(() => buildRailLayout(props.session))
+
+const showLaneNames = computed(() => layout.value.lanes.length <= 8)
+
+// A lane name that lands on the same row as a selected-lane label would collide
+// with it in the label column — visibility may change, position may not.
+const selectedLabelYs = computed(
+  () =>
+    new Set(
+      layout.value.stops
+        .filter((stop) => stop.branchId === props.currentBranchId)
+        .map((stop) => stop.y),
+    ),
+)
+
+const laneById = computed(() => new Map(layout.value.lanes.map((lane) => [lane.branchId, lane])))
+const laneColor = (branchId: BranchId): string => laneById.value.get(branchId)?.color ?? 'currentColor'
+const laneName = (branchId: BranchId): string => laneById.value.get(branchId)?.name ?? branchId
+
+const laneOpacity = (lane: RailLane): number => {
+  if (lane.branchId === props.currentBranchId) return 1
+  if (lane.startStep > props.currentStep) return 0.15
+  return 0.4
+}
+
+const stopOpacity = (stop: RailStop): number => {
+  if (stop.step > props.currentStep) return 0.25
+  return stop.branchId === props.currentBranchId ? 1 : 0.55
+}
+
+const forkPath = (lane: RailLane): string => {
+  if (!lane.fork) return ''
+  const { parentX, y } = lane.fork
+  const lift = ROW_HEIGHT * 0.6
+  return `M ${parentX} ${y - lift} C ${parentX} ${y}, ${lane.x} ${y - lift}, ${lane.x} ${y}`
+}
+
+const marker = computed<{ x: number; y: number; color: string } | null>(() => {
+  const lane = laneById.value.get(props.currentBranchId)
+  if (!lane) return null
+  let y = lane.topY
+  for (const row of layout.value.stepYs) {
+    if (row.step > props.currentStep) break
+    y = row.y
+  }
+  y = Math.min(Math.max(y, lane.topY), lane.bottomY)
+  return { x: lane.x, y, color: lane.color }
+})
+
+const truncate = (text: string): string => (text.length > 36 ? `${text.slice(0, 35)}…` : text)
+
+// Keep the playback marker in view while playing or after a seek. Assigning
+// scrollTop directly stays silent under jsdom, where scrollTo is unimplemented.
+watch(
+  () => [props.currentStep, props.currentBranchId] as const,
+  () => {
+    const el = scroller.value
+    const position = marker.value
+    if (!el || !position || el.clientHeight === 0) return
+    const target = position.y - el.clientHeight / 2
+    el.scrollTop = Math.max(0, Math.min(target, el.scrollHeight - el.clientHeight))
   },
-  { label: 'Everything', value: 'all' },
-])
-
-function assetName(assetId: AssetId): string {
-  return props.session.assets[assetId]?.at(-1)?.definition.name ?? assetId
-}
-
-function lineage(branchId: BranchId): Set<BranchId> {
-  const chain = new Set<BranchId>()
-  let current: BranchId | null = branchId
-  while (current) {
-    chain.add(current)
-    current = props.session.branches[current]?.parentBranchId ?? null
-  }
-  return chain
-}
-
-const kept = computed<Transaction[]>(() => {
-  const all = props.session.transactions
-  if (lens.value === 'all') return all
-  if (lens.value === 'asset') {
-    if (!props.selectedAssetId) return all
-    return all.filter((tx) =>
-      tx.ops.some((op) => 'assetId' in op && op.assetId === props.selectedAssetId),
-    )
-  }
-  const chain = lineage(props.branchId)
-  return all.filter((tx) => chain.has(tx.branchId))
-})
-
-/** Runs of routine transactions fold into one row carrying who and what — a
- *  bare hidden count is not scent, and nobody expands a number. */
-const entries = computed(() => {
-  const headTxId = kept.value.at(-1)?.txId
-  const rows: (
-    | { kind: 'tx'; key: string; tx: Transaction; isHead: boolean }
-    | { kind: 'collapsed'; key: string; count: number; authors: string[]; assets: string }
-  )[] = []
-
-  let run: Transaction[] = []
-  const flush = (): void => {
-    if (!run.length) return
-    const key = `collapsed-${run[0].txId}`
-    if (run.length < 3 || expanded.has(key)) {
-      rows.push(
-        ...run.map((tx) => ({ kind: 'tx' as const, key: tx.txId, tx, isHead: tx.txId === headTxId })),
-      )
-    } else {
-      const authors = [
-        ...new Set(run.map((tx) => props.session.agents[tx.author]?.label ?? tx.author)),
-      ]
-      const assets = [
-        ...new Set(
-          run.flatMap((tx) => tx.ops.flatMap((op) => ('assetId' in op ? [assetName(op.assetId)] : []))),
-        ),
-      ]
-      rows.push({
-        kind: 'collapsed',
-        key,
-        count: run.length,
-        authors,
-        assets: assets.slice(0, 2).join(', '),
-      })
-    }
-    run = []
-  }
-
-  for (const tx of kept.value) {
-    // Settled states, forks and the head are the only places worth returning to.
-    const isLandmark =
-      tx.settled ||
-      tx.txId === headTxId ||
-      tx.ops.some((op) => op.op === 'fork-branch' || op.op === 'rename-asset')
-    if (isLandmark) {
-      flush()
-      rows.push({ kind: 'tx', key: tx.txId, tx, isHead: tx.txId === headTxId })
-    } else {
-      run.push(tx)
-    }
-  }
-  flush()
-  return rows
-})
+)
 </script>
+
+<style scoped>
+.rail-scroll {
+  scroll-behavior: smooth;
+}
+
+.rail-stop:hover .rail-dot {
+  stroke-width: 3;
+}
+
+.rail-halo {
+  paint-order: stroke;
+  stroke: var(--p-content-background);
+  stroke-width: 3px;
+}
+
+@keyframes rail-ping {
+  0% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.rail-ping {
+  animation: rail-ping 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-ping {
+    animation: none;
+    opacity: 0.5;
+  }
+  .rail-scroll {
+    scroll-behavior: auto;
+  }
+}
+</style>
