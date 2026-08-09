@@ -626,12 +626,12 @@ materializations[logreg.versionId] = makeMaterialization(logreg, {
   metrics: { auc: 0.814, accuracy: 0.789 },
 })
 
-for (const [version, auc] of [
-  [evalGbm, 0.842],
-  [evalRewired, 0.814],
+for (const [version, auc, upstream] of [
+  [evalGbm, 0.842, gbmV1.versionId],
+  [evalRewired, 0.814, logreg.versionId],
 ] as const) {
   materializations[version.versionId] = makeMaterialization(version, {
-    inputVersionIds: [split.versionId],
+    inputVersionIds: [upstream, split.versionId],
     costSeconds: 5,
     values: {
       value: {
@@ -647,7 +647,7 @@ for (const [version, auc] of [
 }
 
 materializations[report.versionId] = makeMaterialization(report, {
-  inputVersionIds: [evalGbm.versionId],
+  inputVersionIds: [evalGbm.versionId, balance.versionId],
   values: {
     value: {
       type: 'note',
