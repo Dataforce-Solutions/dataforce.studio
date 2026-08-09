@@ -9,6 +9,13 @@ import { unsyncedCause } from '@/flow/engine'
 import { churnSession, fixtures } from '@/flow/fixtures'
 import { useWorkspace } from '@/flow/composables/useWorkspace'
 
+const IGNORED_WARNINGS = [/Vue Flow parent container needs a width and a height/]
+
+const unexpected = (spy: { mock: { calls: unknown[][] } }): string[] =>
+  spy.mock.calls
+    .map((call) => call.map(String).join(' '))
+    .filter((message) => !IGNORED_WARNINGS.some((pattern) => pattern.test(message)))
+
 const concepts = [
   { name: 'railroad', component: RailroadConcept },
   { name: 'compare', component: CompareConcept },
@@ -31,7 +38,9 @@ describe('flow concept prototypes', () => {
 
         expect(wrapper.html().length).toBeGreaterThan(0)
         expect(errors).not.toHaveBeenCalled()
-        expect(warnings).not.toHaveBeenCalled()
+        // jsdom gives no element a size, so Vue Flow cannot measure its
+        // container. That is an environment limit, not a defect.
+        expect(unexpected(warnings)).toEqual([])
 
         wrapper.unmount()
         errors.mockRestore()
