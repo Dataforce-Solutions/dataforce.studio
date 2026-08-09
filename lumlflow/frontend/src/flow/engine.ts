@@ -104,21 +104,36 @@ export function unsyncedCause(
   const slice = resolveSlice(session, branchId)
   const version = slice[assetId]
   if (!version) return null
+
   const materialization = session.materializations[version.versionId]
   if (!materialization || materialization.state === 'never') return null
-  if (materialization.state === 'unsynced') {
-    const previous = versionsOf(session, assetId).find(
-      (v) => v.createdAtStep < version.createdAtStep,
-    )
-    if (previous && previous.definitionHash !== version.definitionHash) return 'definition-changed'
-    if (
-      previous &&
-      previous.definition.deps.join() !== version.definition.deps.join()
-    ) {
-      return 'deps-rewired'
+  if (materialization.state === 'failed') return null
+
+  // Staleness is derived per branch rather than stored, because it is a property
+  // of (branch, asset): the same version is in sync in the branch that authored
+  // it and stale in a branch that pins a different upstream. Measured against
+  // the branch's own baseline — its parent branch — so `main` reads clean.
+  const parentBranchId = session.branches[branchId]?.parentBranchId
+  if (parentBranchId) {
+    const baseline = resolveSlice(session, parentBranchId)[assetId]
+    if (baseline && baseline.versionId !== version.versionId) {
+      if (baseline.definition.deps.join() !== version.definition.deps.join()) return 'deps-rewired'
+      if (baseline.definitionHash !== version.definitionHash) return 'definition-changed'
     }
-    return 'parent-rematerialized'
   }
+
+  // A direct parent this branch selects is not the one this materialization
+  // actually consumed — the cached value is real, but no longer current here.
+  const consumed = new Set(materialization.inputVersionIds)
+  if (consumed.size) {
+    for (const depId of version.definition.deps) {
+      const selectedParent = slice[depId]
+      if (selectedParent && !consumed.has(selectedParent.versionId)) {
+        return 'parent-rematerialized'
+      }
+    }
+  }
+
   return null
 }
 
