@@ -73,6 +73,36 @@ const router = createRouter({
         },
       ],
     },
+    // Flow workbench concept prototypes. Additive: the tracker routes above are
+    // untouched, and these carry hardcoded fixtures rather than API calls.
+    {
+      path: '/flow',
+      component: MainTemplate,
+      children: [
+        {
+          path: '',
+          component: () => import('@/flow/FlowShell.vue'),
+          children: [
+            { path: '', redirect: '/flow/railroad' },
+            {
+              name: 'flow-railroad',
+              path: 'railroad',
+              component: () => import('@/flow/concepts/RailroadConcept.vue'),
+            },
+            {
+              name: 'flow-compare',
+              path: 'compare',
+              component: () => import('@/flow/concepts/CompareConcept.vue'),
+            },
+            {
+              name: 'flow-catchup',
+              path: 'catchup',
+              component: () => import('@/flow/concepts/CatchupConcept.vue'),
+            },
+          ],
+        },
+      ],
+    },
   ],
 })
 
