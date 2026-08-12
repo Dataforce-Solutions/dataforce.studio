@@ -73,8 +73,8 @@ const router = createRouter({
         },
       ],
     },
-    // Flow workbench concept prototypes. Additive: the tracker routes above are
-    // untouched, and these carry hardcoded fixtures rather than API calls.
+    // Flow workbench UI draft. Additive: the tracker routes above are untouched,
+    // and everything under /flow carries hardcoded fixtures rather than API calls.
     {
       path: '/flow',
       component: MainTemplate,
@@ -83,21 +83,33 @@ const router = createRouter({
           path: '',
           component: () => import('@/flow/FlowShell.vue'),
           children: [
-            { path: '', redirect: '/flow/railroad' },
+            { path: '', redirect: '/flow/design' },
             {
-              name: 'flow-railroad',
-              path: 'railroad',
-              component: () => import('@/flow/concepts/RailroadConcept.vue'),
+              name: 'flow-design',
+              path: 'design/:section?',
+              component: () => import('@/flow/workbench/gallery/DesignSystemPage.vue'),
+            },
+            {
+              name: 'flow-flows',
+              path: 'flows',
+              component: () => import('@/flow/workbench/pages/FlowsPage.vue'),
+            },
+            {
+              name: 'flow-work',
+              path: 'work',
+              component: () => import('@/flow/workbench/pages/WorkbenchPage.vue'),
             },
             {
               name: 'flow-compare',
               path: 'compare',
-              component: () => import('@/flow/concepts/CompareConcept.vue'),
+              component: () => import('@/flow/workbench/pages/ComparePage.vue'),
             },
+            // The approved concept prototype, kept as a reference only — the
+            // workbench above supersedes it.
             {
-              name: 'flow-catchup',
-              path: 'catchup',
-              component: () => import('@/flow/concepts/CatchupConcept.vue'),
+              name: 'flow-railroad',
+              path: 'railroad',
+              component: () => import('@/flow/concepts/RailroadConcept.vue'),
             },
           ],
         },
