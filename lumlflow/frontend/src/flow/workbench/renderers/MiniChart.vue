@@ -170,7 +170,7 @@ const bounds = computed(() => {
   if (!points.length) return { minX: 0, maxX: 1, minY: 0, maxY: 1 }
   const xs = points.map(([x]) => x)
   const ys = points.map(([, y]) => y)
-  let minX = Math.min(...xs)
+  const minX = Math.min(...xs)
   let maxX = Math.max(...xs)
   let minY = Math.min(...ys)
   let maxY = Math.max(...ys)

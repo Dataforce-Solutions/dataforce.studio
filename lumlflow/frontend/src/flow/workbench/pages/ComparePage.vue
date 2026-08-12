@@ -1,5 +1,5 @@
 <template>
-  <div class="flex max-w-5xl flex-col gap-8 pb-12">
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-12">
     <header class="flex flex-col gap-2">
       <h3 class="text-xl font-medium">Comparing {{ fixture.branches.length }} branches</h3>
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">

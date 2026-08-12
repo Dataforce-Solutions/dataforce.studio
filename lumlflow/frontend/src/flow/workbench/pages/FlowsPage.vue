@@ -1,5 +1,5 @@
 <template>
-  <div class="flex max-w-3xl flex-col gap-8 pb-12">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-12">
     <header>
       <h3 class="text-xl font-medium">Flows</h3>
       <p class="mt-1 text-sm text-muted-color">
