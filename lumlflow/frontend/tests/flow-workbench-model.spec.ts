@@ -15,6 +15,21 @@ import {
   sliceEdges,
   topologicalOrder,
 } from '@/flow/workbench/model/registry'
+import type { AssetKind, FlowCell } from '@/flow/workbench/model/types'
+
+/** A cell carrying only what the notebook's order reads: wiring and mint step. */
+function authoredCell(slug: string, authoredStep: number, ...consumes: string[]): FlowCell {
+  return {
+    slug,
+    doc: '',
+    consumes,
+    params: {},
+    source: '',
+    outputs: [],
+    status: 'materialized',
+    authoredStep,
+  }
+}
 
 describe('primary output ranking', () => {
   it('opens a training cell on the experiment, not the model or a config dump', () => {
@@ -36,6 +51,55 @@ describe('primary output ranking', () => {
     expect(rankOf('eval')).toBeLessThan(rankOf('plot'))
     expect(rankOf('plot')).toBeLessThan(rankOf('frame'))
   })
+
+  // The daemon names the primary output; this order only decides when it has
+  // not, so it has to be the same order — `_KIND_ORDER` in daemon/queries.py.
+  it('reads in the one documented order, with unlisted kinds last', () => {
+    const documented: AssetKind[] = [
+      'experiment',
+      'eval',
+      'plot',
+      'frame',
+      'note',
+      'metric',
+      'dataset',
+      'model',
+      'file',
+      'checkpoint',
+      'unknown',
+    ]
+    const ranks = documented.map(rankOf)
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
+    expect(new Set(ranks).size).toBe(documented.length)
+
+    // An attachment kind is not in the daemon's vocabulary; it sorts after the
+    // kinds that are, rather than ahead of the checkpoint beside it.
+    for (const unlisted of ['image', 'html', 'text'] as AssetKind[]) {
+      expect(rankOf(unlisted)).toBeGreaterThan(rankOf('unknown'))
+    }
+  })
+
+  it('opens a metric-shaped summary ahead of a dataset it ships beside', () => {
+    const cell: FlowCell = {
+      ...trainModel,
+      primaryOutput: undefined,
+      outputs: [
+        {
+          name: 'clean',
+          declared: 'dataset',
+          kind: 'dataset',
+          preview: { type: 'kv', entries: {} },
+        },
+        {
+          name: 'summary',
+          declared: 'asset',
+          kind: 'metric',
+          preview: { type: 'kv', entries: {} },
+        },
+      ],
+    }
+    expect(primaryOutput(cell)?.name).toBe('summary')
+  })
 })
 
 describe('slice wiring', () => {
@@ -52,6 +116,23 @@ describe('slice wiring', () => {
     expect(order.indexOf('holdout_eval')).toBeLessThan(order.indexOf('roc_curve'))
     // Deterministic: same input, same order.
     expect(topologicalOrder(mainCells).map((cell) => cell.slug)).toEqual(order)
+  })
+
+  it('keeps the column pinned when an unrelated cell lands', () => {
+    const chain = [
+      authoredCell('load', 2),
+      authoredCell('features', 4, 'load.rows'),
+      authoredCell('train_model', 6, 'features.split'),
+      authoredCell('holdout_eval', 8, 'train_model.model'),
+    ]
+    const before = topologicalOrder(chain).map((cell) => cell.slug)
+    expect(before).toEqual(['load', 'features', 'train_model', 'holdout_eval'])
+
+    // A root nobody reads, minted last: it belongs at the bottom, where it was
+    // written. Landing it above cells minted before it would move every card
+    // under it down a slot — the reorder the mint-order tiebreak rules out.
+    const after = topologicalOrder([...chain, authoredCell('alpha_scan', 12)])
+    expect(after.map((cell) => cell.slug)).toEqual([...before, 'alpha_scan'])
   })
 
   it('parses producers from reference strings', () => {
@@ -99,7 +180,7 @@ describe('fixture integrity', () => {
     const userFacing: string[] = []
     for (const cells of Object.values(cellsByBranch)) {
       for (const cell of cells) {
-        userFacing.push(cell.slug, cell.doc, cell.stale?.cause ?? '', cell.provenance.intent)
+        userFacing.push(cell.slug, cell.doc, cell.stale?.cause ?? '', cell.provenance?.intent ?? '')
       }
     }
     for (const entry of churnFixture.journal) userFacing.push(entry.intent, entry.summary)

@@ -7,74 +7,13 @@
  * branching point) vs materialization divergence (same code, different inputs —
  * transitively closed, rendered collapsed to one row per asset).
  */
-import type { BranchName, ParamValue, Slug } from '../model/types'
-
-export interface CompareBranchColumn {
-  branch: BranchName
-  headlineMetric: { name: string; value: number; higherIsBetter: boolean }
-  scores: Record<string, number>
-  /** Overlaid on the shared-metric curve chart. */
-  curve: { name: string; points: [number, number][] }
-  settled: boolean
-}
-
-export interface DefinitionDivergence {
-  slug: Slug
-  /** One side per distinct definition, not per branch. */
-  sides: {
-    branches: BranchName[]
-    params: Record<string, ParamValue>
-    /** The line(s) that differ, for side-by-side rendering. */
-    sourceExcerpt: string
-    version: string
-  }[]
-}
-
-export interface MaterializationRow {
-  slug: Slug
-  output: string
-  kind: 'metric' | 'chip'
-  /** One chip per branch: the value or a short state label. */
-  byBranch: Record<BranchName, { label: string; state: 'same' | 'better' | 'worse' | 'missing' }>
-}
-
-export interface ShapelessDifference {
-  slug: Slug
-  what: string
-  branches: BranchName[]
-}
-
-export interface CompareWarning {
-  kind: 'divergent-pin' | 'dataset-mismatch' | 'scoring-mismatch' | 'nondeterministic-input'
-  message: string
-  affectedBranches: BranchName[]
-}
-
-export interface CompareArtifactLink {
-  slug: Slug
-  output: string
-  kind: 'experiment' | 'model' | 'dataset' | 'metric'
-  label: string
-  /** Tracker route, per the fallback chain. */
-  href: string
-  byBranch: Record<BranchName, string>
-}
-
-export interface CompareFixture {
-  branches: CompareBranchColumn[]
-  sharedMetric: string
-  definitionDivergences: DefinitionDivergence[]
-  materializationRows: MaterializationRow[]
-  shapelessDifferences: ShapelessDifference[]
-  warnings: CompareWarning[]
-  artifacts: CompareArtifactLink[]
-}
+import type { BranchName, CompareView } from '../model/types'
 
 import { trainingCurves } from './previews'
 
 const SWEEP: BranchName[] = ['main', 'exp/lr-3e4', 'exp/lr-1e3', 'exp/lr-3e3']
 
-export const sweepCompare: CompareFixture = {
+export const sweepCompare: CompareView = {
   sharedMetric: 'val_auc',
   branches: [
     {
@@ -174,15 +113,14 @@ export const sweepCompare: CompareFixture = {
     },
     {
       slug: 'sweep_config',
-      what: 'param-only edit v2→v3 not yet picked up by the sweep branches (pinned at fork)',
+      what: 'param-only edit v2→v3 not yet picked up by the sweep lanes (pinned when they started)',
       branches: ['exp/lr-3e4', 'exp/lr-1e3', 'exp/lr-3e3'],
     },
   ],
   warnings: [
     {
       kind: 'divergent-pin',
-      message:
-        'sweep branches pin `sweep_config` at v2; main has moved to v3 — headline metrics were not computed against the same config',
+      message: 'sweep lanes pin `sweep_config` at v2. main is at v3.',
       affectedBranches: ['exp/lr-3e4', 'exp/lr-1e3', 'exp/lr-3e3'],
     },
   ],

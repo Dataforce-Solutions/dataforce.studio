@@ -17,6 +17,8 @@
  *   never as bare enum values.
  */
 
+import type { FlagCode } from '@/flow/api/types'
+
 export type Slug = string
 export type BranchName = string
 
@@ -38,6 +40,7 @@ export type AssetKind =
   | 'dataset'
   | 'experiment'
   | 'checkpoint'
+  | 'file'
   | 'image'
   | 'text'
   | 'html'
@@ -49,14 +52,45 @@ export type StaleKind =
   | 'definition-changed'
   | 'deps-rewired'
   | 'parent-rematerialized'
-  | 'lib-changed'
+  | 'workspace-code-changed'
+
+/**
+ * What a branch owes, counted for the one line in the top bar that says so.
+ * The three counts are kept apart because they are three different claims —
+ * and `unmaterialized` is not a flavour of stale.
+ */
+export interface StaleCounts {
+  unsynced: number
+  downstream: number
+  unmaterialized: number
+  /** The first stale cell's cause, in the daemon's own words. */
+  cause?: string
+}
 
 export interface StaleInfo {
-  kind: StaleKind
+  /**
+   * Optional because the wire does not carry it: the daemon serves causes as
+   * sentences, and a live card that picked an enum back out of one would be
+   * re-deriving a verdict it was handed.
+   */
+  kind?: StaleKind
   /** Human words shown on the chip, e.g. 'parent `features` rematerialized'. */
   cause: string
   /** Stale only under the transitive view — subdued tint, hidden by default. */
   transitive?: boolean
+}
+
+/**
+ * Why a stale cell is being left for the user to run. The card says it out
+ * loud: a cell reactivity declined and a cell reactivity forgot about look
+ * identical otherwise, and that is what made auto mode read as broken.
+ */
+export interface AutoDeclinedInfo {
+  reason: 'blocked' | 'never-timed' | 'too-expensive'
+  /** Seconds the timed part of the closure is expected to take. */
+  estimateSeconds: number
+  /** Cells in the closure this flow has never run, by slug. */
+  untimed: string[]
 }
 
 export interface ActorRef {
@@ -75,7 +109,8 @@ export interface ProvenanceInfo {
 }
 
 export interface TimingInfo {
-  costSeconds: number
+  /** Absent when the run recorded none — never a zero standing in for unknown. */
+  costSeconds?: number
   /** Memo hit — a hit is not a 0-second run, and saying so keeps the cache legible. */
   cached?: boolean
   /** Recorded lock hash differs from the live env. */
@@ -85,6 +120,12 @@ export interface TimingInfo {
 
 /** Accepted-but-flagged version (broken declaration, unknown reference). */
 export interface CellFlagInfo {
+  /**
+   * Which flag this is. The card reads it to tell a broken declaration from a
+   * cell that simply has not been named yet — one is a warning, the other is
+   * the state every cell starts in.
+   */
+  code?: FlagCode
   message: string
   didYouMean?: string
 }
@@ -107,7 +148,7 @@ export interface FramePreview {
   type: 'frame'
   columns: string[]
   dtypes: string[]
-  rows: (string | number | null)[][]
+  rows: (string | number | boolean | null)[][]
   totalRows: number
 }
 
@@ -189,6 +230,88 @@ export interface KvPreview {
   newerFormatNote?: string
 }
 
+// ---------------------------------------------------------------------------
+// Preview blocks — the primitives a stored preview is composed of
+// ---------------------------------------------------------------------------
+
+/**
+ * The six renderable primitives of the stored preview schema. A kind — builtin
+ * or one a workspace defined this morning — composes these and renders without
+ * a line of frontend code, which is the whole reason the payload is blocks and
+ * not a per-kind shape.
+ */
+export interface TableBlock {
+  block: 'table'
+  columns: string[]
+  dtypes: string[]
+  rows: (string | number | boolean | null)[][]
+  totalRows: number
+  totalColumns: number
+}
+
+export interface SeriesBlock {
+  block: 'series'
+  name: string
+  points: [number, number][]
+  totalPoints: number
+}
+
+export interface ImageBlock {
+  block: 'image'
+  mime: string
+  /** base64, as stored — rendered inline, never fetched. */
+  data: string
+}
+
+export interface MarkdownBlock {
+  block: 'markdown'
+  text: string
+}
+
+export interface KvBlock {
+  block: 'kv'
+  entries: Record<string, ParamValue>
+}
+
+export interface FileBlock {
+  block: 'file'
+  name: string
+  size: number
+  contentType: string
+}
+
+export type PreviewBlock =
+  | TableBlock
+  | SeriesBlock
+  | ImageBlock
+  | MarkdownBlock
+  | KvBlock
+  | FileBlock
+
+/** A stored preview as served: the kind it was inferred as, and its blocks. */
+export interface BlocksPreview {
+  type: 'blocks'
+  kind: AssetKind
+  blocks: PreviewBlock[]
+  /** The payload hit its cap; what is shown is the head of a longer value. */
+  truncated?: boolean
+  /** The payload is still on its way — not the same thing as an empty value. */
+  pending?: boolean
+}
+
+/**
+ * A window into a stored value, served by the kernel on request. The preview is
+ * the head of a value; this is the rest of it, one page at a time — the browser
+ * receives pages, never the frame.
+ */
+export interface ValuePage {
+  columns: string[]
+  dtypes: string[]
+  rows: (string | number | boolean | null)[][]
+  offset: number
+  totalRows: number
+}
+
 export type PreviewValue =
   | FramePreview
   | PlotPreview
@@ -201,6 +324,7 @@ export type PreviewValue =
   | FilePreview
   | TextPreview
   | KvPreview
+  | BlocksPreview
 
 // ---------------------------------------------------------------------------
 // Cells
@@ -228,7 +352,13 @@ export interface FlowCell {
   primaryOutput?: string
   status: CellStatus
   stale?: StaleInfo
-  provenance: ProvenanceInfo
+  /**
+   * The step the cell was minted at — what breaks ties in the notebook column.
+   * The mint order never moves, so a rename or an edit cannot reorder cards.
+   */
+  authoredStep?: number
+  /** Absent until authorship has been read — never a placeholder shaped like one. */
+  provenance?: ProvenanceInfo
   timing?: TimingInfo
   /** Persistent logs of the current materialization. */
   logs?: string
@@ -240,10 +370,23 @@ export interface FlowCell {
   conflict?: boolean
   /** Saved to the store, projection to files deferred by the worktree lock. */
   pendingProjection?: boolean
-  /** volatility: external — grouped under "inputs" in the left panel. */
+  /**
+   * The name this cell answered to a moment ago. A rename is one identity
+   * keeping its references, so the card carries the old name across rather than
+   * reading as one cell disappearing and another arriving.
+   */
+  renamedFrom?: string
+  /** volatility: external — listed under the left panel's "data" lens. */
   externalInput?: boolean
   /** Per-asset eager toggle (reactivity setting). */
   eager?: boolean
+  /**
+   * Reactivity is on, this cell is out of date, and it is not refreshing
+   * itself. Absent whenever there is nothing to say — which includes the cell
+   * that is about to refresh, because a label gone by the time it is read is
+   * worse than none.
+   */
+  autoDeclined?: AutoDeclinedInfo
   /** Note cells render prose and skip the op row's run controls. */
   isNote?: boolean
 }
@@ -260,6 +403,12 @@ export interface BranchInfo {
   lastIntent: string
   /** Fully materialized and consistent — a quality badge, never a gate. */
   settled: boolean
+  /**
+   * The step this branch was last marked or settled at — where the timeline
+   * says it stands. Absent on a branch that has neither been marked nor been
+   * whole, which is every branch with something unfinished on it.
+   */
+  checkpointStep?: number
   /** Agent currently registered on this branch. */
   agent?: ActorRef
   archived?: boolean
@@ -272,6 +421,7 @@ export interface BranchInfo {
 export type JournalKind =
   | 'edit'
   | 'run'
+  | 'checkpoint'
   | 'fork'
   | 'adopt'
   | 'rename'
@@ -314,7 +464,8 @@ export interface PairedAgent {
 
 export interface WorkbenchSession {
   flowName: string
-  workspacePath: string
+  /** Absent until something has asked the daemon where it was launched. */
+  workspacePath?: string
   state: FlowState
   paired?: PairedAgent
   worktreeBranch: BranchName
@@ -335,7 +486,11 @@ export interface PackageInfo {
 export interface EnvState {
   pythonVersion: string
   packages: PackageInfo[]
-  /** Branch lockfile differs from the live venv. */
+  /**
+   * The running kernel imported packages the workspace has moved since, so it
+   * is behind until restarted. There is no per-branch env: one venv per
+   * workspace, and what already ran keeps the lock hash it ran under.
+   */
   mismatch?: boolean
 }
 
@@ -350,9 +505,17 @@ export interface FlowSettings {
 // Run preflight
 // ---------------------------------------------------------------------------
 
+/**
+ * The daemon's own answer, in the shape it gave it. Which cells recompute and
+ * what the closure costs is a scheduling verdict; a client that split the total
+ * back into per-cell guesses would be answering the question the preflight
+ * exists to ask.
+ */
 export interface Preflight {
   cached: Slug[]
-  recompute: { slug: Slug; seconds: number }[]
+  recompute: Slug[]
+  /** Never timed here — seconds absent from the total rather than guessed at. */
+  unknown: Slug[]
   totalSeconds: number
 }
 
@@ -367,4 +530,87 @@ export interface WorkbenchFixture {
   branches: BranchInfo[]
   cellsByBranch: Record<BranchName, FlowCell[]>
   journal: JournalEntry[]
+}
+
+// ---------------------------------------------------------------------------
+// The compare surface (ui-draft.md §7)
+//
+// The two divergence kinds are the load-bearing distinction: definition
+// divergence (someone edited the cell — rare, structural, rendered as the
+// branching point) vs materialization divergence (same code, different inputs —
+// transitively closed, rendered collapsed to one row per asset).
+// ---------------------------------------------------------------------------
+
+export interface CompareBranchColumn {
+  branch: BranchName
+  /**
+   * The one number the asset leads with, where it has one. `higherIsBetter` is
+   * the comparison's own declaration and absent on a live one: nothing the
+   * runtime records says which way a metric reads, and a column marked best
+   * against a guess is a claim nobody measured.
+   */
+  headlineMetric?: { name: string; value: number; higherIsBetter?: boolean }
+  scores: Record<string, number>
+  /** Overlaid on the shared-metric curve chart, for outputs that carry one. */
+  curve?: { name: string; points: [number, number][] }
+  settled: boolean
+  /**
+   * What the branch holds where it holds no numbers — most kinds record none.
+   * Absent when the branch stored nothing at all, which is the one case that
+   * honestly reads as never materialized.
+   */
+  heldKind?: AssetKind
+}
+
+export interface DefinitionDivergence {
+  slug: Slug
+  /** One side per distinct definition, not per branch. */
+  sides: {
+    branches: BranchName[]
+    params: Record<string, ParamValue>
+    /** The line(s) that differ, where the comparison carries source to show. */
+    sourceExcerpt?: string
+    version: string
+  }[]
+}
+
+export interface MaterializationRow {
+  slug: Slug
+  /** Absent collapses the row to the asset — one row per cell, not per output. */
+  output?: string
+  kind: 'metric' | 'chip'
+  /** One chip per branch: the value or a short state label. */
+  byBranch: Record<BranchName, { label: string; state: 'same' | 'better' | 'worse' | 'missing' }>
+}
+
+export interface ShapelessDifference {
+  slug: Slug
+  what: string
+  branches: BranchName[]
+}
+
+export interface CompareWarning {
+  kind: 'divergent-pin' | 'dataset-mismatch' | 'scoring-mismatch' | 'nondeterministic-input'
+  message: string
+  affectedBranches: BranchName[]
+}
+
+export interface CompareArtifactLink {
+  slug: Slug
+  output: string
+  kind: 'experiment' | 'model' | 'dataset' | 'metric'
+  label: string
+  /** Tracker route, per the fallback chain. */
+  href: string
+  byBranch: Record<BranchName, string>
+}
+
+export interface CompareView {
+  branches: CompareBranchColumn[]
+  sharedMetric: string
+  definitionDivergences: DefinitionDivergence[]
+  materializationRows: MaterializationRow[]
+  shapelessDifferences: ShapelessDifference[]
+  warnings: CompareWarning[]
+  artifacts: CompareArtifactLink[]
 }

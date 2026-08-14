@@ -1,40 +1,28 @@
 <template>
-  <div class="h-full flex flex-col">
-    <header class="flex items-center gap-4 pb-3 border-b border-surface-200 dark:border-surface-700">
-      <div>
-        <p class="text-xs text-muted-color">lumlflow</p>
-        <h2 class="font-medium">Flow workbench — UI draft</h2>
-      </div>
+  <div class="flex h-full flex-col">
+    <!--
+      The flow's own strip, and only where nothing else carries it: on the
+      workbench the tabs ride in `WorkbenchTopBar`, which already names the open
+      flow — a second chrome bar there was 60 px of nothing on every screen.
+    -->
+    <header
+      v-if="showTabs"
+      class="flex items-center gap-4 border-b border-surface-200 dark:border-surface-700"
+    >
+      <FlowTabs class="min-w-0 flex-1" />
 
-      <nav class="flex gap-1 ml-4">
-        <RouterLink
-          v-for="entry in nav"
-          :key="entry.path"
-          :to="entry.path"
-          class="px-3 py-1 rounded text-sm border"
-          :class="
-            route.path.startsWith(entry.path)
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-muted-color hover:border-surface-300 dark:hover:border-surface-600'
-          "
-        >
-          {{ entry.label }}
-        </RouterLink>
-      </nav>
-
-      <div v-if="onRailroad" class="ml-auto flex items-center gap-3">
-        <select
-          v-model="fixtureId"
-          class="bg-transparent border border-surface-300 dark:border-surface-600 rounded px-2 py-1 text-sm"
-        >
-          <option v-for="entry in fixtures" :key="entry.id" :value="entry.id">
-            {{ entry.label }}
-          </option>
-        </select>
-      </div>
+      <Select
+        v-if="onRailroad"
+        v-model="fixtureId"
+        :options="fixtures"
+        option-label="label"
+        option-value="id"
+        size="small"
+        aria-label="fixture"
+      />
     </header>
 
-    <div class="flex-1 min-h-0 overflow-auto pt-3">
+    <div class="min-h-0 flex-1 overflow-auto" :class="showTabs ? 'pt-3' : ''">
       <RouterView :key="onRailroad ? fixtureId : route.fullPath" />
     </div>
   </div>
@@ -42,19 +30,30 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
+import { Select } from 'primevue'
 import { useWorkspace } from './composables/useWorkspace'
+import FlowTabs, { flowNavEntries } from './FlowTabs.vue'
+
+/**
+ * The flow surface's shell. Branding and the top-level Experiments/Workspace
+ * switch belong to `MainHeader.vue` above it; the open flow's own views belong
+ * to whichever bar is already naming that flow.
+ */
 
 const route = useRoute()
 const { fixtureId, fixtures } = useWorkspace()
 
 const onRailroad = computed(() => route.path.startsWith('/flow/railroad'))
 
-const nav = [
-  { path: '/flow/design', label: 'Design system' },
-  { path: '/flow/flows', label: 'Flows' },
-  { path: '/flow/work', label: 'Workbench' },
-  { path: '/flow/compare', label: 'Compare' },
-  { path: '/flow/railroad', label: 'Reference · railroad' },
-]
+/**
+ * The workbench carries the tabs itself, in the bar that names the flow. Read
+ * off the path rather than the route name so the rule holds wherever the
+ * component is mounted: a flow is open and this is not its comparison.
+ */
+const onWorkbench = computed(
+  () => Boolean(route.params.flowId) && !route.path.endsWith('/compare'),
+)
+
+const showTabs = computed(() => !onWorkbench.value && flowNavEntries(route).length > 0)
 </script>

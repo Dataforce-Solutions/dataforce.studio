@@ -2,7 +2,7 @@
   <Dialog
     v-model:visible="visible"
     modal
-    header="Branches"
+    header="Lanes"
     dismissable-mask
     :style="{ width: 'min(58rem, 94vw)' }"
   >
@@ -11,7 +11,7 @@
       :selectable="selectable"
       :worktree-locked="worktreeLocked"
       @view="emit('view', $event)"
-      @checkout="emit('checkout', $event)"
+      @checkout="(name, force) => emit('checkout', name, force)"
       @archive="emit('archive', $event)"
       @compare="emit('compare', $event)"
     />
@@ -23,8 +23,8 @@ import { Dialog } from 'primevue'
 import type { BranchInfo } from '../../model/types'
 import BranchGraph from './BranchGraph.vue'
 
-// Overlay, not a permanent panel: branch topology is consulted at decision
-// points, disclosed from the branch identifier.
+// Overlay, not a permanent panel: the lane map is consulted at decision
+// points, disclosed from the lane identifier.
 defineProps<{
   branches: BranchInfo[]
   selectable?: boolean
@@ -33,7 +33,8 @@ defineProps<{
 
 const emit = defineEmits<{
   view: [name: string]
-  checkout: [name: string]
+  /** `force` is the escape past an agent's worktree lock, never the default. */
+  checkout: [name: string, force?: boolean]
   archive: [name: string]
   compare: [names: string[]]
 }>()

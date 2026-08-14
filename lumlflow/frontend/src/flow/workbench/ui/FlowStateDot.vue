@@ -1,14 +1,14 @@
 <template>
-  <span v-tooltip.bottom="tooltip" class="inline-flex items-center gap-2 text-sm">
-    <span class="relative flex w-2.5 h-2.5">
+  <span v-tooltip.bottom="tooltip" class="inline-flex items-center gap-2 text-base">
+    <span class="relative flex h-2.5 w-2.5">
       <span
         v-if="state === 'running'"
-        class="absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping"
-        :class="dotClass"
+        class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+        :style="{ background: color }"
       />
-      <span class="relative inline-flex w-2.5 h-2.5 rounded-full" :class="dotClass" />
+      <span class="relative inline-flex h-2.5 w-2.5 rounded-full" :style="{ background: color }" />
     </span>
-    <span v-if="!dotOnly" :class="state === 'daemon-down' ? 'text-red-600 dark:text-red-400' : ''">
+    <span v-if="!dotOnly" :class="state === 'daemon-down' ? 'text-(--p-message-error-color)' : ''">
       {{ label }}
     </span>
   </span>
@@ -22,26 +22,30 @@ import type { FlowState } from '../model/types'
 const props = defineProps<{ state: FlowState; dotOnly?: boolean }>()
 
 const CONFIG: Record<FlowState, { label: string; tooltip: string; dot: string }> = {
-  running: { label: 'running', tooltip: 'A run is in flight', dot: 'bg-emerald-500' },
-  idle: { label: 'idle', tooltip: 'Paired, nothing running', dot: 'bg-sky-500' },
+  running: {
+    label: 'running',
+    tooltip: 'a run is in flight',
+    dot: 'var(--p-message-success-color)',
+  },
+  idle: { label: 'idle', tooltip: 'paired, nothing running', dot: 'var(--p-message-info-color)' },
   unpaired: {
     label: 'unpaired',
-    tooltip: 'No agent registered — everything still works',
-    dot: 'bg-surface-400',
+    tooltip: 'no agent registered. everything still works.',
+    dot: 'var(--p-text-muted-color)',
   },
   'kernel-not-started': {
     label: 'kernel not started',
-    tooltip: 'Browsing works from previews; expanding a value will start the kernel',
-    dot: 'bg-surface-400',
+    tooltip: 'browsing works from previews. expanding a value starts the kernel.',
+    dot: 'var(--p-text-muted-color)',
   },
   'daemon-down': {
-    label: 'daemon down',
-    tooltip: 'Nothing live — showing last-known state',
-    dot: 'bg-red-500',
+    label: 'not running',
+    tooltip: 'nothing live. showing last-known state.',
+    dot: 'var(--p-message-error-color)',
   },
 }
 
 const label = computed(() => CONFIG[props.state].label)
 const tooltip = computed(() => CONFIG[props.state].tooltip)
-const dotClass = computed(() => CONFIG[props.state].dot)
+const color = computed(() => CONFIG[props.state].dot)
 </script>

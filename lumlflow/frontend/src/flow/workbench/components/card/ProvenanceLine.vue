@@ -1,25 +1,19 @@
 <template>
-  <div class="flex items-center gap-x-2 gap-y-1 flex-wrap text-xs text-muted-color min-w-0">
-    <span class="shrink-0">created</span>
-    <ActorChip :actor="provenance.createdBy" muted />
-    <span>·</span>
-    <span class="shrink-0">last edit</span>
+  <div :title="fullLine" class="flex min-w-0 items-center gap-2 text-sm text-muted-color">
     <ActorChip
       :actor="provenance.lastEditedBy"
       :uncertain="provenance.attributionUncertain"
       muted
     />
-    <span>·</span>
-    <em class="italic truncate max-w-64">“{{ provenance.intent }}”</em>
-    <span>·</span>
-    <span class="shrink-0">step {{ provenance.step }}</span>
-    <template v-if="repairedLine">
-      <span>·</span>
-      <span class="inline-flex items-center gap-1 shrink-0">
-        <History :size="11" />
-        {{ repairedLine }}
-      </span>
-    </template>
+    <span class="truncate">· {{ provenance.intent }}</span>
+    <span
+      v-if="repairedAttempts"
+      class="inline-flex shrink-0 items-center gap-1"
+      :aria-label="repairedLine"
+    >
+      <History :size="14" />
+      {{ repairedAttempts }} failed
+    </span>
   </div>
 </template>
 
@@ -31,20 +25,27 @@ import type { ProvenanceInfo } from '../../model/types'
 import ActorChip from '../../ui/ActorChip.vue'
 
 /**
- * Version authorship as recorded, plus the folded repair history: an
- * agent-authored failure repaired by the same author collapses into one line
- * rather than interrupting anyone.
+ * Who last touched this version and why — a signature, not a sentence. Creation
+ * authorship, the step number and the shape of the folded repair history are
+ * recall rather than a glance, so they ride in the hover title.
  */
 const props = defineProps<{
   provenance: ProvenanceInfo
   repairedAttempts?: number
 }>()
 
-// Version numbers are not in the view model yet; the fold derives a plausible
-// pair so the gallery renders the contract's exact line shape.
+// Counted, not numbered. How many runs of this cell failed before the one
+// standing now is a fact the session watched go by; which version each of them
+// was is not, and pairing them up would put invented numbers on screen.
 const repairedLine = computed(() => {
   const attempts = props.repairedAttempts
-  if (!attempts) return ''
-  return `v${attempts + 2}→v${attempts + 3} · ${formatCount(attempts, 'failed attempt')}`
+  return attempts ? `${formatCount(attempts, 'failed attempt')} folded in` : ''
+})
+
+const fullLine = computed(() => {
+  const { createdBy, lastEditedBy, step } = props.provenance
+  const parts = [`created ${createdBy.label}`, `last edit ${lastEditedBy.label}`, `step ${step}`]
+  if (repairedLine.value) parts.push(repairedLine.value)
+  return parts.join(' · ')
 })
 </script>

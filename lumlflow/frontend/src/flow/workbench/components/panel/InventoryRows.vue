@@ -18,44 +18,46 @@ export interface InventoryRow {
 </script>
 
 <script setup lang="ts">
+import { Button } from 'primevue'
 import KindBadge from '../../ui/KindBadge.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
-import SectionLabel from '../../ui/SectionLabel.vue'
 import StatusChip from '../../ui/StatusChip.vue'
 
-defineProps<{
-  label: string
-  rows: InventoryRow[]
-  caption?: string
-  emptyText?: string
-}>()
+defineProps<{ rows: InventoryRow[] }>()
 
 const emit = defineEmits<{ select: [slug: string] }>()
+
+const ROW_PT = { root: { class: 'w-full justify-start gap-2.5 px-1.5 py-1.5 font-normal' } }
 </script>
 
 <template>
-  <section class="flex flex-col gap-1.5 min-w-0">
-    <SectionLabel :label="label" :count="rows.length" />
-    <p v-if="caption" class="text-[11px] text-muted-color">{{ caption }}</p>
-    <ul v-if="rows.length" class="flex flex-col">
-      <li v-for="row in rows" :key="row.key">
-        <button
-          class="w-full flex items-center gap-2 rounded px-1.5 py-1 text-left min-w-0 hover:bg-surface-100 dark:hover:bg-surface-800"
-          @click="emit('select', row.slug)"
-        >
-          <KindBadge :kind="row.kind" icon-only :icon-size="13" />
-          <span class="text-[13px] truncate" :class="row.mono ? 'font-mono' : ''">
-            {{ row.title }}
-          </span>
-          <MetaBadge v-if="row.external" variant="external" />
-          <span class="ml-auto" />
-          <span v-if="row.detail" class="shrink-0 font-mono text-[11px] text-muted-color">
-            {{ row.detail }}
-          </span>
-          <StatusChip v-if="row.status" :status="row.status" :stale="row.stale" compact />
-        </button>
-      </li>
-    </ul>
-    <p v-else class="text-xs text-muted-color px-1.5">{{ emptyText ?? 'none on this branch' }}</p>
-  </section>
+  <ul class="flex min-w-0 flex-col">
+    <li v-for="row in rows" :key="row.key" class="min-w-0">
+      <Button
+        text
+        severity="secondary"
+        size="small"
+        data-testid="lens-row"
+        :pt="ROW_PT"
+        @click="emit('select', row.slug)"
+      >
+        <KindBadge :kind="row.kind" icon-only :icon-size="14" />
+        <span class="min-w-0 truncate text-base" :class="row.mono ? 'font-mono' : ''">
+          {{ row.title }}
+        </span>
+        <MetaBadge v-if="row.external" variant="external" />
+        <span class="ml-auto" />
+        <span v-if="row.detail" class="shrink-0 font-mono text-sm text-muted-color">
+          {{ row.detail }}
+        </span>
+        <!-- Only deviations are chipped: a chip on every materialized row is noise. -->
+        <StatusChip
+          v-if="row.status && row.status !== 'materialized'"
+          :status="row.status"
+          :stale="row.stale"
+          compact
+        />
+      </Button>
+    </li>
+  </ul>
 </template>

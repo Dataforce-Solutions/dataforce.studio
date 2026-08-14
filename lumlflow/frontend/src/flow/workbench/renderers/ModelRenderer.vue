@@ -7,13 +7,13 @@
       >
         {{ formatMetric(preview.headlineMetric.value) }}
       </span>
-      <span class="inline-flex items-center gap-1 text-xs text-muted-color">
+      <span class="inline-flex items-center gap-1 text-sm text-muted-color">
         <component
           :is="preview.headlineMetric.higherIsBetter ? ArrowUp : ArrowDown"
           v-tooltip.top="
             preview.headlineMetric.higherIsBetter ? 'higher is better' : 'lower is better'
           "
-          :size="12"
+          :size="14"
         />
         <span>{{ preview.headlineMetric.name }}</span>
       </span>
@@ -21,14 +21,13 @@
 
     <ConfigGrid :config="preview.config" />
 
-    <p class="inline-flex items-center gap-1.5 text-xs text-muted-color">
-      <Box :size="12" class="shrink-0" />
+    <p class="inline-flex items-center gap-1.5 text-sm text-muted-color">
+      <Box :size="14" class="shrink-0" />
       <span>{{ preview.flavor }} · {{ formatBytes(preview.sizeBytes) }}</span>
     </p>
 
-    <p v-if="preview.experimentRef" class="text-xs text-muted-color">
-      see the full experiment — output
-      <code class="font-mono">{{ preview.experimentRef }}</code>
+    <p v-if="preview.experimentRef" class="text-sm text-muted-color">
+      experiment <code class="font-mono">{{ preview.experimentRef }}</code>
     </p>
   </div>
 </template>

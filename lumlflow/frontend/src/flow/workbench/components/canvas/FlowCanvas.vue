@@ -12,12 +12,49 @@
     @pane-ready="onPaneReady"
   >
     <template #node-cell="{ data }">
-      <CellFlowNode :data="data" />
+      <CellFlowNode :tinted="data.tinted">
+        <!--
+          The card is the caller's: the fixture path takes the fallback below,
+          a live session hands in one bound to the daemon. Either way it is the
+          same CellCard at the same density — the canvas owns the placement.
+        -->
+        <slot name="card" :cell="data.cell" :selected="data.selected" :preflight="data.preflight">
+          <CellCard
+            :cell="data.cell"
+            density="canvas"
+            :selected="data.selected"
+            :branch="branch"
+            :preflight="data.preflight"
+            @expand="emit('expand', data.cell.slug)"
+            @run="emit('run', data.cell.slug, $event)"
+            @stop="emit('stop', data.cell.slug)"
+            @rename="emit('rename', data.cell.slug)"
+            @delete="emit('delete', data.cell.slug)"
+            @duplicate="emit('duplicate', data.cell.slug)"
+            @send-to-agent="emit('send-to-agent', data.cell.slug, $event)"
+            @resolve-conflict="emit('resolve-conflict', data.cell.slug, $event)"
+            @edit="emit('edit', data.cell.slug, $event)"
+          />
+        </slot>
+      </CellFlowNode>
     </template>
     <Background :gap="26" pattern-color="var(--p-surface-300)" />
     <Controls :show-interactive="false" position="bottom-right" />
   </VueFlow>
 </template>
+
+<script lang="ts">
+import type { FlowCell, Preflight } from '../../model/types'
+
+/** What a node carries: the cell it draws and how this view stands to it. */
+export interface CellNodeData {
+  cell: FlowCell
+  selected: boolean
+  /** Transitive-staleness filter is ON and this cell is transitively stale. */
+  tinted: boolean
+  preflight?: Preflight
+}
+</script>
 
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue'
@@ -28,8 +65,8 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import { sliceEdges } from '../../model/registry'
-import type { FlowCell, ParamValue, Preflight } from '../../model/types'
-import CellFlowNode, { type CellNodeData } from './CellFlowNode.vue'
+import CellCard from '../card/CellCard.vue'
+import CellFlowNode from './CellFlowNode.vue'
 import { layoutSlice, NODE_WIDTH } from './canvasLayout'
 
 /**
@@ -53,11 +90,9 @@ const emit = defineEmits<{
   rename: [slug: string]
   delete: [slug: string]
   duplicate: [slug: string]
-  navigate: [payload: { view: 'canvas' | 'notebook'; slug: string }]
   'send-to-agent': [slug: string, payload: string]
   'resolve-conflict': [slug: string, choice: 'overwrite' | 'fork']
   edit: [slug: string, payload: { source: string }]
-  'edit-params': [slug: string, params: Record<string, ParamValue>]
 }>()
 
 const positions = computed(() => layoutSlice(props.cells))
@@ -70,23 +105,9 @@ const nodes = computed<Node<CellNodeData>[]>(() =>
     style: { width: `${NODE_WIDTH}px` },
     data: {
       cell,
-      branch: props.branch,
       selected: cell.slug === props.selectedSlug,
       tinted: props.tintedSlugs.has(cell.slug),
       preflight: props.preflights[cell.slug],
-      events: {
-        expand: () => emit('expand', cell.slug),
-        run: (payload) => emit('run', cell.slug, payload),
-        stop: () => emit('stop', cell.slug),
-        rename: () => emit('rename', cell.slug),
-        remove: () => emit('delete', cell.slug),
-        duplicate: () => emit('duplicate', cell.slug),
-        navigate: (payload) => emit('navigate', payload),
-        sendToAgent: (payload) => emit('send-to-agent', cell.slug, payload),
-        resolveConflict: (choice) => emit('resolve-conflict', cell.slug, choice),
-        edit: (payload) => emit('edit', cell.slug, payload),
-        editParams: (params) => emit('edit-params', cell.slug, params),
-      },
     },
   })),
 )

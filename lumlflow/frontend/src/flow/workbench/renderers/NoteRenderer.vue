@@ -25,7 +25,7 @@ const html = computed(() => DOMPurify.sanitize(marked.parse(props.preview.markdo
 .markdown-body {
   background-color: transparent;
   color: var(--p-text-color);
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 .markdown-body :deep(tr) {

@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col gap-8 max-w-4xl">
+  <div class="flex flex-col gap-12 max-w-4xl">
     <GallerySpecimen
-      title="Preflight — expensive closure"
+      title="Preflight · expensive closure"
       caption="Run never happens blind: with features stale, running holdout_eval names three recomputes and the total seconds before the click."
     >
       <PreflightPopover
@@ -13,8 +13,8 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Preflight — cheap closure"
-      caption="A one-cell closure gets the same treatment: what is cached, what recomputes, the total — the shape never changes with the cost."
+      title="Preflight · cheap closure"
+      caption="A one-cell closure gets the same treatment: what is cached, what recomputes, the total. The shape never changes with the cost."
     >
       <PreflightPopover
         :preflight="cheapPreflight"
@@ -25,27 +25,27 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Rerun the whole branch"
-      caption="Rerun-the-session means run this branch's slice to its leaves — one preflight for the batch."
+      title="Rerun the whole lane"
+      caption="Rerun-the-session means run this lane's slice to its leaves, under one preflight for the batch."
     >
       <div
-        class="flex items-center justify-between gap-3 flex-wrap rounded-md border border-surface-200 dark:border-surface-700 px-3 py-2"
+        class="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-surface-200 dark:border-surface-700 px-3 py-2"
       >
-        <span class="text-sm text-muted-color">
-          rerun <code class="font-mono text-[13px]">main</code> — runs the slice to every leaf
+        <span class="text-base text-muted-color">
+          rerun <code class="font-mono text-base">main</code> · runs the slice to every leaf
         </span>
         <PreflightPopover
           :preflight="branchPreflight"
           target="main · every leaf"
-          label="rerun branch"
-          @run="acknowledgeRun('main (branch)', branchPreflight, $event)"
+          label="rerun lane"
+          @run="acknowledgeRun('main (lane)', branchPreflight, $event)"
         />
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Force-rerun is a modifier"
-      caption="Ignore-memo-hits is a labeled checkbox inside every preflight, never the default; ticking it moves the cached cells into the run and leaves the total open-ended."
+      caption="Ignore-memo-hits is a labeled checkbox inside every preflight, never the default. Ticking it moves the cached cells into the run and leaves the total open-ended."
     >
       <PreflightPopover
         :preflight="evalPreflight"
@@ -56,17 +56,17 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Stop — awaiter-aware wording"
-      caption="An in-flight run may have several awaiting branches; preemption fires only when no awaiter still wants the result. The stop button says which case it is."
+      title="Stop · awaiter-aware wording"
+      caption="An in-flight run may have several awaiting lanes. Preemption fires only when no awaiter still wants the result. The stop button says which case it is."
     >
       <div class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-4 flex-wrap">
-          <span class="text-xs text-muted-color">no other branch awaits → “stop the run”</span>
+          <span class="text-sm text-muted-color">no other lane waits → “stop the run”</span>
           <CellOpRow :cell="runningCell" density="canvas" :awaiters="0" v-on="opEvents(0)" />
         </div>
         <div class="flex items-center justify-between gap-4 flex-wrap">
-          <span class="text-xs text-muted-color">
-            2 other branches await → “leave the run, requeue this branch”
+          <span class="text-sm text-muted-color">
+            2 other lanes wait → “leave the run, requeue this lane”
           </span>
           <CellOpRow :cell="runningCell" density="canvas" :awaiters="2" v-on="opEvents(2)" />
         </div>
@@ -75,31 +75,30 @@
 
     <GallerySpecimen
       title="Stop the session"
-      caption="The button only claims what the daemon owns. Stopping the agent is not ours unless we own its process — and in v1 we do not."
+      caption="The button only claims what lumlflow owns. Stopping the agent is not ours unless we own its process, and in v1 we do not."
     >
       <div class="flex flex-col gap-1.5">
         <Button
           severity="danger"
           outlined
-          size="small"
           label="stop the session"
           class="self-start"
           @click="note('would cancel the in-flight run and drain the queue')"
         >
           <template #icon><OctagonX :size="14" /></template>
         </Button>
-        <p class="text-[11px] text-muted-color">
-          cancels runs and drains the queue — stopping the agent happens in its terminal
+        <p class="text-sm text-muted-color">
+          cancels runs and drains the queue. stopping the agent happens in its terminal.
         </p>
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Per-asset eager toggle"
-      caption="Reactivity is lazy by default (auto below a cost threshold); eager is a per-asset opt-in on the card, not a global switch that would auto-run training."
+      caption="Reactivity ships on auto, which refreshes a closure it has already timed under the threshold. Eager is the per-asset way past that threshold: an opt-in on one card, never a global switch that would auto-run training."
     >
       <div class="flex items-center gap-3 flex-wrap">
-        <code class="font-mono text-[13px]">roc_curve</code>
+        <code class="font-mono text-base">roc_curve</code>
         <ToggleSwitch
           v-model="eagerDemo"
           :aria-label="'eager materialization for roc_curve'"
@@ -107,8 +106,8 @@
             note(eagerDemo ? 'would set roc_curve to eager' : 'would set roc_curve back to lazy')
           "
         />
-        <span class="text-xs text-muted-color">
-          eager — rematerializes on change regardless of cost
+        <span class="text-sm text-muted-color">
+          eager · rematerializes on change regardless of cost
         </span>
       </div>
     </GallerySpecimen>
@@ -135,7 +134,7 @@ function note(summary: string): void {
 
 function acknowledgeRun(target: string, preflight: Preflight, payload: { force: boolean }): void {
   note(
-    `would run \`${target}\` — ${formatCount(preflight.recompute.length, 'cell')}, ~${formatCost(preflight.totalSeconds)}${payload.force ? ' · force (memo ignored)' : ''}`,
+    `would run \`${target}\` · ${formatCount(preflight.recompute.length, 'cell')}, ~${formatCost(preflight.totalSeconds)}${payload.force ? ' · force (memo ignored)' : ''}`,
   )
 }
 
@@ -146,29 +145,23 @@ function opEvents(awaiters: number) {
       note(
         awaiters === 0
           ? 'would stop the run'
-          : `would leave the run for ${formatCount(awaiters, 'awaiting branch')} and requeue this branch`,
+          : `would leave the run for ${formatCount(awaiters, 'awaiting lane')} and requeue this lane`,
       ),
     expand: () => note('would expand into the drawer'),
-    navigate: ({ view }: { view: 'canvas' | 'notebook' }) => note(`would jump to the ${view} view`),
     'send-to-agent': (payload: string) =>
-      note(`handoff payload built — ${formatCount(payload.split('\n').length, 'line')}`),
-    rename: () => note('would rename — every reference rewired atomically'),
-    delete: () => note("would remove from this branch's selection"),
-    duplicate: () => note('would duplicate — a new identity with no consumers'),
+      note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`),
+    rename: () => note('would rename. every reference rewires atomically.'),
+    delete: () => note("would remove from this lane's selection"),
+    duplicate: () => note('would duplicate · a new identity with no consumers'),
   }
 }
 
 // One preflight for the whole-branch rerun: everything below the stale edit.
 const branchPreflight: Preflight = {
   cached: ['load_customers', 'clean_data', 'sweep_config'],
-  recompute: [
-    { slug: 'features', seconds: 19 },
-    { slug: 'train_model', seconds: 312 },
-    { slug: 'holdout_eval', seconds: 10 },
-    { slug: 'roc_curve', seconds: 1.2 },
-    { slug: 'error_analysis', seconds: 4.5 },
-  ],
-  totalSeconds: 346.7,
+  recompute: ['features', 'train_model', 'holdout_eval', 'roc_curve', 'error_analysis'],
+  unknown: ['error_analysis'],
+  totalSeconds: 342.2,
 }
 
 const eagerDemo = ref(false)

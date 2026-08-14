@@ -9,7 +9,7 @@
         {{ label }}
       </span>
     </Tag>
-    <span v-if="cause" class="text-xs text-muted-color truncate" v-html="causeHtml" />
+    <span v-if="cause" class="text-sm text-muted-color truncate" v-html="causeHtml" />
   </span>
 </template>
 
@@ -29,10 +29,13 @@ const props = defineProps<{
   compact?: boolean
 }>()
 
-const tagPt = { root: { class: 'text-xs font-normal px-2 py-0.5' } }
+const tagPt = { root: { class: 'text-sm font-normal px-2 py-0.5' } }
 
 const label = computed(() => {
-  if (props.status === 'stale' && props.stale?.transitive) return 'stale · downstream'
+  // Dense rows get one word; the subdued treatment already reads as downstream.
+  if (props.status === 'stale' && props.stale?.transitive && !props.compact) {
+    return 'stale · downstream'
+  }
   return props.status
 })
 
@@ -62,6 +65,6 @@ const causeHtml = computed(() =>
   (cause.value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/`([^`]+)`/g, '<code class="font-mono text-[11px]">$1</code>'),
+    .replace(/`([^`]+)`/g, '<code class="font-mono text-sm">$1</code>'),
 )
 </script>

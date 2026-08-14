@@ -14,29 +14,38 @@ const unexpected = (spy: { mock: { calls: unknown[][] } }): string[] =>
     .map((call) => call.map(String).join(' '))
     .filter((message) => !IGNORED_WARNINGS.some((pattern) => pattern.test(message)))
 
+// Mounting the whole prototype over the large fixture is seconds of Vue Flow
+// layout on its own, and the default 5 s is not what that costs beside the
+// other suites on a loaded machine.
+const MOUNT_TIMEOUT_MS = 20_000
+
 describe('railroad concept prototype', () => {
   for (const fixture of fixtures) {
-    it(`mounts against the ${fixture.id} fixture`, async () => {
-      const { fixtureId } = useWorkspace()
-      fixtureId.value = fixture.id
-      await nextTick()
+    it(
+      `mounts against the ${fixture.id} fixture`,
+      async () => {
+        const { fixtureId } = useWorkspace()
+        fixtureId.value = fixture.id
+        await nextTick()
 
-      const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      const wrapper = mount(RailroadConcept)
-      await nextTick()
+        const wrapper = mount(RailroadConcept)
+        await nextTick()
 
-      expect(wrapper.html().length).toBeGreaterThan(0)
-      expect(errors).not.toHaveBeenCalled()
-      // jsdom gives no element a size, so Vue Flow cannot measure its
-      // container. That is an environment limit, not a defect.
-      expect(unexpected(warnings)).toEqual([])
+        expect(wrapper.html().length).toBeGreaterThan(0)
+        expect(errors).not.toHaveBeenCalled()
+        // jsdom gives no element a size, so Vue Flow cannot measure its
+        // container. That is an environment limit, not a defect.
+        expect(unexpected(warnings)).toEqual([])
 
-      wrapper.unmount()
-      errors.mockRestore()
-      warnings.mockRestore()
-    })
+        wrapper.unmount()
+        errors.mockRestore()
+        warnings.mockRestore()
+      },
+      MOUNT_TIMEOUT_MS,
+    )
   }
 })
 

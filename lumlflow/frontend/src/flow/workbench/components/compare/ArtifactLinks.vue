@@ -7,19 +7,21 @@
     >
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
         <KindBadge :kind="artifact.kind" icon-only />
-        <a v-if="artifact.href" class="link text-sm" :href="artifact.href">{{ artifact.label }}</a>
-        <span v-else class="text-sm">{{ artifact.label }}</span>
-        <span class="font-mono text-xs text-muted-color">
+        <a v-if="artifact.href" class="link text-base" :href="artifact.href">{{
+          artifact.label
+        }}</a>
+        <span v-else class="text-base">{{ artifact.label }}</span>
+        <span class="font-mono text-sm text-muted-color">
           {{ artifact.slug }}.{{ artifact.output }}
         </span>
-        <span class="ml-auto text-xs text-muted-color">{{ destination(artifact.kind) }}</span>
+        <span class="ml-auto text-sm text-muted-color">{{ destination(artifact) }}</span>
       </div>
       <div class="flex flex-wrap gap-1.5">
         <span
           v-for="(reference, branch) in artifact.byBranch"
           :key="branch"
           v-tooltip.top="branch"
-          class="inline-flex items-center gap-1.5 rounded border border-surface-200 px-1.5 py-0.5 font-mono text-[11px] dark:border-surface-700"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-1.5 py-0.5 font-mono text-sm dark:border-surface-700"
         >
           <span
             class="h-2 w-2 shrink-0 rounded-full"
@@ -33,23 +35,26 @@
 </template>
 
 <script setup lang="ts">
-import type { CompareArtifactLink } from '../../fixtures/compare'
+import type { CompareArtifactLink } from '../../model/types'
 import KindBadge from '../../ui/KindBadge.vue'
 import { branchColor } from '../../ui/kinds'
 
 defineProps<{ artifacts: CompareArtifactLink[] }>()
 
 /** The fallback chain: experiment → tracker, model → model card, dataset → view, else → metric. */
-function destination(kind: CompareArtifactLink['kind']): string {
-  switch (kind) {
+function destination(artifact: CompareArtifactLink): string {
+  // Nothing to open is a state of its own: naming a screen that does not answer
+  // reads as a broken link rather than as an artifact still on its way.
+  if (!artifact.href) return 'no screen'
+  switch (artifact.kind) {
     case 'experiment':
-      return 'opens the tracker experiment screen'
+      return 'tracker'
     case 'model':
-      return 'opens the model card'
+      return 'model card'
     case 'dataset':
-      return 'opens the dataset view'
+      return 'dataset view'
     default:
-      return 'no artifact screen — the main metric shown as is'
+      return 'no screen'
   }
 }
 </script>

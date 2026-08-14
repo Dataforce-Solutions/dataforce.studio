@@ -1,32 +1,41 @@
 <template>
-  <div
-    class="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3"
-  >
-    <div class="flex items-start gap-2 text-sm">
-      <PackageX :size="15" class="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-      <p class="min-w-0 text-amber-700 dark:text-amber-300">
-        <span class="font-medium">env mismatch</span>
-        — restart the kernel under this branch's lock
+  <Message severity="warn" size="small">
+    <template #icon><PackageX :size="15" class="shrink-0" /></template>
+    <div class="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5">
+      <p class="min-w-0 flex-1 text-base">
+        <span class="font-medium">restart kernel to apply.</span>
+        it imported {{ named }} before the env changed.
       </p>
-    </div>
-    <p class="text-xs text-amber-700/80 dark:text-amber-300/80 pl-6">
-      background work for this branch is deferred meanwhile
-    </p>
-    <div class="pl-6">
-      <Button label="Restart kernel" size="small" severity="warn" outlined @click="emit('restart')">
-        <template #icon>
-          <RotateCcw :size="13" />
-        </template>
+      <Button label="Restart kernel" severity="warn" text @click="emit('restart')">
+        <template #icon><RotateCcw :size="14" /></template>
       </Button>
     </div>
-  </div>
+  </Message>
 </template>
 
 <script setup lang="ts">
-import { Button } from 'primevue'
+import { computed } from 'vue'
+import { Button, Message } from 'primevue'
 import { PackageX, RotateCcw } from 'lucide-vue-next'
+import { formatCount } from '../../model/format'
 
-// The branch's lockfile differs from the live venv. The UI says work is
-// deferred rather than letting the branch look idle for no visible reason.
+/**
+ * The one kernel control that surfaces (there is no per-branch env: one venv
+ * per workspace, and no branch carries a lockfile of its own). It says what is
+ * true: a live process holding older imports. It never claims a cache was
+ * invalidated, because none was.
+ */
+const props = defineProps<{
+  /** Packages the running kernel is behind, as the daemon reported them. */
+  behind?: string[]
+}>()
+
 const emit = defineEmits<{ restart: [] }>()
+
+const named = computed(() => {
+  const behind = props.behind ?? []
+  if (behind.length === 0) return 'packages'
+  if (behind.length <= 2) return behind.join(' and ')
+  return `${behind[0]}, ${behind[1]} and ${formatCount(behind.length - 2, 'other')}`
+})
 </script>

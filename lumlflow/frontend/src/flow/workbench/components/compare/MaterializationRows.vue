@@ -1,8 +1,6 @@
 <template>
   <div class="flex flex-col gap-2">
-    <p class="text-xs text-muted-color">
-      same code, different inputs — collapsed; never a fan of identical-code nodes
-    </p>
+    <p class="text-sm text-muted-color">same code, different inputs</p>
     <div class="overflow-x-auto">
       <div
         class="grid items-center gap-x-5 gap-y-0"
@@ -15,25 +13,25 @@
           <BranchTag :name="branch" />
         </span>
 
-        <template v-for="row in rows" :key="row.slug + row.output">
+        <template v-for="row in rows" :key="row.slug + (row.output ?? '')">
           <span
-            class="border-t border-surface-200 py-2 pr-2 font-mono text-[13px] dark:border-surface-700"
+            class="border-t border-surface-200 py-2 pr-2 font-mono text-base dark:border-surface-700"
           >
-            {{ row.slug }}<span class="text-muted-color">.{{ row.output }}</span>
+            {{ row.slug }}<span v-if="row.output" class="text-muted-color">.{{ row.output }}</span>
           </span>
           <span
             v-for="branch in branchOrder"
             :key="branch"
             class="border-t border-surface-200 py-2 dark:border-surface-700"
           >
-            <span
+            <Tag
               v-if="row.byBranch[branch]"
-              class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs tabular-nums"
-              :class="chipClass(row.byBranch[branch].state)"
-            >
-              {{ row.byBranch[branch].label }}
-            </span>
-            <span v-else class="text-xs text-muted-color">—</span>
+              :severity="severityFor(row.byBranch[branch].state)"
+              :value="row.byBranch[branch].label"
+              :pt="CHIP_PT"
+              :class="row.byBranch[branch].state === 'missing' ? 'opacity-60' : ''"
+            />
+            <span v-else class="text-sm text-muted-color">—</span>
           </span>
         </template>
       </div>
@@ -43,7 +41,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MaterializationRow } from '../../fixtures/compare'
+import { Tag } from 'primevue'
+import type { MaterializationRow } from '../../model/types'
 import BranchTag from '../../ui/BranchTag.vue'
 
 const props = defineProps<{ rows: MaterializationRow[] }>()
@@ -56,16 +55,16 @@ const branchOrder = computed(() => {
   return branches
 })
 
-const CHIP_CLASSES: Record<string, string> = {
-  same: 'border-surface-200 bg-surface-50 text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300',
-  better:
-    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300',
-  worse:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300',
-  missing: 'border-dashed border-surface-300 text-muted-color dark:border-surface-600',
+const CHIP_PT = { root: { class: 'px-2 py-0 text-sm font-normal tabular-nums' } }
+
+const SEVERITIES: Record<string, 'secondary' | 'success' | 'danger'> = {
+  same: 'secondary',
+  better: 'success',
+  worse: 'danger',
+  missing: 'secondary',
 }
 
-function chipClass(state: string): string {
-  return CHIP_CLASSES[state] ?? CHIP_CLASSES.same
+function severityFor(state: string): 'secondary' | 'success' | 'danger' {
+  return SEVERITIES[state] ?? 'secondary'
 }
 </script>

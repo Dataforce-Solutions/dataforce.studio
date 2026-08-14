@@ -1,21 +1,11 @@
-import type {
-  DatasetPreview,
-  ExperimentPreview,
-  FramePreview,
-  PlotPreview,
-} from '../model/types'
+import type { DatasetPreview, ExperimentPreview, FramePreview, PlotPreview } from '../model/types'
 
 /** Deterministic pseudo-noise so fixtures stay stable across reloads. */
 function wobble(index: number, scale: number): number {
   return Math.sin(index * 12.9898) * scale
 }
 
-export function curve(
-  count: number,
-  from: number,
-  to: number,
-  noise = 0.01,
-): [number, number][] {
+export function curve(count: number, from: number, to: number, noise = 0.01): [number, number][] {
   const points: [number, number][] = []
   for (let i = 0; i < count; i += 1) {
     const t = i / Math.max(count - 1, 1)
@@ -26,7 +16,12 @@ export function curve(
   return points
 }
 
-export function decayCurve(count: number, from: number, to: number, noise = 0.02): [number, number][] {
+export function decayCurve(
+  count: number,
+  from: number,
+  to: number,
+  noise = 0.02,
+): [number, number][] {
   return curve(count, from, to, noise)
 }
 
@@ -131,7 +126,7 @@ export const errorAnalysisFrame: FramePreview = {
 export function rocPlot(auc: number): PlotPreview {
   return {
     type: 'plot',
-    title: `ROC — holdout (AUC ${auc.toFixed(3)})`,
+    title: `ROC · holdout (AUC ${auc.toFixed(3)})`,
     kind: 'line',
     series: [
       { label: 'model', points: rocPoints(auc) },
@@ -149,10 +144,10 @@ export function rocPlot(auc: number): PlotPreview {
   }
 }
 
-export const summaryNote = `## Churn model — state of play
+export const summaryNote = `## Churn model: state of play
 
 Best holdout **val_auc 0.856** from the lr sweep (\`exp/lr-1e3\`), up from the
-0.841 baseline. Tenure buckets carry most of the lift; dropping
+0.841 baseline. Tenure buckets carry most of the lift. Dropping
 \`payment_method\` costs ~0.004 and is not worth it.
 
 Next: adopt the sweep winner onto \`main\`, then rerun \`holdout_eval\`

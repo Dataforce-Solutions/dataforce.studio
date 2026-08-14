@@ -6,27 +6,34 @@
         :key="cell.slug"
         :ref="(el) => registerCard(cell.slug, el)"
         class="rounded-lg"
-        :class="tintedSlugs.has(cell.slug) ? 'ring-1 ring-amber-400/60 dark:ring-amber-500/40' : ''"
+        :class="tintedSlugs.has(cell.slug) ? 'ring-1 ring-(--p-message-warn-color)' : ''"
         @click="emit('select', cell.slug)"
       >
-        <CellCard
+        <!-- Same slot contract as the canvas: the two views cannot show
+             different cards for the same cell. -->
+        <slot
+          name="card"
           :cell="cell"
-          density="notebook"
           :selected="cell.slug === selectedSlug"
-          :branch="branch"
           :preflight="preflights[cell.slug]"
-          @expand="emit('expand', cell.slug)"
-          @run="emit('run', cell.slug, $event)"
-          @stop="emit('stop', cell.slug)"
-          @rename="emit('rename', cell.slug)"
-          @delete="emit('delete', cell.slug)"
-          @duplicate="emit('duplicate', cell.slug)"
-          @navigate="emit('navigate', $event)"
-          @send-to-agent="emit('send-to-agent', cell.slug, $event)"
-          @resolve-conflict="emit('resolve-conflict', cell.slug, $event)"
-          @edit="emit('edit', cell.slug, $event)"
-          @edit-params="emit('edit-params', cell.slug, $event)"
-        />
+        >
+          <CellCard
+            :cell="cell"
+            density="notebook"
+            :selected="cell.slug === selectedSlug"
+            :branch="branch"
+            :preflight="preflights[cell.slug]"
+            @expand="emit('expand', cell.slug)"
+            @run="emit('run', cell.slug, $event)"
+            @stop="emit('stop', cell.slug)"
+            @rename="emit('rename', cell.slug)"
+            @delete="emit('delete', cell.slug)"
+            @duplicate="emit('duplicate', cell.slug)"
+            @send-to-agent="emit('send-to-agent', cell.slug, $event)"
+            @resolve-conflict="emit('resolve-conflict', cell.slug, $event)"
+            @edit="emit('edit', cell.slug, $event)"
+          />
+        </slot>
       </div>
     </div>
   </div>
@@ -35,7 +42,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch, type ComponentPublicInstance } from 'vue'
 import { topologicalOrder } from '../model/registry'
-import type { FlowCell, ParamValue, Preflight } from '../model/types'
+import type { FlowCell, Preflight } from '../model/types'
 import CellCard from '../components/card/CellCard.vue'
 
 /**
@@ -59,11 +66,9 @@ const emit = defineEmits<{
   rename: [slug: string]
   delete: [slug: string]
   duplicate: [slug: string]
-  navigate: [payload: { view: 'canvas' | 'notebook'; slug: string }]
   'send-to-agent': [slug: string, payload: string]
   'resolve-conflict': [slug: string, choice: 'overwrite' | 'fork']
   edit: [slug: string, payload: { source: string }]
-  'edit-params': [slug: string, params: Record<string, ParamValue>]
 }>()
 
 const ordered = computed(() => topologicalOrder(props.cells))

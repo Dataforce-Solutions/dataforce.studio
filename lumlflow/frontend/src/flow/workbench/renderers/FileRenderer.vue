@@ -1,18 +1,18 @@
 <template>
   <div class="flex items-center gap-3 py-1 min-w-0">
     <span
-      class="rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-2.5 shrink-0"
+      class="rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-2.5 shrink-0"
     >
       <component :is="icon" :size="20" class="text-muted-color" />
     </span>
     <span class="min-w-0 flex-1">
-      <span class="block font-mono text-sm truncate">{{ preview.fileName }}</span>
-      <span class="block text-xs text-muted-color">
+      <span class="block font-mono text-base truncate">{{ preview.fileName }}</span>
+      <span class="block text-sm text-muted-color">
         {{ formatBytes(preview.sizeBytes) }} · {{ preview.contentType }}
       </span>
     </span>
-    <a class="link text-xs inline-flex items-center gap-1 shrink-0" href="#" @click.prevent>
-      <Download :size="12" />
+    <a class="link text-sm inline-flex items-center gap-1 shrink-0" href="#" @click.prevent>
+      <Download :size="14" />
       download
     </a>
   </div>

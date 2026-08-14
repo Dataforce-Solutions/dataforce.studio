@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col gap-8 max-w-5xl">
+  <div class="flex flex-col gap-12 max-w-5xl">
     <GallerySpecimen
       title="One card, four output tabs"
-      caption="A training cell producing {model, run, checkpoint, curves} is one card: four output tabs plus code and logs, opening on the experiment via the primary ranking — never on a config dump."
+      caption="A training cell producing {model, run, checkpoint, curves} is one card: four output tabs plus code and logs, opening on the experiment via the primary ranking rather than on a config dump."
     >
       <CellCard
         :cell="trainedModel"
@@ -27,8 +27,8 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="State variants"
-      caption="The same cell across every status. Unmaterialized renders quiet — never as stale, because there is no baseline to have changed; transitive staleness is subdued; running takes the live console."
+      title="Card states"
+      caption="The same cell across every status. Unmaterialized renders quiet and never as stale, because there is no baseline to have changed. Transitive staleness is subdued. Running takes the live console."
     >
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-x-4 gap-y-5">
         <div
@@ -36,7 +36,7 @@
           :key="variant.title"
           class="flex flex-col gap-1.5 min-w-0"
         >
-          <p class="text-[11px] uppercase tracking-wide text-muted-color">{{ variant.title }}</p>
+          <p class="text-sm text-muted-color">{{ variant.title }}</p>
           <CellCard
             :cell="variant.cell"
             density="canvas"
@@ -48,8 +48,17 @@
     </GallerySpecimen>
 
     <GallerySpecimen
+      title="Not named yet"
+      caption="A scaffolded cell owes a name, and owing one is not an error. The placeholder renders as the rename gesture: muted, italic, with the flag's own sentence in its tooltip. A warning row under the header would tell the author what they already know."
+    >
+      <div class="max-w-2xl">
+        <CellCard :cell="placeholderCell" density="canvas" v-on="cardEvents(placeholderCell)" />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
       title="Note cell"
-      caption="Notes are prose cards: rendered markdown body, no run or stop — but edit and provenance stay, because a note is a real versioned asset."
+      caption="Notes are prose cards: rendered markdown body, no run or stop. Edit and provenance stay, because a note is a real versioned asset."
     >
       <div class="max-w-2xl">
         <CellCard :cell="noteCell" density="canvas" v-on="cardEvents(noteCell)" />
@@ -67,7 +76,7 @@
 
     <GallerySpecimen
       title="External input"
-      caption="A cell reading outside the store is unmemoizable and carries the external badge — grouped under inputs in the panel, honest about what the store cannot know."
+      caption="A cell reading outside the store is unmemoizable and carries the external badge. The panel groups it under inputs, honest about what the store cannot know."
     >
       <div class="max-w-2xl">
         <CellCard :cell="externalInputCell" density="canvas" v-on="cardEvents(externalInputCell)" />
@@ -75,21 +84,52 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Provenance variants"
+      title="Editing a cell"
+      caption="What the code tab's edit gesture opens: Python highlighted in the house palette, line numbers, Tab and Shift-Tab for indentation with Escape to hand Tab back to the page, undo history and bracket matching. Locked beside it: the same surface with the caret taken away."
+    >
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5 min-w-0">
+          <p class="text-sm text-muted-color">editing</p>
+          <SourceEditor v-model="editedSource" max-height="16rem" aria-label="train_model source" />
+        </div>
+        <div class="flex flex-col gap-1.5 min-w-0">
+          <p class="text-sm text-muted-color">read-only</p>
+          <SourceEditor
+            :model-value="trainedModel.source"
+            readonly
+            max-height="16rem"
+            aria-label="train_model source, read only"
+          />
+        </div>
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Provenance forms"
       caption="Authorship as recorded: agent, human, mixed hands, the mixed-editing uncertainty flag instead of a confident wrong name, and the folded repair history."
     >
       <div class="flex flex-col gap-2.5">
-        <ProvenanceLine :provenance="materializedCell.provenance" />
-        <ProvenanceLine :provenance="userFailedCell.provenance" />
-        <ProvenanceLine :provenance="kvFallbackCell.provenance" />
-        <ProvenanceLine :provenance="uncertainAttributionCell.provenance" />
-        <ProvenanceLine :provenance="agentFailedCell.provenance" :repaired-attempts="1" />
+        <ProvenanceLine
+          v-if="materializedCell.provenance"
+          :provenance="materializedCell.provenance"
+        />
+        <ProvenanceLine v-if="userFailedCell.provenance" :provenance="userFailedCell.provenance" />
+        <ProvenanceLine v-if="kvFallbackCell.provenance" :provenance="kvFallbackCell.provenance" />
+        <ProvenanceLine
+          v-if="uncertainAttributionCell.provenance"
+          :provenance="uncertainAttributionCell.provenance"
+        />
+        <ProvenanceLine
+          v-if="agentFailedCell.provenance"
+          :provenance="agentFailedCell.provenance"
+          :repaired-attempts="1"
+        />
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Pending projection"
-      caption="While an agent session holds the worktree lock a UI edit lands in the store but its projection to files is deferred — the code tab says so instead of pretending the file changed."
+      caption="While an agent session holds the files, a UI edit lands in the store and the write to files waits. The code tab says so instead of pretending the file changed."
     >
       <div class="max-w-2xl">
         <CellCard
@@ -105,17 +145,11 @@
       caption="The card expanded into a full-height right drawer: the selected output at drawer density, config, the kernel-paged value for frames, links out to the tracker, and materialize-and-download when the bytes were never persisted."
     >
       <div class="flex flex-wrap gap-3">
-        <Button
-          outlined
-          size="small"
-          label="open train_model expanded"
-          @click="openDrawer(drawerTrainCell)"
-        >
+        <Button outlined label="open train_model expanded" @click="openDrawer(drawerTrainCell)">
           <template #icon><Maximize2 :size="14" /></template>
         </Button>
         <Button
           outlined
-          size="small"
           severity="secondary"
           label="open features expanded (paged frame)"
           @click="openDrawer(drawerFeaturesCell)"
@@ -142,6 +176,7 @@ import { Maximize2 } from 'lucide-vue-next'
 import CellCard from '../../components/card/CellCard.vue'
 import ExpandDrawer from '../../components/card/ExpandDrawer.vue'
 import ProvenanceLine from '../../components/card/ProvenanceLine.vue'
+import SourceEditor from '../../components/card/SourceEditor.vue'
 import {
   agentFailedCell,
   cachedCell,
@@ -156,6 +191,7 @@ import {
   noteCell,
   olderEnvCell,
   pendingProjectionCell,
+  placeholderCell,
   runningCell,
   staleDefinitionCell,
   staleParentCell,
@@ -165,7 +201,7 @@ import {
   userFailedCell,
 } from '../../fixtures'
 import { formatCost, formatCount } from '../../model/format'
-import type { FlowCell, ParamValue, Preflight } from '../../model/types'
+import type { FlowCell, Preflight } from '../../model/types'
 import GallerySpecimen from '../GallerySpecimen.vue'
 
 const toast = useToast()
@@ -181,29 +217,25 @@ function cardEvents(cell: FlowCell, preflight?: Preflight) {
     run: ({ force }: { force: boolean }) => {
       const closure = preflight ?? cheapPreflight
       note(
-        `would run \`${cell.slug}\` — ${formatCount(closure.recompute.length, 'cell')}, ~${formatCost(closure.totalSeconds)}${force ? ' · force (memo ignored)' : ''}`,
+        `would run \`${cell.slug}\` · ${formatCount(closure.recompute.length, 'cell')}, ~${formatCost(closure.totalSeconds)}${force ? ' · force (memo ignored)' : ''}`,
       )
     },
     stop: () => note(`would stop the run on \`${cell.slug}\``),
-    rename: () => note(`would rename \`${cell.slug}\` — every reference rewired atomically`),
-    delete: () => note(`would remove \`${cell.slug}\` from this branch's selection`),
-    duplicate: () => note(`would duplicate \`${cell.slug}\` — a new identity with no consumers`),
-    navigate: ({ view, slug }: { view: 'canvas' | 'notebook'; slug: string }) =>
-      note(`would jump to \`${slug}\` in the ${view} view`),
+    rename: () => note(`would rename \`${cell.slug}\`. every reference rewires atomically.`),
+    delete: () => note(`would remove \`${cell.slug}\` from this lane's selection`),
+    duplicate: () => note(`would duplicate \`${cell.slug}\` · a new identity with no consumers`),
     'send-to-agent': (payload: string) =>
-      note(`handoff payload built — ${formatCount(payload.split('\n').length, 'line')}`),
+      note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`),
     'resolve-conflict': (choice: 'overwrite' | 'fork') =>
       note(
         choice === 'fork'
-          ? 'would fork this edit to a new branch'
-          : 'would overwrite the moved head',
+          ? 'would save this edit to a new lane'
+          : 'would overwrite the newer version',
       ),
     edit: ({ source }: { source: string }) =>
       note(
-        `would land a new version of \`${cell.slug}\` (${formatCount(source.split('\n').length, 'line')}) through the daemon`,
+        `would land a new version of \`${cell.slug}\` (${formatCount(source.split('\n').length, 'line')}) in the store`,
       ),
-    'edit-params': (params: Record<string, ParamValue>) =>
-      note(`would land a params-only version — ${Object.keys(params).join(', ')}`),
   }
 }
 
@@ -221,9 +253,9 @@ const stateVariants: { title: string; cell: FlowCell }[] = [
   { title: 'cached', cell: cachedCell },
   { title: 'older env', cell: olderEnvCell },
   { title: 'running', cell: runningCell },
-  { title: 'stale — definition', cell: staleDefinitionCell },
-  { title: 'stale — parent', cell: staleParentCell },
-  { title: 'stale — transitive', cell: staleTransitiveCell },
+  { title: 'stale · definition', cell: staleDefinitionCell },
+  { title: 'stale · parent', cell: staleParentCell },
+  { title: 'stale · transitive', cell: staleTransitiveCell },
   { title: 'unmaterialized', cell: unmaterializedCell },
 ]
 
@@ -235,6 +267,9 @@ const drawerTrainCell = cellWith(trainedModel, {
 })
 
 const drawerFeaturesCell = mainCells.find((cell) => cell.slug === 'features') as FlowCell
+
+// The editor specimen is live — the gallery is where the surface is typed into.
+const editedSource = ref(trainedModel.source)
 
 const drawerOpen = ref(false)
 const drawerCell = ref<FlowCell>(drawerTrainCell)

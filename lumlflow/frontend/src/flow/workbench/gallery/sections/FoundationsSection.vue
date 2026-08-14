@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col gap-8 max-w-4xl">
+  <div class="flex flex-col gap-12 max-w-4xl">
     <GallerySpecimen
       title="Status vocabulary"
-      caption="Stale always names its cause in words; unmaterialized is its own quiet state, never a flavor of stale; transitive staleness is subdued."
+      caption="Stale always names its cause in words. Unmaterialized is its own quiet state, never a flavor of stale. Transitive staleness is subdued."
     >
       <div class="flex flex-col gap-2.5">
         <StatusChip status="materialized" />
@@ -17,9 +17,15 @@
         />
         <StatusChip
           status="stale"
-          :stale="{ kind: 'deps-rewired', cause: 'inputs rewired · now reads `calibrated_eval.eval`' }"
+          :stale="{
+            kind: 'deps-rewired',
+            cause: 'inputs rewired · now reads `calibrated_eval.eval`',
+          }"
         />
-        <StatusChip status="stale" :stale="{ kind: 'lib-changed', cause: '`helpers.py` changed' }" />
+        <StatusChip
+          status="stale"
+          :stale="{ kind: 'workspace-code-changed', cause: '`helpers.py` changed' }"
+        />
         <StatusChip
           status="stale"
           :stale="{
@@ -35,7 +41,7 @@
 
     <GallerySpecimen
       title="Kind iconography"
-      caption="One icon per asset kind. The registry is open at runtime — unknown kinds render as a generic asset, never an error."
+      caption="One icon per asset kind. The registry is open at runtime, so unknown kinds render as a generic asset, never an error."
     >
       <div class="flex flex-wrap gap-x-6 gap-y-3">
         <KindBadge v-for="kind in kinds" :key="kind" :kind="kind" />
@@ -67,8 +73,8 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Branch identity"
-      caption="Branches are addressed by name — never a number. Color is derived from the name, so it is stable across every view."
+      title="Lane identity"
+      caption="A lane is addressed by name, never by a number. Its color comes from the name, so it holds across every view."
     >
       <div class="flex flex-col gap-2.5">
         <BranchTag name="main" checked-out />
@@ -89,10 +95,19 @@
 
     <GallerySpecimen
       title="Copyable command"
-      caption="Used wherever the UI hands something to the terminal — pairing, init, exports."
+      caption="One line the UI hands to the terminal: init, a run, an export. It truncates to fit, selects, and copies whole."
     >
       <div class="max-w-md">
-        <CopyField value="lumlflow agent exec -- claude" />
+        <CopyField value="lumlflow run features" />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Copyable block"
+      caption="Its multi-line sibling, for what a reader reads before pasting: a handoff payload, the prompt that pairs an agent. The block is the preview and the copy at once, in one affordance in the corner."
+    >
+      <div class="max-w-lg">
+        <CopyBlock :value="CONNECT_PROMPT" label="copy the connect prompt" />
       </div>
     </GallerySpecimen>
 
@@ -100,7 +115,7 @@
       title="Formatting"
       caption="Costs, sizes, and metrics share one formatter each, so the same value never renders two ways."
     >
-      <div class="grid grid-cols-3 gap-x-8 gap-y-2 text-sm max-w-md font-mono">
+      <div class="grid grid-cols-3 gap-x-8 gap-y-2 text-base max-w-md font-mono">
         <template v-for="[input, output] in formats" :key="input">
           <span class="text-muted-color col-span-2">{{ input }}</span>
           <span>{{ output }}</span>
@@ -111,11 +126,13 @@
 </template>
 
 <script setup lang="ts">
+import { CONNECT_PROMPT } from '../../components/session/connectPrompt'
 import { claude, user } from '../../fixtures'
 import { formatBytes, formatCost, formatMetric } from '../../model/format'
 import type { AssetKind, FlowState } from '../../model/types'
 import ActorChip from '../../ui/ActorChip.vue'
 import BranchTag from '../../ui/BranchTag.vue'
+import CopyBlock from '../../ui/CopyBlock.vue'
 import CopyField from '../../ui/CopyField.vue'
 import FlowStateDot from '../../ui/FlowStateDot.vue'
 import KindBadge from '../../ui/KindBadge.vue'
@@ -139,13 +156,7 @@ const kinds: AssetKind[] = [
   'unknown',
 ]
 
-const flowStates: FlowState[] = [
-  'running',
-  'idle',
-  'unpaired',
-  'kernel-not-started',
-  'daemon-down',
-]
+const flowStates: FlowState[] = ['running', 'idle', 'unpaired', 'kernel-not-started', 'daemon-down']
 
 const formats: [string, string][] = [
   ['formatCost(0.04)', formatCost(0.04)],

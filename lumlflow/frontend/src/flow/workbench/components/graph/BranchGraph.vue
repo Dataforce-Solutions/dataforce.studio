@@ -3,15 +3,14 @@
     <div v-if="selectable" class="flex items-center gap-3 px-1">
       <Button
         :label="compareLabel"
-        size="small"
         :disabled="!compareReady"
         @click="emit('compare', [...selected])"
       >
         <template #icon>
-          <Columns3 :size="13" />
+          <Columns3 :size="14" />
         </template>
       </Button>
-      <p class="text-xs text-muted-color">select 2–5 branches to compare</p>
+      <p class="text-sm text-muted-color">select 2–5</p>
     </div>
 
     <div class="flex min-w-0">
@@ -52,7 +51,7 @@
         <li
           v-for="branch in visible"
           :key="branch.name"
-          class="flex items-center gap-3 min-w-0 rounded px-2 hover:bg-surface-50 dark:hover:bg-surface-800/60"
+          class="flex items-center gap-3 min-w-0 rounded-lg px-2 hover:bg-surface-50 dark:hover:bg-surface-800/60"
           :style="{ height: `${ROW_H}px` }"
           :class="branch.archived ? 'opacity-60' : ''"
         >
@@ -68,71 +67,72 @@
               <MetaBadge v-if="branch.settled" variant="settled" />
               <span
                 v-if="branch.headlineMetric"
-                class="font-mono text-[11px] text-muted-color shrink-0"
+                class="font-mono text-sm text-muted-color shrink-0"
               >
                 {{ branch.headlineMetric.name }} {{ formatMetric(branch.headlineMetric.value) }}
               </span>
               <ActorChip v-if="branch.agent" :actor="branch.agent" muted />
             </div>
-            <div class="flex items-center gap-2 text-xs text-muted-color min-w-0">
+            <div class="flex items-center gap-2 text-sm text-muted-color min-w-0">
               <span class="truncate">{{ branch.lastIntent }}</span>
               <span
                 v-if="branch.sweepGroup"
-                class="shrink-0 rounded bg-surface-100 dark:bg-surface-800 px-1 py-px text-[10px]"
+                class="shrink-0 rounded-lg bg-surface-100 dark:bg-surface-800 px-1 py-px text-sm"
               >
                 sweep · {{ branch.sweepGroup }}
               </span>
             </div>
           </div>
 
-          <div v-if="!selectable" class="flex items-center gap-0.5 shrink-0">
+          <!-- The verbs stay beside the checkboxes: picking lanes to
+               compare and reading one are the same visit to this map. -->
+          <div class="flex items-center gap-0.5 shrink-0">
             <Button
-              v-tooltip.top="'Pure store read — no lock, no kernel'"
-              label="View"
-              size="small"
+              v-tooltip.top="'a pure store read. no lock, no kernel.'"
+              label="view"
               text
               severity="secondary"
               @click="emit('view', branch.name)"
             >
               <template #icon>
-                <Eye :size="13" />
+                <Eye :size="14" />
               </template>
             </Button>
 
             <template v-if="!branch.checkedOut">
               <span v-if="worktreeLocked" v-tooltip.top="LOCKED_TOOLTIP" class="inline-flex">
-                <Button label="Check out" size="small" text severity="secondary" disabled>
+                <Button label="use here" text severity="secondary" disabled>
                   <template #icon>
-                    <FolderInput :size="13" />
+                    <FolderInput :size="14" />
                   </template>
                 </Button>
               </span>
               <Button
                 v-else
-                v-tooltip.top="'Rebind the worktree files to this branch'"
-                label="Check out"
-                size="small"
+                v-tooltip.top="'bind the flow files to this lane'"
+                label="use here"
                 text
                 severity="secondary"
                 @click="emit('checkout', branch.name)"
               >
                 <template #icon>
-                  <FolderInput :size="13" />
+                  <FolderInput :size="14" />
                 </template>
               </Button>
-              <button
+              <Button
                 v-if="worktreeLocked"
-                v-tooltip.top="'Check out anyway — the agent loses its file view'"
-                class="text-[11px] text-muted-color underline underline-offset-2 hover:text-surface-700 dark:hover:text-surface-200"
-                @click="emit('checkout', branch.name)"
-              >
-                force
-              </button>
+                v-tooltip.top="'use it here anyway. the agent loses its file view.'"
+                link
+                severity="danger"
+                label="force"
+                :pt="LINK_PT"
+                @click="emit('checkout', branch.name, true)"
+              />
             </template>
 
             <Button
               v-if="!branch.archived"
-              v-tooltip.top="'Archive this branch'"
+              v-tooltip.top="'archive this lane'"
               size="small"
               text
               severity="secondary"
@@ -140,7 +140,7 @@
               @click="emit('archive', branch.name)"
             >
               <template #icon>
-                <Archive :size="13" />
+                <Archive :size="14" />
               </template>
             </Button>
           </div>
@@ -148,18 +148,25 @@
       </ul>
     </div>
 
-    <button
+    <Button
       v-if="archivedCount > 0"
-      class="self-start flex items-center gap-1 px-2 text-xs text-muted-color hover:text-surface-700 dark:hover:text-surface-200"
+      class="self-start"
+      link
+      size="small"
+      severity="secondary"
+      :label="showArchived ? 'hide archived' : `${archivedCount} archived`"
+      :aria-expanded="showArchived"
+      :pt="LINK_PT"
       @click="showArchived = !showArchived"
     >
-      <ChevronRight
-        :size="13"
-        class="transition-transform"
-        :class="showArchived ? 'rotate-90' : ''"
-      />
-      {{ showArchived ? 'hide archived' : `${archivedCount} archived` }}
-    </button>
+      <template #icon>
+        <ChevronRight
+          :size="14"
+          class="transition-transform"
+          :class="showArchived ? 'rotate-90' : ''"
+        />
+      </template>
+    </Button>
   </div>
 </template>
 
@@ -176,9 +183,9 @@ import MetaBadge from '../../ui/MetaBadge.vue'
 
 /**
  * The fork tree: one lane per branch, x is the journal step, a curve from the
- * parent lane at the fork step. View and check out are separate verbs on
- * purpose — reading a branch is a pure store read, checking out rebinds the
- * single v1 worktree and waits on the agent's lock.
+ * parent lane at the fork step. View and use-here are separate verbs on
+ * purpose: reading a branch is a pure store read, while binding the files to it
+ * rebinds the single v1 worktree and waits on the agent's lock.
  */
 const props = defineProps<{
   branches: BranchInfo[]
@@ -188,7 +195,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   view: [name: string]
-  checkout: [name: string]
+  /** `force` is the escape past an agent's worktree lock, never the default. */
+  checkout: [name: string, force?: boolean]
   archive: [name: string]
   compare: [names: string[]]
 }>()
@@ -199,7 +207,9 @@ const PAD_X = 14
 const CURVE = 10
 
 const LOCKED_TOOLTIP =
-  'the agent is working in the files — you can look anywhere, but checking out waits'
+  'the agent is working in the files. you can look anywhere. using a lane here waits.'
+
+const LINK_PT = { root: { class: 'p-0 text-sm font-normal' } }
 
 const showArchived = ref(false)
 const selected = ref<string[]>([])
@@ -285,6 +295,6 @@ const lanes = computed<Lane[]>(() => {
 const compareReady = computed(() => selected.value.length >= 2 && selected.value.length <= 5)
 
 const compareLabel = computed(() =>
-  selected.value.length >= 2 ? `Compare ${selected.value.length} branches` : 'Compare branches',
+  selected.value.length >= 2 ? `Compare ${selected.value.length} lanes` : 'Compare lanes',
 )
 </script>

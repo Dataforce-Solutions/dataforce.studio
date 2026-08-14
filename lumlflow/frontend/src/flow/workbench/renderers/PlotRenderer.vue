@@ -1,6 +1,6 @@
 <template>
   <figure v-if="hasPoints" class="flex flex-col gap-1.5 min-w-0">
-    <figcaption class="text-xs text-muted-color">{{ preview.title }}</figcaption>
+    <figcaption class="text-sm text-muted-color">{{ preview.title }}</figcaption>
     <MiniChart
       :kind="preview.kind"
       :series="preview.series"

@@ -1,9 +1,9 @@
 <template>
   <span
-    v-tooltip.top="'Previews never need a kernel — this gesture is the one that spins one up'"
-    class="inline-flex items-center gap-1 text-[11px] text-muted-color"
+    v-tooltip.top="'Previews never need a kernel'"
+    class="inline-flex items-center gap-1 text-sm text-muted-color"
   >
-    <Zap :size="11" class="shrink-0" />
+    <Zap :size="14" class="shrink-0" />
     this starts the kernel
   </span>
 </template>

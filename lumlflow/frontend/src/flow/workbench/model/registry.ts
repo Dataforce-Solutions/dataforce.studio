@@ -3,20 +3,25 @@ import type { AssetKind, CellOutput, FlowCell } from './types'
 /**
  * Which output opens first matters more than it looks: a training cell that
  * returns {model, run, checkpoint, curves} must open on the experiment, not on
- * whichever key came first (ui-draft.md §4).
+ * whichever key came first.
+ *
+ * The daemon names the primary output and this is the fallback for when it has
+ * not, so the two orders have to be the same one — this is `_KIND_ORDER` in
+ * `flow/daemon/queries.py`, kind for kind. `unknown` stands in for `pickle`
+ * (the daemon's last listed kind, and what an unrecognised kind reads as here);
+ * kinds absent from the list — the attachment kinds, a workspace plugin's own —
+ * rank after it.
  */
 const PRIMARY_RANKING: AssetKind[] = [
   'experiment',
   'eval',
   'plot',
   'frame',
-  'dataset',
   'note',
   'metric',
+  'dataset',
   'model',
-  'image',
-  'html',
-  'text',
+  'file',
   'checkpoint',
   'unknown',
 ]
@@ -45,6 +50,7 @@ export const KIND_LABELS: Record<AssetKind, string> = {
   dataset: 'dataset',
   experiment: 'experiment',
   checkpoint: 'checkpoint',
+  file: 'file',
   image: 'image',
   text: 'text',
   html: 'html',
@@ -71,8 +77,24 @@ export function sliceEdges(cells: FlowCell[]): { from: string; to: string }[] {
 }
 
 /**
- * Stable topological order for the notebook view: dependencies first, ties
- * broken on authoring step so cards never reorder when an unrelated cell lands.
+ * The step a cell was minted at, which breaks ordering ties — a fact that
+ * never moves, so neither an edit nor a rename can reorder the column. A card
+ * with neither that nor an authorship read yet sorts last rather than first: it
+ * would otherwise jump to the top of the column and then move once it loads.
+ */
+export function authored(cell: FlowCell): number {
+  return cell.authoredStep ?? cell.provenance?.step ?? Number.MAX_SAFE_INTEGER
+}
+
+/**
+ * Stable topological order for the notebook view: dependencies first, and among
+ * the cells no dependency separates, the earlier-minted one reads first.
+ *
+ * The pick is one cell at a time rather than a whole ready layer, and that is
+ * the part that keeps the promise. A layer would emit every parentless cell
+ * before anything downstream, so a root written last would land above cells
+ * minted long before it — a new card appearing mid-column, which is the reorder
+ * the mint-order tiebreak exists to prevent.
  */
 export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
   const bySlug = new Map(cells.map((cell) => [cell.slug, cell]))
@@ -81,29 +103,23 @@ export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
   for (const cell of cells) incoming.set(cell.slug, new Set())
   for (const edge of edges) incoming.get(edge.to)?.add(edge.from)
 
-  const ready = (): FlowCell[] =>
-    [...incoming.entries()]
-      .filter(([, deps]) => deps.size === 0)
-      .map(([slug]) => bySlug.get(slug) as FlowCell)
-      .sort((a, b) => a.provenance.step - b.provenance.step)
+  const byMintOrder = (a: FlowCell, b: FlowCell): number => authored(a) - authored(b)
+  const held = (slugs: Iterable<string>): FlowCell[] =>
+    [...slugs].map((slug) => bySlug.get(slug) as FlowCell).sort(byMintOrder)
 
   const ordered: FlowCell[] = []
   while (incoming.size > 0) {
-    const batch = ready()
-    if (batch.length === 0) {
+    const [next] = held(
+      [...incoming.entries()].filter(([, deps]) => deps.size === 0).map(([slug]) => slug),
+    )
+    if (next === undefined) {
       // Cycle or dangling reference: append the rest in authoring order.
-      ordered.push(
-        ...[...incoming.keys()]
-          .map((slug) => bySlug.get(slug) as FlowCell)
-          .sort((a, b) => a.provenance.step - b.provenance.step),
-      )
+      ordered.push(...held(incoming.keys()))
       break
     }
-    for (const cell of batch) {
-      ordered.push(cell)
-      incoming.delete(cell.slug)
-      for (const deps of incoming.values()) deps.delete(cell.slug)
-    }
+    ordered.push(next)
+    incoming.delete(next.slug)
+    for (const deps of incoming.values()) deps.delete(next.slug)
   }
   return ordered
 }

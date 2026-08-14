@@ -1,48 +1,42 @@
 <template>
   <Button
-    v-tooltip.top="label ? undefined : 'send to agent — builds the context payload'"
+    v-tooltip.top="label ? undefined : 'send to agent'"
     text
     :rounded="!label"
     :severity="severity ?? 'secondary'"
-    size="small"
     :label="label"
     aria-label="send to agent"
-    @click="popover?.toggle($event)"
+    @click="onOpen($event)"
   >
     <template #icon><Send :size="14" /></template>
   </Button>
 
-  <Popover ref="popover">
-    <div class="w-96 flex flex-col gap-3">
-      <p class="text-xs text-muted-color">
-        {{ gestureLine }}
-      </p>
-      <pre
-        class="font-mono text-[11px] leading-relaxed rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-3 max-h-48 overflow-auto whitespace-pre"
-        >{{ payload }}</pre
-      >
-      <CopyField :value="cliLine" />
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-[11px] text-muted-color flex-1">
-          the same payload is available to the agent over MCP
-        </p>
-        <Button size="small" label="hand off" @click="handOff" />
-      </div>
-    </div>
-  </Popover>
+  <HandoffPopover
+    ref="popover"
+    :cell="cell"
+    :gesture="gesture"
+    :branch="branch"
+    :handoff="handoff"
+    @send-to-agent="emit('send-to-agent', $event)"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue'
-import { Button, Popover } from 'primevue'
+import { Button } from 'primevue'
 import { Send } from 'lucide-vue-next'
 import type { FlowCell } from '../../model/types'
-import CopyField from '../../ui/CopyField.vue'
-import { buildHandoffPayload, type HandoffGesture } from './sendToAgent'
+import HandoffPopover from './HandoffPopover.vue'
+import type { HandoffGesture } from './sendToAgent'
 
 /**
  * The address the user never retypes: every card, error, and diff can hand the
  * agent a payload carrying slug, branch, step, and the error when present.
+ *
+ * The payload itself belongs to the daemon (it holds the traceback of a run no
+ * card opened), so a live surface answers `open` with one and passes it in. The
+ * local build behind the popover is what the fixtures and the gallery render,
+ * and it is the shape the daemon's own answer follows.
  */
 const props = defineProps<{
   cell: FlowCell
@@ -51,31 +45,22 @@ const props = defineProps<{
   /** With a label the trigger is a labeled button ("Fix this"); without, an icon. */
   label?: string
   severity?: string
+  /** The daemon's payload for this gesture, once it has answered. */
+  handoff?: string | null
 }>()
 
-const emit = defineEmits<{ 'send-to-agent': [payload: string] }>()
+const emit = defineEmits<{
+  'send-to-agent': [payload: string]
+  /** The popover is opening: this is when a live surface goes and asks. */
+  open: [gesture: HandoffGesture]
+}>()
 
-const popover = useTemplateRef<InstanceType<typeof Popover>>('popover')
+const popover = useTemplateRef<InstanceType<typeof HandoffPopover>>('popover')
 
 const gesture = computed<HandoffGesture>(() => props.gesture ?? 'explain')
-const branch = computed(() => props.branch ?? 'main')
 
-const payload = computed(() => buildHandoffPayload(props.cell, branch.value, gesture.value))
-
-const cliLine = computed(
-  () => `lumlflow agent prompt ${gesture.value} ${props.cell.slug} --branch ${branch.value}`,
-)
-
-const GESTURE_LINES: Record<HandoffGesture, string> = {
-  fix: 'asks the agent to fix this cell — the payload carries the error and traceback',
-  explain: 'asks the agent to explain this cell as it stands on this branch',
-  improve: 'asks the agent to improve this cell — context first, no diagnosis implied',
-}
-
-const gestureLine = computed(() => GESTURE_LINES[gesture.value])
-
-function handOff(): void {
-  emit('send-to-agent', payload.value)
-  popover.value?.hide()
+function onOpen(event: Event): void {
+  emit('open', gesture.value)
+  popover.value?.toggle(event)
 }
 </script>

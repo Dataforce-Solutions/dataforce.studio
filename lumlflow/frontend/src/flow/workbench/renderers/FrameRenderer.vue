@@ -1,12 +1,12 @@
 <template>
-  <div class="text-sm min-w-0">
+  <div class="preview-table min-w-0 text-base">
     <div class="overflow-auto" :class="bodyMaxClass(density)">
-      <DataTable :value="rows" size="small">
+      <DataTable :value="rows" size="small" striped-rows>
         <Column v-for="(column, index) in preview.columns" :key="column" :field="String(index)">
           <template #header>
             <span class="leading-tight">
               <span class="font-medium whitespace-nowrap">{{ column }}</span>
-              <span class="block text-xs text-muted-color font-normal">
+              <span class="block text-sm text-muted-color font-normal">
                 {{ preview.dtypes[index] }}
               </span>
             </span>
@@ -17,8 +17,8 @@
         </Column>
       </DataTable>
     </div>
-    <p class="text-xs text-muted-color mt-2">
-      {{ preview.rows.length }} of {{ preview.totalRows.toLocaleString() }} rows · preview
+    <p class="text-sm text-muted-color mt-2">
+      {{ preview.rows.length }} of {{ preview.totalRows.toLocaleString() }} rows
     </p>
   </div>
 </template>

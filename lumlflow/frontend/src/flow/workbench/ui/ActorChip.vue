@@ -1,29 +1,24 @@
 <template>
-  <span class="inline-flex items-center gap-1.5 text-sm" :class="muted ? 'text-muted-color' : ''">
-    <span
-      class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-      :class="
-        actor.kind === 'agent'
-          ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
-          : 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200'
-      "
-    >
-      <Bot v-if="actor.kind === 'agent'" :size="12" />
-      <UserRound v-else :size="12" />
-    </span>
+  <span
+    class="inline-flex min-w-0 items-center gap-1.5 text-base"
+    :class="muted ? 'text-muted-color' : ''"
+  >
+    <component :is="actor.kind === 'agent' ? Bot : UserRound" :size="14" class="shrink-0" />
     <span class="truncate">{{ actor.label }}</span>
-    <span
+    <Tag
       v-if="uncertain"
-      v-tooltip.top="'Mixed editing window — attribution uncertain'"
-      class="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+      v-tooltip.top="'a mixed editing window. attribution is uncertain.'"
+      severity="warn"
+      :pt="UNCERTAIN_PT"
     >
-      <TriangleAlert :size="12" />
-      uncertain
-    </span>
+      <TriangleAlert :size="14" class="shrink-0" />
+      <span>uncertain</span>
+    </Tag>
   </span>
 </template>
 
 <script setup lang="ts">
+import { Tag } from 'primevue'
 import { Bot, TriangleAlert, UserRound } from 'lucide-vue-next'
 import type { ActorRef } from '../model/types'
 
@@ -33,4 +28,6 @@ defineProps<{
   uncertain?: boolean
   muted?: boolean
 }>()
+
+const UNCERTAIN_PT = { root: { class: 'text-sm font-normal gap-1 px-1.5 py-0 shrink-0' } }
 </script>

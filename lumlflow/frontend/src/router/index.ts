@@ -73,8 +73,10 @@ const router = createRouter({
         },
       ],
     },
-    // Flow workbench UI draft. Additive: the tracker routes above are untouched,
-    // and everything under /flow carries hardcoded fixtures rather than API calls.
+    // The flow surface, beside the tracker routes above rather than over them:
+    // Experiments stays where it was, Workspace is the flows next to it. Opening
+    // a document lands on `:flowId` — the flow directory name, which is how the
+    // daemon addresses a flow and how a workbench link stays shareable.
     {
       path: '/flow',
       component: MainTemplate,
@@ -83,25 +85,29 @@ const router = createRouter({
           path: '',
           component: () => import('@/flow/FlowShell.vue'),
           children: [
-            { path: '', redirect: '/flow/design' },
+            {
+              name: 'flow-workspace',
+              path: '',
+              component: () => import('@/flow/workbench/pages/WorkspacePage.vue'),
+            },
             {
               name: 'flow-design',
               path: 'design/:section?',
               component: () => import('@/flow/workbench/gallery/DesignSystemPage.vue'),
             },
             {
-              name: 'flow-flows',
-              path: 'flows',
-              component: () => import('@/flow/workbench/pages/FlowsPage.vue'),
+              name: 'flow-work',
+              path: ':flowId',
+              component: () => import('@/flow/workbench/pages/WorkbenchPage.vue'),
             },
             {
-              name: 'flow-work',
-              path: 'work',
+              name: 'flow-notebook',
+              path: ':flowId/notebook',
               component: () => import('@/flow/workbench/pages/WorkbenchPage.vue'),
             },
             {
               name: 'flow-compare',
-              path: 'compare',
+              path: ':flowId/compare',
               component: () => import('@/flow/workbench/pages/ComparePage.vue'),
             },
             // The approved concept prototype, kept as a reference only — the

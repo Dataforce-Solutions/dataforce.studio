@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-md bg-surface-900 dark:bg-surface-950 p-3 font-mono text-xs leading-relaxed text-surface-200 dark:text-surface-200 overflow-auto max-h-64"
+    class="rounded-lg bg-surface-900 dark:bg-surface-950 p-3 font-mono text-sm leading-relaxed text-surface-200 dark:text-surface-200 overflow-auto max-h-64"
   >
     <div
       v-for="(line, index) in lines"

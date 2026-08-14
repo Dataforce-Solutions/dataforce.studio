@@ -1,4 +1,4 @@
-import { sliceEdges } from '../../model/registry'
+import { authored, sliceEdges } from '../../model/registry'
 import type { FlowCell, Slug } from '../../model/types'
 
 /**
@@ -58,7 +58,7 @@ export function layoutSlice(cells: FlowCell[]): Record<Slug, CanvasPosition> {
       if (rows.length === 0) return Number.MAX_SAFE_INTEGER
       return rows.reduce((sum, row) => sum + row, 0) / rows.length
     }
-    bucket.sort((a, b) => barycenter(a) - barycenter(b) || a.provenance.step - b.provenance.step)
+    bucket.sort((a, b) => barycenter(a) - barycenter(b) || authored(a) - authored(b))
     bucket.forEach((cell, index) => rowIndex.set(cell.slug, index))
   }
 

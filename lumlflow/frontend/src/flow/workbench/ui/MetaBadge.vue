@@ -1,24 +1,14 @@
 <template>
-  <span
-    v-tooltip.top="tooltip"
-    class="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border"
-    :class="classes"
-  >
-    <component :is="icon" :size="11" />
-    {{ label }}
-  </span>
+  <Tag v-tooltip.top="tooltip" :severity="severity" :pt="META_TAG_PT">
+    <component :is="icon" :size="14" class="shrink-0" />
+    <span>{{ label }}</span>
+  </Tag>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  BadgeCheck,
-  DatabaseZap,
-  Globe,
-  History,
-  Pin,
-  type LucideIcon,
-} from 'lucide-vue-next'
+import { Tag } from 'primevue'
+import { BadgeCheck, DatabaseZap, Globe, History, Pin, type LucideIcon } from 'lucide-vue-next'
 
 /**
  * The small factual badges that ride next to a status chip. Each one states a
@@ -28,54 +18,57 @@ import {
  * - settled     — branch fully materialized and consistent (a highlight, not a gate)
  * - external    — reads outside the store; unmemoizable
  * - pinned      — input frozen at fork time
+ *
+ * `StatusChip` beside it does the same job for the status vocabulary, and both
+ * are `Tag :severity` — a second, hand-coloured chip system is how the two
+ * start to drift.
  */
 export type MetaBadgeVariant = 'cached' | 'older-env' | 'settled' | 'external' | 'pinned'
+
+type Severity = 'info' | 'warn' | 'success' | 'secondary'
 
 const props = defineProps<{ variant: MetaBadgeVariant }>()
 
 const CONFIG: Record<
   MetaBadgeVariant,
-  { label: string; tooltip: string; icon: LucideIcon; classes: string }
+  { label: string; tooltip: string; icon: LucideIcon; severity: Severity }
 > = {
   cached: {
     label: 'cached',
-    tooltip: 'Served from the memo cache — nothing recomputed',
+    tooltip: 'a memo hit. nothing recomputed.',
     icon: DatabaseZap,
-    classes:
-      'border-sky-200 text-sky-700 bg-sky-50 dark:border-sky-500/30 dark:text-sky-300 dark:bg-sky-500/10',
+    severity: 'info',
   },
   'older-env': {
     label: 'older env',
-    tooltip: 'Computed under an older environment lock than the live venv',
+    tooltip: 'ran under an older environment lock than the live venv',
     icon: History,
-    classes:
-      'border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-500/30 dark:text-amber-300 dark:bg-amber-500/10',
+    severity: 'warn',
   },
   settled: {
     label: 'settled',
-    tooltip: 'Branch fully materialized and consistent at this point',
+    tooltip: 'this lane is fully materialized and consistent at this point',
     icon: BadgeCheck,
-    classes:
-      'border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:bg-emerald-500/10',
+    severity: 'success',
   },
   external: {
     label: 'external',
-    tooltip: 'Reads outside the store — unmemoizable; the store cannot know when it changes',
+    tooltip: 'reads outside the store. the store cannot know when it changes.',
     icon: Globe,
-    classes:
-      'border-surface-300 text-surface-600 bg-surface-50 dark:border-surface-600 dark:text-surface-300 dark:bg-surface-800',
+    severity: 'secondary',
   },
   pinned: {
     label: 'pinned',
-    tooltip: 'Frozen at fork time — updates are explicit accept-upstream ops',
+    tooltip: 'frozen when this lane started. updates are explicit accept-upstream ops.',
     icon: Pin,
-    classes:
-      'border-surface-300 text-surface-600 bg-surface-50 dark:border-surface-600 dark:text-surface-300 dark:bg-surface-800',
+    severity: 'secondary',
   },
 }
+
+const META_TAG_PT = { root: { class: 'text-sm font-normal gap-1 px-1.5 py-0 shrink-0' } }
 
 const label = computed(() => CONFIG[props.variant].label)
 const tooltip = computed(() => CONFIG[props.variant].tooltip)
 const icon = computed(() => CONFIG[props.variant].icon)
-const classes = computed(() => CONFIG[props.variant].classes)
+const severity = computed(() => CONFIG[props.variant].severity)
 </script>

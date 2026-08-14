@@ -1,23 +1,35 @@
 <template>
-  <div
-    class="flex flex-col gap-2.5 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 p-3"
-  >
-    <div class="flex items-start gap-2 text-sm">
-      <ServerOff :size="15" class="shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
-      <p class="min-w-0">
-        <span class="font-medium text-red-700 dark:text-red-300">daemon down</span>
-        <span class="text-red-700/80 dark:text-red-300/80">
-          — nothing live; showing last-known state, marked stale</span
-        >
+  <Message severity="error" size="small">
+    <template #icon><ServerOff :size="15" class="shrink-0" /></template>
+    <div class="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5">
+      <!--
+        The space is interpolated, not typed: the template compiler condenses
+        a whitespace-only node between two elements away, and the two
+        sentences ran together on screen while reading correctly in source.
+      -->
+      <p class="min-w-0 text-base">
+        <span class="font-medium">lumlflow is not running.</span>
+        <span>{{ ' ' }}{{ detail }}</span>
       </p>
+      <div class="min-w-56 flex-1"><CopyField value="lumlflow ui" /></div>
     </div>
-    <div class="max-w-md">
-      <CopyField value="lumlflow ui" />
-    </div>
-  </div>
+  </Message>
 </template>
 
 <script setup lang="ts">
+import { Message } from 'primevue'
 import { ServerOff } from 'lucide-vue-next'
 import CopyField from '../../ui/CopyField.vue'
+
+/**
+ * Nobody answered the last round-trip. The remedy is the command, so it is on
+ * screen and copyable rather than described.
+ */
+withDefaults(
+  defineProps<{
+    /** What this surface has left to show meanwhile — a listing has none. */
+    detail?: string
+  }>(),
+  { detail: 'showing last-known state' },
+)
 </script>

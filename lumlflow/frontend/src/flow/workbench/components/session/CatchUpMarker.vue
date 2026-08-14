@@ -1,28 +1,22 @@
 <template>
-  <div class="inline-flex flex-col gap-1">
-    <div
-      class="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-300 px-3 py-1.5 text-sm"
-    >
-      <History :size="14" class="shrink-0" />
-      <span>{{ formatCount(count, 'change') }} since you were here</span>
-      <button
-        class="underline underline-offset-2 decoration-primary-300 dark:decoration-primary-500/50 hover:decoration-current"
-        @click="emit('open')"
-      >
-        open at cursor
-      </button>
-    </div>
-    <p class="text-xs text-muted-color px-1">
-      a marker, not an inbox — reopening still lands on the active branch
-    </p>
-  </div>
+  <Message severity="info" size="small" :pt="MARKER_PT">
+    <template #icon><History :size="14" class="shrink-0" /></template>
+    <span class="text-base">{{ formatCount(count, 'change') }} since you were here</span>
+    <Button link label="open at cursor" :pt="LINK_PT" @click="emit('open')" />
+  </Message>
 </template>
 
 <script setup lang="ts">
+import { Button, Message } from 'primevue'
 import { History } from 'lucide-vue-next'
 import { formatCount } from '../../model/format'
 
+// A marker, not an inbox: it names the gap and offers the one gesture that
+// closes it.
 defineProps<{ count: number }>()
 
 const emit = defineEmits<{ open: [] }>()
+
+const MARKER_PT = { content: { class: 'gap-2 py-1' } }
+const LINK_PT = { root: { class: 'p-0 text-base font-normal' } }
 </script>

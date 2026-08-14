@@ -50,7 +50,7 @@ export const staleRewiredCell = cellWith(base, {
 
 export const staleLibCell = cellWith(base, {
   status: 'stale',
-  stale: { kind: 'lib-changed', cause: '`helpers.py` changed' },
+  stale: { kind: 'workspace-code-changed', cause: '`helpers.py` changed' },
 })
 
 export const staleTransitiveCell = cellWith(base, {
@@ -106,9 +106,25 @@ ValueError: threshold must be within (0, 1), got 5`,
   },
 })
 
+/**
+ * The state every cell is created in: scaffolded, not yet named. The daemon
+ * flags it, and the card renders the flag as the name rather than as a warning.
+ */
+export const placeholderCell = cellWith(base, {
+  slug: 'untitled_1',
+  status: 'unmaterialized',
+  stale: undefined,
+  timing: undefined,
+  flag: {
+    code: 'placeholder_slug',
+    message: '`untitled_1` is a placeholder name. rename it to `roc_curve`.',
+  },
+})
+
 export const flaggedCell = cellWith(base, {
   consumes: ['holdout_evl.eval'],
   flag: {
+    code: 'dangling_ref',
     message: 'unknown reference `holdout_evl.eval`',
     didYouMean: 'holdout_eval.eval',
   },
@@ -157,16 +173,14 @@ export const externalInputCell = mainCells.find(
 /** Run `holdout_eval` while `features` is stale: the closure names three cells. */
 export const evalPreflight: Preflight = {
   cached: ['load_customers', 'clean_data', 'sweep_config'],
-  recompute: [
-    { slug: 'features', seconds: 19 },
-    { slug: 'train_model', seconds: 312 },
-    { slug: 'holdout_eval', seconds: 10 },
-  ],
+  recompute: ['features', 'train_model', 'holdout_eval'],
+  unknown: [],
   totalSeconds: 341,
 }
 
 export const cheapPreflight: Preflight = {
   cached: ['holdout_eval'],
-  recompute: [{ slug: 'roc_curve', seconds: 1.2 }],
+  recompute: ['roc_curve'],
+  unknown: [],
   totalSeconds: 1.2,
 }

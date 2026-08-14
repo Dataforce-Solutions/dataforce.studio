@@ -1,112 +1,63 @@
 <template>
-  <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-12">
-    <header class="flex flex-col gap-2">
-      <h3 class="text-xl font-medium">Comparing {{ fixture.branches.length }} branches</h3>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        <BranchTag
-          v-for="column in fixture.branches"
-          :key="column.branch"
-          :name="column.branch"
-          :checked-out="column.branch === target"
-        />
-      </div>
-      <p class="text-xs text-muted-color">
-        Selection happens in the branch graph — pick 2–5 branches there and land here.
-      </p>
-    </header>
+  <!-- No token, or one the daemon refused: this tab has no key either way. -->
+  <NotConnectedNotice v-if="source === 'unconnected'" class="max-w-2xl" />
 
-    <section class="flex flex-col gap-3">
-      <SectionLabel label="Final results" />
-      <!-- Integrity warnings render inline at the top of the columns. -->
-      <ResultColumns :fixture="fixture" />
-    </section>
+  <LiveCompare v-else-if="live" :session="live" />
 
-    <section class="flex flex-col gap-3">
-      <SectionLabel label="Where the paths go differently" />
-      <DivergencePointCard
-        v-for="divergence in fixture.definitionDivergences"
-        :key="divergence.slug"
-        :divergence="divergence"
-      />
-      <MaterializationRows :rows="fixture.materializationRows" />
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 self-start text-xs text-muted-color hover:underline"
-        @click="showAllDifferences = !showAllDifferences"
-      >
-        <ChevronDown
-          :size="13"
-          class="transition-transform"
-          :class="showAllDifferences ? 'rotate-180' : ''"
-        />
-        {{ showAllDifferences ? 'hide' : 'show' }} all differences ({{
-          fixture.shapelessDifferences.length
-        }})
-      </button>
-      <ShapelessTable v-if="showAllDifferences" :differences="fixture.shapelessDifferences" />
-    </section>
-
-    <section class="flex flex-col gap-3">
-      <SectionLabel label="Artifacts" />
-      <ArtifactLinks :artifacts="fixture.artifacts" />
-    </section>
-
-    <AdoptBar
-      :winner="winner"
-      :asset="adoptAsset"
-      :target="target"
-      @adopt="onAdopt"
-      @export="onExport"
-    />
+  <!--
+    A live source that has not opened yet is not a comparison with nothing in
+    it: it is a wait, a server that is gone, or a refusal it named. Falling back
+    to the fixture here would put another flow's sweep on screen.
+  -->
+  <div v-else-if="source === 'live'" class="flex flex-col gap-3">
+    <DaemonDownBanner v-if="unreachable" />
+    <p v-else-if="refusal" class="text-base text-(--p-message-error-color)">{{ refusal }}</p>
+    <p v-else class="text-base text-muted-color">opening {{ flowId }}…</p>
   </div>
+
+  <FixtureCompare v-else />
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useToast } from 'primevue/usetoast'
-import { ChevronDown } from 'lucide-vue-next'
-import AdoptBar from '../components/compare/AdoptBar.vue'
-import ArtifactLinks from '../components/compare/ArtifactLinks.vue'
-import DivergencePointCard from '../components/compare/DivergencePointCard.vue'
-import MaterializationRows from '../components/compare/MaterializationRows.vue'
-import ResultColumns from '../components/compare/ResultColumns.vue'
-import ShapelessTable from '../components/compare/ShapelessTable.vue'
-import { sweepCompare } from '../fixtures/compare'
-import BranchTag from '../ui/BranchTag.vue'
-import SectionLabel from '../ui/SectionLabel.vue'
+import { computed, ref, shallowRef } from 'vue'
+import { useRoute } from 'vue-router'
 
-const fixture = sweepCompare
-const target = 'main'
-const adoptAsset = 'train_model'
+import { DaemonUnreachable, FlowApi } from '@/flow/api/client'
+import { FlowStream } from '@/flow/api/stream'
+import { browserToken, tokenRejected } from '@/flow/api/token'
+import DaemonDownBanner from '../components/session/DaemonDownBanner.vue'
+import NotConnectedNotice from '../components/session/NotConnectedNotice.vue'
+import { selectSource } from '../live/source'
+import { useFlowSession } from '../live/useFlowSession'
+import type { FlowSessionHandle } from '../live/useFlowSession'
+import FixtureCompare from './FixtureCompare.vue'
+import LiveCompare from './LiveCompare.vue'
 
-const toast = useToast()
-const showAllDifferences = ref(false)
+/**
+ * Which comparison this is: a live one, the fixture, or none at all. The same
+ * switch the workbench makes, decided once here so nothing below has to ask.
+ */
+const route = useRoute()
+const token = browserToken()
+// A token the daemon refused counts as none, the same way the workbench reads it.
+const source = computed(() => selectSource(route, tokenRejected.value ? null : token))
+const flowId = typeof route.params.flowId === 'string' ? route.params.flowId : undefined
 
-const winner = computed(() => {
-  const [first, ...rest] = fixture.branches
-  return rest.reduce((best, column) => {
-    const better = column.headlineMetric.higherIsBetter
-      ? column.headlineMetric.value > best.headlineMetric.value
-      : column.headlineMetric.value < best.headlineMetric.value
-    return better ? column : best
-  }, first).branch
-})
+const live = shallowRef<FlowSessionHandle | null>(null)
+const unreachable = ref(false)
+const refusal = ref<string | null>(null)
 
-function onAdopt(): void {
-  toast.add({
-    severity: 'info',
-    summary: 'Adopt',
-    detail: `would adopt ${adoptAsset} from ${winner.value} onto ${target} — three-way check on the definition runs first`,
-    life: 4000,
-  })
-}
-
-function onExport(): void {
-  toast.add({
-    severity: 'info',
-    summary: 'Export flow file',
-    detail: 'would export the chosen slice as a flow file — a file export, not a platform upload',
-    life: 4000,
-  })
+if (source.value === 'live' && token !== null) {
+  const stream = new FlowStream({ token })
+  const session = useFlowSession({ api: new FlowApi({ token }), stream, flow: flowId })
+  session
+    .attach()
+    .then(() => {
+      live.value = session
+    })
+    .catch((failure: unknown) => {
+      if (failure instanceof DaemonUnreachable) unreachable.value = true
+      else refusal.value = failure instanceof Error ? failure.message : String(failure)
+    })
 }
 </script>

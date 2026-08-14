@@ -1,8 +1,8 @@
 <template>
-  <span class="inline-flex items-center gap-1.5 min-w-0 text-sm">
+  <span class="inline-flex items-center gap-1.5 min-w-0 text-base">
     <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: color }" />
-    <span class="font-mono text-[13px] truncate">{{ name }}</span>
-    <Tag v-if="checkedOut" value="checked out" severity="secondary" :pt="tinyTag" />
+    <span class="font-mono text-base truncate">{{ name }}</span>
+    <Tag v-if="checkedOut" value="on disk" severity="secondary" :pt="tinyTag" />
     <Tag v-if="archived" value="archived" severity="secondary" :pt="tinyTag" class="opacity-60" />
   </span>
 </template>
@@ -19,5 +19,5 @@ const props = defineProps<{
 }>()
 
 const color = computed(() => branchColor(props.name))
-const tinyTag = { root: { class: 'text-[10px] font-normal px-1.5 py-0' } }
+const tinyTag = { root: { class: 'text-sm font-normal px-1.5 py-0' } }
 </script>

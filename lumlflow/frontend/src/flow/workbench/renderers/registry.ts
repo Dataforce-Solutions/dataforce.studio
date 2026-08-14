@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import type { AssetKind, PreviewValue } from '../model/types'
+import BlocksRenderer from './BlocksRenderer.vue'
 import DatasetRenderer from './DatasetRenderer.vue'
 import EvalRenderer from './EvalRenderer.vue'
 import ExperimentRenderer from './ExperimentRenderer.vue'
@@ -27,6 +28,7 @@ const RENDERERS: Partial<Record<AssetKind, Component>> = {
   dataset: DatasetRenderer,
   experiment: ExperimentRenderer,
   checkpoint: FileRenderer,
+  file: FileRenderer,
   image: FileRenderer,
   text: TextRenderer,
   html: TextRenderer,
@@ -37,7 +39,7 @@ export function rendererFor(kind: AssetKind): Component {
 }
 
 /** A stored preview names its own payload shape; `file` serves any binary kind. */
-const KIND_OF_PREVIEW: Record<PreviewValue['type'], AssetKind> = {
+const KIND_OF_PREVIEW: Record<Exclude<PreviewValue['type'], 'blocks'>, AssetKind> = {
   frame: 'frame',
   plot: 'plot',
   metric: 'metric',
@@ -51,6 +53,12 @@ const KIND_OF_PREVIEW: Record<PreviewValue['type'], AssetKind> = {
   kv: 'unknown',
 }
 
+/**
+ * A live payload arrives as the blocks it was stored as and is drawn as those,
+ * whatever kind it carries; the shapes above are the authored ones the fixtures
+ * and the gallery hold.
+ */
 export function rendererForPreview(preview: PreviewValue): Component {
+  if (preview.type === 'blocks') return BlocksRenderer
   return rendererFor(KIND_OF_PREVIEW[preview.type] ?? 'unknown')
 }

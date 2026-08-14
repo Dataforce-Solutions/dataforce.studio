@@ -1,29 +1,29 @@
 <template>
-  <div class="flex flex-col gap-8 max-w-4xl">
+  <div class="flex flex-col gap-12 max-w-4xl">
     <GallerySpecimen
       title="Frame"
-      caption="PrimeVue DataTable at small size, dtype under every column header. The footer states the preview bound — a preview never masquerades as the value."
+      caption="PrimeVue DataTable at small size, dtype under every column header. The footer states the preview bound, so a preview never masquerades as the value."
     >
       <RendererHost :preview="framePreview" density="canvas" />
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Dataset"
-      caption="Schema as name:dtype chips, head rows, and a footer with the recorded row count and size — all from the stored preview, no kernel."
+      caption="Head rows with the dtype under every column header, and a footer with the recorded row count and size, all from the stored preview and no kernel."
     >
       <RendererHost :preview="datasetPreview" density="canvas" />
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Plot"
-      caption="Inline SVG from stored series — no chart library. A series may pin its own color (the chance diagonal here); the default palette reads in both themes."
+      caption="Inline SVG from stored series, with no chart library. A series may pin its own color (the chance diagonal here); the default palette reads in both themes."
     >
       <RendererHost :preview="plotPreview" density="canvas" />
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Metric"
-      caption="One formatter for the scalar, the direction arrow states which way is better, and the delta tag is colored by whether it is an improvement — not by its sign."
+      caption="One formatter for the scalar, the direction arrow states which way is better, and the delta tag takes its color from whether it is an improvement, not from its sign."
     >
       <div class="flex flex-wrap gap-x-12 gap-y-4">
         <RendererHost :preview="metricPreview" density="canvas" />
@@ -33,7 +33,7 @@
 
     <GallerySpecimen
       title="Note"
-      caption="Markdown through marked + DOMPurify, styled by github-markdown-css — the app's one markdown pipeline."
+      caption="Markdown through marked + DOMPurify, styled by github-markdown-css: the app's one markdown pipeline."
     >
       <RendererHost :preview="notePreview" density="canvas" />
     </GallerySpecimen>
@@ -75,7 +75,7 @@
 
     <GallerySpecimen
       title="Key-value fallback"
-      caption="The kind registry is open at runtime — unknown kinds render the stored preview as a two-column grid, never an error. A newer preview format says so inline."
+      caption="The kind registry is open at runtime, so unknown kinds render the stored preview as a two-column grid, never an error. A newer preview format says so inline."
     >
       <div class="flex flex-col gap-6">
         <RendererHost :preview="kvPreview" density="canvas" />
@@ -85,15 +85,15 @@
 
     <GallerySpecimen
       title="Non-value states"
-      caption="The five preview states, mirroring the @luml/attachments vocabulary: quiet, centered, one line each — a failure mode without a surface is a spinner that never resolves."
+      caption="The five preview states, mirroring the @luml/attachments vocabulary: quiet, centered, one line each. A failure mode without a surface is a spinner that never resolves."
     >
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div
           v-for="state in shellStates"
           :key="state"
-          class="rounded-md border border-surface-200 dark:border-surface-700"
+          class="rounded-lg border border-surface-200 dark:border-surface-700"
         >
-          <p class="font-mono text-[11px] text-muted-color px-3 pt-2">{{ state }}</p>
+          <p class="font-mono text-sm text-muted-color px-3 pt-2">{{ state }}</p>
           <PreviewShell :state="state" :detail="shellDetail(state)" />
         </div>
       </div>
@@ -101,19 +101,19 @@
 
     <GallerySpecimen
       title="Primary-output ranking"
-      caption="train_model produces model, run, checkpoint, and curves — the experiment wins, so the card opens on the finding rather than a config dump."
+      caption="train_model produces model, run, checkpoint, and curves. The experiment wins, so the card opens on the finding rather than a config dump."
     >
       <div class="flex flex-col gap-2">
         <div
           v-for="output in rankedOutputs"
           :key="output.name"
-          class="flex items-center gap-3 text-sm"
+          class="flex items-center gap-3 text-base"
         >
           <KindBadge :kind="output.kind" icon-only />
           <code class="font-mono">{{ output.name }}</code>
-          <span class="text-xs text-muted-color tabular-nums">rank {{ rankOf(output.kind) }}</span>
-          <span v-if="output.name === primary?.name" class="text-xs text-primary font-medium">
-            primary — opens first
+          <span class="text-sm text-muted-color tabular-nums">rank {{ rankOf(output.kind) }}</span>
+          <span v-if="output.name === primary?.name" class="text-sm text-primary font-medium">
+            primary · opens first
           </span>
         </div>
       </div>
@@ -121,18 +121,18 @@
 
     <GallerySpecimen
       title="Density"
-      caption="The same stored preview at two densities: bounded to ~220px on a canvas card, generous in the expand drawer. One renderer, one prop — the views cannot drift apart."
+      caption="The same stored preview at two densities: bounded to ~220px on a canvas card, generous in the expand drawer. One renderer, one prop, so the views cannot drift apart."
     >
       <div class="grid lg:grid-cols-2 gap-4">
         <div class="flex flex-col gap-2 min-w-0">
-          <p class="font-mono text-[11px] text-muted-color">density="canvas"</p>
-          <div class="rounded-md border border-surface-200 dark:border-surface-700 p-3">
+          <p class="font-mono text-sm text-muted-color">density="canvas"</p>
+          <div class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
             <RendererHost :preview="experimentPreview" density="canvas" />
           </div>
         </div>
         <div class="flex flex-col gap-2 min-w-0">
-          <p class="font-mono text-[11px] text-muted-color">density="drawer"</p>
-          <div class="rounded-md border border-surface-200 dark:border-surface-700 p-3">
+          <p class="font-mono text-sm text-muted-color">density="drawer"</p>
+          <div class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
             <RendererHost :preview="experimentPreview" density="drawer" />
           </div>
         </div>
@@ -183,7 +183,7 @@ const worseMetric: MetricPreview = {
 
 const newerFormatKv: KvPreview = {
   ...(kvPreview as KvPreview),
-  newerFormatNote: 'newer preview format — showing raw fields',
+  newerFormatNote: 'newer preview format. showing raw fields.',
 }
 
 const logText: TextPreview = {

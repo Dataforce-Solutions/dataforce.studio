@@ -103,10 +103,7 @@ function featureDropCells(): FlowCell[] {
         status: 'materialized',
         timing: { costSeconds: 17.9, finishedAgo: '3d ago' },
       })
-      edited.source = edited.source.replace(
-        '"seed": 1337}',
-        '"seed": 1337, "drop_payment": True}',
-      )
+      edited.source = edited.source.replace('"seed": 1337}', '"seed": 1337, "drop_payment": True}')
       return [edited]
     }
     if (cell.slug === 'train_model') {
@@ -284,7 +281,7 @@ export const journal: JournalEntry[] = [
     time: '13:22',
     branch: 'main',
     actor: user,
-    intent: 'edits while the daemon was down',
+    intent: 'edits while lumlflow was stopped',
     kind: 'offline',
     summary: 'offline window · the fine-grained edit sequence was not recorded',
   },
@@ -304,7 +301,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'sweep the learning rate',
     kind: 'fork',
-    summary: 'forked exp/lr-3e4, exp/lr-1e3, exp/lr-3e3 from main',
+    summary: 'started exp/lr-3e4, exp/lr-1e3, exp/lr-3e3 from main',
   },
   {
     step: 12,

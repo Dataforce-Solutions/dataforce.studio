@@ -5,40 +5,35 @@
     <div
       class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-200 px-4 py-2.5 dark:border-surface-700"
     >
-      <GitFork :size="14" class="text-muted-color" />
-      <span class="font-mono text-sm font-medium">{{ divergence.slug }}</span>
-      <span class="text-xs text-muted-color">definition divergence</span>
-      <span class="ml-auto text-xs text-muted-color">
-        someone edited the cell — rare, structural
-      </span>
+      <Split :size="14" class="text-muted-color" />
+      <span class="font-mono text-base font-medium">{{ divergence.slug }}</span>
+      <span class="text-sm text-muted-color">definition divergence</span>
     </div>
 
     <div class="grid gap-3 p-4" style="grid-template-columns: repeat(auto-fit, minmax(230px, 1fr))">
       <div
         v-for="(side, index) in divergence.sides"
         :key="index"
-        class="flex flex-col gap-2.5 rounded-md border border-surface-200 p-3 dark:border-surface-700"
+        class="flex flex-col gap-2.5 rounded-lg border border-surface-200 p-3 dark:border-surface-700"
       >
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <BranchTag v-for="branch in side.branches" :key="branch" :name="branch" />
-          <span class="ml-auto font-mono text-xs text-muted-color">{{ side.version }}</span>
+          <span class="ml-auto font-mono text-sm text-muted-color">{{ side.version }}</span>
         </div>
 
-        <div class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-0.5 text-xs">
+        <div class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-0.5 text-sm">
           <template v-for="key in paramKeys" :key="key">
             <span
               class="font-mono"
-              :class="
-                differingKeys.has(key) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-color'
-              "
+              :class="differingKeys.has(key) ? 'text-(--p-message-warn-color)' : 'text-muted-color'"
             >
               {{ key }}
             </span>
             <span
-              class="rounded px-1 font-mono tabular-nums"
+              class="rounded-lg px-1 font-mono tabular-nums"
               :class="
                 differingKeys.has(key)
-                  ? 'bg-amber-50 font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-200'
+                  ? 'bg-(--p-message-warn-background) font-medium text-(--p-message-warn-color)'
                   : ''
               "
             >
@@ -48,7 +43,7 @@
         </div>
 
         <pre
-          class="overflow-x-auto rounded bg-surface-50 p-2 font-mono text-[11px] leading-relaxed text-surface-700 dark:bg-surface-800 dark:text-surface-300"
+          class="overflow-x-auto rounded-lg bg-surface-50 p-2 font-mono text-sm leading-relaxed text-surface-700 dark:bg-surface-800 dark:text-surface-300"
           >{{ side.sourceExcerpt }}</pre
         >
       </div>
@@ -58,8 +53,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { GitFork } from 'lucide-vue-next'
-import type { DefinitionDivergence } from '../../fixtures/compare'
+import { Split } from 'lucide-vue-next'
+import type { DefinitionDivergence } from '../../model/types'
 import type { ParamValue } from '../../model/types'
 import BranchTag from '../../ui/BranchTag.vue'
 

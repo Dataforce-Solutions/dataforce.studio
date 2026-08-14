@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col gap-2">
     <pre v-if="logs" :class="blockClass">{{ logs.trimEnd() }}</pre>
-    <p v-else class="text-xs text-muted-color">no logs recorded for this materialization</p>
+    <p v-else class="text-sm text-muted-color">no logs</p>
     <template v-if="error">
-      <p class="text-[11px] uppercase tracking-wide text-muted-color">traceback</p>
+      <p class="text-sm text-muted-color">traceback</p>
       <pre :class="blockClass">{{ error.traceback }}</pre>
     </template>
   </div>
@@ -20,5 +20,5 @@ import type { CellErrorInfo } from '../../model/types'
 defineProps<{ logs?: string; error?: CellErrorInfo }>()
 
 const blockClass =
-  'font-mono text-xs leading-relaxed rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-3 overflow-auto max-h-64 whitespace-pre-wrap'
+  'font-mono text-sm leading-relaxed rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-3 overflow-auto max-h-64 whitespace-pre-wrap'
 </script>

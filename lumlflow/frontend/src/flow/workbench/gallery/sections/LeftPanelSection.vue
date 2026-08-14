@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col gap-8 max-w-4xl">
+  <div class="flex flex-col gap-12 max-w-4xl">
     <GallerySpecimen
       title="The full panel · main"
-      caption="Scoped to one viewed branch: identifier with family line, the agent's current task from the journal, the inventory lenses over the same cells, and the two real settings. Every row is an address, never a number."
+      caption="Scoped to one viewed lane: identifier with family line, the agent's current task from the journal, then one disclosure per section. Cells open, everything else waits on demand, and a lens with nothing on the lane never renders at all. Every row is an address, never a number."
     >
       <div :class="frameClass">
         <LeftPanel
@@ -23,7 +23,7 @@
 
     <GallerySpecimen
       title="Re-scoped to exp/feature-drop"
-      caption="The same component with viewedBranch changed — identifier, task line, and every inventory lens re-scope together. Viewing is a pure read: the caption says the files stay on main."
+      caption="The same component with viewedBranch changed: identifier, task line, and every inventory lens re-scope together. Viewing is a pure read, and the caption says the files stay on main."
     >
       <div :class="frameClass">
         <LeftPanel
@@ -44,7 +44,7 @@
 
     <GallerySpecimen
       title="Unpaired"
-      caption="Unpaired is a working state, not an error: the task line reads 'not paired' with a quiet hint to the pair panel, and everything else keeps working."
+      caption="Unpaired is a working state, not an error: the task line reads 'not paired' with the link that pairs one, and everything else keeps working. This is the only place the workbench says it."
     >
       <div :class="frameClass">
         <LeftPanel
@@ -65,7 +65,7 @@
 
     <GallerySpecimen
       title="Env mismatch"
-      caption="The branch's lockfile differs from the live venv: the banner tops the packages group, names the fix, and says background work is deferred rather than letting the branch look idle."
+      caption="The lane's lockfile differs from the live venv: the packages header carries the mark while it is folded, and the banner inside names the fix. A warning that hides is not a warning."
     >
       <div :class="frameClass">
         <LeftPanel
@@ -120,7 +120,7 @@ function onOpenGraph(): void {
   toast.add({
     severity: 'secondary',
     summary: 'open-graph',
-    detail: 'would open the branch graph overlay',
+    detail: 'would open the lane map overlay',
     life: 2500,
   })
 }
@@ -138,7 +138,7 @@ function onSummarize(): void {
   toast.add({
     severity: 'secondary',
     summary: 'summarize-branch',
-    detail: 'hands the branch payload to the agent; the agent writes the note cell',
+    detail: 'hands the lane payload to the agent. the agent writes the note cell.',
     life: 2500,
   })
 }

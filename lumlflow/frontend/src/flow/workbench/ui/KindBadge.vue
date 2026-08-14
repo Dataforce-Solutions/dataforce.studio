@@ -1,7 +1,7 @@
 <template>
   <span class="inline-flex items-center gap-1.5 text-muted-color">
     <component :is="icon" :size="iconSize" class="shrink-0" />
-    <span v-if="!iconOnly" class="text-xs">{{ label }}</span>
+    <span v-if="!iconOnly" class="text-sm">{{ label }}</span>
   </span>
 </template>
 

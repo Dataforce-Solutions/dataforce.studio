@@ -1,31 +1,24 @@
 <template>
-  <div
-    class="flex items-center gap-3 flex-wrap rounded-md border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2"
-  >
-    <GitBranch :size="14" class="text-amber-600 dark:text-amber-400 shrink-0" />
-    <span class="text-xs text-amber-800 dark:text-amber-200 flex-1 min-w-40">
-      your edit landed on a moved head
-    </span>
-    <div class="flex items-center gap-2 shrink-0">
-      <Button size="small" severity="warn" label="fork my edit" @click="emit('resolve', 'fork')">
-        <template #icon><GitFork :size="13" /></template>
-      </Button>
-      <Button
-        size="small"
-        text
-        severity="secondary"
-        label="overwrite"
-        @click="emit('resolve', 'overwrite')"
-      />
+  <Message severity="warn" size="small">
+    <template #icon><TriangleAlert :size="14" class="shrink-0" /></template>
+    <div class="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
+      <span class="min-w-40 flex-1 text-base">your edit is based on an older version</span>
+      <div class="flex shrink-0 items-center gap-2">
+        <Button severity="warn" label="save to a new lane" @click="emit('resolve', 'fork')">
+          <template #icon><Split :size="14" /></template>
+        </Button>
+        <Button text severity="secondary" label="overwrite" @click="emit('resolve', 'overwrite')" />
+      </div>
     </div>
-  </div>
+  </Message>
 </template>
 
 <script setup lang="ts">
-import { Button } from 'primevue'
-import { GitBranch, GitFork } from 'lucide-vue-next'
+import { Button, Message } from 'primevue'
+// Never a git glyph: a fork icon says the word the copy stopped saying.
+import { Split, TriangleAlert } from 'lucide-vue-next'
 
-// Fork is the promoted resolution: overwriting a moved head loses someone
-// else's version, forking loses nothing.
+// Saving to a new lane is the promoted resolution: overwriting loses
+// someone else's version, saving to a new lane loses nothing.
 const emit = defineEmits<{ resolve: [choice: 'overwrite' | 'fork'] }>()
 </script>

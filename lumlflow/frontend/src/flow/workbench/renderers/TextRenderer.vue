@@ -1,7 +1,7 @@
 <template>
   <div class="relative min-w-0">
     <pre
-      class="font-mono text-xs leading-relaxed whitespace-pre-wrap overflow-auto"
+      class="font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-auto"
       :class="bodyMaxClass(density)"
       >{{ preview.text }}</pre
     >

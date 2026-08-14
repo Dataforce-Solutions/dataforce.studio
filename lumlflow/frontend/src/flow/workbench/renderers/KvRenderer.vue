@@ -2,9 +2,9 @@
   <div class="flex flex-col gap-2 min-w-0">
     <p
       v-if="preview.newerFormatNote"
-      class="inline-flex items-center gap-1.5 text-xs text-muted-color"
+      class="inline-flex items-center gap-1.5 text-sm text-muted-color"
     >
-      <Info :size="12" class="shrink-0" />
+      <Info :size="14" class="shrink-0" />
       {{ preview.newerFormatNote }}
     </p>
     <div class="overflow-auto" :class="bodyMaxClass(density)">

@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col gap-2.5 min-w-0">
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
-      <span class="font-mono text-sm truncate">{{ preview.runName }}</span>
-      <a v-if="preview.trackerRef" class="link text-xs whitespace-nowrap" href="/experiments">
-        {{ preview.trackerRef }} · open in tracker
+      <span class="font-mono text-base truncate">{{ preview.runName }}</span>
+      <a v-if="preview.trackerRef" class="link text-sm whitespace-nowrap" href="/experiments">
+        {{ preview.trackerRef }}
       </a>
     </div>
 
@@ -14,11 +14,11 @@
       >
         {{ formatMetric(preview.mainMetric.value) }}
       </span>
-      <span class="inline-flex items-center gap-1 text-xs text-muted-color">
+      <span class="inline-flex items-center gap-1 text-sm text-muted-color">
         <component
           :is="preview.mainMetric.higherIsBetter ? ArrowUp : ArrowDown"
           v-tooltip.top="preview.mainMetric.higherIsBetter ? 'higher is better' : 'lower is better'"
-          :size="12"
+          :size="14"
         />
         <span>{{ preview.mainMetric.name }}</span>
       </span>
@@ -28,7 +28,7 @@
       <span
         v-for="chip in configChips"
         :key="chip"
-        class="font-mono text-[11px] px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800"
+        class="font-mono text-sm px-1.5 py-0.5 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800"
       >
         {{ chip }}
       </span>

@@ -2,13 +2,13 @@
   <div class="h-full flex gap-6 min-h-0">
     <aside class="w-56 shrink-0 overflow-y-auto pr-2">
       <div v-for="group in sectionGroups" :key="group" class="mb-5">
-        <p class="text-xs uppercase tracking-wide text-muted-color mb-1.5">{{ group }}</p>
+        <p class="text-sm text-muted-color mb-1.5">{{ group }}</p>
         <nav class="flex flex-col">
           <RouterLink
             v-for="section in sectionsIn(group)"
             :key="section.id"
             :to="`/flow/design/${section.id}`"
-            class="px-2.5 py-1.5 rounded text-sm"
+            class="px-2.5 py-1.5 rounded-lg text-base"
             :class="
               section.id === active.id
                 ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 font-medium'
@@ -22,9 +22,8 @@
     </aside>
 
     <main class="flex-1 min-w-0 overflow-y-auto pb-12">
-      <header class="mb-6 max-w-3xl">
-        <h3 class="text-xl font-medium">{{ active.label }}</h3>
-        <p class="text-sm text-muted-color mt-1">{{ active.blurb }}</p>
+      <header class="mb-10">
+        <h3 class="text-2xl font-medium">{{ active.label }}</h3>
       </header>
       <component :is="active.component" />
     </main>

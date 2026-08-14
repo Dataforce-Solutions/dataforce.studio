@@ -16,7 +16,9 @@ export function cellWith(base: FlowCell, overrides: Partial<FlowCell>): FlowCell
   return {
     ...structuredClone(base),
     ...overrides,
-    provenance: { ...structuredClone(base.provenance), ...(overrides.provenance ?? {}) },
+    provenance: base.provenance
+      ? { ...structuredClone(base.provenance), ...(overrides.provenance ?? {}) }
+      : overrides.provenance,
   }
 }
 
@@ -116,11 +118,11 @@ const features: FlowCell = {
 
 const sweepConfig: FlowCell = {
   slug: 'sweep_config',
-  doc: 'Hyperparameter grid shared by the sweep branches.',
+  doc: 'Hyperparameter grid shared by the sweep lanes.',
   consumes: [],
   params: {},
   source: `class SweepConfig:
-    """Hyperparameter grid shared by the sweep branches."""
+    """Hyperparameter grid shared by the sweep lanes."""
     produces = {"config": "asset"}
 
     def materialize(self, ctx):
@@ -370,7 +372,12 @@ const summary: FlowCell = {
     """${summaryNote.split('\n')[0]}"""
 `,
   outputs: [
-    { name: 'note', declared: 'asset', kind: 'note', preview: { type: 'note', markdown: summaryNote } },
+    {
+      name: 'note',
+      declared: 'asset',
+      kind: 'note',
+      preview: { type: 'note', markdown: summaryNote },
+    },
   ],
   status: 'materialized',
   provenance: {

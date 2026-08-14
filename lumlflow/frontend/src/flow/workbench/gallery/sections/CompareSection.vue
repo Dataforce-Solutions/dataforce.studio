@@ -1,8 +1,8 @@
 <template>
-  <div class="flex max-w-5xl flex-col gap-8">
+  <div class="flex max-w-5xl flex-col gap-12">
     <GallerySpecimen
       title="Integrity warning"
-      caption="Comparability is never assumed — divergent pins, mismatched datasets, or mismatched scoring surface inline and name the affected branches."
+      caption="Comparability is never assumed. Divergent pins, mismatched datasets and mismatched scoring surface inline, and they name the affected lanes."
     >
       <div class="flex flex-col gap-3">
         <IntegrityWarningBar :warning="sweepCompare.warnings[0]" />
@@ -12,45 +12,29 @@
 
     <GallerySpecimen
       title="Result columns"
-      caption="One column per branch aligned on asset; the best value per score row is marked; the shared metric overlays on one chart, one color per branch."
+      caption="One column per lane, aligned on asset. The best value per score row carries a mark. The shared metric overlays on one chart, one color per lane."
     >
-      <ResultColumns :fixture="twoBranchCompare" />
+      <ResultColumns :compare="twoBranchCompare" />
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Definition divergence"
-      caption="The branching point: someone edited the cell — rare, structural. One side per distinct definition, with the differing param highlighted."
+      caption="The point where the lanes split: someone edited the cell. It is rare and structural. One side per distinct definition, with the differing param highlighted."
     >
       <DivergencePointCard :divergence="sweepCompare.definitionDivergences[0]" />
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Materialization divergence"
-      caption="Same code, different inputs — transitively closed, so it collapses to one row per asset with a chip per branch, never a fan of identical-code nodes."
+      caption="Same code, different inputs. It is transitively closed, so it collapses to one row per asset with a chip per lane, never a fan of identical-code nodes."
     >
       <div class="flex flex-col gap-4">
         <MaterializationRows :rows="sweepCompare.materializationRows" />
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-color">
-          <span
-            class="inline-flex items-center rounded-full border border-surface-200 bg-surface-50 px-2 py-0.5 text-surface-700 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
-          >
-            same
-          </span>
-          <span
-            class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-          >
-            better
-          </span>
-          <span
-            class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
-          >
-            worse
-          </span>
-          <span
-            class="inline-flex items-center rounded-full border border-dashed border-surface-300 px-2 py-0.5 text-muted-color dark:border-surface-600"
-          >
-            missing
-          </span>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-color">
+          <Tag severity="secondary" value="same" :pt="LEGEND_PT" />
+          <Tag severity="success" value="better" :pt="LEGEND_PT" />
+          <Tag severity="danger" value="worse" :pt="LEGEND_PT" />
+          <Tag severity="secondary" value="missing" :pt="LEGEND_PT" class="opacity-60" />
           <span>state colors relative to the comparison baseline</span>
         </div>
       </div>
@@ -64,7 +48,7 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Artifact links"
+      title="Links"
       caption="The fallback chain: experiment → the tracker experiment screen, model → the model card, dataset → the dataset view, anything else → the main metric."
     >
       <ArtifactLinks :artifacts="sweepCompare.artifacts" />
@@ -72,7 +56,7 @@
 
     <GallerySpecimen
       title="Adopt & export"
-      caption="The two closing verbs: adopt the winner's version of an asset (per-asset cherry-pick with three-way conflict detection) and export the chosen slice as a file."
+      caption="The two closing verbs: adopt the winner's version of an asset (per-asset, with three-way conflict detection) and export the chosen slice as a file."
     >
       <AdoptBar winner="exp/lr-1e3" asset="train_model" target="main" />
     </GallerySpecimen>
@@ -80,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { Tag } from 'primevue'
 import AdoptBar from '../../components/compare/AdoptBar.vue'
 import ArtifactLinks from '../../components/compare/ArtifactLinks.vue'
 import DivergencePointCard from '../../components/compare/DivergencePointCard.vue'
@@ -88,11 +73,13 @@ import MaterializationRows from '../../components/compare/MaterializationRows.vu
 import ResultColumns from '../../components/compare/ResultColumns.vue'
 import ShapelessTable from '../../components/compare/ShapelessTable.vue'
 import { sweepCompare } from '../../fixtures/compare'
-import type { CompareFixture, CompareWarning } from '../../fixtures/compare'
+import type { CompareView, CompareWarning } from '../../model/types'
 import GallerySpecimen from '../GallerySpecimen.vue'
 
-// Two-branch slice of the sweep, warnings dropped — they have their own specimen.
-const twoBranchCompare: CompareFixture = {
+const LEGEND_PT = { root: { class: 'px-2 py-0 text-sm font-normal' } }
+
+// Two-lane slice of the sweep, warnings dropped: they have their own specimen.
+const twoBranchCompare: CompareView = {
   ...sweepCompare,
   branches: sweepCompare.branches.slice(0, 2),
   warnings: [],

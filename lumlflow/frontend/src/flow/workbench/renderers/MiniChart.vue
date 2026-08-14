@@ -34,7 +34,7 @@
         :x="padLeft - 5"
         :y="scaleY(tick) + 3"
         text-anchor="end"
-        class="text-[9px] text-muted-color"
+        class="text-sm text-muted-color"
         fill="currentColor"
       >
         {{ formatMetric(tick) }}
@@ -43,7 +43,7 @@
         :x="padLeft"
         :y="height - padBottom + 11"
         text-anchor="start"
-        class="text-[9px] text-muted-color"
+        class="text-sm text-muted-color"
         fill="currentColor"
       >
         {{ formatMetric(bounds.minX) }}
@@ -52,7 +52,7 @@
         :x="WIDTH - PAD_R"
         :y="height - padBottom + 11"
         text-anchor="end"
-        class="text-[9px] text-muted-color"
+        class="text-sm text-muted-color"
         fill="currentColor"
       >
         {{ formatMetric(bounds.maxX) }}
@@ -63,7 +63,7 @@
         :x="padLeft + plotWidth / 2"
         :y="height - 3"
         text-anchor="middle"
-        class="text-[9px] text-muted-color"
+        class="text-sm text-muted-color"
         fill="currentColor"
       >
         {{ xLabel }}
@@ -74,7 +74,7 @@
         x="9"
         :y="PAD_T + plotHeight / 2"
         text-anchor="middle"
-        class="text-[9px] text-muted-color"
+        class="text-sm text-muted-color"
         fill="currentColor"
       >
         {{ yLabel }}
@@ -120,7 +120,7 @@
       <span
         v-for="(entry, seriesIndex) in series"
         :key="entry.label"
-        class="inline-flex items-center gap-1.5 text-xs text-muted-color"
+        class="inline-flex items-center gap-1.5 text-sm text-muted-color"
       >
         <span
           class="w-2.5 h-1 rounded-full shrink-0"

@@ -16,6 +16,11 @@ import type {
  * a moment later or a moment earlier: idle is the running fixture after the
  * train finishes, unpaired is idle after the agent session ends, empty is the
  * flow before anything exists.
+ *
+ * This is the **fixture** arm of the source switch in `live/source.ts`; the
+ * live arm is `live/useFlowSession.ts` against a real daemon. Which one a page
+ * takes is `selectSource`'s answer, and a `?state=` in the URL is one of the
+ * things that decides it — so these variants stay reachable by link.
  */
 
 export const WORKBENCH_VARIANTS = [
@@ -24,7 +29,7 @@ export const WORKBENCH_VARIANTS = [
   'unpaired',
   'empty',
   'kernel-not-started',
-  'daemon-down',
+  'not-running',
   'locked',
 ] as const
 
@@ -168,7 +173,7 @@ export function useWorkbenchState(route: RouteLocationNormalizedLoaded): Workben
         cellsByBranch: withMain(fx.cellsByBranch, settledMainCells(fx.cellsByBranch.main)),
         journal: settledJournal(fx.journal),
       }
-    case 'daemon-down':
+    case 'not-running':
       // Everything else stays as last-known state — the banner marks it stale.
       return {
         variant,
