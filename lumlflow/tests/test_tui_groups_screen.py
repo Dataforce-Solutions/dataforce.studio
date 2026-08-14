@@ -13,6 +13,7 @@ and fast — no network, no real filesystem store, no wall-clock waits.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -653,7 +654,10 @@ class TestHeaderClickSort:
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
-            event = SimpleNamespace(data_table=table, label=Text("Name"))
+            event = cast(
+                DataTable.HeaderSelected,
+                SimpleNamespace(data_table=table, label=Text("Name")),
+            )
             screen.on_data_table_header_selected(event)
             await pilot.pause()
             assert screen._sort_by == "name"
@@ -666,7 +670,10 @@ class TestHeaderClickSort:
             # A non-sortable column is ignored.
             before = (screen._sort_by, screen._order)
             screen.on_data_table_header_selected(
-                SimpleNamespace(data_table=table, label=Text("Tags"))
+                cast(
+                    DataTable.HeaderSelected,
+                    SimpleNamespace(data_table=table, label=Text("Tags")),
+                )
             )
             await pilot.pause()
             assert (screen._sort_by, screen._order) == before

@@ -13,6 +13,7 @@ fast — no network, no real filesystem store, no wall-clock waits.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -941,7 +942,10 @@ class TestHeaderClickSort:
             await pilot.pause()
             await pilot.pause()
             table = screen.query_one("#experiments-table", DataTable)
-            event = SimpleNamespace(data_table=table, label=Text("Duration"))
+            event = cast(
+                DataTable.HeaderSelected,
+                SimpleNamespace(data_table=table, label=Text("Duration")),
+            )
             screen.on_data_table_header_selected(event)
             await pilot.pause()
             assert screen._sort_by == "duration"
@@ -952,7 +956,10 @@ class TestHeaderClickSort:
             # Unmapped columns (Sel / Tags / Group) are ignored.
             before = (screen._sort_by, screen._order)
             screen.on_data_table_header_selected(
-                SimpleNamespace(data_table=table, label=Text("Sel"))
+                cast(
+                    DataTable.HeaderSelected,
+                    SimpleNamespace(data_table=table, label=Text("Sel")),
+                )
             )
             await pilot.pause()
             assert (screen._sort_by, screen._order) == before

@@ -1,4 +1,6 @@
 import { checkpoints } from '../../engine'
+import type { LiveBranch } from '../../api/types'
+import type { LiveJournalStop } from '../../api/liveSession'
 import type { AssetId, BranchId, FlowSession, Transaction } from '../../types'
 
 /**
@@ -32,6 +34,7 @@ export interface RailStop {
   detail: string
   txCount: number
   failed: boolean
+  cached?: boolean
   laneHead: boolean
   liveHead: boolean
 }
@@ -57,6 +60,93 @@ export interface RailLayout {
   width: number
   height: number
   laneGap: number
+}
+
+const LIVE_LANE_COLORS = [
+  'var(--p-primary-500)',
+  'var(--p-cyan-500)',
+  'var(--p-orange-500)',
+  'var(--p-purple-500)',
+  'var(--p-green-500)',
+  'var(--p-pink-500)',
+]
+
+export function buildLiveRailLayout(
+  liveBranches: LiveBranch[],
+  liveStops: LiveJournalStop[],
+): RailLayout {
+  const branches = liveBranches
+    .filter((branch) => !branch.archived)
+    .sort(
+      (left, right) =>
+        left.fork_step - right.fork_step || left.branch_id.localeCompare(right.branch_id),
+    )
+  const laneGap = branches.length > 8 ? 12 : 24
+  const laneXById = new Map<BranchId, number>()
+  branches.forEach((branch, index) => laneXById.set(branch.branch_id, PAD_LEFT + index * laneGap))
+
+  const pendingStops = liveStops.filter((stop) => laneXById.has(stop.branch))
+  const rowSteps = [
+    ...new Set([
+      ...pendingStops.map((stop) => stop.step),
+      ...branches
+        .filter((branch) => branch.parent_branch_id !== null)
+        .map((branch) => branch.fork_step),
+    ]),
+  ].sort((left, right) => left - right)
+  const yByStep = new Map<number, number>()
+  rowSteps.forEach((step, index) => yByStep.set(step, PAD_TOP + index * ROW_HEIGHT))
+  const rowY = (step: number): number => yByStep.get(step) ?? PAD_TOP
+  const liveStep = pendingStops.reduce((latest, stop) => Math.max(latest, stop.step), 0)
+
+  const stops: RailStop[] = pendingStops.map((stop) => ({
+    key: stop.key,
+    branchId: stop.branch,
+    step: stop.step,
+    x: laneXById.get(stop.branch) ?? PAD_LEFT,
+    y: rowY(stop.step),
+    kind: stop.kind,
+    label: stop.label,
+    detail: stop.detail,
+    txCount: stop.txCount,
+    failed: stop.failed,
+    cached: stop.cached,
+    laneHead: stop.laneHead,
+    liveHead: stop.laneHead && stop.step === liveStep,
+  }))
+
+  const lanes: RailLane[] = branches.map((branch, index) => {
+    const x = laneXById.get(branch.branch_id) ?? PAD_LEFT
+    const ownYs = stops.filter((stop) => stop.branchId === branch.branch_id).map((stop) => stop.y)
+    const parentX = branch.parent_branch_id ? laneXById.get(branch.parent_branch_id) : undefined
+    const forkY = branch.parent_branch_id === null ? null : rowY(branch.fork_step)
+    const childForkYs = branches
+      .filter((child) => child.parent_branch_id === branch.branch_id)
+      .map((child) => rowY(child.fork_step))
+    const topY = forkY ?? (ownYs.length ? Math.min(...ownYs) : PAD_TOP)
+    return {
+      branchId: branch.branch_id,
+      name: branch.name,
+      color: LIVE_LANE_COLORS[index % LIVE_LANE_COLORS.length],
+      x,
+      topY,
+      bottomY: Math.max(topY, ...ownYs, ...childForkYs),
+      startStep: branch.parent_branch_id === null ? 0 : branch.fork_step,
+      fork: forkY !== null && parentX !== undefined ? { parentX, y: forkY } : null,
+    }
+  })
+  const laneAreaWidth = PAD_LEFT + branches.length * laneGap
+  const maxY = rowSteps.length ? PAD_TOP + (rowSteps.length - 1) * ROW_HEIGHT : PAD_TOP
+
+  return {
+    lanes,
+    stops,
+    stepYs: rowSteps.map((step) => ({ step, y: rowY(step) })),
+    labelX: laneAreaWidth + LABEL_GAP,
+    width: laneAreaWidth + LABEL_GAP + LABEL_WIDTH,
+    height: maxY + PAD_BOTTOM,
+    laneGap,
+  }
 }
 
 interface StepGroup {
@@ -191,7 +281,12 @@ export function buildRailLayout(session: FlowSession): RailLayout {
     })
   }
 
-  const rowSteps = [...new Set([...pending.map((stop) => stop.step), ...branches.filter((b) => b.parentBranchId !== null).map((b) => b.forkedAtStep)])].sort((a, b) => a - b)
+  const rowSteps = [
+    ...new Set([
+      ...pending.map((stop) => stop.step),
+      ...branches.filter((b) => b.parentBranchId !== null).map((b) => b.forkedAtStep),
+    ]),
+  ].sort((a, b) => a - b)
   const yByStep = new Map<number, number>()
   rowSteps.forEach((step, index) => yByStep.set(step, PAD_TOP + index * ROW_HEIGHT))
   const rowY = (step: number): number => yByStep.get(step) ?? PAD_TOP

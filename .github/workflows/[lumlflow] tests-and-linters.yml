@@ -1,0 +1,67 @@
+name: Lumlflow Tests and Linters
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lumlflow/**"
+      - ".github/workflows/[lumlflow] tests-and-linters.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "lumlflow/**"
+      - ".github/workflows/[lumlflow] tests-and-linters.yml"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff format --check lumlflow_kernel lumlflow_typing tests/kernel
+      - run: uv run ruff check lumlflow lumlflow_kernel lumlflow_typing tests
+      - run: uv run mypy --explicit-package-bases lumlflow lumlflow_kernel lumlflow_typing
+      - run: uv run pytest
+
+  kernel-python-310:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: >-
+          uv run --python 3.10 --no-project
+          --with pytest --with pytest-asyncio
+          pytest tests/kernel
+        env:
+          PYTHONPATH: .
+
+  windows-portability:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: >-
+          uv run pytest
+          tests/flow/test_store_branches.py
+          tests/flow/test_store_flowstore.py
+          tests/flow/test_store_gc.py
+          tests/flow/test_store_journal.py
+          tests/flow/test_store_primitives.py
+          tests/flow/test_daemon_reconciliation.py
+          tests/flow/test_daemon_core.py

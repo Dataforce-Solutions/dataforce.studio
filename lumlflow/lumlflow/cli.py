@@ -6,10 +6,7 @@ import webbrowser
 import typer
 import uvicorn
 
-app = typer.Typer(
-    name="lumlflow",
-    help="Local ML experiment tracking",
-)
+from lumlflow.flow.cli import app
 
 
 @app.command()

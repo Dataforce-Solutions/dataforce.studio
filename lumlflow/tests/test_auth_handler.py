@@ -6,7 +6,7 @@ could not tell a stale LUML_BASE_URL override from a proxy failure or
 a malformed pasted key. The 502 must carry the target URL and cause.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import pytest
@@ -23,7 +23,7 @@ class _RaisingClient:
     def __enter__(self) -> "_RaisingClient":
         return self
 
-    def __exit__(self, *exc_info: object) -> bool:
+    def __exit__(self, *exc_info: object) -> Literal[False]:
         return False
 
     def get(self, *args: Any, **kwargs: Any) -> httpx.Response:

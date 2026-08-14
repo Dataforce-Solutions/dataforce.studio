@@ -1,7 +1,13 @@
 <template>
   <div ref="scroller" class="h-full overflow-auto rail-scroll">
     <svg :width="layout.width" :height="layout.height" class="block">
-      <g v-for="lane in layout.lanes" :key="lane.branchId" :opacity="laneOpacity(lane)">
+      <g
+        v-for="lane in layout.lanes"
+        :key="lane.branchId"
+        data-rail-lane
+        :data-branch-id="lane.branchId"
+        :opacity="laneOpacity(lane)"
+      >
         <path
           v-if="lane.fork"
           :d="forkPath(lane)"
@@ -36,13 +42,16 @@
         v-for="stop in layout.stops"
         :key="stop.key"
         class="cursor-pointer rail-stop"
+        data-rail-stop
+        :data-stop-key="stop.key"
+        :data-stop-status="stop.failed ? 'failed' : stop.cached ? 'cache-hit' : 'settled'"
         :opacity="stopOpacity(stop)"
-        @click="emit('select', stop.branchId, stop.step)"
+        @click="emit('select', stop.branchId, stop.step, stop.laneHead)"
       >
         <title>step {{ stop.step }} · {{ stop.detail }} — {{ stop.label }}</title>
         <circle :cx="stop.x" :cy="stop.y" r="13" fill="transparent" />
         <circle
-          v-if="stop.liveHead"
+          v-if="shouldPulse(stop)"
           class="rail-ping"
           :cx="stop.x"
           :cy="stop.y"
@@ -56,12 +65,27 @@
           :cx="stop.x"
           :cy="stop.y"
           :r="stop.kind === 'checkpoint' ? 5 : 3"
-          :fill="stop.kind === 'checkpoint' ? laneColor(stop.branchId) : 'var(--p-content-background)'"
-          :stroke="stop.failed ? 'var(--p-red-500)' : stop.kind === 'checkpoint' ? 'var(--p-content-background)' : laneColor(stop.branchId)"
+          :fill="
+            stop.kind === 'checkpoint' ? laneColor(stop.branchId) : 'var(--p-content-background)'
+          "
+          :stroke="
+            stop.failed
+              ? 'var(--p-red-500)'
+              : stop.cached
+                ? 'var(--p-green-500)'
+                : stop.kind === 'checkpoint'
+                  ? 'var(--p-content-background)'
+                  : laneColor(stop.branchId)
+          "
           stroke-width="1.5"
         />
         <text
-          v-if="showLaneNames && stop.laneHead && stop.branchId !== currentBranchId && !selectedLabelYs.has(stop.y)"
+          v-if="
+            showLaneNames &&
+            stop.laneHead &&
+            stop.branchId !== currentBranchId &&
+            !selectedLabelYs.has(stop.y)
+          "
           :x="stop.x + 11"
           :y="stop.y + 4"
           class="text-[11px] font-medium rail-halo"
@@ -86,7 +110,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { buildRailLayout, ROW_HEIGHT, type RailLane, type RailStop } from './railLayout'
+import {
+  buildRailLayout,
+  ROW_HEIGHT,
+  type RailLane,
+  type RailLayout,
+  type RailStop,
+} from './railLayout'
 import type { BranchId, FlowSession } from '../../types'
 
 /**
@@ -98,16 +128,22 @@ import type { BranchId, FlowSession } from '../../types'
  * is what makes the same drawing double as the scrubber.
  */
 const props = defineProps<{
-  session: FlowSession
+  session?: FlowSession
+  railLayout?: RailLayout
   currentBranchId: BranchId
   currentStep: number
+  pulse?: boolean
 }>()
 
-const emit = defineEmits<{ select: [BranchId, number] }>()
+const emit = defineEmits<{ select: [BranchId, number, boolean] }>()
 
 const scroller = ref<HTMLDivElement | null>(null)
 
-const layout = computed(() => buildRailLayout(props.session))
+const layout = computed(() => {
+  if (props.railLayout) return props.railLayout
+  if (props.session) return buildRailLayout(props.session)
+  throw new Error('RailroadTimeline requires a session or railLayout')
+})
 
 const showLaneNames = computed(() => layout.value.lanes.length <= 8)
 
@@ -123,7 +159,8 @@ const selectedLabelYs = computed(
 )
 
 const laneById = computed(() => new Map(layout.value.lanes.map((lane) => [lane.branchId, lane])))
-const laneColor = (branchId: BranchId): string => laneById.value.get(branchId)?.color ?? 'currentColor'
+const laneColor = (branchId: BranchId): string =>
+  laneById.value.get(branchId)?.color ?? 'currentColor'
 const laneName = (branchId: BranchId): string => laneById.value.get(branchId)?.name ?? branchId
 
 const laneOpacity = (lane: RailLane): number => {
@@ -136,6 +173,11 @@ const stopOpacity = (stop: RailStop): number => {
   if (stop.step > props.currentStep) return 0.25
   return stop.branchId === props.currentBranchId ? 1 : 0.55
 }
+
+const shouldPulse = (stop: RailStop): boolean =>
+  props.pulse === undefined
+    ? stop.liveHead
+    : props.pulse && stop.laneHead && stop.branchId === props.currentBranchId
 
 const forkPath = (lane: RailLane): string => {
   if (!lane.fork) return ''
