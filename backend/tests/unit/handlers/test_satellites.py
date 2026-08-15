@@ -18,6 +18,7 @@ from luml.schemas.satellite import (
     SatelliteCreateOut,
     SatellitePairIn,
     SatelliteQueueTask,
+    SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
     SatelliteTaskType,
     SatelliteUpdateIn,
@@ -638,7 +639,10 @@ async def test_regenerate_satellite_api_key(
         organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_update_satellite.assert_awaited_once()
+    mock_get_key_hash.assert_called_once_with(api_key)
+    mock_update_satellite.assert_awaited_once_with(
+        SatelliteRegenerateApiKey(id=satellite_id, api_key_hash="hashed_key")
+    )
 
 
 @patch(
@@ -671,6 +675,56 @@ async def test_regenerate_satellite_api_key_not_found(
         organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_regenerate_satellite_api_key_foreign_orbit(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    foreign_orbit_id = UUID("0199c337-09f4-7c21-8b3a-6d0f2f1b4e57")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    mock_get_satellite.return_value = Satellite(
+        id=satellite_id,
+        orbit_id=foreign_orbit_id,
+        name="foreign-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.regenerate_satellite_api_key(
+            user_id, organization_id, orbit_id, satellite_id
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_update_satellite.assert_not_awaited()
 
 
 @patch(
@@ -772,6 +826,60 @@ async def test_update_satellite_not_found(
         organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite_foreign_orbit(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    foreign_orbit_id = UUID("0199c337-09f4-7c21-8b3a-6d0f2f1b4e57")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    mock_get_satellite.return_value = Satellite(
+        id=satellite_id,
+        orbit_id=foreign_orbit_id,
+        name="foreign-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.update_satellite(
+            user_id,
+            organization_id,
+            orbit_id,
+            satellite_id,
+            SatelliteUpdateIn(name="renamed"),
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_update_satellite.assert_not_awaited()
 
 
 @patch(
@@ -954,6 +1062,54 @@ async def test_delete_satellite_not_found(
 
 
 @patch(
+    "luml.handlers.satellites.SatelliteRepository.delete_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_satellite_foreign_orbit(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_delete_satellite: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    foreign_orbit_id = UUID("0199c337-09f4-7c21-8b3a-6d0f2f1b4e57")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    mock_get_satellite.return_value = Satellite(
+        id=satellite_id,
+        orbit_id=foreign_orbit_id,
+        name="foreign-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.delete_satellite(organization_id, orbit_id, user_id, satellite_id)
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.DELETE, orbit_id
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_delete_satellite.assert_not_awaited()
+
+
+@patch(
     "luml.handlers.satellites.SatelliteRepository.list_satellites",
     new_callable=AsyncMock,
 )
@@ -965,8 +1121,13 @@ async def test_delete_satellite_not_found(
     "luml.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_list_satellites_orbit_member_permissions(
+    mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_org_member_role: AsyncMock,
     mock_list_satellites: AsyncMock,
@@ -1019,8 +1180,13 @@ async def test_list_satellites_orbit_member_permissions(
     "luml.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_list_satellites_organization_admin_permissions(
+    mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_org_member_role: AsyncMock,
     mock_list_satellites: AsyncMock,

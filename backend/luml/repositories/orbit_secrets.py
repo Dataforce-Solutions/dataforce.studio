@@ -25,9 +25,16 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
                 raise DatabaseConstraintError() from error
             return orm_secret.to_orbit_secret()
 
-    async def get_orbit_secret(self, secret_id: UUID) -> OrbitSecret | None:
+    async def get_orbit_secret(
+        self, secret_id: UUID, orbit_id: UUID
+    ) -> OrbitSecret | None:
         async with self._get_session() as session:
-            db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
+            db_secret = await self.get_model_where(
+                session,
+                OrbitSecretOrm,
+                OrbitSecretOrm.id == secret_id,
+                OrbitSecretOrm.orbit_id == orbit_id,
+            )
             return db_secret.to_orbit_secret() if db_secret else None
 
     async def get_orbit_secrets(self, orbit_id: UUID) -> list[OrbitSecret]:
@@ -37,15 +44,30 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
             )
             return [s.to_orbit_secret() for s in db_secrets]
 
-    async def delete_orbit_secret(self, secret_id: UUID) -> None:
+    async def delete_orbit_secret(self, secret_id: UUID, orbit_id: UUID) -> bool:
         async with self._get_session() as session:
-            await self.delete_model(session, OrbitSecretOrm, secret_id)
+            db_secret = await self.get_model_where(
+                session,
+                OrbitSecretOrm,
+                OrbitSecretOrm.id == secret_id,
+                OrbitSecretOrm.orbit_id == orbit_id,
+            )
+            if not db_secret:
+                return False
+            await session.delete(db_secret)
+            await session.commit()
+            return True
 
     async def update_orbit_secret(
-        self, secret_id: UUID, secret: OrbitSecretUpdate
+        self, secret_id: UUID, orbit_id: UUID, secret: OrbitSecretUpdate
     ) -> OrbitSecret | None:
         async with self._get_session() as session:
-            db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
+            db_secret = await self.get_model_where(
+                session,
+                OrbitSecretOrm,
+                OrbitSecretOrm.id == secret_id,
+                OrbitSecretOrm.orbit_id == orbit_id,
+            )
             if not db_secret:
                 return None
             update_data = secret.model_dump(exclude_unset=True)

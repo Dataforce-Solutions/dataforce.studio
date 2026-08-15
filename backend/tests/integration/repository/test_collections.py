@@ -1,5 +1,6 @@
 import pytest
 from luml.repositories.collections import CollectionRepository
+from luml.repositories.orbits import OrbitRepository
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
@@ -7,8 +8,18 @@ from luml.schemas.collections import (
     CollectionUpdate,
 )
 from luml.schemas.general import PaginationParams
+from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 
 from tests.conftest import CollectionFixtureData, OrbitFixtureData
+
+
+async def _create_sibling_orbit(data: OrbitFixtureData) -> OrbitDetails:
+    orbit = await OrbitRepository(data.engine).create_orbit(
+        data.organization.id,
+        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
+    )
+    assert orbit is not None
+    return orbit
 
 
 @pytest.mark.asyncio
@@ -85,7 +96,9 @@ async def test_update_collection_partial(
     repo = CollectionRepository(engine)
 
     update_data = CollectionUpdate(id=collection.id, name="updated-name-only")
-    updated_collection = await repo.update_collection(collection.id, update_data)
+    updated_collection = await repo.update_collection(
+        collection.id, collection.orbit_id, update_data
+    )
 
     assert updated_collection
     assert updated_collection.name == update_data.name
@@ -102,10 +115,45 @@ async def test_delete_collection(create_collection: CollectionFixtureData) -> No
     fetched = await repo.get_collection(collection.id)
     assert fetched is not None
 
-    await repo.delete_collection(collection.id)
+    await repo.delete_collection(collection.id, collection.orbit_id)
 
     fetched_after_delete = await repo.get_collection(collection.id)
     assert fetched_after_delete is None
+
+
+@pytest.mark.asyncio
+async def test_update_collection_from_another_orbit(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = CollectionRepository(data.engine)
+    collection = data.collection
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    result = await repo.update_collection(
+        collection.id, sibling_orbit.id, CollectionUpdate(name="renamed")
+    )
+
+    assert result is None
+
+    untouched = await repo.get_collection(collection.id)
+    assert untouched is not None
+    assert untouched.name == collection.name
+    assert untouched.orbit_id == collection.orbit_id
+
+
+@pytest.mark.asyncio
+async def test_delete_collection_from_another_orbit(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = CollectionRepository(data.engine)
+    collection = data.collection
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    await repo.delete_collection(collection.id, sibling_orbit.id)
+
+    assert await repo.get_collection(collection.id) is not None
 
 
 @pytest.mark.asyncio

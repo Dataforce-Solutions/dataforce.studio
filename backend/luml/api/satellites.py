@@ -166,7 +166,7 @@ async def get_satellite_deployment(request: Request, deployment_id: UUID) -> Dep
 )
 async def delete_deployment(request: Request, deployment_id: UUID) -> None:
     await satellite_handler.touch_last_seen(request.user.id)
-    await deployment_handler.delete_worker_deployment(deployment_id)
+    await deployment_handler.delete_worker_deployment(request.user.id, deployment_id)
 
 
 @satellite_worker_router.post(

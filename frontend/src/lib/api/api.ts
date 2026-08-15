@@ -15,7 +15,6 @@ import type {
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
   IResetPasswordRequest,
-  ISendEmailRequest,
   Organization,
   Invitation,
   CreateOrganizationPayload,
@@ -159,12 +158,6 @@ export class ApiClass {
 
   public async resetPassword(data: IResetPasswordRequest) {
     await this.api.post('/v1/auth/reset-password', data)
-  }
-
-  public async sendEmail(data: ISendEmailRequest) {
-    await this.api.post('/v1/stats/email-send', data, {
-      skipInterceptors: true,
-    })
   }
 
   public async getInvitations() {

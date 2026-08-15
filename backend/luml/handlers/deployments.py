@@ -168,12 +168,12 @@ class DeploymentHandler:
             Action.DELETE,
             orbit_id,
         )
-        dep = await self.__repo.get_deployment(deployment_id)
+        dep = await self.__repo.get_deployment(deployment_id, orbit_id)
 
         if not dep:
             raise NotFoundError("Deployment not found")
 
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_deployment(deployment_id, orbit_id)
 
     async def list_worker_deployments(self, satellite_id: UUID) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
@@ -211,8 +211,12 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return deployment
 
-    async def delete_worker_deployment(self, deployment_id: UUID) -> None:
-        deployment = await self.__repo.get_deployment(deployment_id)
+    async def delete_worker_deployment(
+        self, satellite_id: UUID, deployment_id: UUID
+    ) -> None:
+        deployment = await self.__repo.get_satellite_deployment(
+            deployment_id, satellite_id
+        )
         if not deployment:
             raise NotFoundError("Deployment not found")
         if deployment.status != DeploymentStatus.DELETION_PENDING:
@@ -220,7 +224,9 @@ class DeploymentHandler:
                 "Incorrect deployment status. Request deployment deletion first.",
                 409,
             )
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_satellite_deployment(
+            deployment_id, satellite_id
+        )
 
     async def update_deployment_details(
         self,

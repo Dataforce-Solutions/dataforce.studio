@@ -2,18 +2,56 @@ import uuid
 
 import pytest
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbits import OrbitRepository
+from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import (
+    Deployment,
     DeploymentCreate,
     DeploymentDetailsUpdate,
     DeploymentStatus,
     DeploymentUpdate,
 )
+from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.satellite import (
+    Satellite,
+    SatelliteCreate,
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
 
 from tests.conftest import SatelliteFixtureData
+
+
+async def _create_sibling_orbit(data: SatelliteFixtureData) -> OrbitDetails:
+    orbit = await OrbitRepository(data.engine).create_orbit(
+        data.organization.id,
+        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
+    )
+    assert orbit is not None
+    return orbit
+
+
+async def _create_satellite_in(
+    data: SatelliteFixtureData, orbit: OrbitDetails
+) -> Satellite:
+    return await SatelliteRepository(data.engine).create_satellite(
+        SatelliteCreate(
+            orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="sibling satellite"
+        )
+    )
+
+
+async def _create_deployment(data: SatelliteFixtureData) -> Deployment:
+    deployment, _ = await DeploymentRepository(data.engine).create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.DELETION_PENDING,
+        )
+    )
+    return deployment
 
 
 @pytest.mark.asyncio
@@ -74,7 +112,7 @@ async def test_get_deployment(create_satellite: SatelliteFixtureData) -> None:
     )
     deployment, _ = await repo.create_deployment(deployment_data)
 
-    fetched_deployment = await repo.get_deployment(deployment.id)
+    fetched_deployment = await repo.get_deployment(deployment.id, orbit.id)
 
     assert fetched_deployment
     assert fetched_deployment.id == deployment.id
@@ -305,3 +343,54 @@ async def test_enqueue_undeploy_task(create_satellite: SatelliteFixtureData) -> 
     duplicate_task = await repo.enqueue_undeploy_task(deployment.id)
     assert duplicate_task is not None
     assert duplicate_task.id == task.id
+
+
+@pytest.mark.asyncio
+async def test_get_deployment_from_another_orbit(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    assert await repo.get_deployment(deployment.id, sibling_orbit.id) is None
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_deployment_from_another_orbit(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    await repo.delete_deployment(deployment.id, sibling_orbit.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+    await repo.delete_deployment(deployment.id, data.orbit.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_satellite_deployment_from_another_satellite(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    foreign_satellite = await _create_satellite_in(
+        data, await _create_sibling_orbit(data)
+    )
+
+    await repo.delete_satellite_deployment(deployment.id, foreign_satellite.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+    await repo.delete_satellite_deployment(deployment.id, data.satellite.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is None

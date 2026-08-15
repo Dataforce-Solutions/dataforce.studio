@@ -80,15 +80,23 @@ class CollectionRepository(RepositoryBase, CrudMixin):
             return [mc.to_collection() for mc in db_collections], cursor
 
     async def update_collection(
-        self, collection_id: UUID, collection: CollectionUpdate
+        self, collection_id: UUID, orbit_id: UUID, collection: CollectionUpdate
     ) -> Collection | None:
-        collection.id = collection_id
         async with self._get_session() as session:
-            db_collection = await self.update_model(
-                session=session, orm_class=CollectionOrm, data=collection
+            db_collection = await self.update_model_where(
+                session,
+                CollectionOrm,
+                collection,
+                CollectionOrm.id == collection_id,
+                CollectionOrm.orbit_id == orbit_id,
             )
             return db_collection.to_collection() if db_collection else None
 
-    async def delete_collection(self, collection_id: UUID) -> None:
+    async def delete_collection(self, collection_id: UUID, orbit_id: UUID) -> None:
         async with self._get_session() as session:
-            await self.delete_model(session, CollectionOrm, collection_id)
+            await self.delete_model_where(
+                session,
+                CollectionOrm,
+                CollectionOrm.id == collection_id,
+                CollectionOrm.orbit_id == orbit_id,
+            )
