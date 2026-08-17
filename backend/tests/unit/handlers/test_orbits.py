@@ -1,4 +1,6 @@
 import datetime
+from collections.abc import Callable, Coroutine
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid7
 
@@ -30,6 +32,23 @@ OTHER_ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 OWNER_ORGANIZATION_ID = UUID("0199c337-0aa1-7c33-8f6c-2c6d0a4e91be")
 OWNER_ORBIT_ID = UUID("0199c337-0aa2-7b45-9d21-4f8e3c7a15d0")
 OWNER_BUCKET_SECRET_ID = UUID("0199c337-0aa3-7e57-b8f0-9a1c6d2e4f83")
+
+
+def _scoped_bucket_secret(
+    stored: Mock,
+) -> Callable[..., Coroutine[Any, Any, Mock | None]]:
+    """Mirror BucketSecretRepository.get_bucket_secret organization scoping."""
+
+    async def scoped_get(
+        secret_id: UUID, organization_id: UUID | None = None
+    ) -> Mock | None:
+        if secret_id != stored.id:
+            return None
+        if organization_id is not None and stored.organization_id != organization_id:
+            return None
+        return stored
+
+    return scoped_get
 
 
 def _owner_orbits() -> dict[UUID, Orbit]:
@@ -146,6 +165,9 @@ async def test_create_organization_orbit(
 
     assert result == mocked_orbit
 
+    mock_get_bucket_secret.assert_awaited_once_with(
+        mocked_orbit.bucket_secret_id, mocked_orbit.organization_id
+    )
     mock_create_orbit.assert_awaited_once_with(
         mocked_orbit.organization_id, orbit_to_create
     )
@@ -242,7 +264,9 @@ async def test_create_organization_orbit_secret_wrong_org(
     )
 
     mock_get_orbits_count.return_value = 0
-    mock_get_secret.return_value = Mock(organization_id=organization_id)
+    mock_get_secret.side_effect = _scoped_bucket_secret(
+        Mock(id=orbit.bucket_secret_id, organization_id=organization_id)
+    )
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_organization_details.return_value = Mock(orbits_limit=10, total_orbits=0)
 
@@ -869,8 +893,8 @@ async def test_update_orbit_with_foreign_bucket_secret(
     test_orbit: Orbit,
 ) -> None:
     mock_get_organization_member_role.return_value = OrgRole.OWNER
-    mock_get_bucket_secret.return_value = Mock(
-        id=OWNER_BUCKET_SECRET_ID, organization_id=OWNER_ORGANIZATION_ID
+    mock_get_bucket_secret.side_effect = _scoped_bucket_secret(
+        Mock(id=OWNER_BUCKET_SECRET_ID, organization_id=OWNER_ORGANIZATION_ID)
     )
 
     with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
@@ -1046,6 +1070,9 @@ async def test_update_orbit_with_own_bucket_secret(
     )
 
     assert result.bucket_secret_id == new_secret_id
+    mock_get_bucket_secret.assert_awaited_once_with(
+        new_secret_id, test_orbit.organization_id
+    )
     mock_update_orbit.assert_awaited_once_with(
         test_orbit.id, test_orbit.organization_id, update_orbit
     )

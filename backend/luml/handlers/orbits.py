@@ -74,11 +74,13 @@ class OrbitHandler:
         self, bucket_secret_id: UUID | None, organization_id: UUID
     ) -> None:
         secret = (
-            await self.__secret_repository.get_bucket_secret(bucket_secret_id)
+            await self.__secret_repository.get_bucket_secret(
+                bucket_secret_id, organization_id
+            )
             if bucket_secret_id
             else None
         )
-        if not secret or secret.organization_id != organization_id:
+        if not secret:
             raise NotFoundError("Bucket secret not found")
 
     async def _validate_orbit_members(

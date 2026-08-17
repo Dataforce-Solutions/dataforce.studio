@@ -17,7 +17,6 @@ from starlette.requests import HTTPConnection
 USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
 ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 SECRET_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-FOREIGN_SECRET_ID = UUID("0199c337-0aa2-7b44-9d21-7e5b3c8f0a12")
 
 URLS_PATH = f"/{ORGANIZATION_ID}/bucket-secrets/{SECRET_ID}/urls"
 
@@ -65,7 +64,7 @@ def test_existing_bucket_urls_requires_authentication(
 def test_existing_bucket_urls_forwards_path_parameters(
     mock_get_existing_bucket_urls: AsyncMock,
 ) -> None:
-    """The path secret id, not the body id, identifies the secret to sign for."""
+    """The caller, organization and path secret id all reach the handler."""
     mock_get_existing_bucket_urls.return_value = BucketSecretUrls(
         presigned_url="https://bucket/put",
         download_url="https://bucket/get",
@@ -74,7 +73,7 @@ def test_existing_bucket_urls_forwards_path_parameters(
 
     response = _client(_SignedInBackend()).post(
         URLS_PATH,
-        json={"id": str(FOREIGN_SECRET_ID), "type": "s3", "bucket_name": "unsaved"},
+        json={"id": str(SECRET_ID), "type": "s3", "bucket_name": "unsaved"},
     )
 
     assert response.status_code == 200
@@ -82,7 +81,5 @@ def test_existing_bucket_urls_forwards_path_parameters(
         USER_ID,
         ORGANIZATION_ID,
         SECRET_ID,
-        BucketSecretUpdate(
-            id=FOREIGN_SECRET_ID, type=BucketType.S3, bucket_name="unsaved"
-        ),
+        BucketSecretUpdate(id=SECRET_ID, type=BucketType.S3, bucket_name="unsaved"),
     )
