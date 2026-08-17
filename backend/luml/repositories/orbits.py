@@ -136,16 +136,32 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
             return await self.get_orbit(db_orbit.id, organization_id)
 
-    async def update_orbit(self, orbit_id: UUID, orbit: OrbitUpdate) -> Orbit | None:
-        orbit.id = orbit_id
-
+    async def update_orbit(
+        self, orbit_id: UUID, organization_id: UUID, orbit: OrbitUpdate
+    ) -> Orbit | None:
         async with self._get_session() as session:
-            db_orbit = await self.update_model(session, OrbitOrm, orbit)
+            db_orbit = await self.update_model_where(
+                session,
+                OrbitOrm,
+                orbit,
+                OrbitOrm.id == orbit_id,
+                OrbitOrm.organization_id == organization_id,
+            )
             return db_orbit.to_orbit() if db_orbit else None
 
-    async def delete_orbit(self, orbit_id: UUID) -> None:
+    async def delete_orbit(self, orbit_id: UUID, organization_id: UUID) -> bool:
         async with self._get_session() as session:
-            return await self.delete_model(session, OrbitOrm, orbit_id)
+            db_orbit = await self.get_model_where(
+                session,
+                OrbitOrm,
+                OrbitOrm.id == orbit_id,
+                OrbitOrm.organization_id == organization_id,
+            )
+            if not db_orbit:
+                return False
+            await session.delete(db_orbit)
+            await session.commit()
+            return True
 
     async def get_orbit_members(self, orbit_id: UUID) -> list[OrbitMember]:
         async with self._get_session() as session:

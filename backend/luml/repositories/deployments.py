@@ -49,13 +49,15 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             return [d.to_deployment() for d in deployments]
 
     async def get_deployment(
-        self, deployment_id: UUID, orbit_id: UUID | None = None
+        self, deployment_id: UUID, orbit_id: UUID
     ) -> Deployment | None:
         async with self._get_session() as session:
-            query = select(DeploymentOrm).where(DeploymentOrm.id == deployment_id)
-            if orbit_id is not None:
-                query = query.where(DeploymentOrm.orbit_id == orbit_id)
-            result = await session.execute(query)
+            result = await session.execute(
+                select(DeploymentOrm).where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
+            )
             dep = result.scalar_one_or_none()
             return dep.to_deployment() if dep else None
 
@@ -135,9 +137,25 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return dep.to_deployment(), task.to_queue_task()
 
-    async def delete_deployment(self, deployment_id: UUID) -> None:
+    async def delete_deployment(self, deployment_id: UUID, orbit_id: UUID) -> None:
         async with self._get_session() as session:
-            await self.delete_model(session, DeploymentOrm, deployment_id)
+            await self.delete_model_where(
+                session,
+                DeploymentOrm,
+                DeploymentOrm.id == deployment_id,
+                DeploymentOrm.orbit_id == orbit_id,
+            )
+
+    async def delete_satellite_deployment(
+        self, deployment_id: UUID, satellite_id: UUID
+    ) -> None:
+        async with self._get_session() as session:
+            await self.delete_model_where(
+                session,
+                DeploymentOrm,
+                DeploymentOrm.id == deployment_id,
+                DeploymentOrm.satellite_id == satellite_id,
+            )
 
     async def delete_deployments_by_artifact_id(self, artifact_id: UUID) -> None:
         async with self._get_session() as session:

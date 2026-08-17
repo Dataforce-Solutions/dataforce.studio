@@ -122,7 +122,7 @@ class SatelliteHandler:
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
-        if not satellite:
+        if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
 
         api_key = self._generate_api_key()
@@ -189,7 +189,7 @@ class SatelliteHandler:
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
-        if not satellite:
+        if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
 
         updated_satellite = await self.__sat_repo.update_satellite(
@@ -270,7 +270,7 @@ class SatelliteHandler:
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
 
-        if not satellite:
+        if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
         try:
             return await self.__sat_repo.delete_satellite(satellite_id)

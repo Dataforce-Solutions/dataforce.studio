@@ -690,53 +690,82 @@ async def test_delete_deployment_already_pending(
 
 
 @patch(
-    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.deployments.DeploymentRepository.delete_deployment",
+    "luml.handlers.deployments.DeploymentRepository.delete_satellite_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_worker_deployment(
     mock_delete_deployment: AsyncMock,
-    mock_get_deployment: AsyncMock,
+    mock_get_satellite_deployment: AsyncMock,
 ) -> None:
-    datetime.datetime.now()
-    UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
     deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
-    UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-    UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    mock_get_deployment.return_value = Mock(
+    mock_get_satellite_deployment.return_value = Mock(
         id=deployment_id,
         status=DeploymentStatus.DELETION_PENDING,
     )
     mock_delete_deployment.return_value = None
 
-    await handler.delete_worker_deployment(deployment_id)
+    await handler.delete_worker_deployment(satellite_id, deployment_id)
 
-    mock_delete_deployment.assert_awaited_once_with(deployment_id)
-    mock_get_deployment.assert_awaited_once_with(deployment_id)
+    mock_delete_deployment.assert_awaited_once_with(deployment_id, satellite_id)
+    mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
 
 
 @patch(
-    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_worker_deployment_not_found(
-    mock_get_deployment: AsyncMock,
+    mock_get_satellite_deployment: AsyncMock,
 ) -> None:
-    UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
     deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
-    mock_get_deployment.return_value = None
+    mock_get_satellite_deployment.return_value = None
 
     with pytest.raises(NotFoundError, match="Deployment not found"):
-        await handler.delete_worker_deployment(deployment_id)
+        await handler.delete_worker_deployment(satellite_id, deployment_id)
 
-    mock_get_deployment.assert_awaited_once_with(deployment_id)
+    mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.delete_satellite_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_worker_deployment_from_another_satellite(
+    mock_get_satellite_deployment: AsyncMock,
+    mock_delete_deployment: AsyncMock,
+) -> None:
+    owner_satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    foreign_satellite_id = UUID("0199c337-0a02-7c1e-8a3b-3f0e1a6d95c4")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    deployment = Mock(id=deployment_id, status=DeploymentStatus.DELETION_PENDING)
+
+    def owned_by_first_satellite(requested_id: UUID, satellite_id: UUID) -> Mock | None:
+        if requested_id != deployment_id or satellite_id != owner_satellite_id:
+            return None
+        return deployment
+
+    mock_get_satellite_deployment.side_effect = owned_by_first_satellite
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.delete_worker_deployment(foreign_satellite_id, deployment_id)
+
+    assert error.value.status_code == 404
+    mock_delete_deployment.assert_not_awaited()
 
 
 @patch(
@@ -1200,6 +1229,44 @@ async def test_verify_user_inference_access_insufficient_permissions(
 
 
 @patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.APIKeyHandler.authenticate_api_key",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_verify_user_inference_access_orbit_ownership_rejected(
+    mock_authenticate_api_key: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    """check_permissions may now raise NotFoundError; it must not escape as a 404."""
+    api_key = "test_api_key"
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_authenticate_api_key.return_value = Mock(id=user_id)
+    mock_get_orbit_by_id.return_value = Mock(
+        id=orbit_id, organization_id=organization_id
+    )
+    mock_check_permissions.side_effect = NotFoundError("Orbit not found")
+
+    result = await handler.verify_user_inference_access(orbit_id, api_key)
+
+    assert result is False
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.READ, orbit_id
+    )
+
+
+@patch(
     "luml.handlers.deployments.DeploymentRepository.delete_deployment",
     new_callable=AsyncMock,
 )
@@ -1232,8 +1299,8 @@ async def test_force_delete_deployment(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
     )
-    mock_get_deployment.assert_awaited_once_with(deployment_id)
-    mock_delete_deployment.assert_awaited_once_with(deployment_id)
+    mock_get_deployment.assert_awaited_once_with(deployment_id, orbit_id)
+    mock_delete_deployment.assert_awaited_once_with(deployment_id, orbit_id)
 
 
 @patch(
@@ -1265,7 +1332,61 @@ async def test_force_delete_deployment_not_found(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
     )
-    mock_get_deployment.assert_awaited_once_with(deployment_id)
+    mock_get_deployment.assert_awaited_once_with(deployment_id, orbit_id)
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.delete_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_deployment_from_another_orbit(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_delete_deployment: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    addressable_orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    owner_orbit_id = UUID("0199c337-0a03-7b4d-9c22-6b1f8e4a7d31")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    deployment = Mock(id=deployment_id, orbit_id=owner_orbit_id)
+
+    def stored_in_owner_orbit(
+        requested_id: UUID, orbit_id: UUID | None = None
+    ) -> Mock | None:
+        """An unscoped lookup still finds the row — that is the defect under test."""
+        if requested_id != deployment_id:
+            return None
+        if orbit_id is not None and orbit_id != owner_orbit_id:
+            return None
+        return deployment
+
+    mock_get_deployment.side_effect = stored_in_owner_orbit
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.force_delete_deployment(
+            user_id, organization_id, addressable_orbit_id, deployment_id
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.DELETE,
+        addressable_orbit_id,
+    )
+    mock_delete_deployment.assert_not_awaited()
 
 
 @patch(
@@ -1326,25 +1447,26 @@ async def test_get_worker_deployment_not_found(
 
 
 @patch(
-    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_worker_deployment_incorrect_status(
-    mock_get_deployment: AsyncMock,
+    mock_get_satellite_deployment: AsyncMock,
 ) -> None:
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
     deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
 
-    mock_get_deployment.return_value = Mock(
+    mock_get_satellite_deployment.return_value = Mock(
         id=deployment_id,
         status=DeploymentStatus.ACTIVE,
     )
 
     with pytest.raises(ApplicationError) as error:
-        await handler.delete_worker_deployment(deployment_id)
+        await handler.delete_worker_deployment(satellite_id, deployment_id)
 
     assert error.value.status_code == 409
-    mock_get_deployment.assert_awaited_once_with(deployment_id)
+    mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
 
 
 @patch(

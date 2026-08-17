@@ -251,6 +251,34 @@ async def test_update_artifact(
 
 
 @pytest.mark.asyncio
+async def test_update_artifact_from_another_collection(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, orbit, collection = data.engine, data.orbit, data.collection
+    repo = ArtifactRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    created_model = await repo.create_artifact(model)
+
+    sibling_collection_id = await _make_collection(engine, orbit.id, "sibling")
+
+    result = await repo.update_artifact(
+        created_model.id,
+        sibling_collection_id,
+        ArtifactUpdate(id=created_model.id, name="renamed"),
+    )
+
+    assert result is None
+
+    untouched = await repo.get_artifact(created_model.id)
+    assert untouched is not None
+    assert untouched.name == created_model.name
+    assert untouched.collection_id == collection.id
+
+
+@pytest.mark.asyncio
 async def test_delete_artifact(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:

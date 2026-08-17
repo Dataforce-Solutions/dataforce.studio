@@ -1,4 +1,6 @@
 import datetime
+from collections.abc import Callable, Coroutine
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid7
 
@@ -24,6 +26,44 @@ from luml.schemas.organization import OrgRole
 from luml.schemas.user import UserOut
 
 handler = OrbitHandler()
+
+USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+OTHER_ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+OWNER_ORGANIZATION_ID = UUID("0199c337-0aa1-7c33-8f6c-2c6d0a4e91be")
+OWNER_ORBIT_ID = UUID("0199c337-0aa2-7b45-9d21-4f8e3c7a15d0")
+OWNER_BUCKET_SECRET_ID = UUID("0199c337-0aa3-7e57-b8f0-9a1c6d2e4f83")
+
+
+def _scoped_bucket_secret(
+    stored: Mock,
+) -> Callable[..., Coroutine[Any, Any, Mock | None]]:
+    """Mirror BucketSecretRepository.get_bucket_secret organization scoping."""
+
+    async def scoped_get(
+        secret_id: UUID, organization_id: UUID | None = None
+    ) -> Mock | None:
+        if secret_id != stored.id:
+            return None
+        if organization_id is not None and stored.organization_id != organization_id:
+            return None
+        return stored
+
+    return scoped_get
+
+
+def _owner_orbits() -> dict[UUID, Orbit]:
+    return {
+        OWNER_ORBIT_ID: Orbit(
+            id=OWNER_ORBIT_ID,
+            name="owner-orbit",
+            organization_id=OWNER_ORGANIZATION_ID,
+            bucket_secret_id=OWNER_BUCKET_SECRET_ID,
+            total_members=1,
+            role=None,
+            created_at=datetime.datetime.now(),
+            updated_at=None,
+        )
+    }
 
 
 @pytest.fixture
@@ -125,6 +165,9 @@ async def test_create_organization_orbit(
 
     assert result == mocked_orbit
 
+    mock_get_bucket_secret.assert_awaited_once_with(
+        mocked_orbit.bucket_secret_id, mocked_orbit.organization_id
+    )
     mock_create_orbit.assert_awaited_once_with(
         mocked_orbit.organization_id, orbit_to_create
     )
@@ -221,7 +264,9 @@ async def test_create_organization_orbit_secret_wrong_org(
     )
 
     mock_get_orbits_count.return_value = 0
-    mock_get_secret.return_value = Mock(organization_id=organization_id)
+    mock_get_secret.side_effect = _scoped_bucket_secret(
+        Mock(id=orbit.bucket_secret_id, organization_id=organization_id)
+    )
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_organization_details.return_value = Mock(orbits_limit=10, total_orbits=0)
 
@@ -264,6 +309,10 @@ async def test_get_organization_orbits(
 
 
 @patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -280,6 +329,7 @@ async def test_get_orbit(
     mock_get_orbit: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
     test_orbit_details: OrbitDetails,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -297,6 +347,10 @@ async def test_get_orbit(
 
 
 @patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -313,6 +367,7 @@ async def test_get_orbit_not_found(
     mock_get_orbit: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -330,6 +385,10 @@ async def test_get_orbit_not_found(
 
 
 @patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -346,6 +405,7 @@ async def test_update_orbit(
     mock_update_orbit: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
     test_orbit_details: OrbitDetails,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -362,9 +422,15 @@ async def test_update_orbit(
     )
 
     assert result == expected
-    mock_update_orbit.assert_awaited_once_with(expected.id, update_orbit)
+    mock_update_orbit.assert_awaited_once_with(
+        expected.id, expected.organization_id, update_orbit
+    )
 
 
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
 @patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
@@ -382,6 +448,7 @@ async def test_update_orbit_not_found(
     mock_update_orbit: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -397,9 +464,13 @@ async def test_update_orbit_not_found(
         await handler.update_orbit(user_id, organization_id, orbit_id, update_orbit)
 
     assert error.value.status_code == 404
-    mock_update_orbit.assert_awaited_once_with(orbit_id, update_orbit)
+    mock_update_orbit.assert_awaited_once_with(orbit_id, organization_id, update_orbit)
 
 
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
 @patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
@@ -417,19 +488,54 @@ async def test_delete_orbit(
     mock_delete_orbit: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    mock_delete_orbit.return_value = None
+    mock_delete_orbit.return_value = True
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
     await handler.delete_orbit(user_id, organization_id, orbit_id)
-    mock_delete_orbit.assert_awaited_once_with(orbit_id)
+    mock_delete_orbit.assert_awaited_once_with(orbit_id, organization_id)
 
 
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.delete_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_orbit_not_found(
+    mock_delete_orbit: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+) -> None:
+    """A missing orbit must fail exactly like a foreign one: 404, same message."""
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_delete_orbit.return_value = False
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
+        await handler.delete_orbit(USER_ID, OTHER_ORGANIZATION_ID, orbit_id)
+
+    assert error.value.status_code == 404
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
 @patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
@@ -447,6 +553,7 @@ async def test_get_orbit_members(
     mock_get_orbit_members: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
     test_orbit_member: OrbitMember,
 ) -> None:
     UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -539,6 +646,10 @@ async def test_create_orbit_member(
 
 
 @patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -560,6 +671,7 @@ async def test_update_orbit_member(
     mock_update_orbit_member: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
     test_orbit_member: OrbitMember,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -629,6 +741,10 @@ async def test_update_orbit_member_not_found(
 
 
 @patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
@@ -650,6 +766,7 @@ async def test_delete_orbit_member(
     mock_delete_orbit_member: AsyncMock,
     mock_get_orbit_member_role: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
     test_orbit_member: OrbitMember,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -666,3 +783,296 @@ async def test_delete_orbit_member(
         user_id, organization_id, member.orbit_id, member.id
     )
     mock_delete_orbit_member.assert_awaited_once_with(member.id)
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_from_another_organization(
+    mock_update_orbit: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+) -> None:
+    stored = _owner_orbits()
+
+    async def scoped_update(
+        orbit_id: UUID, organization_id: UUID, update: OrbitUpdate
+    ) -> Orbit | None:
+        orbit = stored.get(orbit_id)
+        if not orbit or orbit.organization_id != organization_id:
+            return None
+        stored[orbit_id] = orbit.model_copy(
+            update=update.model_dump(exclude_unset=True)
+        )
+        return stored[orbit_id]
+
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_update_orbit.side_effect = scoped_update
+
+    with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
+        await handler.update_orbit(
+            USER_ID,
+            OTHER_ORGANIZATION_ID,
+            OWNER_ORBIT_ID,
+            OrbitUpdate(name="renamed"),
+        )
+
+    assert error.value.status_code == 404
+    assert stored[OWNER_ORBIT_ID].name == "owner-orbit"
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.delete_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_orbit_from_another_organization(
+    mock_delete_orbit: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+) -> None:
+    stored = _owner_orbits()
+
+    async def scoped_delete(orbit_id: UUID, organization_id: UUID) -> bool:
+        orbit = stored.get(orbit_id)
+        if not orbit or orbit.organization_id != organization_id:
+            return False
+        del stored[orbit_id]
+        return True
+
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_delete_orbit.side_effect = scoped_delete
+
+    with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
+        await handler.delete_orbit(USER_ID, OTHER_ORGANIZATION_ID, OWNER_ORBIT_ID)
+
+    assert error.value.status_code == 404
+    assert OWNER_ORBIT_ID in stored
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_with_foreign_bucket_secret(
+    mock_update_orbit: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_bucket_secret.side_effect = _scoped_bucket_secret(
+        Mock(id=OWNER_BUCKET_SECRET_ID, organization_id=OWNER_ORGANIZATION_ID)
+    )
+
+    with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
+        await handler.update_orbit(
+            USER_ID,
+            test_orbit.organization_id,
+            test_orbit.id,
+            OrbitUpdate(bucket_secret_id=OWNER_BUCKET_SECRET_ID),
+        )
+
+    assert error.value.status_code == 404
+    mock_update_orbit.assert_not_called()
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_with_nonexistent_bucket_secret(
+    mock_update_orbit: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_bucket_secret.return_value = None
+
+    with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
+        await handler.update_orbit(
+            USER_ID,
+            test_orbit.organization_id,
+            test_orbit.id,
+            OrbitUpdate(bucket_secret_id=uuid7()),
+        )
+
+    assert error.value.status_code == 404
+    mock_update_orbit.assert_not_called()
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_with_null_bucket_secret(
+    mock_update_orbit: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    """An explicit null is present in the payload, so it is validated and rejected."""
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    with pytest.raises(NotFoundError, match="Bucket secret not found") as error:
+        await handler.update_orbit(
+            USER_ID,
+            test_orbit.organization_id,
+            test_orbit.id,
+            OrbitUpdate(bucket_secret_id=None),
+        )
+
+    assert error.value.status_code == 404
+    mock_get_bucket_secret.assert_not_called()
+    mock_update_orbit.assert_not_called()
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_without_bucket_secret_skips_validation(
+    mock_update_orbit: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_update_orbit.return_value = test_orbit
+
+    update_orbit = OrbitUpdate(name="new_name")
+    result = await handler.update_orbit(
+        USER_ID,
+        test_orbit.organization_id,
+        test_orbit.id,
+        update_orbit,
+    )
+
+    assert result == test_orbit
+    mock_get_bucket_secret.assert_not_called()
+    mock_update_orbit.assert_awaited_once_with(
+        test_orbit.id, test_orbit.organization_id, update_orbit
+    )
+    assert "bucket_secret_id" not in update_orbit.model_fields_set
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_orbit_with_own_bucket_secret(
+    mock_update_orbit: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    new_secret_id = uuid7()
+    updated = test_orbit.model_copy(update={"bucket_secret_id": new_secret_id})
+
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_bucket_secret.return_value = Mock(
+        id=new_secret_id, organization_id=test_orbit.organization_id
+    )
+    mock_update_orbit.return_value = updated
+
+    update_orbit = OrbitUpdate(bucket_secret_id=new_secret_id)
+    result = await handler.update_orbit(
+        USER_ID, test_orbit.organization_id, test_orbit.id, update_orbit
+    )
+
+    assert result.bucket_secret_id == new_secret_id
+    mock_get_bucket_secret.assert_awaited_once_with(
+        new_secret_id, test_orbit.organization_id
+    )
+    mock_update_orbit.assert_awaited_once_with(
+        test_orbit.id, test_orbit.organization_id, update_orbit
+    )

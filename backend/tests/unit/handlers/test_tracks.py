@@ -1436,7 +1436,7 @@ async def test_artifact_deletion_checks_blocked_by_tracks(
     handler = ArtifactHandler()
 
     mock_check_access.return_value = None
-    mock_get_details.return_value = Mock(deployments=None)
+    mock_get_details.return_value = Mock(collection_id=COLLECTION_ID, deployments=None)
     mock_has_entries.return_value = True
 
     with pytest.raises(
@@ -1475,7 +1475,7 @@ async def test_artifact_deletion_checks_not_blocked_when_no_entries(
 
     handler = ArtifactHandler()
 
-    artifact_mock = Mock(deployments=None)
+    artifact_mock = Mock(collection_id=COLLECTION_ID, deployments=None)
     mock_check_access.return_value = None
     mock_get_details.return_value = artifact_mock
     mock_has_entries.return_value = False

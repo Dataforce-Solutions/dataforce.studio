@@ -8,6 +8,7 @@ from luml.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreate,
     SatellitePair,
+    SatelliteRegenerateApiKey,
 )
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -75,6 +76,31 @@ async def test_get_satellite_get_satellite_by_hash(
 
     assert fetched_satellite
     assert fetched_satellite.id == satellite.id
+
+
+@pytest.mark.asyncio
+async def test_regenerate_api_key_stops_the_old_key_authenticating(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    engine, orbit = data.engine, data.orbit
+    repo = SatelliteRepository(engine)
+
+    old_hash = str(uuid.uuid4())
+    satellite = await repo.create_satellite(
+        SatelliteCreate(orbit_id=orbit.id, api_key_hash=old_hash, name="test")
+    )
+
+    new_hash = str(uuid.uuid4())
+    updated = await repo.update_satellite(
+        SatelliteRegenerateApiKey(id=satellite.id, api_key_hash=new_hash)
+    )
+
+    assert updated
+    assert await repo.get_satellite_by_hash(old_hash) is None
+    reauthenticated = await repo.get_satellite_by_hash(new_hash)
+    assert reauthenticated
+    assert reauthenticated.id == satellite.id
 
 
 @pytest.mark.asyncio

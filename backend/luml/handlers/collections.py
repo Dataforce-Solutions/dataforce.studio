@@ -168,6 +168,7 @@ class CollectionHandler:
             raise NotFoundError("Orbit not found")
         updated = await self.__repository.update_collection(
             collection_id,
+            orbit_id,
             CollectionUpdate(
                 id=collection_id,
                 description=collection.description,
@@ -199,7 +200,7 @@ class CollectionHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection = await self.__repository.get_collection(collection_id)
-        if not collection:
+        if not collection or collection.orbit_id != orbit_id:
             raise NotFoundError("Collection not found")
         artifacts_count = (
             await self.__artifacts_repository.get_collection_artifacts_count(
@@ -208,4 +209,4 @@ class CollectionHandler:
         )
         if artifacts_count:
             raise CollectionDeleteError("Collection has artifacts and cant be deleted")
-        await self.__repository.delete_collection(collection_id)
+        await self.__repository.delete_collection(collection_id, orbit_id)

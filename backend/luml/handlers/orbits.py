@@ -70,6 +70,19 @@ class OrbitHandler:
                 "Organization reached maximum number of orbits"
             )
 
+    async def _validate_bucket_secret(
+        self, bucket_secret_id: UUID | None, organization_id: UUID
+    ) -> None:
+        secret = (
+            await self.__secret_repository.get_bucket_secret(
+                bucket_secret_id, organization_id
+            )
+            if bucket_secret_id
+            else None
+        )
+        if not secret:
+            raise NotFoundError("Bucket secret not found")
+
     async def _validate_orbit_members(
         self,
         user_id: UUID,
@@ -126,11 +139,7 @@ class OrbitHandler:
         )
 
         await self._check_organization_orbits_limit(organization_id)
-        secret = await self.__secret_repository.get_bucket_secret(
-            orbit.bucket_secret_id
-        )
-        if not secret or secret.organization_id != organization_id:
-            raise NotFoundError("Bucket secret not found")
+        await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
@@ -221,7 +230,12 @@ class OrbitHandler:
             orbit_id,
         )
 
-        orbit_obj = await self.__orbits_repository.update_orbit(orbit_id, orbit)
+        if "bucket_secret_id" in orbit.model_fields_set:
+            await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+
+        orbit_obj = await self.__orbits_repository.update_orbit(
+            orbit_id, organization_id, orbit
+        )
 
         if not orbit_obj:
             raise OrbitNotFoundError()
@@ -239,7 +253,8 @@ class OrbitHandler:
             orbit_id,
         )
 
-        return await self.__orbits_repository.delete_orbit(orbit_id)
+        if not await self.__orbits_repository.delete_orbit(orbit_id, organization_id):
+            raise OrbitNotFoundError()
 
     async def get_orbit_members(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
