@@ -7,6 +7,12 @@
       </p>
     </div>
 
+    <StaleWindowNotice
+      v-if="dataQuality?.stale"
+      :computed-at="dataQuality.computed_at"
+      :window="window"
+    />
+
     <AlertBannerList
       v-if="dataQuality?.alerts?.length"
       :banners="dataQuality.alerts"
@@ -96,6 +102,7 @@ import type {
   DataQualityResponse,
   Series,
 } from '@/api/types'
+import { Window } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { formatRate } from '@/lib/format'
@@ -105,18 +112,21 @@ import StateBlock from '@/components/StateBlock.vue'
 import SeverityTag from '@/components/SeverityTag.vue'
 import AlertBannerList from '@/components/overview/AlertBannerList.vue'
 import DetailDrawer from '@/components/DetailDrawer.vue'
+import StaleWindowNotice from '@/components/StaleWindowNotice.vue'
 import InvalidValuesPanel from './InvalidValuesPanel.vue'
 
 const props = withDefaults(
   defineProps<{
     dataQuality: DataQualityResponse | null
     status: LoadStatus
+    /** The selected range, so a snapshot from outside it can name what it fell out of. */
+    window?: Window
     trends?: Series[]
     trendsStatus?: LoadStatus
     /** A feature an alert asked to open; its panel opens as soon as the rows arrive. */
     focusFeature?: string | null
   }>(),
-  { trends: () => [], trendsStatus: 'idle', focusFeature: null },
+  { trends: () => [], trendsStatus: 'idle', focusFeature: null, window: Window.H24 },
 )
 
 // The history behind a feature's rates is fetched only when its panel opens.

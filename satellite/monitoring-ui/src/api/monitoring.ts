@@ -7,6 +7,7 @@ import type {
   HeaderResponse,
   OverviewResponse,
   ReferenceProfileResponse,
+  RuntimeResponse,
   TraceDetailResponse,
   TracesResponse,
   WorkerHealthResponse,
@@ -27,6 +28,10 @@ export function getHeader(): Promise<HeaderResponse> {
 
 export function getOverview(dims: Dimensions): Promise<OverviewResponse> {
   return apiGet<OverviewResponse>('/overview', dimensionParams(dims))
+}
+
+export function getRuntime(dims: Dimensions): Promise<RuntimeResponse> {
+  return apiGet<RuntimeResponse>('/runtime', dimensionParams(dims))
 }
 
 export function getDataQuality(dims: Dimensions): Promise<DataQualityResponse> {

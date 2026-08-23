@@ -11,6 +11,7 @@ import {
   type HeaderResponse,
   type OverviewResponse,
   type ReferenceProfileResponse,
+  type RuntimeResponse,
   type TraceDetail,
   type TracesResponse,
 } from '@/api/types'
@@ -91,6 +92,70 @@ export function makeOverview(overrides: Partial<OverviewResponse> = {}): Overvie
     top_drifted_features: [
       { feature: 'smoker', psi: 0.31, severity: Severity.CRITICAL },
       { feature: 'bmi', psi: 0.12, severity: Severity.WARNING },
+    ],
+    ...overrides,
+  }
+}
+
+export function makeRuntime(overrides: Partial<RuntimeResponse> = {}): RuntimeResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    request_count: 1240,
+    success_count: 1180,
+    success_rate: 0.9516,
+    error_count: 60,
+    error_rate: 0.0484,
+    latency_p50_ms: 42,
+    latency_p95_ms: 180,
+    latency_max_ms: 940,
+    timeout_count: 3,
+    failed_inference_count: 12,
+    status_breakdown: [
+      { status: 'success', status_code: 200, count: 1180, share: 0.9516 },
+      { status: 'error', status_code: 422, count: 45, share: 0.0363 },
+      { status: 'failed_inference', status_code: 500, count: 12, share: 0.0097 },
+      { status: 'timeout', status_code: 504, count: 3, share: 0.0024 },
+    ],
+    series: [
+      {
+        key: 'requests',
+        label: 'Requests',
+        points: [
+          { t: '2026-07-07T10:00:00Z', value: 620 },
+          { t: '2026-07-07T11:00:00Z', value: 620 },
+        ],
+      },
+      {
+        key: 'error_rate',
+        label: 'Error rate',
+        unit: 'ratio',
+        points: [{ t: '2026-07-07T10:00:00Z', value: 0.048 }],
+      },
+      {
+        key: 'latency_p95',
+        label: 'Latency p95',
+        unit: 'ms',
+        points: [{ t: '2026-07-07T10:00:00Z', value: 180 }],
+      },
+    ],
+    alerts: [
+      {
+        group: 'runtime',
+        metric: 'runtime:timeout_count',
+        feature: null,
+        severity: Severity.WARNING,
+        current_value: 3,
+        threshold: 0,
+        message: 'Timeouts 3 vs threshold 0',
+        label: 'Timeouts',
+        unit: 'count',
+        value_label: '3',
+        threshold_label: '0',
+        state: 'open',
+        threshold_source: 'default',
+        history: null,
+      },
     ],
     ...overrides,
   }

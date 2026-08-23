@@ -125,11 +125,25 @@ class OverviewResponse(BaseModel):
     top_drifted_features: list[DriftedFeature] = []
 
 
+class StatusBreakdownRow(BaseModel):
+    """How the window's calls ended, one row per outcome and HTTP code.
+
+    The counters above say how many calls failed; this says how they failed, which is what
+    separates a saturated model server (504) from a caller sending bad payloads (422).
+    """
+
+    status: str
+    status_code: int | None = None
+    count: int = 0
+    share: float = 0.0
+
+
 class RuntimeResponse(BaseModel):
     state: SectionState
     profile_status: ProfileStatus = ProfileStatus.READY
     request_count: int = 0
     success_count: int = 0
+    success_rate: float = 0.0
     error_count: int = 0
     error_rate: float = 0.0
     latency_p50_ms: float | None = None
@@ -137,6 +151,7 @@ class RuntimeResponse(BaseModel):
     latency_max_ms: float | None = None
     timeout_count: int = 0
     failed_inference_count: int = 0
+    status_breakdown: list[StatusBreakdownRow] = []
     series: list[Series] = []
     alerts: list[AlertBanner] = []
 
@@ -193,6 +208,12 @@ class DataQualityResponse(BaseModel):
     # One series per check of the selected feature; empty when no feature is asked for.
     trends: list[Series] = []
     alerts: list[AlertBanner] = []
+    # End of the window the table describes, and whether that window closed before the
+    # selected time range even began. The table is a snapshot of the last computed window
+    # rather than a rollup of the range, so on a stand that has been idle it keeps showing
+    # readings the range no longer covers — see `stale` on FeatureDriftResponse.
+    computed_at: datetime | None = None
+    stale: bool = False
 
 
 class DistributionBin(BaseModel):
@@ -248,6 +269,13 @@ class FeatureDriftResponse(BaseModel):
     selected: FeatureDriftDetail | None = None
     multivariate: MultivariatePanel = Field(default_factory=MultivariatePanel)
     alerts: list[AlertBanner] = []
+    # End of the window this ranking and the multivariate panel describe.
+    computed_at: datetime | None = None
+    # True when that window closed before the selected range began. The trends beside it
+    # (PSI over time, the runtime series, traces) are read within the range and go empty,
+    # but the snapshot keeps its last reading — without this flag the two disagree
+    # silently and a two-day-old window reads as the current one.
+    stale: bool = False
 
 
 class ReferenceProfileFeature(BaseModel):

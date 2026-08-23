@@ -38,6 +38,9 @@ function formatDelta(card: Card): string {
 export function cardTone(card: Card): Tone {
   if (card.key === 'active_alerts') return (card.critical_count ?? 0) > 0 ? 'danger' : 'neutral'
   if (card.key === 'drifted_features') return (card.value ?? 0) > 0 ? 'warning' : 'neutral'
+  // A single timeout is worth an alert by itself, so the card that reports them is not
+  // allowed to look like any other counter once one has happened.
+  if (card.key === 'timeout_count') return (card.value ?? 0) > 0 ? 'warning' : 'neutral'
   return 'neutral'
 }
 
@@ -45,6 +48,12 @@ export function cardTone(card: Card): Tone {
 export function formatRate(value: number | null | undefined): string {
   if (value == null) return '—'
   return `${(value * 100).toFixed(1)}%`
+}
+
+/** A plain count with thousands separators, or an em dash when there is none. */
+export function formatCount(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return integerFormat.format(value)
 }
 
 export function formatTimestamp(value: string | null | undefined): string | null {

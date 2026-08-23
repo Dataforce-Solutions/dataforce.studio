@@ -5,6 +5,7 @@ vi.mock('@/api/monitoring', () => ({
   getHeader: vi.fn(),
   getAlerts: vi.fn(),
   getOverview: vi.fn(),
+  getRuntime: vi.fn(),
   getDataQuality: vi.fn(),
   getFeatureDrift: vi.fn(),
   getReferenceProfile: vi.fn(),
@@ -28,11 +29,13 @@ import {
   makeHeader,
   makeOverview,
   makeReferenceProfile,
+  makeRuntime,
   makeTraces,
 } from '@/test/fixtures'
 
 const getHeader = vi.mocked(monitoringApi.getHeader)
 const getOverview = vi.mocked(monitoringApi.getOverview)
+const getRuntime = vi.mocked(monitoringApi.getRuntime)
 const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
 const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
@@ -51,6 +54,7 @@ describe('App (dashboard shell)', () => {
     vi.restoreAllMocks()
     getHeader.mockResolvedValue(makeHeader())
     getOverview.mockResolvedValue(makeOverview())
+    getRuntime.mockResolvedValue(makeRuntime())
     getDataQuality.mockResolvedValue(makeDataQuality())
     getFeatureDrift.mockResolvedValue(makeFeatureDrift())
     getReferenceProfile.mockResolvedValue(makeReferenceProfile())
@@ -118,6 +122,7 @@ describe('App (dashboard shell)', () => {
     const tabs = wrapper.findAll('[data-testid^="tab-"]').map((tab) => tab.text())
     expect(tabs).toEqual([
       'Overview',
+      'Runtime',
       'Traces',
       'Data quality',
       'Feature drift',
@@ -152,6 +157,24 @@ describe('App (dashboard shell)', () => {
 
     // the table request covers every feature; this one is scoped to the opened row
     expect(getDataQuality).toHaveBeenCalledWith(expect.objectContaining({ feature: 'region' }))
+  })
+
+  it('fetches the Runtime rollup only when its tab is opened', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    // every tab loads its own section; Overview must not pay for Runtime's request
+    expect(getRuntime).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="tab-runtime"]').trigger('click')
+    await flushPromises()
+
+    expect(getRuntime).toHaveBeenCalledWith(expect.objectContaining({ window: Window.H24 }))
+    expect(wrapper.find('[data-testid="runtime-tab"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="overview-tab"]').exists()).toBe(false)
+    // the counters Overview does not carry
+    expect(wrapper.text()).toContain('Success rate')
+    expect(wrapper.findAll('[data-testid="status-row"]')).toHaveLength(4)
   })
 
   it('switches to the Traces tab and renders the local request log', async () => {

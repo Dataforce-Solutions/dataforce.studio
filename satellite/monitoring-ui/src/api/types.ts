@@ -151,6 +151,32 @@ export interface OverviewResponse {
   top_drifted_features: DriftedFeature[]
 }
 
+/** How the window's calls ended, one row per outcome and HTTP code. */
+export interface StatusBreakdownRow {
+  status: string
+  status_code?: number | null
+  count: number
+  share: number
+}
+
+export interface RuntimeResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  request_count: number
+  success_count: number
+  success_rate: number
+  error_count: number
+  error_rate: number
+  latency_p50_ms?: number | null
+  latency_p95_ms?: number | null
+  latency_max_ms?: number | null
+  timeout_count: number
+  failed_inference_count: number
+  status_breakdown: StatusBreakdownRow[]
+  series: Series[]
+  alerts: AlertBanner[]
+}
+
 export interface UnseenCategoryCount {
   value: string
   count: number
@@ -196,6 +222,10 @@ export interface DataQualityResponse {
   /** One series per check of the requested feature; empty for the whole-table request. */
   trends?: Series[]
   alerts: AlertBanner[]
+  /** End of the window the table describes. */
+  computed_at?: string | null
+  /** That window closed before the selected range began — the table is a past reading. */
+  stale?: boolean
 }
 
 export interface DistributionBin {
@@ -245,6 +275,10 @@ export interface FeatureDriftResponse {
   selected?: FeatureDriftDetail | null
   multivariate: MultivariatePanel
   alerts: AlertBanner[]
+  /** End of the window the ranking and the multivariate panel describe. */
+  computed_at?: string | null
+  /** That window closed before the selected range began — the panel is a past reading. */
+  stale?: boolean
 }
 
 export interface ReferenceProfileFeature {

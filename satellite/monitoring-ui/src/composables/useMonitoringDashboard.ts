@@ -12,6 +12,7 @@ import {
   type HeaderResponse,
   type OverviewResponse,
   type AlertsResponse,
+  type RuntimeResponse,
   type WorkerHealthResponse,
   type ReferenceProfileResponse,
   type Series,
@@ -29,6 +30,7 @@ export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export const DASHBOARD_TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'runtime', label: 'Runtime' },
   { key: 'traces', label: 'Traces' },
   { key: 'data-quality', label: 'Data quality' },
   { key: 'feature-drift', label: 'Feature drift' },
@@ -54,6 +56,9 @@ export function useMonitoringDashboard() {
 
   const overview = ref<OverviewResponse | null>(null)
   const overviewStatus = ref<LoadStatus>('idle')
+
+  const runtime = ref<RuntimeResponse | null>(null)
+  const runtimeStatus = ref<LoadStatus>('idle')
 
   const dataQuality = ref<DataQualityResponse | null>(null)
   const dataQualityStatus = ref<LoadStatus>('idle')
@@ -136,6 +141,14 @@ export function useMonitoringDashboard() {
     )
   }
 
+  function loadRuntime(): Promise<void> {
+    return run(
+      runtimeStatus,
+      () => monitoringApi.getRuntime({ ...dimensions }),
+      (value) => (runtime.value = value),
+    )
+  }
+
   function loadDataQuality(): Promise<void> {
     // The table shows every feature; the selected feature only scopes Feature drift.
     return run(
@@ -214,6 +227,7 @@ export function useMonitoringDashboard() {
     // An open trace belongs to the window it was opened from; the reload invalidates it.
     closeTrace()
     if (activeTab.value === 'overview') return loadOverview()
+    if (activeTab.value === 'runtime') return loadRuntime()
     if (activeTab.value === 'traces') return loadTraces(0)
     if (activeTab.value === 'alerts') return loadAlerts()
     if (activeTab.value === 'reference-profile') return loadProfileDocument()
@@ -326,6 +340,8 @@ export function useMonitoringDashboard() {
     headerStatus,
     overview,
     overviewStatus,
+    runtime,
+    runtimeStatus,
     dataQuality,
     dataQualityStatus,
     qualityTrends,

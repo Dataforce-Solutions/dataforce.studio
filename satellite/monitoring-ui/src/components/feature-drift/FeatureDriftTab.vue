@@ -16,6 +16,12 @@
     />
 
     <template v-else-if="featureDrift">
+      <StaleWindowNotice
+        v-if="featureDrift.stale"
+        :computed-at="featureDrift.computed_at"
+        :window="window"
+      />
+
       <AlertBannerList
         v-if="featureDrift.alerts.length"
         :banners="featureDrift.alerts"
@@ -59,6 +65,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { AlertBanner, FeatureDriftResponse, ReferenceProfileResponse } from '@/api/types'
+import { Window } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import StateBlock from '@/components/StateBlock.vue'
@@ -67,15 +74,21 @@ import RankedDriftList from './RankedDriftList.vue'
 import FeatureDetailPanel from './FeatureDetailPanel.vue'
 import MultivariatePanel from './MultivariatePanel.vue'
 import DetailDrawer from '@/components/DetailDrawer.vue'
+import StaleWindowNotice from '@/components/StaleWindowNotice.vue'
 import ReferenceProfilePanel from './ReferenceProfilePanel.vue'
 
-const props = defineProps<{
-  featureDrift: FeatureDriftResponse | null
-  status: LoadStatus
-  selectedFeature: string | null
-  referenceProfile: ReferenceProfileResponse | null
-  referenceProfileStatus: LoadStatus
-}>()
+const props = withDefaults(
+  defineProps<{
+    featureDrift: FeatureDriftResponse | null
+    status: LoadStatus
+    selectedFeature: string | null
+    referenceProfile: ReferenceProfileResponse | null
+    referenceProfileStatus: LoadStatus
+    /** The selected range, so a snapshot from outside it can name what it fell out of. */
+    window?: Window
+  }>(),
+  { window: Window.H24 },
+)
 
 defineEmits<{
   'select-feature': [string]

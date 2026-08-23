@@ -5,6 +5,7 @@ import {
   ProfileStatus,
   SectionState,
   Severity,
+  Window,
   type FeatureDriftResponse,
   type ReferenceProfileResponse,
 } from '@/api/types'
@@ -22,6 +23,7 @@ function mountTab(props: {
   selectedFeature?: string | null
   referenceProfile?: ReferenceProfileResponse | null
   referenceProfileStatus?: LoadStatus
+  window?: Window
 }) {
   return mount(FeatureDriftTab, {
     props: {
@@ -36,6 +38,24 @@ function mountTab(props: {
 }
 
 describe('FeatureDriftTab', () => {
+  it('says so when the ranking describes a window from outside the selected range', () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ stale: true, computed_at: '2026-06-05T09:00:00Z' }),
+      status: 'ready',
+      window: Window.D7,
+    })
+
+    const notice = wrapper.find('[data-testid="stale-window-notice"]')
+    expect(notice.exists()).toBe(true)
+    expect(notice.text()).toContain('7d')
+  })
+
+  it('stays quiet when the window is inside the range', () => {
+    const wrapper = mountTab({ featureDrift: makeFeatureDrift(), status: 'ready' })
+
+    expect(wrapper.find('[data-testid="stale-window-notice"]').exists()).toBe(false)
+  })
+
   it('opens an alert from its own section in the shared sidebar', async () => {
     const wrapper = mountTab({
       featureDrift: makeFeatureDrift({ alerts: makeAlerts().groups[0].alerts }),

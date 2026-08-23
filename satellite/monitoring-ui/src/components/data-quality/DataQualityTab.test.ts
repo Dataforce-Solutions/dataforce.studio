@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DataQualityTab from './DataQualityTab.vue'
-import { SectionState, Severity, type DataQualityResponse } from '@/api/types'
+import { SectionState, Severity, Window, type DataQualityResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { makeDataQuality } from '@/test/fixtures'
 
-function mountTab(props: { dataQuality: DataQualityResponse | null; status: LoadStatus }) {
+function mountTab(props: {
+  dataQuality: DataQualityResponse | null
+  status: LoadStatus
+  window?: Window
+}) {
   return mount(DataQualityTab, {
     props,
     // the drawer teleports to the body; keep it inline so assertions stay on the wrapper
@@ -14,6 +18,27 @@ function mountTab(props: { dataQuality: DataQualityResponse | null; status: Load
 }
 
 describe('DataQualityTab', () => {
+  it('says so when the table describes a window from outside the selected range', () => {
+    // The snapshot is read with no time bound, so a stale reading otherwise looks current.
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality({ stale: true, computed_at: '2026-06-05T09:00:00Z' }),
+      status: 'ready',
+      window: Window.H24,
+    })
+
+    const notice = wrapper.find('[data-testid="stale-window-notice"]')
+    expect(notice.exists()).toBe(true)
+    expect(notice.text()).toContain('24h')
+    // the reading itself is still served rather than hidden behind the notice
+    expect(wrapper.findAll('[data-testid="dq-row"]').length).toBeGreaterThan(0)
+  })
+
+  it('stays quiet when the window is inside the range', () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+
+    expect(wrapper.find('[data-testid="stale-window-notice"]').exists()).toBe(false)
+  })
+
   it('renders the per-feature table from the contract, including rates and status', () => {
     const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
 

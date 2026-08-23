@@ -31,6 +31,13 @@
       @acknowledge="acknowledgeAlert($event.metric)"
     />
 
+    <RuntimeTab
+      v-else-if="activeTab === 'runtime'"
+      :runtime="runtime"
+      :status="runtimeStatus"
+      @acknowledge="acknowledgeAlert($event.metric)"
+    />
+
     <TracesTab
       v-else-if="activeTab === 'traces'"
       :traces="traces"
@@ -47,6 +54,7 @@
       v-else-if="activeTab === 'data-quality'"
       :data-quality="dataQuality"
       :status="dataQualityStatus"
+      :window="dimensions.window"
       :trends="qualityTrends"
       :trends-status="qualityTrendsStatus"
       :focus-feature="focusedFeature"
@@ -71,6 +79,7 @@
       v-else
       :feature-drift="featureDrift"
       :status="featureDriftStatus"
+      :window="dimensions.window"
       :selected-feature="dimensions.feature"
       :reference-profile="referenceProfile"
       :reference-profile-status="referenceProfileStatus"
@@ -90,6 +99,7 @@ import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 import SessionExpiredOverlay from '@/components/SessionExpiredOverlay.vue'
 import StateBlock from '@/components/StateBlock.vue'
 import OverviewTab from '@/components/overview/OverviewTab.vue'
+import RuntimeTab from '@/components/runtime/RuntimeTab.vue'
 import TracesTab from '@/components/traces/TracesTab.vue'
 import DataQualityTab from '@/components/data-quality/DataQualityTab.vue'
 import FeatureDriftTab from '@/components/feature-drift/FeatureDriftTab.vue'
@@ -104,6 +114,8 @@ const {
   headerStatus,
   overview,
   overviewStatus,
+  runtime,
+  runtimeStatus,
   dataQuality,
   dataQualityStatus,
   qualityTrends,

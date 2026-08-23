@@ -44,9 +44,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AlertBanner, OverviewResponse, Series, WorkerHealthResponse } from '@/api/types'
+import type { AlertBanner, OverviewResponse, WorkerHealthResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
+// shared with the Runtime tab, which plots the same three series
+import { runtimeCharts } from '@/lib/charts'
 import StateBlock from '@/components/StateBlock.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
 import MetricCard from './MetricCard.vue'
@@ -64,30 +66,7 @@ const props = defineProps<{
 
 const view = computed(() => sectionView(props.status, props.overview?.state))
 
-const CHART_META: Record<string, { title: string; subtitle: string; color: string }> = {
-  requests: {
-    title: 'Requests over time',
-    subtitle: 'prediction calls per interval',
-    color: '#2673fd',
-  },
-  error_rate: {
-    title: 'Error rate over time',
-    subtitle: '4xx / 5xx share of calls',
-    color: '#f97316',
-  },
-  latency_p95: {
-    title: 'Latency p95 over time',
-    subtitle: '95th percentile response time',
-    color: '#a855f7',
-  },
-}
-
-const charts = computed(() =>
-  (props.overview?.series ?? []).map((series: Series) => ({
-    series,
-    ...(CHART_META[series.key] ?? { title: series.label, subtitle: '', color: '#2673fd' }),
-  })),
-)
+const charts = computed(() => runtimeCharts(props.overview?.series))
 </script>
 
 <style scoped>

@@ -7,6 +7,7 @@ from client input.
 
 import json
 import math
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -62,6 +63,7 @@ from agent.schemas.monitoring_query import (
     SeriesPoint,
     Severity,
     SeverityFilter,
+    StatusBreakdownRow,
     TraceDetail,
     TraceDetailResponse,
     TraceRow,
@@ -149,6 +151,17 @@ class _Rollup:
     latency_p50_ms: float | None
     latency_p95_ms: float | None
     latency_max_ms: float | None
+    # How the calls ended, most frequent outcome first.
+    status_breakdown: tuple[StatusBreakdownRow, ...] = ()
+
+    @property
+    def success_rate(self) -> float:
+        """Kept beside ``error_rate`` rather than derived in the UI, which does no math.
+
+        An empty window is 0%, not 100%: nothing succeeded, and reading it as a perfect
+        window would be the wrong headline for a deployment nobody called.
+        """
+        return self.success_count / self.request_count if self.request_count else 0.0
 
 
 def _percentile(values: list[float], pct: float) -> float | None:
@@ -173,7 +186,33 @@ def _rollup(events: list[InferenceEvent]) -> _Rollup:
         latency_p50_ms=_percentile(latencies, 50),
         latency_p95_ms=_percentile(latencies, 95),
         latency_max_ms=max(latencies) if latencies else None,
+        status_breakdown=_status_breakdown(events),
     )
+
+
+def _status_breakdown(events: list[InferenceEvent]) -> tuple[StatusBreakdownRow, ...]:
+    """Group the window's calls by outcome and HTTP code, busiest row first.
+
+    Outcome and code are kept as separate columns rather than one label: the same code
+    carries different meaning per outcome (a 504 is a timeout, a 500 a failed inference),
+    and a reader scanning for what broke wants both.
+    """
+    counts: dict[tuple[str, int | None], int] = defaultdict(int)
+    for event in events:
+        counts[(str(event.status), event.status_code)] += 1
+    total = len(events)
+    rows = [
+        StatusBreakdownRow(
+            status=status,
+            status_code=code,
+            count=count,
+            share=count / total if total else 0.0,
+        )
+        for (status, code), count in counts.items()
+    ]
+    # Ties break on the code so the table keeps a stable order between refreshes.
+    rows.sort(key=lambda row: (-row.count, row.status, row.status_code or 0))
+    return tuple(rows)
 
 
 def _bucket_seconds(dims: QueryDimensions) -> int:
@@ -366,7 +405,11 @@ class MonitoringQueryService:
     async def runtime(self, deployment_id: UUID, dims: QueryDimensions) -> RuntimeResponse:
         try:
             rollup, series = await self._runtime(deployment_id, dims)
-            alerts = await self._banners(deployment_id, dims.severity, group=GROUP_RUNTIME)
+            # with dims: the banners carry history and threshold provenance, so an alert
+            # opened here is the same view the Alerts tab gives it
+            alerts = await self._banners(
+                deployment_id, dims.severity, group=GROUP_RUNTIME, dims=dims
+            )
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return RuntimeResponse(state=SectionState.UNAVAILABLE)
@@ -375,6 +418,7 @@ class MonitoringQueryService:
             profile_status=profile,
             request_count=rollup.request_count,
             success_count=rollup.success_count,
+            success_rate=rollup.success_rate,
             error_count=rollup.error_count,
             error_rate=rollup.error_rate,
             latency_p50_ms=rollup.latency_p50_ms,
@@ -382,6 +426,7 @@ class MonitoringQueryService:
             latency_max_ms=rollup.latency_max_ms,
             timeout_count=rollup.timeout_count,
             failed_inference_count=rollup.failed_inference_count,
+            status_breakdown=list(rollup.status_breakdown),
             series=series,
             alerts=alerts,
         )
@@ -443,7 +488,26 @@ class MonitoringQueryService:
             features=rows,
             trends=trends,
             alerts=alerts,
+            computed_at=result.computed_at,
+            stale=self._is_stale(result.computed_at, dims.window),
         )
+
+    def _is_stale(self, computed_at: datetime | None, window: Window) -> bool:
+        """Whether a snapshot's window closed before the selected range began.
+
+        The snapshot tabs read the newest stored window outright, with no time bound —
+        deliberately, so a quiet deployment still shows its last known state instead of an
+        empty table that reads like "never monitored". The cost is that the reading can be
+        older than the range the rest of the page is drawn from, so it has to say so.
+        """
+        if computed_at is None:
+            return False
+        start, _ = self._window_bounds(window)
+        # The store reads these as UTC-aware, but a naive value must not raise here and take
+        # the whole tab down with it — read it as UTC, which is what the Agent writes.
+        if computed_at.tzinfo is None:
+            computed_at = computed_at.replace(tzinfo=UTC)
+        return computed_at < start
 
     async def _data_quality_trends(
         self, deployment_id: UUID, dims: QueryDimensions
@@ -518,6 +582,8 @@ class MonitoringQueryService:
             selected=selected,
             multivariate=panel,
             alerts=alerts,
+            computed_at=drift.computed_at,
+            stale=self._is_stale(drift.computed_at, dims.window),
         )
 
     async def _psi_history(self, deployment_id: UUID, dims: QueryDimensions) -> Series | None:

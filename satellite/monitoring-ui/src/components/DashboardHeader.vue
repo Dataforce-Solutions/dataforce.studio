@@ -52,6 +52,10 @@ const metaParts = computed(() => {
   if (props.header.model_name) parts.push({ text: props.header.model_name, mono: true })
   const lastPrediction = formatTimestamp(props.header.last_prediction_at)
   if (lastPrediction) parts.push({ text: `last prediction ${lastPrediction}` })
+  // When the worker last closed a window. The snapshot sections show that window whatever
+  // its age, so without this the page gives no way to tell a live reading from an old one.
+  const lastMonitored = formatTimestamp(props.header.last_monitored_at)
+  if (lastMonitored) parts.push({ text: `last monitored ${lastMonitored}` })
   return parts
 })
 </script>

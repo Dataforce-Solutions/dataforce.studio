@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 import pytest
 from tests.support import FIXED_NOW, ago, now_dt
@@ -75,9 +76,43 @@ async def test_runtime_rollup_aggregates_counts_and_latency() -> None:
     assert result.timeout_count == 1
     assert result.failed_inference_count == 1
     assert result.error_rate == pytest.approx(4 / 9)
+    assert result.success_rate == pytest.approx(5 / 9)
     assert result.latency_p50_ms == 50
     assert result.latency_p95_ms == 90
     assert result.latency_max_ms == 90
+
+
+async def test_success_rate_of_an_empty_window_is_zero_not_perfect() -> None:
+    """Nothing succeeded, so nothing is the answer — 100% would read as a healthy window."""
+    dep = uuid.uuid4()
+
+    result = await _service(InMemoryMonitoringStore()).runtime(
+        dep, QueryDimensions(window=Window.H24)
+    )
+
+    assert result.request_count == 0
+    assert result.success_rate == 0.0
+    assert result.status_breakdown == []
+
+
+async def test_status_breakdown_groups_by_outcome_and_code() -> None:
+    """A 504 and a 500 are both errors; the breakdown is what tells them apart."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for event in _mixed_events(dep):
+        store.add_event(event)
+
+    result = await _service(store).runtime(dep, QueryDimensions(window=Window.H24))
+
+    rows = {(row.status, row.status_code): row for row in result.status_breakdown}
+    assert rows[("success", 200)].count == 5
+    assert rows[("success", 200)].share == pytest.approx(5 / 9)
+    assert rows[("error", 500)].count == 2
+    assert rows[("timeout", 500)].count == 1
+    assert rows[("failed_inference", 500)].count == 1
+    # busiest first, so the table opens on what dominated the window
+    assert result.status_breakdown[0].status == "success"
+    assert sum(row.count for row in result.status_breakdown) == result.request_count
 
 
 async def test_series_zooms_to_a_short_burst_of_traffic() -> None:
@@ -581,3 +616,81 @@ async def test_deployment_scope_isolates_data() -> None:
 def test_fixed_clock_anchors_window_to_now() -> None:
     # guards the helper contract the other tests lean on
     assert now_dt().timestamp() == FIXED_NOW
+
+
+def _dq_result(dep: uuid.UUID, computed_at: datetime | None) -> StoredMetricResult:
+    return StoredMetricResult(
+        deployment_id=dep,
+        group="data_quality",
+        window=Window.H24.value,
+        values={"features": {"income": {"missing_rate": 0.0, "checked": 10}}},
+        severity="ok",
+        computed_at=computed_at,
+    )
+
+
+async def test_snapshot_inside_the_range_is_not_marked_stale() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_dq_result(dep, ago(600)))
+
+    result = await _service(store).data_quality(dep, QueryDimensions(window=Window.H24))
+
+    assert result.state is SectionState.OK
+    assert result.stale is False
+    assert result.computed_at == ago(600)
+
+
+async def test_snapshot_older_than_the_range_is_still_served_but_marked_stale() -> None:
+    """A stand idle for two days keeps its last reading — and has to say how old it is.
+
+    The snapshot tabs read the newest stored window with no time bound, so without the
+    flag a two-day-old window is indistinguishable from a live one.
+    """
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_dq_result(dep, ago(2 * 24 * 3600)))
+
+    service = _service(store)
+    day = await service.data_quality(dep, QueryDimensions(window=Window.H24))
+
+    assert day.state is SectionState.OK
+    assert day.features  # the reading is served, not hidden
+    assert day.stale is True
+
+    # Widening the range brings the same window back inside it.
+    week = await service.data_quality(dep, QueryDimensions(window=Window.D7))
+    assert week.stale is False
+
+
+async def test_feature_drift_snapshot_reports_its_window_age() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(
+        StoredMetricResult(
+            deployment_id=dep,
+            group="feature_drift",
+            window=Window.H24.value,
+            values={"features": {"income": {"psi": 0.3, "status": "critical"}}},
+            severity="critical",
+            computed_at=ago(3 * 24 * 3600),
+        )
+    )
+
+    result = await _service(store).feature_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert result.state is SectionState.OK
+    assert result.features
+    assert result.stale is True
+    assert result.computed_at == ago(3 * 24 * 3600)
+
+
+async def test_snapshot_without_a_timestamp_is_not_guessed_stale() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_dq_result(dep, None))
+
+    result = await _service(store).data_quality(dep, QueryDimensions(window=Window.H24))
+
+    assert result.stale is False
+    assert result.computed_at is None
