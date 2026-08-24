@@ -106,12 +106,22 @@ class ModelHandler:
     def _unpack_model_archive(self, model_archive_path: Path, extraction_dir: Path) -> str:
         return self._file_handler.unpack_tar_archive(model_archive_path, extraction_dir)
 
-    def _resolve_artifact(self) -> tuple[str, str]:
-        """The download URL and the cache key for this deployment's model.
+    def _known_model_id(self) -> str | None:
+        """The cache key, if it can be known without asking anyone.
 
-        Asked of the Agent rather than read from the environment: a presigned URL expires in
-        hours while this container lives for weeks, so the only link that can be trusted is
-        one signed just now.
+        The Agent pins it in the environment when it creates the container, so a model that
+        is already unpacked can be found with no network at all. A caller that supplied its
+        own URL keys on that instead.
+        """
+        if self._model_url:
+            return self._generate_model_id(self._model_url)
+        return os.getenv("MODEL_ARTIFACT_ID") or None
+
+    def _resolve_artifact(self) -> tuple[str, str]:
+        """The download URL and the cache key, asking the Agent for a link signed just now.
+
+        A presigned URL expires in hours while this container lives for weeks, so the only
+        link that can be trusted is one minted for this request.
         """
         if self._model_url:
             return self._model_url, self._generate_model_id(self._model_url)
@@ -122,9 +132,17 @@ class ModelHandler:
     def _get_or_extract_model(self) -> str:
         """The extracted model, from the shared cache when it is already there.
 
-        A cache hit skips the network entirely, which is what lets a container come back up
-        while the Agent or the Platform is unavailable.
+        The cache is checked before anything is asked of anyone, so a container whose model
+        is already unpacked comes back up even while the Agent or the Platform is down. Only
+        a miss needs a download URL, and that one is minted on the spot.
         """
+        known_id = self._known_model_id()
+        if known_id:
+            cached = self._models_cache_dir / known_id
+            if self._file_handler.dir_exist(cached):
+                logger.info(f"Using cached model {known_id} from {cached}")
+                return str(cached)
+
         url, model_id = self._resolve_artifact()
         extraction_dir = self._models_cache_dir / model_id
 

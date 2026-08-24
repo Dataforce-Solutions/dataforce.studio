@@ -102,6 +102,8 @@ async def test_a_stopped_container_is_recreated_with_a_token_not_a_url() -> None
     # the container carries no download link — that is the whole point; it asks for one
     assert "MODEL_ARTIFACT_URL" not in env
     assert env["MODEL_ARTIFACT_TOKEN"] == artifact_tokens.mint(DEPLOYMENT_ID)
+    # pinned so a warm cache can be found without asking the Agent anything
+    assert env["MODEL_ARTIFACT_ID"] == ARTIFACT_ID
     assert env["DEPLOYMENT_ID"] == DEPLOYMENT_ID
     assert env["MODEL_NAME"] == "iris_classification"
     assert kwargs["name"] == f"sat-{DEPLOYMENT_ID}"

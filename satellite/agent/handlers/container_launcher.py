@@ -42,6 +42,10 @@ async def container_env(platform: PlatformClient, deployment: Deployment) -> dic
     env: dict[str, str] = {
         # not a URL: what the container proves itself with when it asks for one
         "MODEL_ARTIFACT_TOKEN": artifact_tokens.mint(str(deployment.id)),
+        # the cache key, so a container with the model already unpacked can start without
+        # asking anyone. Safe to pin here because a deployment pointing at a different
+        # artifact gets a new container, and with it a new value.
+        "MODEL_ARTIFACT_ID": str(deployment.artifact_id),
         "DEPLOYMENT_ID": str(deployment.id),
         "MODEL_NAME": deployment.artifact_name,
     }

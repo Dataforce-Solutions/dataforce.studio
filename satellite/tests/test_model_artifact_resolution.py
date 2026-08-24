@@ -9,7 +9,7 @@ import sys
 import tarfile
 import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -92,22 +92,36 @@ def test_the_url_is_asked_for_at_download_time(tmp_path: Path) -> None:
 
 @respx.mock
 def test_a_cached_model_never_touches_the_network(tmp_path: Path) -> None:
-    """This is what lets a container come back up while the Agent or Platform is down."""
+    """This is what lets a container come back up while the Agent or Platform is down.
+
+    The cache key comes from the environment the Agent pinned at container creation, so the
+    lookup happens before anything is asked of anyone.
+    """
     route = _artifact_route(return_value=_ok_response())
     cache = tmp_path / "models"
     (cache / ARTIFACT_ID).mkdir(parents=True)
     (cache / ARTIFACT_ID / "manifest.json").write_text("{}")
 
-    handler = _handler(cache)
-    handler._agent = MagicMock(spec=AgentClient)
-    handler._agent.fetch_artifact.return_value = type(
-        "Ref", (), {"url": DOWNLOAD_URL, "artifact_id": ARTIFACT_ID}
-    )()
-
-    extracted = handler._get_or_extract_model()
+    with patch.dict("os.environ", {"MODEL_ARTIFACT_ID": ARTIFACT_ID}):
+        extracted = _handler(cache)._get_or_extract_model()
 
     assert Path(extracted) == cache / ARTIFACT_ID
     assert not route.called
+
+
+@respx.mock
+def test_a_cache_miss_still_asks_the_agent(tmp_path: Path) -> None:
+    """The pinned id is only a lookup hint; an unpacked model is what makes it a hit."""
+    route = _artifact_route(return_value=_ok_response())
+    respx.get(DOWNLOAD_URL).mock(return_value=httpx.Response(200, content=_make_archive(tmp_path)))
+    cache = tmp_path / "models"
+    cache.mkdir()
+
+    with patch.dict("os.environ", {"MODEL_ARTIFACT_ID": ARTIFACT_ID}):
+        extracted = _handler(cache)._get_or_extract_model()
+
+    assert route.called
+    assert (Path(extracted) / "manifest.json").exists()
 
 
 @respx.mock
