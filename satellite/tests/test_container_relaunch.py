@@ -14,6 +14,7 @@ import pytest
 import respx
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
+from agent.handlers import artifact_tokens
 from agent.handlers.model_server_handler import ModelServerHandler
 from agent.settings import config
 
@@ -21,7 +22,6 @@ PLATFORM_URL = str(config.PLATFORM_URL).rstrip("/")
 
 DEPLOYMENT_ID = "01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"
 ARTIFACT_ID = "01a014fd-0000-7021-b0f5-fe92f2fdaf9b"
-FRESH_URL = "https://s3.example.com/artifacts/iris.luml?X-Amz-Signature=fresh"
 
 
 def _platform_record() -> dict:
@@ -50,9 +50,6 @@ def _mock_platform(*, record: dict | None = None) -> None:
     )
     respx.get(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
         return_value=httpx.Response(200, json=record)
-    )
-    respx.get(f"{PLATFORM_URL}/satellites/v1/artifacts/{ARTIFACT_ID}/download-url").mock(
-        return_value=httpx.Response(200, json={"url": FRESH_URL})
     )
 
 
@@ -87,7 +84,7 @@ def _patched(docker: AsyncMock):  # noqa: ANN202 — test helper
 
 
 @respx.mock
-async def test_stopped_container_is_recreated_with_a_freshly_signed_url() -> None:
+async def test_a_stopped_container_is_recreated_with_a_token_not_a_url() -> None:
     handler = ModelServerHandler()
     _mock_platform()
     _mock_model_server()
@@ -100,11 +97,16 @@ async def test_stopped_container_is_recreated_with_a_freshly_signed_url() -> Non
         await handler.sync_deployments()
 
     docker.run_model_container.assert_awaited_once()
-    env = docker.run_model_container.await_args.kwargs["env"]
-    # the whole point: the URL is minted now, not reused from the dead container
-    assert env["MODEL_ARTIFACT_URL"] == FRESH_URL
+    kwargs = docker.run_model_container.await_args.kwargs
+    env = kwargs["env"]
+    # the container carries no download link — that is the whole point; it asks for one
+    assert "MODEL_ARTIFACT_URL" not in env
+    assert env["MODEL_ARTIFACT_TOKEN"] == artifact_tokens.mint(DEPLOYMENT_ID)
+    assert env["DEPLOYMENT_ID"] == DEPLOYMENT_ID
     assert env["MODEL_NAME"] == "iris_classification"
-    assert docker.run_model_container.await_args.kwargs["name"] == f"sat-{DEPLOYMENT_ID}"
+    assert kwargs["name"] == f"sat-{DEPLOYMENT_ID}"
+    # the label matches the cache key the container will use, so undeploy cleans that entry
+    assert kwargs["labels"]["df.model_id"] == ARTIFACT_ID
 
     # once it answers, the deployment is serving again and known locally
     assert DEPLOYMENT_ID in handler.deployments
@@ -120,18 +122,15 @@ async def test_a_container_that_cannot_be_recreated_is_reported_not_responding()
     handler = ModelServerHandler()
     _mock_platform()
     _mock_model_server()
-    respx.get(f"{PLATFORM_URL}/satellites/v1/artifacts/{ARTIFACT_ID}/download-url").mock(
-        return_value=httpx.Response(403, json={"detail": "artifact gone"})
-    )
     patch_route = respx.patch(
         f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
     ).mock(return_value=httpx.Response(200, json=_platform_record()))
     docker = _stopped_docker()
+    docker.run_model_container = AsyncMock(side_effect=RuntimeError("no such image"))
 
     with _patched(docker):
         await handler.sync_deployments()
 
-    docker.run_model_container.assert_not_awaited()
     assert DEPLOYMENT_ID not in handler.deployments
     assert b'"not_responding"' in patch_route.calls[-1].request.read()
 

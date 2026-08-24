@@ -1,31 +1,25 @@
 """Building the model-server container for a deployment.
 
-Shared by the deploy task and by startup reconciliation. Both have to build the container
-the same way, and — more importantly — both have to mint the artifact URL at the moment the
-container is created: it is presigned, it is baked into the container's environment, and
-Docker will not let anyone change an environment afterwards. A container recreated from a
-stale URL cannot download its model and never comes back up.
+Shared by the deploy task and by startup reconciliation, so both build the container the
+same way.
+
+The container is given no download link. A presigned URL expires in hours while a container
+lives for weeks, and Docker will not let an environment change afterwards — so a container
+holding one is dead the moment it outlives it. Instead it carries a token and asks the Agent
+for a URL when it downloads.
 """
 
-import hashlib
 import logging
-from urllib.parse import urlparse
 from uuid import UUID
 
 from aiodocker.containers import DockerContainer
 
 from agent.clients import DockerService, PlatformClient
+from agent.handlers import artifact_tokens
 from agent.schemas import Deployment
 from agent.settings import config
 
 logger = logging.getLogger(__name__)
-
-
-def model_id_from_url(url: str) -> str:
-    """Cache key of an artifact: its path, without the signature that changes per request."""
-    parsed_url = urlparse(url)
-    url_path = parsed_url.path.split("?")[0]
-    return hashlib.md5(url_path.encode()).hexdigest()
 
 
 async def secrets_env(
@@ -44,11 +38,10 @@ async def secrets_env(
     return resolved
 
 
-async def container_env(
-    platform: PlatformClient, presigned_url: str, deployment: Deployment
-) -> dict[str, str]:
+async def container_env(platform: PlatformClient, deployment: Deployment) -> dict[str, str]:
     env: dict[str, str] = {
-        "MODEL_ARTIFACT_URL": str(presigned_url),
+        # not a URL: what the container proves itself with when it asks for one
+        "MODEL_ARTIFACT_TOKEN": artifact_tokens.mint(str(deployment.id)),
         "DEPLOYMENT_ID": str(deployment.id),
         "MODEL_NAME": deployment.artifact_name,
     }
@@ -63,15 +56,15 @@ async def container_env(
 async def launch_model_container(
     platform: PlatformClient, docker: DockerService, deployment: Deployment
 ) -> DockerContainer:
-    """Create (or replace) the deployment's model container with a freshly signed artifact URL."""
-    presigned_url = await platform.get_artifact_download_url(UUID(deployment.artifact_id))
+    """Create (or replace) the deployment's model container."""
     return await docker.run_model_container(
         image=config.MODEL_IMAGE,
         name=f"sat-{deployment.id}",
         container_port=config.MODEL_SERVER_PORT,
         labels={
             "df.deployment_id": str(deployment.id),
-            "df.model_id": model_id_from_url(presigned_url),
+            # the cache key the container will use, so undeploy can clean the same entry
+            "df.model_id": str(deployment.artifact_id),
         },
-        env=await container_env(platform, presigned_url, deployment),
+        env=await container_env(platform, deployment),
     )

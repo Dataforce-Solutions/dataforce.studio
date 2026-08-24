@@ -10,18 +10,22 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from clients.agent_client import AgentClient
 from conda_manager import ModelCondaManager
 from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
 from utils.logging import log_success  # type: ignore
 
-from .file_handler import FileHandler
+from .file_handler import ArtifactAccessExpired, FileHandler
 
 logger = logging.getLogger(__name__)
 
 
 class ModelHandler:
-    def __init__(self, url: str | None = None) -> None:
-        self._model_url = os.getenv("MODEL_ARTIFACT_URL") if url is None else url
+    def __init__(self, url: str | None = None, agent: AgentClient | None = None) -> None:
+        # A URL passed in directly is a caller that already has one (tests, local runs);
+        # otherwise the Agent is asked for one at the moment it is needed.
+        self._model_url = url
+        self._agent = agent or AgentClient()
         self._models_cache_dir = self._get_model_cache_dir()
         self._file_handler = FileHandler()
         self._request_model_schema = None
@@ -30,7 +34,7 @@ class ModelHandler:
         self.conda_worker: ModelCondaManager | None = None
 
         try:
-            self.extracted_path = self._get_or_extract_model(self._model_url)
+            self.extracted_path = self._get_or_extract_model()
             self._model_envs = self._create_model_env()
 
             self.conda_worker = ModelCondaManager(
@@ -64,9 +68,26 @@ class ModelHandler:
 
     @staticmethod
     def _generate_model_id(url: str) -> str:
+        """Fallback cache key for a caller that supplied its own URL and no artifact id."""
         parsed_url = urlparse(url)
         url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
+
+    def _download_with_retry(self, url: str) -> Path:
+        """Download, and on a refused URL ask the Agent for one more and try again.
+
+        A large artifact can outlive its own link: the URL is signed before the transfer
+        starts and may expire part-way through. One retry with a freshly signed URL covers
+        that without turning a genuinely revoked artifact into a retry loop.
+        """
+        try:
+            return self._download_model(url)
+        except ArtifactAccessExpired:
+            if self._model_url:  # caller-supplied URL: nothing fresher to ask for
+                raise
+            logger.warning("Download URL was refused; asking the Agent for a fresh one.")
+            fresh_url, _ = self._resolve_artifact()
+            return self._download_model(fresh_url)
 
     @log_success("Model downloaded successfully.")
     def _download_model(self, url: str) -> Path:
@@ -85,15 +106,26 @@ class ModelHandler:
     def _unpack_model_archive(self, model_archive_path: Path, extraction_dir: Path) -> str:
         return self._file_handler.unpack_tar_archive(model_archive_path, extraction_dir)
 
+    def _resolve_artifact(self) -> tuple[str, str]:
+        """The download URL and the cache key for this deployment's model.
+
+        Asked of the Agent rather than read from the environment: a presigned URL expires in
+        hours while this container lives for weeks, so the only link that can be trusted is
+        one signed just now.
+        """
+        if self._model_url:
+            return self._model_url, self._generate_model_id(self._model_url)
+        artifact = self._agent.fetch_artifact()
+        return artifact.url, artifact.artifact_id
+
     @log_success("Unpacked Model path extracted successfully.")
-    def _get_or_extract_model(self, url: str) -> str:
+    def _get_or_extract_model(self) -> str:
         """The extracted model, from the shared cache when it is already there.
 
-        The cache is what makes a restart survivable: the artifact URL is presigned and
-        expires in hours, while the container lives for weeks, so a restart that had to
-        download again would fail with a 403 and never come back up.
+        A cache hit skips the network entirely, which is what lets a container come back up
+        while the Agent or the Platform is unavailable.
         """
-        model_id = self._generate_model_id(url)
+        url, model_id = self._resolve_artifact()
         extraction_dir = self._models_cache_dir / model_id
 
         if self._file_handler.dir_exist(extraction_dir):
@@ -101,7 +133,7 @@ class ModelHandler:
             return str(extraction_dir)
 
         logger.info("Model not in cache, downloading...")
-        model_archive_path = self._download_model(url)
+        model_archive_path = self._download_with_retry(url)
 
         # Unpacked beside the target and moved into place only once complete. Extracting
         # straight into the cache would leave a half-unpacked model behind on a crash, and
