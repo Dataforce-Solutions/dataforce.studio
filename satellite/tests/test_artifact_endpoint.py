@@ -7,8 +7,13 @@ no link of its own — it asks for one when it downloads. These tests pin who ma
 import uuid
 from datetime import UTC, datetime
 
+import httpx
 import pytest
+import respx
 from fastapi.testclient import TestClient
+
+from agent.clients import PlatformClient
+from agent.settings import config
 
 from agent.agent_api import create_agent_app
 from agent.handlers import artifact_tokens
@@ -110,3 +115,52 @@ def test_tokens_survive_a_restart_of_either_side() -> None:
 )
 def test_presigned_expiry_is_read_when_it_is_there(url: str, expected: datetime | None) -> None:
     assert presigned_expiry(url) == expected
+
+
+@respx.mock
+async def test_the_resolver_signs_a_url_for_a_deployment_this_satellite_hosts() -> None:
+    """Scoping is the Platform's: its satellite-scoped endpoint 404s on someone else's."""
+    from agent.main import _artifact_resolver
+
+    platform_url = str(config.PLATFORM_URL).rstrip("/")
+    record = {
+        "id": DEPLOYMENT_ID,
+        "orbit_id": str(uuid.uuid4()),
+        "satellite_id": str(uuid.uuid4()),
+        "satellite_name": "sat",
+        "name": "iris",
+        "artifact_id": ARTIFACT_ID,
+        "artifact_name": "iris",
+        "collection_id": str(uuid.uuid4()),
+        "status": "active",
+        "created_at": "2026-08-18T13:10:44Z",
+    }
+    respx.get(f"{platform_url}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+        return_value=httpx.Response(200, json=record)
+    )
+    respx.get(f"{platform_url}/satellites/v1/artifacts/{ARTIFACT_ID}/download-url").mock(
+        return_value=httpx.Response(
+            200, json={"url": "https://s3/x?X-Amz-Date=20260818T131044Z&X-Amz-Expires=43200"}
+        )
+    )
+
+    async with PlatformClient(str(config.PLATFORM_URL), "token") as platform:
+        artifact = await _artifact_resolver(platform)(uuid.UUID(DEPLOYMENT_ID))
+
+    assert artifact.artifact_id == ARTIFACT_ID
+    assert artifact.expires_at == datetime(2026, 8, 19, 1, 10, 44, tzinfo=UTC)
+
+
+@respx.mock
+async def test_the_resolver_turns_an_unknown_deployment_into_a_404() -> None:
+    """Not a 502: the Platform saying "no such deployment here" is an answer, not a fault."""
+    from agent.main import _artifact_resolver
+
+    platform_url = str(config.PLATFORM_URL).rstrip("/")
+    respx.get(f"{platform_url}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+        return_value=httpx.Response(404, json={"detail": "Deployment not found"})
+    )
+
+    async with PlatformClient(str(config.PLATFORM_URL), "token") as platform:
+        with pytest.raises(KeyError):
+            await _artifact_resolver(platform)(uuid.UUID(DEPLOYMENT_ID))

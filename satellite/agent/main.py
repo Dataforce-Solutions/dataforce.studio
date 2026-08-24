@@ -2,6 +2,7 @@ import asyncio
 from contextlib import suppress
 from uuid import UUID
 
+import httpx
 import uvicorn
 
 from agent.agent_api import ResolveArtifactFn, create_agent_app
@@ -51,14 +52,21 @@ def _build_monitoring_worker(
 def _artifact_resolver(platform: PlatformClient) -> ResolveArtifactFn:
     """Answer a model container's request for its artifact with a URL signed right now.
 
-    The Satellite only answers for deployments it actually hosts, so a valid token cannot
-    be pointed at someone else's model.
+    Scoping comes from the Platform: /satellites/v1/deployments/{id} answers only for
+    deployments belonging to the calling Satellite, so a valid token cannot be pointed at
+    another Satellite's model. It is deliberately not checked against the Agent's local
+    registry — a deployment is registered there only once its model server answers a health
+    check, and the container asks for its artifact well before that.
     """
 
     async def resolve(deployment_id: UUID) -> ArtifactDownload:
-        local = ms_handler.deployments.get(str(deployment_id))
-        deployment = await platform.get_deployment(deployment_id)
-        if deployment is None or (local is None and deployment.satellite_id is None):
+        try:
+            deployment = await platform.get_deployment(deployment_id)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code == 404:
+                raise KeyError(deployment_id) from error
+            raise
+        if deployment is None:
             raise KeyError(deployment_id)
         url = await platform.get_artifact_download_url(UUID(deployment.artifact_id))
         return ArtifactDownload(
