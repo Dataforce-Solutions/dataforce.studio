@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import tempfile
 import traceback
 from importlib import metadata as importlib_metadata
@@ -86,20 +87,38 @@ class ModelHandler:
 
     @log_success("Unpacked Model path extracted successfully.")
     def _get_or_extract_model(self, url: str) -> str:
+        """The extracted model, from the shared cache when it is already there.
+
+        The cache is what makes a restart survivable: the artifact URL is presigned and
+        expires in hours, while the container lives for weeks, so a restart that had to
+        download again would fail with a 403 and never come back up.
+        """
         model_id = self._generate_model_id(url)
         extraction_dir = self._models_cache_dir / model_id
 
-        # if self._file_handler.dir_exist(extraction_dir):
-        #     logger.info(f"Using cached model {model_id} from {extraction_dir}")
-        #     return str(extraction_dir)
-        #
-        # logger.info("Model not in cache, downloading...")
+        if self._file_handler.dir_exist(extraction_dir):
+            logger.info(f"Using cached model {model_id} from {extraction_dir}")
+            return str(extraction_dir)
+
+        logger.info("Model not in cache, downloading...")
         model_archive_path = self._download_model(url)
 
-        extracted_path = self._unpack_model_archive(model_archive_path, extraction_dir)
-        self._clean_model_archive(model_archive_path)
+        # Unpacked beside the target and moved into place only once complete. Extracting
+        # straight into the cache would leave a half-unpacked model behind on a crash, and
+        # the next start would read it as a hit — a poisoned cache that survives restarts
+        # and needs the volume cleaned by hand.
+        staging_dir = self._models_cache_dir / f".{model_id}.partial"
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        try:
+            self._unpack_model_archive(model_archive_path, staging_dir)
+            os.replace(staging_dir, extraction_dir)
+        except Exception:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise
+        finally:
+            self._clean_model_archive(model_archive_path)
 
-        return extracted_path
+        return str(extraction_dir)
 
     @log_success("Model manifest.json loaded successfully.")
     def _get_manifest(self) -> dict[str, Any]:

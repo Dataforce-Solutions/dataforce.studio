@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import suppress
@@ -11,6 +12,7 @@ from agent._exceptions import (
 )
 from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
+from agent.handlers.container_launcher import launch_model_container
 from agent.monitoring.instrumentation import InferenceInstrumentation
 from agent.monitoring.telemetry import TelemetrySetup
 from agent.schemas import (
@@ -30,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 class ModelServerHandler:
+    # How long a relaunched container may take to download its model, build its environment
+    # and answer, when the deployment does not state its own timeout.
+    recovery_health_check_timeout = 1800
+
     def __init__(self, telemetry: TelemetrySetup | None = None) -> None:
         self.deployments: dict[str, LocalDeployment] = {}
         self._openapi_cache_invalidation_callbacks: list[Callable] = []
@@ -106,6 +112,94 @@ class ModelServerHandler:
         self.deployments = active_deployments
         return list(active_deployments.values())
 
+    async def _relaunch(
+        self,
+        docker: DockerService,
+        platform: PlatformClient,
+        deployment_id: str,
+        reason: str,
+    ) -> bool:
+        """Recreate a stopped model container with a newly signed artifact URL.
+
+        The URL a container carries is presigned and outlived by the container itself, so a
+        stopped container can never simply be started again — it would try to download its
+        model from a link that expired hours ago and die. Recreating is the only way back,
+        and the Platform record says this deployment is supposed to be serving.
+        """
+        logger.info(f"[ModelServerHandler] relaunching '{deployment_id}': {reason}")
+        try:
+            deployment = await platform.get_deployment(UUID(deployment_id))
+            if deployment is None:
+                raise ValueError("deployment not found on the Platform")
+            await launch_model_container(platform, docker, deployment)
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] relaunch of '{deployment_id}' failed: {error}")
+            await platform.update_deployment(
+                deployment_id,
+                DeploymentUpdate(
+                    status=DeploymentStatus.NOT_RESPONDING,
+                    error_message={"reason": reason, "error": f"Relaunch failed: {error}"},
+                ),
+            )
+            return False
+
+        await platform.update_deployment(
+            deployment_id, DeploymentUpdate(status=DeploymentStatus.PENDING)
+        )
+        return True
+
+    async def _settle_recovered(
+        self, docker: DockerService, platform: PlatformClient, dep: dict[str, Any]
+    ) -> None:
+        """Wait for a relaunched container to answer, then record what actually happened."""
+        dep_id = dep["id"]
+        timeout = int(
+            (dep.get("satellite_parameters") or {}).get(
+                "health_check_timeout", self.recovery_health_check_timeout
+            )
+        )
+
+        async with ModelServerClient() as client:
+            for _ in range(timeout):
+                if await client.check_health_once(dep_id):
+                    monitoring_enabled = self._read_monitoring_enabled(
+                        dep.get("satellite_parameters")
+                    )
+                    await self.add_single_deployment(
+                        dep_id,
+                        dep.get("dynamic_attributes_secrets"),
+                        monitoring_enabled=monitoring_enabled,
+                    )
+                    await platform.update_deployment(
+                        dep_id, DeploymentUpdate(status=DeploymentStatus.ACTIVE)
+                    )
+                    logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
+                    return
+                await asyncio.sleep(1)
+
+        logs = await self._container_logs(docker, dep_id)
+        await platform.update_deployment(
+            dep_id,
+            DeploymentUpdate(
+                status=DeploymentStatus.NOT_RESPONDING,
+                error_message={
+                    "reason": "Relaunched container did not become healthy",
+                    "error": (
+                        f"Deployment '{dep_id}' was relaunched but did not answer in {timeout}s."
+                        + (f"\n\nContainer logs:\n{logs[-3000:]}" if logs else "")
+                    ),
+                },
+            ),
+        )
+
+    @staticmethod
+    async def _container_logs(docker: DockerService, deployment_id: str) -> str:
+        with suppress(Exception):
+            container = await docker.client.containers.get(f"sat-{deployment_id}")
+            logs = await container.log(stdout=True, stderr=True, follow=False, tail=100)
+            return "".join(logs) if isinstance(logs, list) else str(logs)
+        return ""
+
     async def sync_deployments(self) -> None:
         logger.info("[ModelServerHandler] sync_deployments...")
         async with (
@@ -113,19 +207,33 @@ class ModelServerHandler:
             DockerService() as docker,
         ):
             deployments_db = await platform_client.list_deployments()
-            active_deployments_db = [
-                dep for dep in deployments_db if dep.get("status", "") == "active"
+            # `not_responding` is in scope on purpose: it is where an earlier reconciliation
+            # parks a deployment it could not revive. Leaving it out would make the first
+            # failure permanent — the deployment stops being `active`, and nothing ever looks
+            # at it again. `failed` and `pending` stay out: the first needs a real redeploy,
+            # the second has a deploy task in flight that this must not race.
+            serving_deployments_db = [
+                dep
+                for dep in deployments_db
+                if dep.get("status", "")
+                in (DeploymentStatus.ACTIVE, DeploymentStatus.NOT_RESPONDING)
             ]
 
             logger.info(
-                f"[active_deployments_db] {[d.get('id', '') for d in active_deployments_db]}"
+                f"[serving_deployments_db] {[d.get('id', '') for d in serving_deployments_db]}"
             )
 
-            for dep in active_deployments_db:
+            recovering: list[dict[str, Any]] = []
+
+            for dep in serving_deployments_db:
                 dep_id = dep["id"]
                 try:
                     await docker.check_container_running(dep_id)
                 except ContainerNotFoundError:
+                    # No container at all: this Satellite holds nothing to restart. Creating
+                    # one here would resurrect every deployment that ever failed on any
+                    # Satellite, including ones abandoned months ago. Bringing a deployment
+                    # back from nothing is a redeploy, and the Platform owns that decision.
                     await platform_client.update_deployment(
                         dep_id,
                         DeploymentUpdate(
@@ -138,15 +246,9 @@ class ModelServerHandler:
                     )
                     continue
                 except ContainerNotRunningError as e:
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Container not running", error=str(e)
-                            ),
-                        ),
-                    )
+                    # The container exists but is stopped — the case this recovery is for.
+                    if await self._relaunch(docker, platform_client, dep_id, str(e)):
+                        recovering.append(dep)
                     continue
 
                 async with ModelServerClient() as client:
@@ -170,6 +272,11 @@ class ModelServerHandler:
                             )
                         ),
                     )
+                    # It answers, so whatever demoted it earlier is over.
+                    if dep.get("status", "") != DeploymentStatus.ACTIVE:
+                        await platform_client.update_deployment(
+                            dep_id, DeploymentUpdate(status=DeploymentStatus.ACTIVE)
+                        )
                 else:
                     logs = ""
                     with suppress(Exception):
@@ -191,6 +298,15 @@ class ModelServerHandler:
                             ),
                         ),
                     )
+
+            # Relaunched containers download and build their environment before they answer,
+            # which takes minutes. They are waited on together rather than one after another:
+            # a Satellite with several stopped deployments would otherwise take the sum of
+            # their start-up times to reconcile.
+            if recovering:
+                await asyncio.gather(
+                    *(self._settle_recovered(docker, platform_client, dep) for dep in recovering)
+                )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

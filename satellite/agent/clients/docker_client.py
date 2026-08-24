@@ -12,6 +12,10 @@ from agent.settings import config as config_settings
 
 logger = logging.getLogger(__name__)
 
+# Extracted models are shared by every model container on this Satellite and outlive any one
+# of them, so the cache cleanup on undeploy mounts the same volume to delete from it.
+MODEL_CACHE_BIND = "satellite-models-cache:/app/models"
+
 
 class DockerService:
     def __init__(self) -> None:
@@ -48,9 +52,10 @@ class DockerService:
             "HostConfig": {
                 "RestartPolicy": {"Name": restart, "MaximumRetryCount": 3},
                 "NetworkMode": self.network_name,
-                # "Binds": [
-                #     "satellite-models-cache:/app/models",
-                # ],
+                # The extracted model lives on a shared volume, not in the container's own
+                # layer: the artifact URL is presigned and expires long before the container
+                # does, so a restart that had to re-download would never come back up.
+                "Binds": [MODEL_CACHE_BIND],
             },
         }
 
@@ -100,7 +105,7 @@ class DockerService:
             "Image": image_name,
             "Cmd": ["rm", "-rf", f"/app/models/{model_id}"],
             "HostConfig": {
-                "Binds": ["satellite-models-cache:/app/models"],
+                "Binds": [MODEL_CACHE_BIND],
             },
         }
         container = await self.client.containers.create(config=config)

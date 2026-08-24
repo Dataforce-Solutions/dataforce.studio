@@ -1,14 +1,12 @@
 import asyncio
-import hashlib
 import logging
-from urllib.parse import urlparse
 from uuid import UUID
 
 from aiodocker.containers import DockerContainer
-from aiodocker.exceptions import DockerError
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
 from agent.clients import ModelServerClient
+from agent.handlers.container_launcher import launch_model_container
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
     Deployment,
@@ -46,18 +44,15 @@ class DeployTask(Task):
             dep_id, DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message)
         )
 
-    async def _get_deployment_artifacts(self, dep_id: str, task_id: str) -> tuple[Deployment, str]:
+    async def _get_deployment(self, dep_id: str, task_id: str) -> Deployment:
         try:
             deployment = await self.platform.get_deployment(UUID(dep_id))
             if not deployment:
                 raise ValueError("deployment not found")
-            presigned_url = await self.platform.get_artifact_download_url(
-                UUID(deployment.artifact_id)
-            )
-            return deployment, presigned_url
+            return deployment
         except Exception as e:
             error_message = ErrorMessage(
-                reason="failed to get model artifact details", error=str(e)
+                reason="failed to get deployment details", error=str(e)
             )
             await self.platform.update_task_status(
                 task_id, SatelliteTaskStatus.FAILED, error_message
@@ -67,44 +62,6 @@ class DeployTask(Task):
                 DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
             raise
-
-    async def _get_secrets_env(self, secrets_payload: dict[str, str]) -> dict[str, str]:
-        secrets_env: dict[str, str] = {}
-        if isinstance(secrets_payload, dict):
-            for key, secret_id in secrets_payload.items():
-                try:
-                    secret = await self.platform.get_orbit_secret(UUID(secret_id))
-                    secrets_env[str(key)] = str(secret.get("value", ""))
-                except Exception:
-                    continue
-        return secrets_env
-
-    async def _get_container_env(
-        self, presigned_url: str, deployment: Deployment
-    ) -> dict[str, str]:
-        secrets_env = await self._get_secrets_env(deployment.env_variables_secrets or {})
-
-        env: dict[str, str] = {
-            "MODEL_ARTIFACT_URL": str(presigned_url),
-            "DEPLOYMENT_ID": str(deployment.id),
-            "MODEL_NAME": deployment.artifact_name,
-        }
-        if config.OTEL_EXPORTER_OTLP_ENDPOINT:
-            env["OTEL_EXPORTER_OTLP_ENDPOINT"] = config.OTEL_EXPORTER_OTLP_ENDPOINT
-
-        for key, value in secrets_env.items():
-            env[key] = value
-
-        for key, value in (deployment.env_variables or {}).items():
-            env[key] = value
-
-        return env
-
-    @staticmethod
-    def _get_model_id_from_url(url: str) -> str:
-        parsed_url = urlparse(url)
-        url_path = parsed_url.path.split("?")[0]
-        return hashlib.md5(url_path.encode()).hexdigest()
 
     async def _handle_container_creation_error(
         self, task_id: str, dep_id: str, error_str: str
@@ -163,7 +120,7 @@ class DeployTask(Task):
             )
             return
         try:
-            dep, presigned_url = await self._get_deployment_artifacts(dep_id, task.id)
+            dep = await self._get_deployment(dep_id, task.id)
         except Exception:
             return
 
@@ -173,17 +130,10 @@ class DeployTask(Task):
         )
 
         try:
-            container = await self.docker.run_model_container(
-                image=config.MODEL_IMAGE,
-                name=f"sat-{dep_id}",
-                container_port=config.MODEL_SERVER_PORT,
-                labels={
-                    "df.deployment_id": dep_id,
-                    "df.model_id": self._get_model_id_from_url(presigned_url),
-                },
-                env=await self._get_container_env(presigned_url, dep),
-            )
-        except DockerError as e:
+            # Minting the artifact URL is part of launching: it is presigned and cannot be
+            # refreshed once the container carries it, so it is signed here and nowhere else.
+            container = await launch_model_container(self.platform, self.docker, dep)
+        except Exception as e:
             await self._handle_container_creation_error(task.id, dep_id, str(e))
             return
 
