@@ -1,12 +1,14 @@
 import asyncio
 from contextlib import suppress
+from uuid import UUID
 
 import uvicorn
 
-from agent.agent_api import create_agent_app
+from agent.agent_api import ResolveArtifactFn, create_agent_app
 from agent.agent_manager import SatelliteManager
 from agent.clients import DockerService, PlatformClient
 from agent.controllers import PeriodicController
+from agent.handlers.artifact_urls import presigned_expiry
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.tasks import TaskHandler
 from agent.monitoring import (
@@ -17,6 +19,7 @@ from agent.monitoring import (
     monitored_deployments,
 )
 from agent.monitoring.health import worker_health
+from agent.schemas import ArtifactDownload
 from agent.settings import config
 
 
@@ -45,11 +48,34 @@ def _build_monitoring_worker(
     return worker, store
 
 
+def _artifact_resolver(platform: PlatformClient) -> ResolveArtifactFn:
+    """Answer a model container's request for its artifact with a URL signed right now.
+
+    The Satellite only answers for deployments it actually hosts, so a valid token cannot
+    be pointed at someone else's model.
+    """
+
+    async def resolve(deployment_id: UUID) -> ArtifactDownload:
+        local = ms_handler.deployments.get(str(deployment_id))
+        deployment = await platform.get_deployment(deployment_id)
+        if deployment is None or (local is None and deployment.satellite_id is None):
+            raise KeyError(deployment_id)
+        url = await platform.get_artifact_download_url(UUID(deployment.artifact_id))
+        return ArtifactDownload(
+            url=url,
+            artifact_id=str(deployment.artifact_id),
+            expires_at=presigned_expiry(url),
+        )
+
+    return resolve
+
+
 async def run_async() -> None:
     async with PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform:
         agent_app = create_agent_app(
             platform.authorize_inference_access,
             platform.introspect_monitoring_token,
+            _artifact_resolver(platform),
         )
 
         uv_config = uvicorn.Config(

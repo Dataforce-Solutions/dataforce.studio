@@ -203,5 +203,17 @@ class DeploymentInfo(BaseModel):
     last_monitored_at: datetime | None = None
 
 
+class ArtifactDownload(BaseModel):
+    """Where a model container downloads its artifact from, resolved at the time of asking.
+
+    ``artifact_id`` is what the container keys its cache on: it identifies the model itself,
+    unlike the URL, whose signature changes on every request.
+    """
+
+    url: str
+    artifact_id: str
+    expires_at: datetime | None = None
+
+
 class Healthz(BaseModel):
     status: str = "healthy"

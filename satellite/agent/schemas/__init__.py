@@ -1,4 +1,5 @@
 from agent.schemas.deployments import (
+    ArtifactDownload,
     Deployment,
     DeploymentInfo,
     DeploymentMetadata,
@@ -28,6 +29,7 @@ __all__ = [
     "DeploymentInfo",
     "InferenceAccessIn",
     "InferenceAccessOut",
+    "ArtifactDownload",
     "Healthz",
     "gate_reference_profile",
     "monitoring_url_for_deployment",
