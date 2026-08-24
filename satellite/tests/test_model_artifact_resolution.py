@@ -192,3 +192,58 @@ def test_a_container_without_its_environment_fails_loudly() -> None:
         assert not client.configured
         with pytest.raises(ArtifactResolutionError, match="missing from the environment"):
             client.fetch_artifact()
+
+
+@respx.mock
+def test_two_containers_unpacking_the_same_artifact_do_not_corrupt_each_other(
+    tmp_path: Path,
+) -> None:
+    """The cache is shared by every model container on the Satellite.
+
+    Two deployments of one artifact can be unpacking it at the same moment. Each stages into
+    its own directory, and whoever lands first wins — the archive is immutable, so the loser
+    can simply adopt the winner's copy instead of failing or half-overwriting it.
+    """
+    _artifact_route(return_value=_ok_response())
+    respx.get(DOWNLOAD_URL).mock(
+        side_effect=lambda request: httpx.Response(200, content=_make_archive(tmp_path))
+    )
+    cache = tmp_path / "models"
+    cache.mkdir()
+
+    first = _handler(cache)._get_or_extract_model()
+    # the second container finds the entry already there and takes it
+    second = _handler(cache)._get_or_extract_model()
+
+    assert Path(first) == Path(second) == cache / ARTIFACT_ID
+    assert (Path(first) / "manifest.json").exists()
+    # nothing half-written left behind
+    assert not list(cache.glob(".*partial"))
+
+
+@respx.mock
+def test_a_loser_of_the_race_adopts_the_winners_copy(tmp_path: Path) -> None:
+    """The rename lands on a directory that appeared while this one was unpacking."""
+    _artifact_route(return_value=_ok_response())
+    respx.get(DOWNLOAD_URL).mock(return_value=httpx.Response(200, content=_make_archive(tmp_path)))
+    cache = tmp_path / "models"
+    cache.mkdir()
+    handler = _handler(cache)
+
+    real_unpack = handler._unpack_model_archive
+
+    def unpack_then_let_the_other_win(archive: Path, staging: Path) -> str:
+        result = real_unpack(archive, staging)
+        # another container finishes in this window
+        winner = cache / ARTIFACT_ID
+        winner.mkdir(parents=True)
+        (winner / "manifest.json").write_text('{"name": "iris"}')
+        return result
+
+    handler._unpack_model_archive = unpack_then_let_the_other_win
+
+    extracted = handler._get_or_extract_model()
+
+    assert Path(extracted) == cache / ARTIFACT_ID
+    assert (Path(extracted) / "manifest.json").exists()
+    assert not list(cache.glob(".*partial"))

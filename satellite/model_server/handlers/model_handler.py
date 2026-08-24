@@ -9,6 +9,7 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from clients.agent_client import AgentClient
 from conda_manager import ModelCondaManager
@@ -157,11 +158,23 @@ class ModelHandler:
         # straight into the cache would leave a half-unpacked model behind on a crash, and
         # the next start would read it as a hit — a poisoned cache that survives restarts
         # and needs the volume cleaned by hand.
-        staging_dir = self._models_cache_dir / f".{model_id}.partial"
-        shutil.rmtree(staging_dir, ignore_errors=True)
+        #
+        # The staging directory is unique per attempt because the cache is shared by every
+        # model container on this Satellite: two deployments of the same artifact can be
+        # unpacking it at the same moment, and a shared staging path would have them
+        # overwriting each other's half-written files.
+        staging_dir = self._models_cache_dir / f".{model_id}.{os.getpid()}.{uuid4().hex}.partial"
         try:
             self._unpack_model_archive(model_archive_path, staging_dir)
-            os.replace(staging_dir, extraction_dir)
+            try:
+                os.replace(staging_dir, extraction_dir)
+            except OSError:
+                # Someone else finished first. Their copy is as good as ours — the archive
+                # is immutable — so keep theirs and drop ours.
+                if not self._file_handler.dir_exist(extraction_dir):
+                    raise
+                logger.info(f"Model {model_id} was cached by another container; using it.")
+                shutil.rmtree(staging_dir, ignore_errors=True)
         except Exception:
             shutil.rmtree(staging_dir, ignore_errors=True)
             raise
