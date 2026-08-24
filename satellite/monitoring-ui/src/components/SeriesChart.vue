@@ -1,5 +1,5 @@
 <template>
-  <apexchart type="area" height="180" :options="options" :series="chartSeries" />
+  <apexchart type="area" :height="height" :options="options" :series="chartSeries" />
 </template>
 
 <script setup lang="ts">
@@ -7,8 +7,8 @@ import { computed } from 'vue'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
-  defineProps<{ series: Series; color?: string; threshold?: number }>(),
-  { color: '#2673fd', threshold: undefined },
+  defineProps<{ series: Series; color?: string; threshold?: number; height?: number | string }>(),
+  { color: '#2673fd', threshold: undefined, height: 180 },
 )
 
 const chartSeries = computed(() => [
@@ -24,7 +24,47 @@ const isRatio = computed(() => props.series.unit === 'ratio')
 // and an isolated measurement has no neighbour to draw a line to. Without a marker such a
 // series renders as a blank chart, which reads as "no data" rather than "one data point".
 const measured = computed(() => props.series.points.filter((point) => point.value != null).length)
-const markerSize = computed(() => (measured.value > 0 && measured.value <= 3 ? 5 : 0))
+
+/**
+ * Whether any measurement stands alone, with no measured neighbour to draw a line to.
+ *
+ * Counting the measurements is not enough: a busy series can still be all gaps — traffic
+ * that arrives in short bursts leaves a measured bucket between two empty ones, and each
+ * such point is drawn as a line of zero length, which is to say nothing at all.
+ */
+const hasIsolatedPoints = computed(() => {
+  const points = props.series.points
+  return points.some(
+    (point, index) =>
+      point.value != null &&
+      points[index - 1]?.value == null &&
+      points[index + 1]?.value == null,
+  )
+})
+
+/**
+ * The dot grows with the canvas; the line does not.
+ *
+ * A line keeps its shape at any size, so 2px reads the same on a card and on the
+ * full-screen stage. A dot has no shape to read — it is only as visible as it is big, so it
+ * gains a little on a taller canvas. Only a little: what makes an isolated point invisible
+ * is not being drawn at all, and past a point a dot stops marking a value and covers it.
+ */
+const CARD_HEIGHT = 180
+const CARD_MARKER_SIZE = 4
+const MAX_MARKER_SIZE = 6
+
+const renderedHeight = computed(() => {
+  const value = typeof props.height === 'number' ? props.height : parseFloat(props.height)
+  return Number.isFinite(value) ? value : CARD_HEIGHT
+})
+
+const markerSize = computed(() => {
+  if (measured.value === 0) return 0
+  if (measured.value > 3 && !hasIsolatedPoints.value) return 0
+  const scaled = (CARD_MARKER_SIZE * renderedHeight.value) / CARD_HEIGHT
+  return Math.min(MAX_MARKER_SIZE, Math.max(CARD_MARKER_SIZE, Math.round(scaled)))
+})
 
 // A rate that stayed at zero all window has nothing to auto-scale against, and ApexCharts
 // then invents a range — a flat "no problems" line came out labelled up to 200%. Pin such
@@ -65,7 +105,7 @@ const options = computed(() => ({
   },
   colors: [props.color],
   dataLabels: { enabled: false },
-  markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 2 } },
+  markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
   stroke: { curve: 'smooth', width: 2 },
   fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
   grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },

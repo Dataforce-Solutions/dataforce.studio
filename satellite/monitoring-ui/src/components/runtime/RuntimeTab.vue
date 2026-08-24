@@ -28,11 +28,18 @@
       </div>
 
       <div class="charts grid">
-        <div v-for="chart in charts" :key="chart.series.key" class="card">
-          <p class="section-title small">{{ chart.title }}</p>
-          <p class="section-subtitle">{{ chart.subtitle }}</p>
-          <SeriesChart :series="chart.series" :color="chart.color" />
-        </div>
+        <ChartFrame
+          v-for="chart in charts"
+          :key="chart.series.key"
+          class="card"
+          :title="chart.title"
+          :subtitle="chart.subtitle"
+          eyebrow="Runtime"
+        >
+          <template #default="{ height }">
+            <SeriesChart :series="chart.series" :color="chart.color" :height="height" />
+          </template>
+        </ChartFrame>
       </div>
 
       <!--
@@ -82,6 +89,7 @@ import { runtimeCharts } from '@/lib/charts'
 import { formatCount, formatRate } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 import MetricCard from '@/components/overview/MetricCard.vue'
 import AlertBannerList from '@/components/overview/AlertBannerList.vue'
 

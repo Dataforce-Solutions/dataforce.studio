@@ -73,10 +73,17 @@
       <p class="block-title">Over time</p>
       <p v-if="trendsStatus === 'loading'" class="block-note">Loading history…</p>
       <template v-else-if="trends.length">
-        <div v-for="series in trends" :key="series.key" class="trend">
-          <p class="trend-name">{{ series.label }}</p>
-          <SeriesChart :series="series" :color="trendColor(series.key)" />
-        </div>
+        <ChartFrame
+          v-for="series in trends"
+          :key="series.key"
+          class="trend"
+          :title="series.label"
+          :eyebrow="row.feature"
+        >
+          <template #default="{ height }">
+            <SeriesChart :series="series" :color="trendColor(series.key)" :height="height" />
+          </template>
+        </ChartFrame>
       </template>
       <p v-else class="block-note" data-testid="dq-trends-empty">
         One window is a reading, not a trend — the chart appears once the worker has
@@ -93,6 +100,7 @@ import { computed } from 'vue'
 import type { DataQualityFeatureRow, Series } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import SeriesChart from '@/components/SeriesChart.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 import { formatRate } from '@/lib/format'
 import { rateClass } from '@/lib/dataQuality'
 

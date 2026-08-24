@@ -48,6 +48,7 @@ describe('RuntimeTab', () => {
     expect(wrapper.findAll('.charts .card')).toHaveLength(3)
     expect(wrapper.text()).toContain('Requests over time')
     expect(wrapper.text()).toContain('Latency p95 over time')
+    expect(wrapper.findAll('[data-testid="chart-expand"]')).toHaveLength(3)
   })
 
   it('opens a runtime alert in the same sidebar the Alerts tab uses', async () => {

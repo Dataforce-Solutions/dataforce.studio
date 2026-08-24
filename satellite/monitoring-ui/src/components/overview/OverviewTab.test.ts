@@ -40,6 +40,8 @@ describe('OverviewTab', () => {
     // one card per runtime series (requests / error rate / latency p95)
     expect(wrapper.findAll('.charts .card')).toHaveLength(3)
     expect(wrapper.text()).toContain('Requests over time')
+    // each one opens full screen for a closer look
+    expect(wrapper.findAll('[data-testid="chart-expand"]')).toHaveLength(3)
 
     const driftRows = wrapper.findAll('[data-testid="drifted-row"]')
     expect(driftRows).toHaveLength(2)

@@ -1,12 +1,15 @@
 <template>
-  <apexchart type="bar" height="230" :options="options" :series="chartSeries" />
+  <apexchart type="bar" :height="height" :options="options" :series="chartSeries" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FeatureDistribution } from '@/api/types'
 
-const props = defineProps<{ distribution: FeatureDistribution }>()
+const props = withDefaults(
+  defineProps<{ distribution: FeatureDistribution; height?: number | string }>(),
+  { height: 230 },
+)
 
 const chartSeries = computed(() => [
   { name: 'Reference', data: props.distribution.bins.map((b) => b.reference ?? 0) },

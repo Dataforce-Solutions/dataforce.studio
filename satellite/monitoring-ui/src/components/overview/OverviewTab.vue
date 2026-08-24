@@ -30,11 +30,18 @@
       />
 
       <div class="charts grid">
-        <div v-for="chart in charts" :key="chart.series.key" class="card">
-          <p class="section-title small">{{ chart.title }}</p>
-          <p class="section-subtitle">{{ chart.subtitle }}</p>
-          <SeriesChart :series="chart.series" :color="chart.color" />
-        </div>
+        <ChartFrame
+          v-for="chart in charts"
+          :key="chart.series.key"
+          class="card"
+          :title="chart.title"
+          :subtitle="chart.subtitle"
+          eyebrow="Runtime"
+        >
+          <template #default="{ height }">
+            <SeriesChart :series="chart.series" :color="chart.color" :height="height" />
+          </template>
+        </ChartFrame>
       </div>
 
       <TopDriftedList :features="overview.top_drifted_features" />
@@ -51,6 +58,7 @@ import { sectionView } from '@/lib/section'
 import { runtimeCharts } from '@/lib/charts'
 import StateBlock from '@/components/StateBlock.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 import MetricCard from './MetricCard.vue'
 import AlertBannerList from './AlertBannerList.vue'
 import TopDriftedList from './TopDriftedList.vue'

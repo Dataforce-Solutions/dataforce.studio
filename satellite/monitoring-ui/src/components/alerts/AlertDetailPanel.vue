@@ -40,17 +40,21 @@
     </section>
 
     <section class="block" data-testid="alert-history">
-      <p class="block-title">Metric over time</p>
-      <SeriesChart
-        v-if="alert.history"
-        :series="alert.history"
-        :threshold="alert.threshold ?? undefined"
-        :color="chartColor"
-      />
-      <p v-else class="block-note" data-testid="alert-history-empty">
-        The metric has been materialized once in this window — a second one turns this into
-        a trend.
-      </p>
+      <ChartFrame title="Metric over time" :eyebrow="alert.label || groupLabel(alert.group)">
+        <template #default="{ height }">
+          <SeriesChart
+            v-if="alert.history"
+            :series="alert.history"
+            :threshold="alert.threshold ?? undefined"
+            :color="chartColor"
+            :height="height"
+          />
+          <p v-else class="block-note" data-testid="alert-history-empty">
+            The metric has been materialized once in this window — a second one turns this
+            into a trend.
+          </p>
+        </template>
+      </ChartFrame>
     </section>
 
     <button
@@ -86,6 +90,7 @@ import type { AlertBanner } from '@/api/types'
 import { formatTimestamp } from '@/lib/format'
 import { durationLabel, groupLabel } from '@/lib/alerts'
 import SeriesChart from '@/components/SeriesChart.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 
 const EXPLANATIONS: Record<string, string> = {
   runtime: 'Raised from the runtime rollup of the window: request outcomes and latency.',

@@ -23,28 +23,40 @@
       </div>
 
       <div class="charts">
-        <div class="chart">
-          <p class="chart-title">Reference vs current distribution</p>
-          <!-- The empty state keeps the chart's own height: a section that changes size
-               depending on whether data arrived reads as a broken layout. -->
-          <div class="plot">
-            <DistributionChart v-if="detail.distribution" :distribution="detail.distribution" />
-            <p v-else class="chart-empty">No distribution available for this feature.</p>
-          </div>
-        </div>
-        <div class="chart">
-          <p class="chart-title">PSI over time</p>
+        <ChartFrame
+          class="chart"
+          title="Reference vs current distribution"
+          :eyebrow="detail.feature"
+          :height="230"
+        >
+          <template #default="{ height }">
+            <!-- The empty state keeps the chart's own height: a section that changes size
+                 depending on whether data arrived reads as a broken layout. -->
+            <div class="plot">
+              <DistributionChart
+                v-if="detail.distribution"
+                :distribution="detail.distribution"
+                :height="height"
+              />
+              <p v-else class="chart-empty">No distribution available for this feature.</p>
+            </div>
+          </template>
+        </ChartFrame>
+        <ChartFrame class="chart" title="PSI over time" :eyebrow="detail.feature">
+          <template #default="{ height }">
           <div class="plot">
             <SeriesChart
               v-if="detail.psi_over_time"
               :series="detail.psi_over_time"
               color="#a855f7"
+              :height="height"
             />
             <p v-else class="chart-empty">
               No PSI history yet — a trend needs a second materialized window.
             </p>
           </div>
-        </div>
+          </template>
+        </ChartFrame>
       </div>
     </template>
 
@@ -60,6 +72,7 @@ import { computed } from 'vue'
 import type { FeatureDriftDetail } from '@/api/types'
 import SeverityTag from '@/components/SeverityTag.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 import DistributionChart from './DistributionChart.vue'
 
 const props = defineProps<{

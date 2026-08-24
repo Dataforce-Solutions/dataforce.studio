@@ -13,12 +13,16 @@
     <template v-if="isReady">
       <!-- chart left, the measures that explain it right — as in the design -->
       <div class="body">
-        <PcaScatter
-          :reference="panel.reference_projection"
-          :current="panel.current_projection"
-          :reference-ellipse="panel.reference_ellipse ?? []"
-          :current-ellipse="panel.current_ellipse ?? []"
-        />
+        <!-- The scatter is the densest chart on the dashboard; full screen is where the
+             individual points stop overlapping. -->
+        <ChartFrame class="scatter-frame" title="PC1 × PC2 projection" eyebrow="Multivariate">
+          <PcaScatter
+            :reference="panel.reference_projection"
+            :current="panel.current_projection"
+            :reference-ellipse="panel.reference_ellipse ?? []"
+            :current-ellipse="panel.current_ellipse ?? []"
+          />
+        </ChartFrame>
 
         <div class="measures" data-testid="pca-measures">
           <p class="measures-title">How drift is measured</p>
@@ -85,6 +89,7 @@
 import { computed } from 'vue'
 import { SectionState, type MultivariatePanel as MultivariatePanelData } from '@/api/types'
 import SeverityTag from '@/components/SeverityTag.vue'
+import ChartFrame from '@/components/ChartFrame.vue'
 import PcaScatter from './PcaScatter.vue'
 
 // PSI ≥ 0.2 is the conventional "moderate shift" line the design summarizes multivariately.
@@ -139,6 +144,9 @@ const varianceLabel = computed(() => {
 }
 .section-title.small {
   font-size: var(--luml-text-base);
+}
+.scatter-frame {
+  min-width: 0;
 }
 .body {
   display: grid;
