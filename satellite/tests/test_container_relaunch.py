@@ -261,6 +261,26 @@ async def test_a_running_container_is_left_alone() -> None:
     assert DEPLOYMENT_ID in handler.deployments
 
 
+async def test_model_containers_are_told_where_the_agent_is() -> None:
+    """The callback address, built from the Agent's own host and port.
+
+    It used to be assembled from the model server's port and a hostname with no network
+    alias behind it, so it resolved to nothing. Nothing read the variable, so nothing broke
+    — until something needed to call back.
+    """
+    from agent.clients.docker_client import AGENT_HOST, DockerService
+
+    with patch("agent.clients.docker_client.aiodocker.Docker"):
+        service = DockerService()
+        service.client.containers.create_or_replace = AsyncMock()
+        await service.run_model_container(image="img", name="sat-x", env={})
+        config_arg = service.client.containers.create_or_replace.await_args.kwargs["config"]
+
+    env = dict(entry.split("=", 1) for entry in config_arg["Env"])
+    assert env["SATELLITE_AGENT_URL"] == f"http://{AGENT_HOST}:{config.AGENT_PORT}"
+    assert str(config.MODEL_SERVER_PORT) not in env["SATELLITE_AGENT_URL"]
+
+
 @pytest.mark.parametrize("method", ["run_model_container", "_container_for_model_cache_clean_up"])
 async def test_model_containers_mount_the_shared_cache(method: str) -> None:
     """Without the volume every restart re-downloads — which is exactly what expires."""

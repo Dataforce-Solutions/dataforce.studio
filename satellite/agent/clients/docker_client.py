@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 # of them, so the cache cleanup on undeploy mounts the same volume to delete from it.
 MODEL_CACHE_BIND = "satellite-models-cache:/app/models"
 
+# The hostname model containers reach the Agent by. It is a network alias declared in
+# docker-compose, not the container or service name: those are "satellite-agent-1" and
+# "agent", and neither is stable enough to hard-code here.
+AGENT_HOST = "satellite-agent"
+
 
 class DockerService:
     def __init__(self) -> None:
@@ -39,7 +44,9 @@ class DockerService:
         restart: str = "on-failure",
     ) -> DockerContainer:
         base_env = {
-            "SATELLITE_AGENT_URL": f"http://satellite-agent:{container_port}",
+            # the Agent's port, not the model server's — this address is where the
+            # container calls back to, not where it listens
+            "SATELLITE_AGENT_URL": f"http://{AGENT_HOST}:{config_settings.AGENT_PORT}",
         }
         if env:
             base_env.update(env)

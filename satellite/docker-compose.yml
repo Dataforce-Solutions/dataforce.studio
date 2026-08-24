@@ -43,7 +43,11 @@ services:
       context: .
       dockerfile: Dockerfile
     networks:
-      - satellite-network
+      satellite-network:
+        # Model containers call the Agent by this name. Without the alias only
+        # "agent" and "satellite-agent-1" resolve, and the URL they are given does not.
+        aliases:
+          - satellite-agent
     environment:
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
