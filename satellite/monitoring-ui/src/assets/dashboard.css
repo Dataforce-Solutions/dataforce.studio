@@ -61,3 +61,16 @@ body {
   display: grid;
   gap: var(--luml-space-4);
 }
+
+/* One viewport for every long table (Traces, Alerts, Data quality): the tab scrolls
+   inside the card past this height instead of growing without bound. The cap follows
+   the viewport height, which inside the Platform's iframe is the iframe itself — the
+   Platform has already taken its own chrome out of it. The 380px reserve is measured,
+   not guessed: the deepest table top across the tabs (Traces, ~305px of header,
+   controls, tabs and card chrome) plus the pager and paddings under it (~75px), so
+   the table's bottom edge lands inside the frame instead of forcing a second scroll.
+   The floor keeps a cramped window at a usable page height. */
+.table-viewport {
+  max-height: max(640px, calc(100vh - 380px));
+  overflow-y: auto;
+}

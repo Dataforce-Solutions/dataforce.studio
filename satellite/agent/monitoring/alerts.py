@@ -83,7 +83,15 @@ def parse_alert_key(metric: str) -> ParsedAlert:
         return ParsedAlert(group, subject, subject, None, "PSI", SCORE)
 
     if group == "output_drift":
-        return ParsedAlert(group, subject, None, None, "Prediction PSI", SCORE)
+        if subject == "confidence":
+            label = "Confidence PSI"
+        elif subject.startswith("probability."):
+            label = f"Probability PSI ({subject.removeprefix('probability.')})"
+        elif subject.startswith("horizon."):
+            label = f"Horizon PSI ({subject.removeprefix('horizon.')})"
+        else:
+            label = "Prediction PSI"
+        return ParsedAlert(group, subject, None, None, label, SCORE)
 
     if group == "runtime":
         unit = _RUNTIME_UNITS.get(subject, RATIO)
@@ -146,6 +154,19 @@ def history_value(parsed: ParsedAlert, values: dict[str, Any]) -> float | None:
         entry = features.get(parsed.feature) or {}
         return _number(entry.get(f"{parsed.check}_rate"))
     if parsed.group == "output_drift":
+        if parsed.subject == "confidence":
+            return _number((values.get("confidence") or {}).get("psi"))
+        if parsed.subject.startswith("probability."):
+            label = parsed.subject.removeprefix("probability.")
+            per_class = (values.get("probabilities") or {}).get("per_class") or []
+            entry = next((e for e in per_class if e.get("label") == label), {})
+            return _number(entry.get("psi"))
+        if parsed.subject.startswith("horizon."):
+            label = parsed.subject.removeprefix("horizon.")
+            entry = next(
+                (e for e in values.get("horizons") or [] if e.get("label") == label), {}
+            )
+            return _number(entry.get("psi"))
         return _number(values.get("psi"))
     if parsed.group == "runtime":
         return _number(values.get(parsed.subject))

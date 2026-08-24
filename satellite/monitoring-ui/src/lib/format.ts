@@ -12,6 +12,7 @@ export function formatCardValue(card: Card): string {
   if (card.value == null) return '—'
   if (card.unit === 'ratio') return `${(card.value * 100).toFixed(1)}%`
   if (card.unit === 'ms') return `${Math.round(card.value)} ms`
+  if (card.unit === 'score') return card.value.toFixed(2)
   return integerFormat.format(card.value)
 }
 
@@ -41,6 +42,9 @@ export function cardTone(card: Card): Tone {
   // A single timeout is worth an alert by itself, so the card that reports them is not
   // allowed to look like any other counter once one has happened.
   if (card.key === 'timeout_count') return (card.value ?? 0) > 0 ? 'warning' : 'neutral'
+  // A scored card carries its own severity from the worker.
+  if (card.severity === Severity.CRITICAL) return 'danger'
+  if (card.severity === Severity.WARNING) return 'warning'
   return 'neutral'
 }
 

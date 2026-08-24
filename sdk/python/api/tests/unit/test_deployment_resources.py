@@ -99,6 +99,7 @@ def test_monitoring_sections_share_one_address_scheme(mock_sync_client: Mock) ->
     mock_sync_client.get.return_value = {}
     monitoring.runtime()
     monitoring.data_quality(feature="age")
+    monitoring.output_drift(severity="critical")
     monitoring.alerts(severity="warning")
     monitoring.traces(limit=5, offset=10)
     monitoring.trace("evt-1")
@@ -109,6 +110,7 @@ def test_monitoring_sections_share_one_address_scheme(mock_sync_client: Mock) ->
     assert urls == [
         f"{base}/runtime",
         f"{base}/data-quality",
+        f"{base}/output-drift",
         f"{base}/alerts",
         f"{base}/traces",
         f"{base}/traces/evt-1",
@@ -116,7 +118,7 @@ def test_monitoring_sections_share_one_address_scheme(mock_sync_client: Mock) ->
     ]
     dq_params = mock_sync_client.get.call_args_list[1].kwargs["params"]
     assert dq_params["feature"] == "age"
-    traces_params = mock_sync_client.get.call_args_list[3].kwargs["params"]
+    traces_params = mock_sync_client.get.call_args_list[4].kwargs["params"]
     assert traces_params["limit"] == "5"
 
 

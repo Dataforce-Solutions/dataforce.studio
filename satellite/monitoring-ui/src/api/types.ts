@@ -119,6 +119,8 @@ export interface Card {
   delta_kind?: Compare | null
   critical_count?: number | null
   feature_names?: string[] | null
+  /** Cards that summarize a scored metric carry its severity so the UI can tone them. */
+  severity?: Severity | null
 }
 
 export interface DriftedFeature {
@@ -278,6 +280,82 @@ export interface FeatureDriftResponse {
   /** End of the window the ranking and the multivariate panel describe. */
   computed_at?: string | null
   /** That window closed before the selected range began — the panel is a past reading. */
+  stale?: boolean
+}
+
+/** How far one predicted class moved from its reference share. */
+export interface ClassShift {
+  label: string
+  reference: number
+  current: number
+  delta: number
+}
+
+/** How sure the classifier is, against how sure it was on its training data. */
+export interface ConfidenceBlock {
+  psi?: number | null
+  mean?: number | null
+  low_confidence_rate?: number | null
+  /** The training q05: confidence below it is worse than 95% of what training saw. */
+  low_confidence_threshold?: number | null
+  distribution?: FeatureDistribution | null
+  mean_over_time?: Series | null
+}
+
+/** One class's probability distribution scored against its training baseline. */
+export interface ClassProbabilityDrift {
+  label: string
+  psi: number
+  mean?: number | null
+}
+
+/** How often binary predictions sit in the decision boundary's coin-flip zone. */
+export interface NearThreshold {
+  rate: number
+  reference_rate?: number | null
+  threshold: number
+  positive_class?: string | null
+}
+
+export interface ProbabilityBlock {
+  per_class: ClassProbabilityDrift[]
+  near_threshold?: NearThreshold | null
+}
+
+/** One forecast horizon scored against its training baseline. */
+export interface HorizonDrift {
+  label: string
+  psi: number
+  mean?: number | null
+  count: number
+}
+
+export interface OutputDriftResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  /** Which output is monitored and how its values are compared. */
+  name?: string | null
+  kind?: string | null // "numeric" | "categorical"
+  psi?: number | null
+  severity: Severity
+  count: number
+  distribution?: FeatureDistribution | null
+  psi_over_time?: Series | null
+  /** Numerical outputs only: median with its p05–p95 band, and the mean, per window. */
+  trend: Series[]
+  /** Categorical outputs only: which classes moved, and their shares across windows. */
+  top_changed: ClassShift[]
+  class_share_trend: Series[]
+  /** Classifiers whose artifact reports per-row confidence. */
+  confidence?: ConfidenceBlock | null
+  /** Classifiers whose artifact reports full probability vectors. */
+  probabilities?: ProbabilityBlock | null
+  /** Forecasting: each horizon vs its baseline; the headline describes the worst one. */
+  horizons: HorizonDrift[]
+  alerts: AlertBanner[]
+  /** End of the window the snapshot describes. */
+  computed_at?: string | null
+  /** That window closed before the selected range began — the snapshot is a past reading. */
   stale?: boolean
 }
 

@@ -10,6 +10,7 @@ import {
   type Dimensions,
   type FeatureDriftResponse,
   type HeaderResponse,
+  type OutputDriftResponse,
   type OverviewResponse,
   type AlertsResponse,
   type RuntimeResponse,
@@ -34,6 +35,7 @@ export const DASHBOARD_TABS = [
   { key: 'traces', label: 'Traces' },
   { key: 'data-quality', label: 'Data quality' },
   { key: 'feature-drift', label: 'Feature drift' },
+  { key: 'output-drift', label: 'Output drift' },
   { key: 'reference-profile', label: 'Reference profile' },
   { key: 'alerts', label: 'Alerts' },
 ] as const
@@ -83,6 +85,9 @@ export function useMonitoringDashboard() {
 
   const featureDrift = ref<FeatureDriftResponse | null>(null)
   const featureDriftStatus = ref<LoadStatus>('idle')
+
+  const outputDrift = ref<OutputDriftResponse | null>(null)
+  const outputDriftStatus = ref<LoadStatus>('idle')
 
   const referenceProfile = ref<ReferenceProfileResponse | null>(null)
   const referenceProfileStatus = ref<LoadStatus>('idle')
@@ -172,12 +177,20 @@ export function useMonitoringDashboard() {
   }
 
   /** The dashboard's only write: mark an alert as seen and take the refreshed list back. */
-  function acknowledgeAlert(metric: string): Promise<void> {
-    return run(
+  async function acknowledgeAlert(metric: string): Promise<void> {
+    await run(
       alertsStatus,
       () => monitoringApi.acknowledgeAlert({ ...dimensions }, metric),
       (value) => (alerts.value = value),
     )
+    // Each section response carries its own copy of the banners, and section tabs hide
+    // acknowledged ones — so the tab the user is looking at must refetch now, or the
+    // banner they just dismissed keeps staring at them until the next manual refresh.
+    if (activeTab.value === 'overview') await loadOverview()
+    else if (activeTab.value === 'runtime') await loadRuntime()
+    else if (activeTab.value === 'data-quality') await loadDataQuality()
+    else if (activeTab.value === 'feature-drift') await loadFeatureDrift()
+    else if (activeTab.value === 'output-drift') await loadOutputDrift()
   }
 
   function loadAlerts(): Promise<void> {
@@ -202,6 +215,14 @@ export function useMonitoringDashboard() {
       featureDriftStatus,
       () => monitoringApi.getFeatureDrift({ ...dimensions }),
       (value) => (featureDrift.value = value),
+    )
+  }
+
+  function loadOutputDrift(): Promise<void> {
+    return run(
+      outputDriftStatus,
+      () => monitoringApi.getOutputDrift({ ...dimensions }),
+      (value) => (outputDrift.value = value),
     )
   }
 
@@ -230,6 +251,7 @@ export function useMonitoringDashboard() {
     if (activeTab.value === 'runtime') return loadRuntime()
     if (activeTab.value === 'traces') return loadTraces(0)
     if (activeTab.value === 'alerts') return loadAlerts()
+    if (activeTab.value === 'output-drift') return loadOutputDrift()
     if (activeTab.value === 'reference-profile') return loadProfileDocument()
     if (activeTab.value === 'data-quality') {
       // the open panel described the previous window
@@ -365,6 +387,8 @@ export function useMonitoringDashboard() {
     closeTrace,
     featureDrift,
     featureDriftStatus,
+    outputDrift,
+    outputDriftStatus,
     referenceProfile,
     referenceProfileStatus,
     isPlaceholderProfile,

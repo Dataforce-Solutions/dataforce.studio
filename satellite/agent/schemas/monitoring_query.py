@@ -93,6 +93,8 @@ class Card(BaseModel):
     delta_kind: Compare | None = None
     critical_count: int | None = None
     feature_names: list[str] | None = None
+    # Cards that summarize a scored metric carry its severity so the UI can tone them.
+    severity: Severity | None = None
 
 
 class DriftedFeature(BaseModel):
@@ -275,6 +277,96 @@ class FeatureDriftResponse(BaseModel):
     # (PSI over time, the runtime series, traces) are read within the range and go empty,
     # but the snapshot keeps its last reading — without this flag the two disagree
     # silently and a two-day-old window reads as the current one.
+    stale: bool = False
+
+
+class ClassShift(BaseModel):
+    """How far one predicted class moved from its reference share."""
+
+    label: str
+    reference: float
+    current: float
+    delta: float
+
+
+class ClassProbabilityDrift(BaseModel):
+    """One class's probability distribution scored against its training baseline."""
+
+    label: str
+    psi: float
+    mean: float | None = None
+
+
+class NearThreshold(BaseModel):
+    """How often binary predictions sit in the decision boundary's coin-flip zone."""
+
+    rate: float
+    reference_rate: float | None = None
+    threshold: float
+    positive_class: str | None = None
+
+
+class ProbabilityBlock(BaseModel):
+    """Per-class probability drift, from the full vectors the artifact reports."""
+
+    per_class: list[ClassProbabilityDrift] = []
+    near_threshold: NearThreshold | None = None
+
+
+class HorizonDrift(BaseModel):
+    """One forecast horizon scored against its training baseline."""
+
+    label: str
+    psi: float
+    mean: float | None = None
+    count: int = 0
+
+
+class ConfidenceBlock(BaseModel):
+    """How sure the classifier is, against how sure it was on its training data."""
+
+    psi: float | None = None
+    mean: float | None = None
+    low_confidence_rate: float | None = None
+    # The training q05: confidence below it is worse than 95% of what training saw.
+    low_confidence_threshold: float | None = None
+    distribution: FeatureDistribution | None = None
+    mean_over_time: Series | None = None
+
+
+class OutputDriftResponse(BaseModel):
+    """Did the model's outputs shift against the reference output distribution?
+
+    The snapshot half (psi, distribution) reads the latest materialized window; the
+    series are assembled from the window history of the selected time range.
+    """
+
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    # Which output is monitored and how its values are compared.
+    name: str | None = None
+    kind: str | None = None  # "numeric" | "categorical"
+    psi: float | None = None
+    severity: Severity = Severity.OK
+    count: int = 0
+    distribution: FeatureDistribution | None = None
+    psi_over_time: Series | None = None
+    # Numerical outputs only: median with its p05–p95 band, and the mean, per window.
+    trend: list[Series] = []
+    # Categorical outputs only: which classes moved, and their shares across windows.
+    top_changed: list[ClassShift] = []
+    class_share_trend: list[Series] = []
+    # Classifiers whose artifact reports per-row confidence (y_score).
+    confidence: ConfidenceBlock | None = None
+    # Classifiers whose artifact reports full probability vectors (y_proba).
+    probabilities: ProbabilityBlock | None = None
+    # Forecasting deployments: each horizon against its own baseline; the headline
+    # psi/distribution above describe the worst horizon.
+    horizons: list[HorizonDrift] = []
+    alerts: list[AlertBanner] = []
+    # End of the window the snapshot describes.
+    computed_at: datetime | None = None
+    # That window closed before the selected range began — the snapshot is a past reading.
     stale: bool = False
 
 

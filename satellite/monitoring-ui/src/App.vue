@@ -22,6 +22,9 @@
 
     <DashboardTabs :active="activeTab" @select="setActiveTab" />
 
+    <!-- Refetches keep the previous content on screen, only dimmed: swapping a full
+         tab for a skeleton on every reload made each click feel like a page load. -->
+    <div class="tab-stage" :class="{ refreshing }">
     <OverviewTab
       v-if="activeTab === 'overview'"
       :overview="overview"
@@ -59,6 +62,8 @@
       :trends-status="qualityTrendsStatus"
       :focus-feature="focusedFeature"
       @inspect="loadQualityTrends"
+      @show-feature="focusAlert"
+      @acknowledge="acknowledgeAlert($event.metric)"
     />
 
     <AlertsTab
@@ -66,6 +71,14 @@
       :alerts="alerts"
       :status="alertsStatus"
       @show-feature="focusAlert"
+      @acknowledge="acknowledgeAlert($event.metric)"
+    />
+
+    <OutputDriftTab
+      v-else-if="activeTab === 'output-drift'"
+      :output-drift="outputDrift"
+      :status="outputDriftStatus"
+      :window="dimensions.window"
       @acknowledge="acknowledgeAlert($event.metric)"
     />
 
@@ -84,7 +97,10 @@
       :reference-profile="referenceProfile"
       :reference-profile-status="referenceProfileStatus"
       @select-feature="setFeature"
+      @show-feature="focusAlert"
+      @acknowledge="acknowledgeAlert($event.metric)"
     />
+    </div>
   </main>
 </template>
 
@@ -103,6 +119,7 @@ import RuntimeTab from '@/components/runtime/RuntimeTab.vue'
 import TracesTab from '@/components/traces/TracesTab.vue'
 import DataQualityTab from '@/components/data-quality/DataQualityTab.vue'
 import FeatureDriftTab from '@/components/feature-drift/FeatureDriftTab.vue'
+import OutputDriftTab from '@/components/output-drift/OutputDriftTab.vue'
 import ReferenceProfileTab from '@/components/reference-profile/ReferenceProfileTab.vue'
 import AlertsTab from '@/components/alerts/AlertsTab.vue'
 
@@ -138,6 +155,8 @@ const {
   closeTrace,
   featureDrift,
   featureDriftStatus,
+  outputDrift,
+  outputDriftStatus,
   referenceProfile,
   referenceProfileStatus,
   isPlaceholderProfile,
@@ -153,7 +172,34 @@ const {
 
 const headerView = computed(() => sectionView(headerStatus.value, header.value?.state))
 
+/** The active tab is fetching; its stale content stays up, dimmed a touch. */
+const refreshing = computed(() => {
+  const status = {
+    overview: overviewStatus,
+    runtime: runtimeStatus,
+    traces: tracesStatus,
+    'data-quality': dataQualityStatus,
+    'feature-drift': featureDriftStatus,
+    'output-drift': outputDriftStatus,
+    'reference-profile': profileDocumentStatus,
+    alerts: alertsStatus,
+  }[activeTab.value]
+  return status?.value === 'loading'
+})
+
 onMounted(() => {
   void load()
 })
 </script>
+
+<style scoped>
+.tab-stage {
+  transition: opacity 0.15s ease;
+}
+/* The delay keeps fast refetches invisible; only a slow one dims at all. */
+.tab-stage.refreshing {
+  opacity: 0.55;
+  transition-delay: 0.2s;
+  pointer-events: none;
+}
+</style>

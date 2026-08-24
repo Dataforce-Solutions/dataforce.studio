@@ -23,6 +23,7 @@ from agent.schemas.monitoring_query import (
     FeatureDriftResponse,
     Granularity,
     HeaderResponse,
+    OutputDriftResponse,
     OverviewResponse,
     ReferenceProfileResponse,
     RuntimeResponse,
@@ -98,6 +99,14 @@ def build_query_router() -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> FeatureDriftResponse:
         return await service.feature_drift(session.deployment_id, dims)
+
+    @router.get("/output-drift", response_model=OutputDriftResponse)
+    async def output_drift(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> OutputDriftResponse:
+        return await service.output_drift(session.deployment_id, dims)
 
     @router.get("/reference-profile", response_model=ReferenceProfileResponse)
     async def reference_profile(
@@ -219,6 +228,14 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> FeatureDriftResponse:
         return await service.feature_drift(deployment_id, dims)
+
+    @router.get("/output-drift", response_model=OutputDriftResponse)
+    async def output_drift(
+        deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> OutputDriftResponse:
+        return await service.output_drift(deployment_id, dims)
 
     @router.get("/reference-profile", response_model=ReferenceProfileResponse)
     async def reference_profile(

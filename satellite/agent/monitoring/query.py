@@ -38,7 +38,9 @@ from agent.schemas.monitoring_query import (
     AlertGroup,
     AlertsResponse,
     Card,
+    ClassShift,
     Compare,
+    ConfidenceBlock,
     DataQualityFeatureRow,
     DataQualityResponse,
     DistributionBin,
@@ -48,12 +50,15 @@ from agent.schemas.monitoring_query import (
     FeatureDriftResponse,
     Granularity,
     HeaderResponse,
+    HorizonDrift,
     InvalidValueSummary,
     MetricFailure,
     MetricIncident,
     MultivariatePanel,
+    OutputDriftResponse,
     OverviewResponse,
     PcaPoint,
+    ProbabilityBlock,
     ProfileStatus,
     ReferenceProfileFeature,
     ReferenceProfileResponse,
@@ -439,6 +444,9 @@ class MonitoringQueryService:
             drift = await self._store.fetch_result(
                 deployment_id, GROUP_FEATURE_DRIFT, dims.window.value
             )
+            output = await self._store.fetch_result(
+                deployment_id, GROUP_OUTPUT_DRIFT, dims.window.value
+            )
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return OverviewResponse(state=SectionState.UNAVAILABLE)
@@ -456,10 +464,15 @@ class MonitoringQueryService:
         top_drifted = sorted(drifted, key=lambda d: d.psi, reverse=True)[:_TOP_DRIFTED_LIMIT]
         drifted_names = [d.feature for d in drifted if d.severity is not Severity.OK]
 
+        cards = _overview_cards(rollup, previous, dims, matching, criticals, drifted_names)
+        output_card = _output_drift_card(output)
+        if output_card is not None:
+            cards.append(output_card)
+
         return OverviewResponse(
             state=SectionState.OK,
             profile_status=profile,
-            cards=_overview_cards(rollup, previous, dims, matching, criticals, drifted_names),
+            cards=cards,
             alert_banners=banners,
             series=series,
             top_drifted_features=top_drifted,
@@ -584,6 +597,61 @@ class MonitoringQueryService:
             alerts=alerts,
             computed_at=drift.computed_at,
             stale=self._is_stale(drift.computed_at, dims.window),
+        )
+
+    async def output_drift(
+        self, deployment_id: UUID, dims: QueryDimensions
+    ) -> OutputDriftResponse:
+        try:
+            result = await self._store.fetch_result(
+                deployment_id, GROUP_OUTPUT_DRIFT, dims.window.value
+            )
+            alerts = await self._banners(
+                deployment_id, dims.severity, group=GROUP_OUTPUT_DRIFT, dims=dims
+            )
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return OutputDriftResponse(state=SectionState.UNAVAILABLE)
+        if result is None:
+            return OutputDriftResponse(
+                state=SectionState.EMPTY, profile_status=profile, alerts=alerts
+            )
+
+        start, _ = self._window_bounds(dims.window)
+        try:
+            history = await self._store.fetch_result_history(
+                deployment_id, GROUP_OUTPUT_DRIFT, dims.window.value, since=start
+            )
+        except MonitoringStoreUnavailable:
+            history = []
+
+        values = result.values
+        return OutputDriftResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            name=values.get("name"),
+            kind=values.get("kind"),
+            psi=_maybe_float(values.get("psi")),
+            severity=Severity(values.get("status", result.severity or Severity.OK)),
+            count=int(values.get("count") or 0),
+            distribution=_distribution(values.get("distribution")),
+            psi_over_time=_output_psi_series(history),
+            trend=_output_trend_series(history),
+            top_changed=_top_changed_classes(values.get("distribution")),
+            class_share_trend=_class_share_series(values.get("distribution"), history),
+            confidence=_confidence_block(values.get("confidence"), history),
+            probabilities=(
+                ProbabilityBlock.model_validate(values["probabilities"])
+                if values.get("probabilities")
+                else None
+            ),
+            horizons=[
+                HorizonDrift.model_validate(entry)
+                for entry in values.get("horizons") or []
+            ],
+            alerts=alerts,
+            computed_at=result.computed_at,
+            stale=self._is_stale(result.computed_at, dims.window),
         )
 
     async def _psi_history(self, deployment_id: UUID, dims: QueryDimensions) -> Series | None:
@@ -917,6 +985,147 @@ def _drifted_features(values: dict) -> list[DriftedFeature]:
             )
         )
     return drifted
+
+
+def _output_drift_card(result: StoredMetricResult | None) -> Card | None:
+    """The Overview's output-drift summary, as a card next to the runtime ones."""
+    if result is None:
+        return None
+    psi = _maybe_float(result.values.get("psi"))
+    if psi is None:
+        return None
+    return Card(
+        key="output_drift",
+        label="Output drift",
+        value=psi,
+        unit="score",
+        severity=Severity(result.values.get("status", result.severity or Severity.OK)),
+    )
+
+
+def _output_psi_series(history: list[StoredMetricResult]) -> Series | None:
+    points = [
+        SeriesPoint(t=result.computed_at, value=_maybe_float(result.values.get("psi")))
+        for result in history
+        if result.computed_at is not None
+    ]
+    if not points:
+        return None
+    return Series(key="output_psi", label="PSI", unit="score", points=points)
+
+
+# The design draws the prediction trend as the median with its p05–p95 band; the mean
+# rides along as its own line.
+_TREND_KEYS = (("median", "Median"), ("p05", "p05"), ("p95", "p95"), ("mean", "Mean"))
+
+
+def _output_trend_series(history: list[StoredMetricResult]) -> list[Series]:
+    """The per-window prediction summaries, one aligned series per statistic."""
+    rows = [
+        (result.computed_at, result.values.get("trend") or {})
+        for result in history
+        if result.computed_at is not None and result.values.get("trend")
+    ]
+    if not rows:
+        return []
+    return [
+        Series(
+            key=f"prediction_{key}",
+            label=label,
+            points=[
+                SeriesPoint(t=at, value=_maybe_float(trend.get(key))) for at, trend in rows
+            ],
+        )
+        for key, label in _TREND_KEYS
+    ]
+
+
+# Classes past this many are noise on a line chart; the ranking still names them all.
+_CLASS_TREND_LIMIT = 6
+
+
+def _top_changed_classes(distribution: dict | None) -> list[ClassShift]:
+    """Predicted classes ranked by how far their share moved off the reference.
+
+    Built from the labels the model actually returned — the only output the Satellite
+    records. Probability-based views need models that emit probability vectors.
+    """
+    if not distribution or distribution.get("kind") != "categorical":
+        return []
+    shifts = [
+        ClassShift(
+            label=entry["label"],
+            reference=float(entry.get("reference") or 0.0),
+            current=float(entry.get("current") or 0.0),
+            delta=float(entry.get("current") or 0.0) - float(entry.get("reference") or 0.0),
+        )
+        for entry in distribution.get("bins", [])
+    ]
+    return sorted(shifts, key=lambda shift: abs(shift.delta), reverse=True)
+
+
+def _class_share_series(
+    distribution: dict | None, history: list[StoredMetricResult]
+) -> list[Series]:
+    """Each class's live share across the materialized windows.
+
+    Assembled from the per-window distributions, for the classes that moved most in the
+    latest window — the ones worth a line each.
+    """
+    top = _top_changed_classes(distribution)[:_CLASS_TREND_LIMIT]
+    if not top:
+        return []
+    labels = [shift.label for shift in top]
+    rows: list[tuple[datetime, dict[str, float]]] = []
+    for result in history:
+        stored = result.values.get("distribution") or {}
+        if result.computed_at is None or stored.get("kind") != "categorical":
+            continue
+        shares = {
+            entry["label"]: float(entry.get("current") or 0.0)
+            for entry in stored.get("bins", [])
+        }
+        rows.append((result.computed_at, shares))
+    if not rows:
+        return []
+    return [
+        Series(
+            key=f"class_{label}",
+            label=label,
+            unit="ratio",
+            points=[SeriesPoint(t=at, value=shares.get(label)) for at, shares in rows],
+        )
+        for label in labels
+    ]
+
+
+def _confidence_block(
+    raw: dict | None, history: list[StoredMetricResult]
+) -> ConfidenceBlock | None:
+    """The classifier's confidence, with its mean assembled across the windows."""
+    if not raw:
+        return None
+    points = [
+        SeriesPoint(
+            t=result.computed_at,
+            value=_maybe_float((result.values.get("confidence") or {}).get("mean")),
+        )
+        for result in history
+        if result.computed_at is not None and result.values.get("confidence")
+    ]
+    mean_series = (
+        Series(key="confidence_mean", label="Mean confidence", points=points)
+        if points
+        else None
+    )
+    return ConfidenceBlock(
+        psi=_maybe_float(raw.get("psi")),
+        mean=_maybe_float(raw.get("mean")),
+        low_confidence_rate=_maybe_float(raw.get("low_confidence_rate")),
+        low_confidence_threshold=_maybe_float(raw.get("low_confidence_threshold")),
+        distribution=_distribution(raw.get("distribution")),
+        mean_over_time=mean_series,
+    )
 
 
 def _maybe_float(value: float | int | str | None) -> float | None:

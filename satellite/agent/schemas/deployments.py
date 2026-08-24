@@ -32,6 +32,7 @@ class Deployment(BaseModel):
     orbit_id: str
     satellite_id: str
     satellite_name: str
+    orbit_name: str | None = None
     name: str
     artifact_id: str
     artifact_name: str
@@ -62,6 +63,8 @@ class DeploymentMetadata(BaseModel):
     name: str | None = None
     status: str | None = None
     model_name: str | None = None
+    # The orbit's name — what the dashboard header calls the environment.
+    environment: str | None = None
     satellite: str | None = None
     inference_url: str | None = None
 
@@ -74,6 +77,7 @@ class DeploymentMetadata(BaseModel):
             status=record.get("status"),
             # the artifact is the model the deployment serves
             model_name=record.get("artifact_name") or record.get("model_artifact_name"),
+            environment=record.get("orbit_name"),
             satellite=record.get("satellite_name"),
             inference_url=record.get("inference_url"),
         )

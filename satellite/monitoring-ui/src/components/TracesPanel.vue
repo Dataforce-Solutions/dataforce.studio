@@ -25,7 +25,7 @@
     />
 
     <template v-else-if="traces">
-      <div class="table-scroll">
+      <div class="table-scroll table-viewport">
         <table class="traces">
           <thead>
             <tr>
@@ -180,6 +180,11 @@ function statusClass(statusCode: number): string {
   font-weight: 500;
   border-bottom: 1px solid var(--luml-border);
   white-space: nowrap;
+  /* the header stays put while the list scrolls under it */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--luml-bg-card);
 }
 .traces td {
   padding: 9px 12px;

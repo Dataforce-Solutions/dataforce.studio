@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.artifacts import ArtifactOrm
 from luml.models.base import Base, TimestampMixin
+from luml.models.orbit import OrbitOrm
 from luml.models.satellite import SatelliteOrm
 from luml.schemas.deployment import Deployment
 
@@ -41,6 +42,9 @@ class DeploymentOrm(TimestampMixin, Base):
         select(SatelliteOrm.name)
         .where(SatelliteOrm.id == satellite_id)
         .scalar_subquery()
+    )
+    orbit_name: Mapped[str] = column_property(
+        select(OrbitOrm.name).where(OrbitOrm.id == orbit_id).scalar_subquery()
     )
     artifact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

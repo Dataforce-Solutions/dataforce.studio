@@ -63,13 +63,20 @@ describe('AlertBannerList', () => {
     expect(wrapper.find('[data-testid="alert-drawer"]').exists()).toBe(false)
   })
 
-  it('marks an acknowledged banner so the row does not look untouched', () => {
+  it('hides acknowledged banners: a seen alert belongs to the Alerts tab only', () => {
     const acknowledged = [{ ...BANNERS[0], state: 'acknowledged' }, BANNERS[1]]
     const wrapper = mountList(acknowledged, true)
 
     const banners = wrapper.findAll('[data-testid="alert-banner"]')
-    expect(banners[0].find('[data-testid="banner-acknowledged"]').exists()).toBe(true)
-    expect(banners[1].find('[data-testid="banner-acknowledged"]').exists()).toBe(false)
+    expect(banners).toHaveLength(1)
+    expect(banners[0].text()).not.toContain(BANNERS[0].feature ?? '@@none@@')
+  })
+
+  it('renders nothing at all when every alert has been seen', () => {
+    const allSeen = BANNERS.map((banner) => ({ ...banner, state: 'acknowledged' }))
+    const wrapper = mountList(allSeen, true)
+
+    expect(wrapper.find('[data-testid="alert-banners"]').exists()).toBe(false)
   })
 
   it('closes the panel when its alert is gone from the reloaded list', async () => {

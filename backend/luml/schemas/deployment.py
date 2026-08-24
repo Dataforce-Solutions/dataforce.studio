@@ -36,6 +36,8 @@ class Deployment(DeploymentBase):
     orbit_id: UUID
     satellite_id: UUID
     satellite_name: str
+    # The orbit's name doubles as the deployment's environment label on dashboards.
+    orbit_name: str | None = None
     name: str
     artifact_id: UUID
     artifact_name: str

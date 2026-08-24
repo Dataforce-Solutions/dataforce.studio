@@ -694,3 +694,256 @@ async def test_snapshot_without_a_timestamp_is_not_guessed_stale() -> None:
 
     assert result.stale is False
     assert result.computed_at is None
+
+
+def _output_result(
+    dep: uuid.UUID, *, at: datetime | None = None, psi: float = 0.42
+) -> StoredMetricResult:
+    return StoredMetricResult(
+        deployment_id=dep,
+        group="output_drift",
+        window=Window.H24.value,
+        values={
+            "psi": psi,
+            "count": 120,
+            "name": "y_pred",
+            "kind": "numeric",
+            "status": "critical",
+            "trend": {"mean": 12.0, "median": 11.5, "p05": 8.0, "p95": 16.0},
+            "distribution": {
+                "kind": "numeric",
+                "bins": [
+                    {"label": "0–10", "reference": 0.5, "current": 0.2},
+                    {"label": "10–20", "reference": 0.5, "current": 0.8},
+                ],
+            },
+        },
+        severity="critical",
+        computed_at=at or ago(300),
+    )
+
+
+async def test_output_drift_snapshot_reads_the_latest_window() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_output_result(dep))
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert result.state is SectionState.OK
+    assert result.name == "y_pred"
+    assert result.kind == "numeric"
+    assert result.psi == pytest.approx(0.42)
+    assert result.severity is Severity.CRITICAL
+    assert result.count == 120
+    assert [b.label for b in result.distribution.bins] == ["0–10", "10–20"]
+    assert result.stale is False
+
+
+async def test_output_drift_series_come_from_the_window_history() -> None:
+    """PSI over time and the prediction band are assembled from materialized windows."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_output_result(dep, at=ago(600), psi=0.10))
+    store.add_result(_output_result(dep, at=ago(300), psi=0.42))
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert [p.value for p in result.psi_over_time.points] == [
+        pytest.approx(0.10),
+        pytest.approx(0.42),
+    ]
+    keys = {series.key for series in result.trend}
+    assert keys == {
+        "prediction_median",
+        "prediction_p05",
+        "prediction_p95",
+        "prediction_mean",
+    }
+    median = next(s for s in result.trend if s.key == "prediction_median")
+    assert len(median.points) == 2
+
+
+async def test_output_drift_without_windows_is_empty_not_broken() -> None:
+    dep = uuid.uuid4()
+
+    result = await _service(InMemoryMonitoringStore()).output_drift(
+        dep, QueryDimensions(window=Window.H24)
+    )
+
+    assert result.state is SectionState.EMPTY
+
+
+async def test_overview_carries_the_output_drift_card() -> None:
+    """The spec puts an output drift summary on Overview; it rides as a scored card."""
+    dep = uuid.uuid4()
+    store = _overview_store(dep)
+    store.add_result(_output_result(dep))
+
+    result = await _service(store).overview(dep, QueryDimensions(window=Window.H24))
+
+    card = next(c for c in result.cards if c.key == "output_drift")
+    assert card.value == pytest.approx(0.42)
+    assert card.severity is Severity.CRITICAL
+
+
+async def test_overview_without_output_windows_has_no_output_card() -> None:
+    dep = uuid.uuid4()
+
+    result = await _service(_overview_store(dep)).overview(
+        dep, QueryDimensions(window=Window.H24)
+    )
+
+    assert all(card.key != "output_drift" for card in result.cards)
+
+
+def _categorical_output_result(
+    dep: uuid.UUID, *, at: datetime | None = None, setosa: float = 0.2
+) -> StoredMetricResult:
+    return StoredMetricResult(
+        deployment_id=dep,
+        group="output_drift",
+        window=Window.H24.value,
+        values={
+            "psi": 0.3,
+            "count": 90,
+            "name": "y",
+            "kind": "categorical",
+            "status": "critical",
+            "distribution": {
+                "kind": "categorical",
+                "bins": [
+                    {"label": "setosa", "reference": 0.34, "current": setosa},
+                    {"label": "virginica", "reference": 0.33, "current": 0.6},
+                    {"label": "versicolor", "reference": 0.33, "current": 1 - 0.6 - setosa},
+                ],
+            },
+        },
+        severity="critical",
+        computed_at=at or ago(300),
+    )
+
+
+async def test_classification_windows_rank_the_classes_that_moved() -> None:
+    """The label-based adapter: which predicted classes drifted, by share delta."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_categorical_output_result(dep))
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert result.kind == "categorical"
+    assert [shift.label for shift in result.top_changed] == [
+        "virginica",  # +0.27, the biggest move
+        "setosa",  # -0.14
+        "versicolor",  # -0.13
+    ]
+    assert result.top_changed[0].delta == pytest.approx(0.27)
+    # a categorical output has no numeric band
+    assert result.trend == []
+
+
+async def test_class_shares_are_assembled_across_windows() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_categorical_output_result(dep, at=ago(600), setosa=0.34))
+    store.add_result(_categorical_output_result(dep, at=ago(300), setosa=0.2))
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    setosa = next(s for s in result.class_share_trend if s.label == "setosa")
+    assert [p.value for p in setosa.points] == [
+        pytest.approx(0.34),
+        pytest.approx(0.2),
+    ]
+    assert all(series.unit == "ratio" for series in result.class_share_trend)
+
+
+async def test_the_confidence_block_rides_with_its_mean_history() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for offset, mean in ((600, 0.93), (300, 0.71)):
+        result = _categorical_output_result(dep, at=ago(offset))
+        result.values["confidence"] = {
+            "psi": 0.4,
+            "mean": mean,
+            "low_confidence_rate": 0.3,
+            "low_confidence_threshold": 0.88,
+            "distribution": {
+                "kind": "numeric",
+                "bins": [{"label": "0.9–1", "reference": 0.7, "current": 0.2}],
+            },
+        }
+        store.add_result(result)
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    confidence = result.confidence
+    assert confidence.psi == pytest.approx(0.4)
+    assert confidence.low_confidence_threshold == pytest.approx(0.88)
+    assert [p.value for p in confidence.mean_over_time.points] == [
+        pytest.approx(0.93),
+        pytest.approx(0.71),
+    ]
+
+
+async def test_without_scores_the_confidence_block_is_absent() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_categorical_output_result(dep))
+
+    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert result.confidence is None
+
+
+async def test_probability_and_horizon_blocks_pass_through() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    result = _categorical_output_result(dep)
+    result.values["probabilities"] = {
+        "per_class": [{"label": "dog", "psi": 0.4, "mean": 0.6}],
+        "near_threshold": {
+            "rate": 0.5,
+            "reference_rate": 0.02,
+            "threshold": 0.5,
+            "positive_class": "dog",
+        },
+    }
+    store.add_result(result)
+
+    served = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert served.probabilities.per_class[0].label == "dog"
+    assert served.probabilities.near_threshold.rate == pytest.approx(0.5)
+
+
+async def test_forecast_horizons_pass_through() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(
+        StoredMetricResult(
+            deployment_id=dep,
+            group="output_drift",
+            window=Window.H24.value,
+            values={
+                "psi": 0.6,
+                "count": 40,
+                "name": "y[h7]",
+                "kind": "forecast",
+                "status": "critical",
+                "horizons": [
+                    {"label": "h1", "psi": 0.05, "mean": 20.0, "count": 20},
+                    {"label": "h7", "psi": 0.6, "mean": 37.0, "count": 20},
+                ],
+            },
+            severity="critical",
+            computed_at=ago(300),
+        )
+    )
+
+    served = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+
+    assert served.kind == "forecast"
+    assert [h.label for h in served.horizons] == ["h1", "h7"]
+    assert served.horizons[1].psi == pytest.approx(0.6)

@@ -5,6 +5,7 @@ import type {
   Dimensions,
   FeatureDriftResponse,
   HeaderResponse,
+  OutputDriftResponse,
   OverviewResponse,
   ReferenceProfileResponse,
   RuntimeResponse,
@@ -40,6 +41,10 @@ export function getDataQuality(dims: Dimensions): Promise<DataQualityResponse> {
 
 export function getFeatureDrift(dims: Dimensions): Promise<FeatureDriftResponse> {
   return apiGet<FeatureDriftResponse>('/feature-drift', dimensionParams(dims))
+}
+
+export function getOutputDrift(dims: Dimensions): Promise<OutputDriftResponse> {
+  return apiGet<OutputDriftResponse>('/output-drift', dimensionParams(dims))
 }
 
 export function getReferenceProfile(dims: Dimensions): Promise<ReferenceProfileResponse> {

@@ -19,7 +19,7 @@ import pandas as pd
 from sklearn.decomposition import PCA  # type: ignore[import-untyped]
 from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
-TaskType = Literal["regression", "classification"]
+TaskType = Literal["regression", "classification", "forecasting"]
 
 DEFAULT_BINS = 10
 
@@ -93,7 +93,8 @@ def compute_output_summaries(
     frame = _predictions_frame(predictions, output_names)
     summaries: dict[str, dict[str, Any]] = {}
 
-    if task_type == "regression":
+    if task_type in ("regression", "forecasting"):
+        # a forecast is a numeric prediction per horizon: one summary per column
         summaries["numerical_outputs"] = {
             str(column): _numerical_summary(frame[column], position, bins)
             for position, column in enumerate(frame.columns, start=1)
@@ -213,6 +214,8 @@ def build_reference_profile(
     categorical_features: Mapping[str, list[str]] | None = None,
     output_names: list[str] | None = None,
     predict_proba: Callable[[Any], Any] | None = None,
+    class_names: list[str] | None = None,
+    horizons: list[str] | None = None,
     bins: int = DEFAULT_BINS,
 ) -> dict[str, Any]:
     """Assemble the full reference profile: feature + output summaries and PCA profile.
@@ -235,8 +238,11 @@ def build_reference_profile(
     )
 
     scores: dict[str, Any] | None = None
+    probability_summary: dict[str, Any] | None = None
     if task_type == "classification" and predict_proba is not None:
-        scores = {"y_score": _confidence_scores(predict_proba(features))}
+        proba = np.asarray(predict_proba(features), dtype=float)
+        scores = {"y_score": _confidence_scores(proba)}
+        probability_summary = _probability_summary(proba, class_names, bins)
 
     output_summaries = compute_output_summaries(
         predict(features),
@@ -252,7 +258,7 @@ def build_reference_profile(
         categorical_features=categorical_features,
     )
 
-    return {
+    profile = {
         "profile_status": PROFILE_STATUS_READY,
         "task_type": task_type,
         "feature_summaries": feature_summaries,
@@ -260,6 +266,12 @@ def build_reference_profile(
         "output_summary": _primary_output_summary(output_summaries, task_type),
         "pca_profile": pca_profile,
     }
+    if probability_summary is not None:
+        profile["probability_summary"] = probability_summary
+    if task_type == "forecasting" and horizons:
+        # which columns of the single forecast output are which horizon
+        profile["forecast_summary"] = {"name": "y", "horizons": list(horizons)}
+    return profile
 
 
 def _primary_output_summary(
@@ -273,8 +285,9 @@ def _primary_output_summary(
     after the predictions, so the prediction stays first); a classification profile points
     at the first categorical output — its predicted-class proportions.
     """
-    group = "numerical_outputs" if task_type == "regression" else "categorical_outputs"
-    kind = "numerical" if task_type == "regression" else "categorical"
+    numeric = task_type in ("regression", "forecasting")
+    group = "numerical_outputs" if numeric else "categorical_outputs"
+    kind = "numerical" if numeric else "categorical"
     summaries = output_summaries.get(group) or {}
     if not summaries:
         return {}
@@ -439,6 +452,48 @@ def _to_vector(array: np.ndarray) -> list[float]:
 def _to_matrix(array: np.ndarray) -> list[list[float]]:
     matrix = np.atleast_2d(np.asarray(array, dtype=float))
     return [[float(value) for value in row] for row in matrix]
+
+
+# Decision boundary of a binary sklearn classifier's ``predict``: argmax over two
+# classes is exactly p > 0.5. The band is a presentation width for "near the boundary";
+# the live rate is always compared against the reference rate computed with the same band.
+BINARY_DECISION_THRESHOLD = 0.5
+THRESHOLD_BAND = 0.05
+
+
+def _probability_summary(
+    proba: np.ndarray, class_names: list[str] | None, bins: int
+) -> dict[str, Any]:
+    """Per-class probability baselines, and the decision-boundary rate for binary tasks.
+
+    For every class: a numerical summary of that class's probability across the training
+    rows. A binary task additionally records how often training predictions sat near the
+    decision threshold, so the live "coin-flip zone" rate has a calibrated reference.
+    """
+    if proba.ndim == 1:
+        proba = np.column_stack([1.0 - proba, proba])
+    n_classes = proba.shape[1]
+    names = (
+        [str(name) for name in class_names]
+        if class_names is not None and len(class_names) == n_classes
+        else [f"class_{i}" for i in range(n_classes)]
+    )
+    summary: dict[str, Any] = {
+        "name": "y_proba",
+        "classes": names,
+        "per_class": {
+            name: _numerical_summary(pd.Series(proba[:, i]), i + 1, bins)
+            for i, name in enumerate(names)
+        },
+    }
+    if n_classes == 2:
+        positive = proba[:, 1]
+        near = np.abs(positive - BINARY_DECISION_THRESHOLD) < THRESHOLD_BAND
+        summary["positive_class"] = names[1]
+        summary["decision_threshold"] = BINARY_DECISION_THRESHOLD
+        summary["threshold_band"] = THRESHOLD_BAND
+        summary["reference_near_threshold_rate"] = float(near.mean())
+    return summary
 
 
 def _confidence_scores(proba: Any) -> np.ndarray:  # noqa: ANN401

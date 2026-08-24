@@ -47,7 +47,19 @@ class SKlearnPyFunc(PyFunc):
             x = self._frame(inputs, input_order)
         else:
             x = self.np.column_stack([inputs[col] for col in input_order])
-        return {"y": self.estimator.predict(x)}
+        outputs = {"y": self.estimator.predict(x)}
+        # A classifier that can say how sure it is, says so: the per-row top class
+        # probability rides along as y_score, mirroring the reference profile's
+        # confidence summary. Monitoring reads it; callers may simply ignore it.
+        if hasattr(self.estimator, "predict_proba"):
+            try:
+                proba = self.np.asarray(self.estimator.predict_proba(x), dtype=float)
+                outputs["y_score"] = proba.max(axis=1) if proba.ndim > 1 else proba
+                # the full vector too: per-class drift needs more than the maximum
+                outputs["y_proba"] = proba
+            except Exception:  # noqa: BLE001 — confidence is best-effort, labels are not
+                pass
+        return outputs
 
     def _frame(self, inputs: dict, input_order: list):
         """Rebuild the training frame: named columns, each with the dtype it was fitted on.
@@ -60,7 +72,12 @@ class SKlearnPyFunc(PyFunc):
         dtypes = {"float": "float64", "int": "int64", "str": "object"}
         data = {}
         for col in input_order:
-            series = pd.Series(inputs[col])
+            # Batched requests arrive as one value per row, each value possibly wrapped
+            # in its own list ([[5.1], [4.9]]); flattened here, since a frame column is
+            # one-dimensional by definition. The positional path's column_stack always
+            # coped with either shape — this path must too.
+            raw = self.np.asarray(inputs[col], dtype=object).ravel()
+            series = pd.Series(raw)
             target = dtypes.get(self.input_dtypes.get(col, "str"), "object")
             try:
                 data[col] = series.astype(target)

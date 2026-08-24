@@ -4,9 +4,7 @@ import DashboardHeader from './DashboardHeader.vue'
 import { makeHeader } from '@/test/fixtures'
 
 describe('DashboardHeader', () => {
-  it('shows when the worker last closed a window, not only the last prediction', () => {
-    // The snapshot sections render their window whatever its age, so this line is the
-    // only thing on the page that dates them.
+  it('shows only the name and status, no meta line and no inference URL', () => {
     const wrapper = mount(DashboardHeader, {
       props: {
         header: makeHeader({
@@ -16,15 +14,9 @@ describe('DashboardHeader', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('last prediction')
-    expect(wrapper.text()).toContain('last monitored')
-  })
-
-  it('omits the monitored line when the worker has never materialized a window', () => {
-    const wrapper = mount(DashboardHeader, {
-      props: { header: makeHeader({ last_monitored_at: null }) },
-    })
-
+    expect(wrapper.find('[data-testid="deployment-name"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('last prediction')
     expect(wrapper.text()).not.toContain('last monitored')
+    expect(wrapper.find('[data-testid="inference-url"]').exists()).toBe(false)
   })
 })

@@ -8,6 +8,7 @@ vi.mock('@/api/monitoring', () => ({
   getRuntime: vi.fn(),
   getDataQuality: vi.fn(),
   getFeatureDrift: vi.fn(),
+  getOutputDrift: vi.fn(),
   getReferenceProfile: vi.fn(),
   getTraces: vi.fn(),
   getWorkerHealth: vi.fn(),
@@ -27,6 +28,7 @@ import {
   makeFeatureDrift,
   makeFeatureDriftDetail,
   makeHeader,
+  makeOutputDrift,
   makeOverview,
   makeReferenceProfile,
   makeRuntime,
@@ -38,6 +40,7 @@ const getOverview = vi.mocked(monitoringApi.getOverview)
 const getRuntime = vi.mocked(monitoringApi.getRuntime)
 const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
+const getOutputDrift = vi.mocked(monitoringApi.getOutputDrift)
 const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
 const getAlerts = vi.mocked(monitoringApi.getAlerts)
@@ -57,6 +60,7 @@ describe('App (dashboard shell)', () => {
     getRuntime.mockResolvedValue(makeRuntime())
     getDataQuality.mockResolvedValue(makeDataQuality())
     getFeatureDrift.mockResolvedValue(makeFeatureDrift())
+    getOutputDrift.mockResolvedValue(makeOutputDrift())
     getReferenceProfile.mockResolvedValue(makeReferenceProfile())
     getTraces.mockResolvedValue(makeTraces())
     getAlerts.mockResolvedValue(makeAlerts())
@@ -126,6 +130,7 @@ describe('App (dashboard shell)', () => {
       'Traces',
       'Data quality',
       'Feature drift',
+      'Output drift',
       'Reference profile',
       'Alerts',
     ])
@@ -175,6 +180,19 @@ describe('App (dashboard shell)', () => {
     // the counters Overview does not carry
     expect(wrapper.text()).toContain('Success rate')
     expect(wrapper.findAll('[data-testid="status-row"]')).toHaveLength(4)
+  })
+
+  it('opens the Output drift tab lazily, like every other section', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(getOutputDrift).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="tab-output-drift"]').trigger('click')
+    await flushPromises()
+
+    expect(getOutputDrift).toHaveBeenCalledWith(expect.objectContaining({ window: Window.H24 }))
+    expect(wrapper.find('[data-testid="output-drift-tab"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('y_pred')
   })
 
   it('switches to the Traces tab and renders the local request log', async () => {

@@ -30,7 +30,8 @@
         empty-detail="The worker has not materialized data quality for this window yet."
       />
 
-      <div v-else-if="dataQuality" class="table-scroll">
+      <!-- Same viewport as the Traces table: past that the list scrolls, not the page. -->
+      <div v-else-if="dataQuality" class="table-scroll table-viewport">
         <table class="dq" data-testid="data-quality-table">
           <thead>
             <tr>
@@ -217,6 +218,10 @@ function checkedTitle(row: DataQualityFeatureRow): string | undefined {
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--luml-border);
   white-space: nowrap;
+  /* the header stays put while the list scrolls under it */
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .row {
   cursor: pointer;

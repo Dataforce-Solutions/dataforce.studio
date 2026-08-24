@@ -82,11 +82,15 @@ async def test_a_key_reads_any_section_of_a_hosted_deployment(app) -> None:  # n
     async with _client(app) as client:
         overview = await client.get(_url("overview"), headers=_bearer())
         runtime = await client.get(_url("runtime"), headers=_bearer())
+        output_drift = await client.get(_url("output-drift"), headers=_bearer())
 
     assert overview.status_code == 200
     assert overview.json()["state"] == "ok"
     assert runtime.status_code == 200
     assert runtime.json()["request_count"] == 1
+    # no materialized output window in the seeded store: empty, but served
+    assert output_drift.status_code == 200
+    assert output_drift.json()["state"] == "empty"
 
 
 async def test_without_a_credential_the_door_stays_shut(app) -> None:  # noqa: ANN001

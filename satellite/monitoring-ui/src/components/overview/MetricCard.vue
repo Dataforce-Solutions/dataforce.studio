@@ -72,7 +72,7 @@ const featureNames = computed(() => props.card.feature_names ?? [])
 const previewNames = computed(() => featureNames.value.slice(0, PREVIEW_LIMIT))
 const hiddenCount = computed(() => Math.max(0, featureNames.value.length - PREVIEW_LIMIT))
 
-const POPOVER_WIDTH = 220
+const POPOVER_WIDTH = 260
 const VIEWPORT_MARGIN = 8
 
 const expanded = ref(false)
@@ -109,7 +109,9 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') expanded.value = false
 }
 
-function close() {
+function close(event?: Event) {
+  // The list itself scrolling is use, not the page moving under the anchor.
+  if (event && popover.value?.contains(event.target as Node)) return
   expanded.value = false
 }
 
@@ -204,10 +206,11 @@ onBeforeUnmount(stopListening)
   z-index: 1000;
   max-height: 240px;
   overflow-y: auto;
-  background: var(--luml-surface);
+  overscroll-behavior: contain;
+  background: var(--luml-bg-card);
   border: 1px solid var(--luml-border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(28, 43, 64, 0.14);
+  box-shadow: 0 8px 24px rgba(28, 43, 64, 0.18);
   padding: 10px 12px;
 }
 .popover-title {
@@ -222,12 +225,19 @@ onBeforeUnmount(stopListening)
   padding: 0;
   list-style: none;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 .popover-list li {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--luml-fg);
+  background: var(--luml-surface-100);
+  border-radius: 4px;
+  padding: 2px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tone-danger {
   border-color: var(--luml-danger-tint-bg);

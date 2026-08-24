@@ -123,6 +123,30 @@ def _add_io(
             shape=y_shape,  # type: ignore
         )
     )
+    # A classifier with predict_proba also answers with its per-row confidence; the
+    # manifest must declare it or the model server would strip it from the response.
+    from sklearn.base import is_classifier  # type: ignore[import-untyped]
+
+    if is_classifier(estimator) and hasattr(estimator, "predict_proba"):
+        builder.add_output(
+            NDJSON(
+                name="y_score",
+                content_type="NDJSON",
+                dtype="Array[float64]",
+                shape=["batch"],
+            )
+        )
+        # the full vector too: per-class probability drift needs more than the maximum
+        classes = getattr(estimator, "classes_", None)
+        n_classes = len(classes) if classes is not None else 0
+        builder.add_output(
+            NDJSON(
+                name="y_proba",
+                content_type="NDJSON",
+                dtype="Array[float64]",
+                shape=["batch", n_classes] if n_classes else ["batch"],
+            )
+        )
     return frame_inputs
 
 
@@ -171,6 +195,7 @@ def save_sklearn(  # noqa: C901
     manifest_model_version: str | None = None,
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
+    horizons: list[str] | None = None,
     reference_data: Any = None,  # noqa: ANN401
 ) -> ModelReference:
     """
@@ -290,10 +315,20 @@ def save_sklearn(  # noqa: C901
     # where the model server looks for it.
     if reference_data is not None:
         classifier = is_classifier(estimator)
-        task_type: TaskType = "classification" if classifier else "regression"
+        task_type: TaskType
+        if horizons is not None:
+            # a multi-output regressor whose columns are forecast horizons
+            task_type = "forecasting"
+        else:
+            task_type = "classification" if classifier else "regression"
         predict_proba = (
             estimator.predict_proba
             if classifier and hasattr(estimator, "predict_proba")
+            else None
+        )
+        class_names = (
+            [str(name) for name in estimator.classes_]
+            if classifier and hasattr(estimator, "classes_")
             else None
         )
         add_reference_profile(
@@ -302,5 +337,11 @@ def save_sklearn(  # noqa: C901
             task_type,
             estimator.predict,
             predict_proba=predict_proba,
+            # named after the artifact's actual response key, so the monitoring runtime
+            # can pick the label out of a multi-output response instead of guessing.
+            # A forecast's single output is described per horizon.
+            output_names=list(horizons) if horizons is not None else ["y"],
+            class_names=class_names,
+            horizons=list(horizons) if horizons is not None else None,
         )
     return ModelReference(path)

@@ -227,6 +227,9 @@ def add_reference_profile(
     predict: Callable[[Any], Any],
     *,
     predict_proba: Callable[[Any], Any] | None = None,
+    output_names: list[str] | None = None,
+    class_names: list[str] | None = None,
+    horizons: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compute the monitoring reference profile and embed it in a saved artifact.
 
@@ -244,7 +247,13 @@ def add_reference_profile(
     from luml.utils.reference_profile import build_reference_profile
 
     profile = build_reference_profile(
-        reference_data, task_type, predict, predict_proba=predict_proba
+        reference_data,
+        task_type,
+        predict,
+        predict_proba=predict_proba,
+        output_names=output_names,
+        class_names=class_names,
+        horizons=horizons,
     )
     embed_reference_profile(artifact_path, profile)
     return profile

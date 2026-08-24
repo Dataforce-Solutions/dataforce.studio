@@ -22,42 +22,63 @@
           <span v-if="criticals" class="count critical">{{ criticals }} critical</span>
         </div>
 
-        <div v-for="group in alerts?.groups ?? []" :key="group.group" class="group">
-          <p class="group-title">
-            {{ groupLabel(group.group) }}
-            <span class="group-count">{{ group.alerts.length }}</span>
-          </p>
-          <div
-            v-for="alert in group.alerts"
-            :key="alert.metric"
-            class="row"
-            :class="{ selected: alert.metric === selected?.metric }"
-            data-testid="alert-row"
-            role="button"
-            tabindex="0"
-            :aria-label="`Inspect ${alert.metric}`"
-            @click="selected = alert"
-            @keydown.enter.prevent="selected = alert"
-            @keydown.space.prevent="selected = alert"
-          >
-            <span class="dot" :class="`sev-${alert.severity}`" />
-            <span class="subject mono">{{ subject(alert) }}</span>
-            <span class="reading mono">{{ alert.value_label }}</span>
-            <SeverityTag :severity="alert.severity" />
-            <!-- The cell is always here so the columns stay aligned down the list. -->
-            <span class="ack-cell">
-              <span
-                v-if="alert.state === 'acknowledged'"
-                class="ack"
-                title="Someone has seen this alert; it stays until the metric recovers"
-                data-testid="alert-acknowledged-chip"
-              >
-                <Check :size="11" />
-                seen
-              </span>
-            </span>
-            <span class="age">{{ durationLabel(alert.duration_seconds) }}</span>
-          </div>
+        <!-- Same viewport as the Traces table: past that the list scrolls, not the page. -->
+        <div class="table-scroll table-viewport">
+          <table class="alerts-table" data-testid="alerts-table">
+            <thead>
+              <tr>
+                <th>Alert</th>
+                <th>Seen</th>
+                <th class="num">Value</th>
+                <th>Status</th>
+                <th class="num">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="group in alerts?.groups ?? []" :key="group.group">
+                <tr class="group-row">
+                  <td colspan="5">
+                    {{ groupLabel(group.group) }}
+                    <span class="group-count">{{ group.alerts.length }}</span>
+                  </td>
+                </tr>
+                <tr
+                  v-for="alert in group.alerts"
+                  :key="alert.metric"
+                  class="row"
+                  :class="{ selected: alert.metric === selected?.metric }"
+                  data-testid="alert-row"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Inspect ${alert.metric}`"
+                  @click="selected = alert"
+                  @keydown.enter.prevent="selected = alert"
+                  @keydown.space.prevent="selected = alert"
+                >
+                  <td>
+                    <span class="subject-cell">
+                      <span class="dot" :class="`sev-${alert.severity}`" />
+                      <span class="subject mono">{{ subject(alert) }}</span>
+                    </span>
+                  </td>
+                  <td class="seen-cell">
+                    <span
+                      v-if="alert.state === 'acknowledged'"
+                      class="ack"
+                      title="Someone has seen this alert; it stays until the metric recovers"
+                      data-testid="alert-acknowledged-chip"
+                    >
+                      <Check :size="11" />
+                      seen
+                    </span>
+                  </td>
+                  <td class="reading mono num">{{ alert.value_label }}</td>
+                  <td><SeverityTag :severity="alert.severity" /></td>
+                  <td class="age num">{{ durationLabel(alert.duration_seconds) }}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
       </template>
     </div>
@@ -167,38 +188,71 @@ watch(
 .count.critical {
   color: var(--luml-danger-tint-fg);
 }
-.group + .group {
-  margin-top: var(--luml-space-4);
+.table-scroll {
+  overflow-x: auto;
 }
-.group-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 14px 0 6px;
+/* Same column-header treatment as the Data quality table. */
+.alerts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.alerts-table th {
+  text-align: left;
+  padding: 12px 18px;
+  background: var(--luml-surface-50);
+  color: var(--luml-fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--luml-border);
+  white-space: nowrap;
+  /* the header stays put while the list scrolls under it */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.alerts-table td {
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--luml-surface-100);
+  color: var(--luml-fg);
+}
+.alerts-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.alerts-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.group-row td {
+  padding: 14px 18px 6px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--luml-fg-muted);
+  border-bottom: none;
 }
 .group-count {
+  margin-left: 4px;
   font-weight: 500;
-  color: var(--luml-fg-muted);
 }
 .row {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto auto auto 56px;
-  align-items: center;
-  gap: var(--luml-space-3);
-  padding: 9px 10px;
-  border-radius: var(--luml-radius-md);
   cursor: pointer;
 }
-.row:hover,
-.row.selected {
+.row:hover td,
+.row.selected td {
   background: var(--luml-surface-50);
 }
+.subject-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
 .dot {
+  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -214,6 +268,7 @@ watch(
 }
 .subject {
   font-size: 13px;
+  font-weight: 500;
   color: var(--luml-fg-strong);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,27 +277,21 @@ watch(
 .reading {
   font-size: 13px;
   color: var(--luml-fg);
-  font-variant-numeric: tabular-nums;
 }
-.ack-cell {
-  display: inline-flex;
-  min-width: 0;
-}
+/* Quiet green: the mark means "handled", it must not compete with severity colors. */
 .ack {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   padding: 2px 7px;
   border-radius: var(--luml-radius-pill);
-  background: var(--luml-surface-100);
-  color: var(--luml-fg-muted);
+  background: var(--luml-success-tint-bg);
+  color: var(--luml-success-tint-fg);
   font-size: 10.5px;
   font-weight: 500;
 }
 .age {
   font-size: 12px;
   color: var(--luml-fg-muted);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 </style>

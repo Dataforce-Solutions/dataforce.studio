@@ -249,6 +249,45 @@ class DeploymentMonitoring(_MonitoringBase):
             params=_dims(window, "reference", severity, "auto", feature),
         )
 
+    def output_drift(self, window: str = "24h", severity: str = "all") -> dict:
+        """
+        Did the model's outputs shift against the training reference.
+
+        Args:
+            window: Time range the section covers: "24h", "7d" or "30d".
+            severity: Alert severity filter: "all", "warning" or "critical".
+
+        Returns:
+            dict with the output's PSI score and severity, the reference vs
+            current distribution of predictions, the PSI history, and the output
+            drift alerts. Numerical outputs add the prediction trend (median
+            with its p05-p95 band); categorical outputs add the top changed
+            classes, each drifted class's share across windows, and — when the
+            artifact reports probabilities — the confidence block, per-class
+            probability drift and the decision-boundary rate; forecasting
+            deployments add per-horizon drift, the headline describing the
+            worst horizon.
+
+        Raises:
+            LumlAPIError: If ``window`` is not one the dashboard offers.
+            NotFoundError: If the Satellite does not host this deployment.
+
+        Example:
+        ```python
+        luml = LumlClient(
+            api_key="luml_your_key",
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        )
+        monitoring = luml.deployments.monitoring("insurance regression")
+        output_drift = monitoring.output_drift(window="7d")
+        ```
+        """
+        return self._client.get(
+            self._url("output-drift"),
+            params=_dims(window, "reference", severity, "auto", None),
+        )
+
     def reference_profile(self, feature: str | None = None) -> dict:
         """
         The profile the deployment is compared against.
@@ -634,6 +673,51 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         return await self._client.get(
             self._url("feature-drift"),
             params=_dims(window, "reference", severity, "auto", feature),
+        )
+
+    async def output_drift(self, window: str = "24h", severity: str = "all") -> dict:
+        """
+        Did the model's outputs shift against the training reference.
+
+        Args:
+            window: Time range the section covers: "24h", "7d" or "30d".
+            severity: Alert severity filter: "all", "warning" or "critical".
+
+        Returns:
+            dict with the output's PSI score and severity, the reference vs
+            current distribution of predictions, the PSI history, and the output
+            drift alerts. Numerical outputs add the prediction trend (median
+            with its p05-p95 band); categorical outputs add the top changed
+            classes, each drifted class's share across windows, and — when the
+            artifact reports probabilities — the confidence block, per-class
+            probability drift and the decision-boundary rate; forecasting
+            deployments add per-horizon drift, the headline describing the
+            worst horizon.
+
+        Raises:
+            LumlAPIError: If ``window`` is not one the dashboard offers.
+            NotFoundError: If the Satellite does not host this deployment.
+
+        Example:
+        ```python
+        luml = AsyncLumlClient(
+            api_key="luml_your_key",
+        )
+
+        async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
+            monitoring = await luml.deployments.monitoring(
+                "insurance regression"
+            )
+            output_drift = await monitoring.output_drift(window="7d")
+        ```
+        """
+        return await self._client.get(
+            self._url("output-drift"),
+            params=_dims(window, "reference", severity, "auto", None),
         )
 
     async def reference_profile(self, feature: str | None = None) -> dict:

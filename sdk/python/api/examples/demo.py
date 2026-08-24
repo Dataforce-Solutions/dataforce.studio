@@ -267,6 +267,10 @@ def demo_monitoring() -> None:
     feature_drift = monitoring.feature_drift(severity="critical")
     print(f"Feature drift: {feature_drift}")
 
+    # Did the model's outputs shift against the training reference
+    output_drift = monitoring.output_drift(window="7d")
+    print(f"Output drift: {output_drift}")
+
     # The profile the deployment is compared against
     reference_profile = monitoring.reference_profile()
     print(f"Reference profile: {reference_profile}")

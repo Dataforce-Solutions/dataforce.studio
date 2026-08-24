@@ -9,6 +9,7 @@ import {
   type FeatureDriftDetail,
   type FeatureDriftResponse,
   type HeaderResponse,
+  type OutputDriftResponse,
   type OverviewResponse,
   type ReferenceProfileResponse,
   type RuntimeResponse,
@@ -283,6 +284,70 @@ export function makeFeatureDrift(
       ],
     },
     alerts: [],
+    ...overrides,
+  }
+}
+
+export function makeOutputDrift(
+  overrides: Partial<OutputDriftResponse> = {},
+): OutputDriftResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    name: 'y_pred',
+    kind: 'numeric',
+    psi: 0.42,
+    severity: Severity.CRITICAL,
+    count: 120,
+    distribution: {
+      kind: 'numeric',
+      bins: [
+        { label: '0–10', reference: 0.5, current: 0.2 },
+        { label: '10–20', reference: 0.5, current: 0.8 },
+      ],
+    },
+    psi_over_time: {
+      key: 'output_psi',
+      label: 'PSI',
+      unit: 'score',
+      points: [
+        { t: '2026-07-07T10:00:00Z', value: 0.1 },
+        { t: '2026-07-07T11:00:00Z', value: 0.42 },
+      ],
+    },
+    trend: ['median', 'p05', 'p95', 'mean'].map((key) => ({
+      key: `prediction_${key}`,
+      label: key,
+      points: [
+        { t: '2026-07-07T10:00:00Z', value: 10 },
+        { t: '2026-07-07T11:00:00Z', value: 12 },
+      ],
+    })),
+    top_changed: [],
+    class_share_trend: [],
+    confidence: null,
+    probabilities: null,
+    horizons: [],
+    alerts: [
+      {
+        group: 'output_drift',
+        metric: 'output_drift:prediction',
+        feature: null,
+        severity: Severity.CRITICAL,
+        current_value: 0.42,
+        threshold: 0.25,
+        message: 'PSI 0.42 vs threshold 0.25',
+        label: 'PSI',
+        unit: 'score',
+        value_label: '0.42',
+        threshold_label: '0.25',
+        state: 'open',
+        threshold_source: 'default',
+        history: null,
+      },
+    ],
+    computed_at: '2026-07-07T11:00:00Z',
+    stale: false,
     ...overrides,
   }
 }

@@ -1,10 +1,17 @@
 <template>
-  <div class="alert-banners card" :class="{ critical: hasCritical }" data-testid="alert-banners">
+  <!-- Acknowledged alerts live on the Alerts tab only; a seen alert is not news,
+       so the section banners show just what nobody has looked at yet. -->
+  <div
+    v-if="visible.length"
+    class="alert-banners card"
+    :class="{ critical: hasCritical }"
+    data-testid="alert-banners"
+  >
     <!-- Ten rows is where a list stops being a summary and starts being a wall. -->
     <div class="scroll" :class="{ scrollable }">
       <component
         :is="inspectable ? 'button' : 'div'"
-        v-for="(banner, index) in banners"
+        v-for="(banner, index) in visible"
         :key="`${banner.group}:${banner.metric}:${banner.feature ?? ''}`"
         class="banner"
         :class="{ divided: index > 0, clickable: inspectable }"
@@ -18,13 +25,6 @@
           <span class="title">{{ bannerTitle(banner) }}</span>
           <span v-if="banner.feature" class="subject mono">{{ banner.feature }}</span>
           <span class="message">{{ banner.message }}</span>
-          <span
-            v-if="banner.state === 'acknowledged'"
-            class="ack"
-            data-testid="banner-acknowledged"
-          >
-            seen
-          </span>
         </div>
       </component>
     </div>
@@ -69,8 +69,9 @@ const props = withDefaults(defineProps<{ banners: AlertBanner[]; inspectable?: b
 })
 const emit = defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner] }>()
 
-const hasCritical = computed(() => props.banners.some((b) => b.severity === Severity.CRITICAL))
-const scrollable = computed(() => props.banners.length > VISIBLE_ROWS)
+const visible = computed(() => props.banners.filter((b) => b.state !== 'acknowledged'))
+const hasCritical = computed(() => visible.value.some((b) => b.severity === Severity.CRITICAL))
+const scrollable = computed(() => visible.value.length > VISIBLE_ROWS)
 
 const selected = ref<AlertBanner | null>(null)
 
@@ -84,14 +85,11 @@ function showFeature(alert: AlertBanner): void {
 }
 
 // A panel describing one alert must not outlive it: a reload may have resolved it.
-watch(
-  () => props.banners,
-  (banners) => {
-    if (!selected.value) return
-    const key = selected.value.metric
-    selected.value = banners.find((banner) => banner.metric === key) ?? null
-  },
-)
+watch(visible, (banners) => {
+  if (!selected.value) return
+  const key = selected.value.metric
+  selected.value = banners.find((banner) => banner.metric === key) ?? null
+})
 
 // The feature name is rendered next to the title, not inside it: the title is prose and
 // gets capitalized, while a feature is an identifier and must survive verbatim.
