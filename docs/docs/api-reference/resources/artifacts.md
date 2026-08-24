@@ -139,7 +139,8 @@ def list_all(
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        types: list[ArtifactType] | None = None
+        types: list[ArtifactType] | None = None,
+        search: str | None = None
 ) -> Iterator[Artifact]
 ```
 
@@ -153,6 +154,7 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `search` - Filter by a case-insensitive substring of the artifact name.
   
 
 **Returns**:
@@ -202,7 +204,8 @@ def list(
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        types: list[ArtifactType] | None = None
+        types: list[ArtifactType] | None = None,
+        search: str | None = None
 ) -> ArtifactsList
 ```
 
@@ -219,6 +222,7 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `search` - Filter by a case-insensitive substring of the artifact name.
   
 
 **Returns**:
@@ -1062,7 +1066,8 @@ def list_all(
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        types: list[ArtifactType] | None = None
+        types: list[ArtifactType] | None = None,
+        search: str | None = None
 ) -> AsyncIterator[Artifact]
 ```
 
@@ -1079,6 +1084,7 @@ List all collection artifacts with auto-paging.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types:
   "model", "dataset", or "experiment".
+- `search` - Filter by a case-insensitive substring of the artifact name.
   
 
 **Returns**:
@@ -1132,7 +1138,8 @@ async def list(
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        types: list[ArtifactType] | None = None
+        types: list[ArtifactType] | None = None,
+        search: str | None = None
 ) -> ArtifactsList
 ```
 
@@ -1152,6 +1159,7 @@ If collection_id is None, uses the default collection from client.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types:
   "model", "dataset", or "experiment".
+- `search` - Filter by a case-insensitive substring of the artifact name.
   
 
 **Returns**:

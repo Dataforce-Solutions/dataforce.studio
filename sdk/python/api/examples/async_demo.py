@@ -225,6 +225,69 @@ async def demo_artifacts() -> None:
     await luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
+async def demo_deployments() -> None:
+    # List all deployments in the default orbit, with their monitoring mode
+    all_deployments = await luml.deployments.list()
+    print(f"All deployments: {all_deployments}")
+
+    # Get deployment by name
+    deployment_by_name = await luml.deployments.get("My Deployment")
+    print(f"Deployment by name: {deployment_by_name}")
+
+    # Get deployment by id
+    deployment_by_id = await luml.deployments.get(
+        "0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    print(f"Deployment by id: {deployment_by_id}")
+
+
+async def demo_monitoring() -> None:
+    # Monitoring sections of one deployment, read from its Satellite directly.
+    # The Satellite's address is resolved from the deployment record itself,
+    # so the name or id of the deployment is all it takes.
+    monitoring = await luml.deployments.monitoring("My Deployment")
+
+    # Identity of the deployment as the dashboard header shows it
+    header = await monitoring.header()
+    print(f"Header: {header}")
+
+    # Status cards, alert banners, runtime series and top drifted features
+    overview = await monitoring.overview(window="7d")
+    print(f"Overview: {overview}")
+
+    # Request counts, error rate, latency percentiles and the outcome breakdown
+    runtime = await monitoring.runtime(window="24h")
+    print(f"Runtime: {runtime}")
+
+    # Per-feature validity checks; pass feature= for one feature's trends
+    data_quality = await monitoring.data_quality(feature="age")
+    print(f"Data quality: {data_quality}")
+
+    # PSI ranking, distributions, and the multivariate panel
+    feature_drift = await monitoring.feature_drift(severity="critical")
+    print(f"Feature drift: {feature_drift}")
+
+    # The profile the deployment is compared against
+    reference_profile = await monitoring.reference_profile()
+    print(f"Reference profile: {reference_profile}")
+
+    # Open and acknowledged alerts, grouped by metric family
+    alerts = await monitoring.alerts(window="7d", severity="critical")
+    print(f"Alerts: {alerts}")
+
+    # The local request log: one row per inference call
+    traces = await monitoring.traces(limit=20)
+    print(f"Traces: {traces}")
+
+    # One call with its full payloads and span tree
+    trace = await monitoring.trace("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    print(f"Trace: {trace}")
+
+    # Whether monitoring itself is keeping up — not a metric about the model
+    worker = await monitoring.worker()
+    print(f"Worker health: {worker}")
+
+
 async def async_main() -> None:
     print("\n--------------------------------\n")
     await demo_client_defaults()
@@ -238,6 +301,10 @@ async def async_main() -> None:
     await demo_collections()
     print("\n--------------------------------\n")
     await demo_artifacts()
+    print("\n--------------------------------\n")
+    await demo_deployments()
+    print("\n--------------------------------\n")
+    await demo_monitoring()
 
 
 if __name__ == "__main__":

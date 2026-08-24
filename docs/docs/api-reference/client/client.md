@@ -15,22 +15,21 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 #### setup_config
 
 ```python
-async def setup_config(*,
-                       organization: str | None = None,
-                       orbit: str | None = None,
-                       collection: str | None = None) -> None
+async def setup_config(
+        *,
+        organization: str | None = None,
+        orbit: str | None = None,
+        collection: str | None = None
+) -> None
 ```
 
 Method for setting default values for AsyncLumlClient
 
 **Arguments**:
 
-- `organization` - Default organization to use for operations.
-  Can be set by organization ID or name.
-- `orbit` - Default orbit to use for operations.
-  Can be set by organization ID or name.
-- `collection` - Default collection to use for operations.
-  Can be set by organization ID or name.
+- `organization` - Default organization to use for operations. Can be set by organization ID or name.
+- `orbit` - Default orbit to use for operations. Can be set by organization ID or name.
+- `collection` - Default collection to use for operations. Can be set by organization ID or name.
   
 
 **Example**:
@@ -100,6 +99,17 @@ def artifacts() -> "AsyncArtifactResource"
 
 Artifacts interface.
 
+<a id="luml_api._client.AsyncLumlClient.deployments"></a>
+
+#### deployments
+
+```python
+@cached_property
+def deployments() -> "AsyncDeploymentResource"
+```
+
+Deployments and their monitoring.
+
 <a id="luml_api._client.LumlClient"></a>
 
 ## LumlClient Objects
@@ -162,4 +172,15 @@ def artifacts() -> "ArtifactResource"
 ```
 
 Artifacts interface.
+
+<a id="luml_api._client.LumlClient.deployments"></a>
+
+#### deployments
+
+```python
+@cached_property
+def deployments() -> "DeploymentResource"
+```
+
+Deployments and their monitoring.
 

@@ -28,6 +28,10 @@ if TYPE_CHECKING:
         AsyncCollectionResource,
         CollectionResource,
     )
+    from luml_api.resources.deployments import (
+        AsyncDeploymentResource,
+        DeploymentResource,
+    )
     from luml_api.resources.orbits import AsyncOrbitResource, OrbitResource
     from luml_api.resources.organizations import (
         AsyncOrganizationResource,
@@ -159,6 +163,11 @@ class LumlClientBase(ABC):
     @cached_property
     @abstractmethod
     def tracks(self) -> "TrackResource | AsyncTrackResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def deployments(self) -> "DeploymentResource | AsyncDeploymentResource":
         raise NotImplementedError()
 
 
@@ -386,6 +395,13 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncTrackResource(self)
 
+    @cached_property
+    def deployments(self) -> "AsyncDeploymentResource":
+        """Deployments and their monitoring."""
+        from luml_api.resources.deployments import AsyncDeploymentResource
+
+        return AsyncDeploymentResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -591,8 +607,16 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         return ArtifactResource(self)
 
     @cached_property
+<<<<<<< HEAD
     def tracks(self) -> "TrackResource":
         """Tracks interface."""
         from luml_api.resources.tracks import TrackResource
 
         return TrackResource(self)
+=======
+    def deployments(self) -> "DeploymentResource":
+        """Deployments and their monitoring."""
+        from luml_api.resources.deployments import DeploymentResource
+
+        return DeploymentResource(self)
+>>>>>>> a6b87dfe (fix: TTL on every table, and retire the metrics export nothing reads)

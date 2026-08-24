@@ -24,6 +24,17 @@ INFERENCE_EVENTS_TABLE = "inference_events"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
 FAILURES_TABLE = "monitoring_worker_failures"
+OTEL_TRACES_TABLE = "otel_traces"
+# Written by the collector's late metrics pipeline; nothing reads them and nothing writes
+# them any more. Retention is still applied so the data a running Satellite already
+# accumulated drains away instead of sitting on disk forever.
+LEGACY_METRIC_TABLES = (
+    "inference_requests",
+    "inference_errors",
+    "inference_latency_ms_bucket",
+    "inference_latency_ms_count",
+    "inference_latency_ms_sum",
+)
 
 # span_attributes keys emitted by the Satellite inference instrumentation.
 _ATTR_DEPLOYMENT = "inference.deployment_id"
@@ -162,10 +173,14 @@ class GreptimeMonitoringStore:
         events_ttl: str = "",
         results_ttl: str = "",
         alerts_ttl: str = "",
+        traces_ttl: str = "",
+        metrics_ttl: str = "",
     ) -> None:
         self._events_ttl = events_ttl
         self._results_ttl = results_ttl
         self._alerts_ttl = alerts_ttl
+        self._traces_ttl = traces_ttl
+        self._metrics_ttl = metrics_ttl
         self._url = f"http://{host}:{port}/v1/sql"
         self._database = database
         self._timeout = timeout
@@ -207,8 +222,9 @@ class GreptimeMonitoringStore:
 
         Nothing here ever deleted a row: alerts append one row per window they keep firing
         in, and raw events hold the model's own inputs and outputs. The TTL is applied on
-        every start — including to tables that already exist, and to the traces table the
-        collector owns — so changing the setting is enough to change retention.
+        every start — including to tables that already exist, and to every table the
+        collector owns — so changing the setting is enough to change retention. Tables the
+        collector has not created yet are simply skipped and picked up on a later start.
         """
         if self._tables_ready:
             return
@@ -219,6 +235,9 @@ class GreptimeMonitoringStore:
         await self._apply_ttl(ALERTS_TABLE, self._alerts_ttl)
         await self._apply_ttl(FAILURES_TABLE, self._alerts_ttl)
         await self._apply_ttl(INFERENCE_EVENTS_TABLE, self._events_ttl)
+        await self._apply_ttl(OTEL_TRACES_TABLE, self._traces_ttl)
+        for table in LEGACY_METRIC_TABLES:
+            await self._apply_ttl(table, self._metrics_ttl)
         self._tables_ready = True
 
     async def _apply_ttl(self, table: str, ttl: str) -> None:

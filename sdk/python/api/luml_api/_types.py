@@ -340,3 +340,24 @@ class TrackEntriesList(BaseModel):
 class TracksList(BaseModel):
     items: list[Track]
     cursor: str | None = None
+
+
+class Deployment(BaseModel):
+    """A model deployment on a Satellite, as the Platform records it."""
+
+    id: str
+    orbit_id: str
+    satellite_id: str
+    satellite_name: str | None = None
+    name: str
+    artifact_id: str
+    artifact_name: str | None = None
+    collection_id: str | None = None
+    inference_url: str | None = None
+    status: str
+    monitoring_mode: str = "off"
+    description: str | None = None
+    created_by_user: str | None = None
+    tags: list[str] | None = None
+    created_at: str
+    updated_at: str | None = None

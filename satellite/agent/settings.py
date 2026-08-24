@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     MONITORING_EVENTS_TTL: str = "30d"
     MONITORING_RESULTS_TTL: str = "30d"
     MONITORING_ALERTS_TTL: str = "30d"
+    # Tables the collector owns. Traces back the Traces tab, so it follows the events
+    # horizon; the metric tables are legacy leftovers that only need to drain.
+    MONITORING_TRACES_TTL: str = "30d"
+    MONITORING_METRICS_TTL: str = "7d"
     GREPTIMEDB_HOST: str = "localhost"
     GREPTIMEDB_HTTP_PORT: int = 4000
     GREPTIMEDB_DATABASE: str = "public"

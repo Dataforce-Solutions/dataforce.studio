@@ -12,6 +12,7 @@ from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
+from agent.monitoring.api import build_machine_router
 from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.monitoring.health import HealthSnapshot, worker_health
 from agent.schemas import (
@@ -34,6 +35,23 @@ class OpenAPISchemaBuilder:
             version="1.0.0",
             description="API for managing model deployments and inference",
             routes=app.routes,
+            # The two surfaces of the Agent, one credential each.
+            tags=[
+                {
+                    "name": "API",
+                    "description": (
+                        "The machine surface: deployments, inference, and monitoring as "
+                        "a facet of the deployment — bearer LUML API key on every call."
+                    ),
+                },
+                {
+                    "name": "Monitoring Dashboard",
+                    "description": (
+                        "The browser surface serving the embedded dashboard: single-use "
+                        "launch tokens exchanged for per-deployment cookie sessions."
+                    ),
+                },
+            ],
         )
 
     @staticmethod
@@ -136,7 +154,11 @@ def create_agent_app(
         except Exception as error:
             raise HTTPException(status_code=502, detail="Authorization failed") from error
 
-    @app.post("/satellites/deployments/inference-access", response_model=InferenceAccessOut)
+    @app.post(
+        "/satellites/deployments/inference-access",
+        response_model=InferenceAccessOut,
+        tags=["API"],
+    )
     async def authorize_inference_access(body: InferenceAccessIn) -> InferenceAccessOut:  # noqa: D401
         try:
             authorized = bool(await authorize_access(body.api_key))
@@ -146,16 +168,36 @@ def create_agent_app(
                 status_code=502, detail=f"Authorization check failed: {str(err)}"
             ) from err
 
-    @app.get("/healthz", response_model=Healthz)
+    @app.get("/healthz", response_model=Healthz, tags=["API"])
     def healthz() -> dict:
         return {"status": "healthy"}
 
-    @app.get("/deployments", response_model=list[DeploymentInfo])
+    @app.get("/deployments", response_model=list[DeploymentInfo], tags=["API"])
     async def deployments(authorized: bool = Depends(verify_token)) -> list[dict]:  # noqa: B008
         local_deployments = await ms_handler.list_active_deployments()
-        return [{"deployment_id": deployment.deployment_id} for deployment in local_deployments]
+        return [
+            {
+                "deployment_id": deployment.deployment_id,
+                "name": deployment.metadata.name,
+                "status": deployment.metadata.status,
+                "monitoring_mode": "full" if deployment.monitoring_enabled else "off",
+                # in-memory, so None right after a restart until the worker's next window
+                "last_monitored_at": worker_health.snapshot(
+                    deployment.deployment_id
+                ).deployment.last_window_end,
+            }
+            for deployment in local_deployments
+        ]
 
-    @app.post("/deployments/{deployment_id}/compute", response_model=dict)
+    # Monitoring as a facet of the deployment tree: same bearer credential as compute,
+    # deployment named in the path because a key, unlike a dashboard session, is valid
+    # for the whole orbit and carries no deployment of its own.
+    app.include_router(
+        build_machine_router(lambda deployment_id: str(deployment_id) in ms_handler.deployments),
+        dependencies=[Depends(verify_token)],
+    )
+
+    @app.post("/deployments/{deployment_id}/compute", response_model=dict, tags=["API"])
     async def compute(
         deployment_id: str,
         body: dict,

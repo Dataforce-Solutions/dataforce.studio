@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -123,7 +124,18 @@ class InferenceAccessOut(BaseModel):
 
 
 class DeploymentInfo(BaseModel):
+    """One row of the deployment listing — enough for a machine client to iterate.
+
+    The monitoring fields are additive: the listing that always answered "what runs
+    here" now also answers "what is monitored here", so a client with an API key can
+    discover deployments without first consulting the Platform.
+    """
+
     deployment_id: str
+    name: str | None = None
+    status: str | None = None
+    monitoring_mode: str | None = None
+    last_monitored_at: datetime | None = None
 
 
 class Healthz(BaseModel):

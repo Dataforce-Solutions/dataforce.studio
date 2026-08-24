@@ -84,7 +84,7 @@ def _unavailable_response() -> HTMLResponse:
 
 
 def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
-    router = APIRouter(prefix=MONITORING_PATH_PREFIX)
+    router = APIRouter(prefix=MONITORING_PATH_PREFIX, tags=["Monitoring Dashboard"])
 
     @router.get("/launch")
     async def launch(request: Request, token: str | None = None) -> Response:

@@ -2,14 +2,9 @@ import json
 import logging
 
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.metrics import MeterProvider, NoOpMeterProvider
 from opentelemetry.sdk.metrics import MeterProvider as SDKMeterProvider
-from opentelemetry.sdk.metrics.export import (
-    MetricExporter,
-    PeriodicExportingMetricReader,
-)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
@@ -62,7 +57,6 @@ class TelemetrySetup:
         meter_provider: MeterProvider | None = None,
         event_exporter: _NoOpEventExporter | _OTLPEventExporter | None = None,
         span_exporter: SpanExporter | None = None,
-        metric_exporter: MetricExporter | None = None,
     ) -> None:
         self._active = False
         self._owns_providers = False
@@ -85,16 +79,18 @@ class TelemetrySetup:
         try:
             resource = Resource.create({"service.name": _SERVICE_NAME})
             _span_exporter = span_exporter or OTLPSpanExporter(endpoint=endpoint, insecure=True)
-            _metric_exporter = metric_exporter or OTLPMetricExporter(
-                endpoint=endpoint, insecure=True
-            )
 
             tp = SDKTracerProvider(resource=resource)
             tp.add_span_processor(BatchSpanProcessor(_span_exporter))
             self._tracer_provider = tp
 
-            reader = PeriodicExportingMetricReader(_metric_exporter)
-            self._meter_provider = SDKMeterProvider(resource=resource, metric_readers=[reader])
+            # Metrics are recorded but not exported. Nothing ever read the metric tables —
+            # the dashboard computes runtime health from the raw events, whose retention
+            # covers every window it offers — while the periodic exporter re-wrote every
+            # series each interval whether traffic came or not, making the metric tables
+            # the fastest-growing data on the Satellite. The recording stays as a no-op so
+            # instrumentation is untouched and an exporter can be reattached in one place.
+            self._meter_provider = NoOpMeterProvider()
 
             event_span_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             self._event_exporter = _OTLPEventExporter(event_span_exporter)

@@ -27,6 +27,8 @@ def _build_monitoring_worker() -> tuple[MonitoringWorker, GreptimeMonitoringStor
         events_ttl=config.MONITORING_EVENTS_TTL,
         results_ttl=config.MONITORING_RESULTS_TTL,
         alerts_ttl=config.MONITORING_ALERTS_TTL,
+        traces_ttl=config.MONITORING_TRACES_TTL,
+        metrics_ttl=config.MONITORING_METRICS_TTL,
     )
     worker = MonitoringWorker(
         store=store,
