@@ -51,9 +51,7 @@ class DeployTask(Task):
                 raise ValueError("deployment not found")
             return deployment
         except Exception as e:
-            error_message = ErrorMessage(
-                reason="failed to get deployment details", error=str(e)
-            )
+            error_message = ErrorMessage(reason="failed to get deployment details", error=str(e))
             await self.platform.update_task_status(
                 task_id, SatelliteTaskStatus.FAILED, error_message
             )
