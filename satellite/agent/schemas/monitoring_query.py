@@ -125,12 +125,25 @@ class DriftedFeature(BaseModel):
     psi_delta: float | None = None
 
 
+class ModelKind(StrEnum):
+    """What family of model the deployment serves; decides which tabs make sense.
+
+    A classic ML model gets the full dashboard. An LLM has no reference profile to
+    drift against, so only the runtime-shaped tabs (Overview, Runtime, Traces,
+    Alerts) apply.
+    """
+
+    ML = "ml"
+    LLM = "llm"
+
+
 class HeaderResponse(BaseModel):
     state: SectionState
     deployment_id: UUID
     name: str | None = None
     status: str | None = None
     task_type: str | None = None
+    model_kind: ModelKind = ModelKind.ML
     model_name: str | None = None
     environment: str | None = None
     satellite: str | None = None

@@ -21,6 +21,7 @@ from agent.schemas import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from agent.schemas.deployments import detect_model_kind
 from agent.settings import config
 
 openapi_handler = OpenAPIHandler(ms_handler)
@@ -94,6 +95,9 @@ def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
         return None
     descriptor = deployment.metadata.model_dump()
     descriptor["task_type"] = (deployment.reference_profile or {}).get("task_type")
+    descriptor["model_kind"] = detect_model_kind(
+        deployment.manifest, deployment.reference_profile
+    )
     return descriptor
 
 

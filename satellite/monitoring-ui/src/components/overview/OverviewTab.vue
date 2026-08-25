@@ -18,7 +18,7 @@
 
     <template v-else-if="overview">
       <div class="cards grid">
-        <MetricCard v-for="card in overview.cards" :key="card.key" :card="card" />
+        <MetricCard v-for="card in cardsForKind" :key="card.key" :card="card" />
       </div>
 
       <AlertBannerList
@@ -47,7 +47,7 @@
         </ChartFrame>
       </div>
 
-      <TopDriftedList :features="overview.top_drifted_features" />
+      <TopDriftedList v-if="modelKind !== 'llm'" :features="overview.top_drifted_features" />
     </template>
   </section>
 </template>
@@ -79,7 +79,15 @@ const props = defineProps<{
   status: LoadStatus
   workerHealth?: WorkerHealthResponse | null
   granularity: Granularity
+  modelKind?: 'ml' | 'llm'
 }>()
+
+/** An LLM has no reference to drift against; its Overview drops the drift cards. */
+const cardsForKind = computed(() => {
+  const cards = props.overview?.cards ?? []
+  if (props.modelKind !== 'llm') return cards
+  return cards.filter((card) => card.key !== 'drifted_features' && card.key !== 'output_drift')
+})
 
 const view = computed(() => sectionView(props.status, props.overview?.state))
 

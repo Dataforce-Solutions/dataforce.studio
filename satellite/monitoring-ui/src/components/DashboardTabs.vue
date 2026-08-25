@@ -17,10 +17,11 @@
 <script setup lang="ts">
 import { DASHBOARD_TABS, type TabKey } from '@/composables/useMonitoringDashboard'
 
-defineProps<{ active: TabKey }>()
+withDefaults(
+  defineProps<{ active: TabKey; tabs?: readonly { key: TabKey; label: string }[] }>(),
+  { tabs: () => [...DASHBOARD_TABS] },
+)
 defineEmits<{ select: [TabKey] }>()
-
-const tabs = DASHBOARD_TABS
 </script>
 
 <style scoped>

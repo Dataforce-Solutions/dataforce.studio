@@ -37,7 +37,12 @@
           </template>
         </Select>
       </div>
-      <div class="monitoring-field">
+      <!-- Monitoring is offered only once a satellite is picked and that satellite
+           advertises the capability; a satellite without it never shows the toggle.
+           The block also stays visible while the switch is on (an edit form can open
+           with monitoring on under a satellite that lost the capability), so it can
+           always be turned off. -->
+      <div v-if="showMonitoringField" class="monitoring-field">
         <div class="monitoring-header">
           <label for="monitoringEnabled" class="label">Live monitoring</label>
           <ToggleSwitch
@@ -143,9 +148,19 @@ const monitoringEnabled = defineModel<boolean>('monitoringEnabled')
 const ignoreWatch = ref(false)
 
 const satelliteSupportsMonitoring = computed(() => {
-  if (!satelliteId.value) return true
+  if (!satelliteId.value) return false
   const satellite = satellitesStore.satellitesList.find(({ id }) => id === satelliteId.value)
-  return !satellite || !!satellite.capabilities.monitoring
+  return !!satellite?.capabilities.monitoring
+})
+
+const showMonitoringField = computed(
+  () => Boolean(satelliteId.value) && (satelliteSupportsMonitoring.value || !!monitoringEnabled.value),
+)
+
+// Switching to a satellite that cannot monitor drops the toggle rather than
+// letting a hidden "on" ride into the submit.
+watch(satelliteId, () => {
+  if (!satelliteSupportsMonitoring.value) monitoringEnabled.value = false
 })
 
 const filteredSatellites = computed(() => {

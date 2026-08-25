@@ -114,6 +114,28 @@ def usable_reference_profile(profile: dict | None) -> dict | None:
     return None
 
 
+def detect_model_kind(manifest: dict | None, reference_profile: dict | None) -> str:
+    """What family of model a deployment serves: ``"ml"`` or ``"llm"``.
+
+    A usable reference profile is definitive classic ML — only the classic packaging
+    produces one. Without a profile, a ``pyfunc`` manifest variant is the LLM-app
+    shape (routers, chains) — except when the producer tags name a classic framework:
+    the early experiment packaging wrapped plain sklearn estimators as pyfunc too
+    (``luml.ai::sklearn:v1``), and those are models, not LLM apps. Everything else
+    defaults to classic ML: the safe direction to be wrong in, since it shows every
+    tab rather than hiding some.
+    """
+    if usable_reference_profile(reference_profile) is not None:
+        return "ml"
+    manifest = manifest or {}
+    if manifest.get("variant") != "pyfunc":
+        return "ml"
+    tags = manifest.get("producer_tags") or []
+    if any("sklearn" in str(tag) for tag in tags):
+        return "ml"
+    return "llm"
+
+
 class Secret(BaseModel):
     name: str
     value: str

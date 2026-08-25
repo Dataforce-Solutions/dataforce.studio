@@ -229,6 +229,7 @@ class GreptimeQueryStore:
             name=meta.get("name"),
             status=meta.get("status"),
             task_type=meta.get("task_type"),
+            model_kind=meta.get("model_kind") or "ml",
             model_name=meta.get("model_name"),
             environment=meta.get("environment"),
             satellite=meta.get("satellite"),

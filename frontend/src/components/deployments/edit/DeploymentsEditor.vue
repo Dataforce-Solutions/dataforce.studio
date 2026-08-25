@@ -28,7 +28,10 @@
         :showTitle="false"
         class="base-settings"
       ></DeploymentsFormBasicsSettings>
-      <div class="monitoring-field">
+      <!-- Only satellites that advertise the monitoring capability offer the toggle;
+           the block stays while monitoring is already on, so it can still be turned off
+           even if the satellite stopped advertising. -->
+      <div v-if="showMonitoringField" class="monitoring-field">
         <div class="monitoring-header">
           <label class="label">Live monitoring</label>
           <ToggleSwitch v-model="initialValues.monitoringEnabled" name="monitoringEnabled" />
@@ -143,6 +146,7 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useRoute } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { useDeploymentsStore } from '@/stores/deployments'
+import { useSatellitesStore } from '@/stores/satellites'
 import { editorDialogPt } from '../deployments.const'
 import { getErrorMessage } from '@/helpers/helpers'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
@@ -191,6 +195,19 @@ const initialValues = ref<FormValues>({
 })
 
 const loading = ref(false)
+
+const satellitesStore = useSatellitesStore()
+
+const satelliteSupportsMonitoring = computed(() => {
+  const satellite = satellitesStore.satellitesList.find(
+    ({ id }) => id === props.data.satellite_id,
+  )
+  return !!satellite?.capabilities.monitoring
+})
+
+const showMonitoringField = computed(
+  () => satelliteSupportsMonitoring.value || initialValues.value.monitoringEnabled,
+)
 
 const organizationId = computed(() => {
   if (typeof route.params.organizationId !== 'string') throw new Error('Incorrect organization ID')
@@ -275,6 +292,10 @@ function setSecrets(secrets: Var[]) {
 
 onBeforeMount(async () => {
   try {
+    // the capability check needs the satellite list; a page that already loaded it pays nothing
+    if (!satellitesStore.satellitesList.length) {
+      await satellitesStore.loadSatellites(organizationId.value, props.data.orbit_id)
+    }
     await secretsStore.loadSecrets(organizationId.value, props.data.orbit_id)
     const requestInfo = {
       organizationId: organizationId.value,

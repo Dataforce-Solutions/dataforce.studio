@@ -63,23 +63,44 @@ function mountForm(props: Record<string, unknown> = {}) {
 }
 
 describe('DeploymentsFormSatelliteSettings — monitoring', () => {
-  it('offers the monitoring toggle while creating a deployment', () => {
+  it('hides the monitoring block until a satellite is picked', () => {
     const wrapper = mountForm()
+
+    expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(false)
+  })
+
+  it('offers the toggle once the picked satellite advertises monitoring', () => {
+    const wrapper = mountForm({ satelliteId: MONITORED.id })
 
     expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(true)
   })
 
+  it('never offers the toggle for a satellite without the capability', () => {
+    const wrapper = mountForm({ satelliteId: PLAIN.id })
+
+    expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(false)
+  })
+
   it('emits the new value so the create payload can carry monitoring_mode', async () => {
-    const wrapper = mountForm()
+    const wrapper = mountForm({ satelliteId: MONITORED.id })
 
     await wrapper.find('[data-testid="create-monitoring-toggle"]').trigger('click')
 
     expect(wrapper.emitted('update:monitoringEnabled')).toEqual([[true]])
   })
 
-  it('warns when the chosen satellite does not report the monitoring capability', () => {
+  it('switching to a non-monitoring satellite drops the toggle instead of smuggling it on', async () => {
+    const wrapper = mountForm({ satelliteId: MONITORED.id, monitoringEnabled: true })
+
+    await wrapper.setProps({ satelliteId: PLAIN.id })
+
+    expect(wrapper.emitted('update:monitoringEnabled')?.at(-1)).toEqual([false])
+  })
+
+  it('an edit opened with monitoring on under a capability-less satellite still shows it, with the warning', () => {
     const wrapper = mountForm({ monitoringEnabled: true, satelliteId: PLAIN.id })
 
+    expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('does not report the monitoring capability')
   })
 

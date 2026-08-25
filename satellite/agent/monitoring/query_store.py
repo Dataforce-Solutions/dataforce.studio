@@ -34,6 +34,7 @@ class DeploymentDescriptor:
     name: str | None = None
     status: str | None = None
     task_type: str | None = None
+    model_kind: str = "ml"
     model_name: str | None = None
     environment: str | None = None
     satellite: str | None = None

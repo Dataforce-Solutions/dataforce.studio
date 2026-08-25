@@ -6,6 +6,7 @@ from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_retu
 
 from agent.monitoring import SESSION_COOKIE_NAME, MonitoringSessionStore
 from agent.monitoring.query_store import (
+    DeploymentDescriptor,
     InferenceEvent,
     InMemoryMonitoringStore,
     ReferenceFeatureProfile,
@@ -188,6 +189,21 @@ async def test_invalid_window_is_rejected() -> None:
         )
 
     assert resp.status_code == 422
+
+
+async def test_header_carries_the_model_kind() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_deployment(DeploymentDescriptor(deployment_id=dep, name="router", model_kind="llm"))
+
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+
+    async with client_for(app) as client:
+        resp = await client.get("/monitoring/api/header", headers=_cookie(session.session_id))
+
+    assert resp.json()["model_kind"] == "llm"
 
 
 async def test_custom_range_bounds_the_events_it_counts() -> None:

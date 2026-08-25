@@ -46,7 +46,7 @@
 
     <PlaceholderBanner v-if="isPlaceholderProfile" />
 
-    <DashboardTabs :active="activeTab" @select="setActiveTab" />
+    <DashboardTabs :active="activeTab" :tabs="visibleTabs" @select="setActiveTab" />
 
     <!-- Refetches keep the previous content on screen, only dimmed: swapping a full
          tab for a skeleton on every reload made each click feel like a page load. -->
@@ -57,6 +57,7 @@
       :status="overviewStatus"
       :worker-health="workerHealth"
       :granularity="dimensions.granularity"
+      :model-kind="header?.model_kind"
       @show-feature="focusAlert"
       @acknowledge="acknowledgeAlert($event.metric)"
       @update:granularity="setGranularity"
@@ -168,6 +169,7 @@ import AlertsTab from '@/components/alerts/AlertsTab.vue'
 const {
   dimensions,
   activeTab,
+  visibleTabs,
   sessionExpired,
   header,
   headerStatus,

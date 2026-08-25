@@ -147,6 +147,8 @@ export interface HeaderResponse {
   name?: string | null
   status?: string | null
   task_type?: string | null
+  /** 'ml' shows the full dashboard; 'llm' only the runtime-shaped tabs. */
+  model_kind?: 'ml' | 'llm'
   model_name?: string | null
   environment?: string | null
   satellite?: string | null

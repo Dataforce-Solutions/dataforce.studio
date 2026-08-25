@@ -498,6 +498,33 @@ describe('useMonitoringDashboard', () => {
     expect(dashboard.activeTab.value).toBe('overview')
   })
 
+  it('an LLM deployment gets only the runtime-shaped tabs, and a hidden tab snaps back', async () => {
+    getHeader.mockResolvedValue(makeHeader({ model_kind: 'llm' }))
+    // the remembered tab is one an LLM does not have
+    localStorage.setItem(
+      'monitoring-settings:dep-1',
+      JSON.stringify({ v: 1, tab: 'feature-drift' }),
+    )
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+    await Promise.resolve()
+
+    expect(dashboard.visibleTabs.value.map((tab) => tab.key)).toEqual([
+      'overview',
+      'runtime',
+      'traces',
+      'alerts',
+    ])
+    expect(dashboard.activeTab.value).toBe('overview')
+  })
+
+  it('a classic model keeps every tab', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+
+    expect(dashboard.visibleTabs.value).toHaveLength(8)
+  })
+
   it('stops polling for good once the session expires', async () => {
     vi.useFakeTimers()
     try {
