@@ -8,6 +8,12 @@ export enum Window {
   D30 = '30d',
 }
 
+export enum Granularity {
+  AUTO = 'auto',
+  HOUR = 'hour',
+  DAY = 'day',
+}
+
 export enum Compare {
   REFERENCE = 'reference',
   PREVIOUS = 'previous',
@@ -456,5 +462,6 @@ export interface Dimensions {
   window: Window
   compare: Compare
   severity: SeverityFilter
+  granularity: Granularity
   feature: string | null
 }

@@ -406,7 +406,7 @@ describe('useMonitoringDashboard', () => {
           ...baseline.groups,
           {
             group: 'runtime',
-            alerts: [{ ...baseline.groups[0].alerts[0], metric: 'runtime:error_rate' }],
+            alerts: [{ ...baseline.groups[0].alerts[0], metric: 'runtime:latency_p95' }],
           },
         ],
       }
@@ -415,7 +415,7 @@ describe('useMonitoringDashboard', () => {
       dashboard.setAutoRefresh(30)
       await vi.advanceTimersByTimeAsync(30_000)
       expect(dashboard.alertsNewCount.value).toBe(1)
-      expect(dashboard.alertsFreshKeys.value.has('runtime:error_rate')).toBe(true)
+      expect(dashboard.alertsFreshKeys.value.has('runtime:latency_p95')).toBe(true)
 
       // the count survives another tick with the same list — a glance away is not "seen"
       await vi.advanceTimersByTimeAsync(30_000)

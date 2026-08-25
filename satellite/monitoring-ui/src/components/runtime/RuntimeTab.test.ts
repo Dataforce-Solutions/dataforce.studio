@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RuntimeTab from './RuntimeTab.vue'
-import { SectionState, type RuntimeResponse } from '@/api/types'
+import { Granularity, SectionState, type RuntimeResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { makeRuntime } from '@/test/fixtures'
 
 function mountTab(props: { runtime: RuntimeResponse | null; status: LoadStatus }) {
   return mount(RuntimeTab, {
-    props,
+    props: { ...props, granularity: Granularity.AUTO },
     // the alert drawer teleports to the body; keep it inline for the assertions
     global: { stubs: { apexchart: true, teleport: true } },
   })

@@ -233,9 +233,8 @@ compare (reference / previous), severity (all / warning / critical), кнопк�
 
 Не хватает:
 
-- **granularity**: параметр в API есть и работает (`query.py:180`, `query.py:208`), UI
-  всегда шлёт `auto`. Авто-зум серий частично закрывает потребность, но выбрать шаг руками
-  нельзя;
+- ~~**granularity**: параметр в API есть и работает, UI всегда шлёт `auto`~~ — сделано
+  25.08: контрол Step (auto/hour/day) над runtime-графиками;
 - **feature filter как глобальный контрол**: измерение `feature` в API есть, но фича
   выбирается внутри вкладок Data quality и Feature drift, а не в шапке;
 - ~~**auto-refresh**: только ручная кнопка~~ — сделано 25.08;
@@ -318,7 +317,8 @@ compare (reference / previous), severity (all / warning / critical), кнопк�
 
 ### Остатки по спеке (мелкие, UI)
 
-- **Granularity в контролах** — API умеет (`granularity=hour|day`), UI всегда шлёт auto.
+- ~~**Granularity в контролах**~~ — сделано 25.08: компактный контрол Step (auto/hour/day)
+  стоит над runtime-графиками Overview и Runtime — единственными, на которые шаг влияет.
 - **Feature filter как глобальный контрол** — сейчас фича выбирается внутри вкладок.
 - ~~**Auto-refresh**~~ — сделано 25.08: контрол Auto (off/30s/1m/5m) рядом с Refresh; тик
   обновляет шапку и активную секцию, не трогая состояние (страница трейсов, открытые

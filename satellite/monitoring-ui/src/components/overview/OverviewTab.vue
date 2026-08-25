@@ -29,6 +29,9 @@
         @acknowledge="$emit('acknowledge', $event)"
       />
 
+      <div class="charts-head">
+        <StepControl :granularity="granularity" @update:granularity="$emit('update:granularity', $event)" />
+      </div>
       <div class="charts grid">
         <ChartFrame
           v-for="chart in charts"
@@ -51,25 +54,31 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AlertBanner, OverviewResponse, WorkerHealthResponse } from '@/api/types'
+import type { AlertBanner, Granularity, OverviewResponse, WorkerHealthResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 // shared with the Runtime tab, which plots the same three series
 import { runtimeCharts } from '@/lib/charts'
 import StateBlock from '@/components/StateBlock.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
+import StepControl from '@/components/StepControl.vue'
 import ChartFrame from '@/components/ChartFrame.vue'
 import MetricCard from './MetricCard.vue'
 import AlertBannerList from './AlertBannerList.vue'
 import TopDriftedList from './TopDriftedList.vue'
 import WorkerHealthStrip from './WorkerHealthStrip.vue'
 
-defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner] }>()
+defineEmits<{
+  'show-feature': [AlertBanner]
+  acknowledge: [AlertBanner]
+  'update:granularity': [Granularity]
+}>()
 
 const props = defineProps<{
   overview: OverviewResponse | null
   status: LoadStatus
   workerHealth?: WorkerHealthResponse | null
+  granularity: Granularity
 }>()
 
 const view = computed(() => sectionView(props.status, props.overview?.state))
@@ -85,6 +94,11 @@ const charts = computed(() => runtimeCharts(props.overview?.series))
 }
 .cards {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.charts-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -6px;
 }
 .charts {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

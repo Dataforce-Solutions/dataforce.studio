@@ -19,6 +19,7 @@ export function dimensionParams(dims: Dimensions): QueryParams {
     window: dims.window,
     compare: dims.compare,
     severity: dims.severity,
+    granularity: dims.granularity,
     feature: dims.feature,
   }
 }

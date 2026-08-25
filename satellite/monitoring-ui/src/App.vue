@@ -32,15 +32,19 @@
       :overview="overview"
       :status="overviewStatus"
       :worker-health="workerHealth"
+      :granularity="dimensions.granularity"
       @show-feature="focusAlert"
       @acknowledge="acknowledgeAlert($event.metric)"
+      @update:granularity="setGranularity"
     />
 
     <RuntimeTab
       v-else-if="activeTab === 'runtime'"
       :runtime="runtime"
       :status="runtimeStatus"
+      :granularity="dimensions.granularity"
       @acknowledge="acknowledgeAlert($event.metric)"
+      @update:granularity="setGranularity"
     />
 
     <TracesTab
@@ -177,6 +181,7 @@ const {
   load,
   refresh,
   setWindow,
+  setGranularity,
   setCompare,
   setSeverity,
   setFeature,

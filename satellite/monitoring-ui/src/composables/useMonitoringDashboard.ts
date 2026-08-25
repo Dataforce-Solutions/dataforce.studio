@@ -3,6 +3,7 @@ import * as monitoringApi from '@/api/monitoring'
 import { SessionExpiredError } from '@/api/client'
 import {
   Compare,
+  Granularity,
   ProfileStatus,
   SeverityFilter,
   Window,
@@ -51,6 +52,7 @@ export function useMonitoringDashboard() {
     window: Window.H24,
     compare: Compare.REFERENCE,
     severity: SeverityFilter.ALL,
+    granularity: Granularity.AUTO,
     feature: null,
   })
 
@@ -436,6 +438,12 @@ export function useMonitoringDashboard() {
     await reloadActiveTab()
   }
 
+  async function setGranularity(next: Granularity): Promise<void> {
+    if (dimensions.granularity === next) return
+    dimensions.granularity = next
+    await reloadActiveTab()
+  }
+
   async function setCompare(next: Compare): Promise<void> {
     if (dimensions.compare === next) return
     dimensions.compare = next
@@ -548,6 +556,7 @@ export function useMonitoringDashboard() {
     load,
     refresh,
     setWindow,
+    setGranularity,
     setCompare,
     setSeverity,
     setFeature,

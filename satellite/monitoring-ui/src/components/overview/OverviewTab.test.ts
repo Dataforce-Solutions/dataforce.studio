@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OverviewTab from './OverviewTab.vue'
-import { SectionState, type OverviewResponse } from '@/api/types'
+import { Granularity, SectionState, type OverviewResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { makeOverview } from '@/test/fixtures'
 
 function mountTab(props: { overview: OverviewResponse | null; status: LoadStatus }) {
   return mount(OverviewTab, {
-    props,
+    props: { ...props, granularity: Granularity.AUTO },
     // the alert drawer teleports to the body; keep it inline for the assertions
     global: { stubs: { apexchart: true, teleport: true } },
   })

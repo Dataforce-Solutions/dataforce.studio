@@ -27,6 +27,9 @@
         <MetricCard v-for="card in cards" :key="card.key" :card="card" />
       </div>
 
+      <div class="charts-head">
+        <StepControl :granularity="granularity" @update:granularity="$emit('update:granularity', $event)" />
+      </div>
       <div class="charts grid">
         <ChartFrame
           v-for="chart in charts"
@@ -82,13 +85,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AlertBanner, Card, RuntimeResponse, StatusBreakdownRow } from '@/api/types'
+import type { AlertBanner, Card, Granularity, RuntimeResponse, StatusBreakdownRow } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { runtimeCharts } from '@/lib/charts'
 import { formatCount, formatRate } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
 import SeriesChart from '@/components/SeriesChart.vue'
+import StepControl from '@/components/StepControl.vue'
 import ChartFrame from '@/components/ChartFrame.vue'
 import MetricCard from '@/components/overview/MetricCard.vue'
 import AlertBannerList from '@/components/overview/AlertBannerList.vue'
@@ -96,9 +100,10 @@ import AlertBannerList from '@/components/overview/AlertBannerList.vue'
 const props = defineProps<{
   runtime: RuntimeResponse | null
   status: LoadStatus
+  granularity: Granularity
 }>()
 
-defineEmits<{ acknowledge: [AlertBanner] }>()
+defineEmits<{ acknowledge: [AlertBanner]; 'update:granularity': [Granularity] }>()
 
 /**
  * A window nobody called reads as empty, not as a wall of zeros.
@@ -157,6 +162,11 @@ function outcomeLabel(status: string): string {
 }
 .cards {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.charts-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -6px;
 }
 .charts {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

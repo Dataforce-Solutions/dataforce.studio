@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTraces } from './monitoring'
-import { Compare, SeverityFilter, Window, type Dimensions } from './types'
+import { Compare, Granularity, SeverityFilter, Window, type Dimensions } from './types'
 
 const dims: Dimensions = {
   window: Window.H24,
   compare: Compare.REFERENCE,
   severity: SeverityFilter.ALL,
+  granularity: Granularity.AUTO,
   feature: null,
 }
 
