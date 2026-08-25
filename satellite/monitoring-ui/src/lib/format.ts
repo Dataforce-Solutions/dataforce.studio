@@ -26,7 +26,13 @@ export function cardDetail(card: Card): string | null {
   }
   if (card.delta == null) return null
   const arrow = card.delta > 0 ? '↑' : card.delta < 0 ? '↓' : '→'
-  return `${arrow} ${formatDelta(card)} vs ${card.delta_kind ?? 'reference'}`
+  const against =
+    card.delta_kind === 'previous'
+      ? 'previous period'
+      : card.delta_kind === 'custom'
+        ? 'compared period'
+        : (card.delta_kind ?? 'reference')
+  return `${arrow} ${formatDelta(card)} vs ${against}`
 }
 
 function formatDelta(card: Card): string {

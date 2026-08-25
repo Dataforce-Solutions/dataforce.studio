@@ -85,6 +85,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Compare } from '@/api/types'
 import type { AlertBanner, Card, Granularity, RuntimeResponse, StatusBreakdownRow } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
@@ -101,6 +102,7 @@ const props = defineProps<{
   runtime: RuntimeResponse | null
   status: LoadStatus
   granularity: Granularity
+  compare?: Compare
 }>()
 
 defineEmits<{ acknowledge: [AlertBanner]; 'update:granularity': [Granularity] }>()
@@ -128,18 +130,72 @@ const charts = computed(() => runtimeCharts(props.runtime?.series))
 const cards = computed<Card[]>(() => {
   const data = props.runtime
   if (!data) return []
+  const base = data.baseline ?? null
+  // In compare mode every card carries its delta against the comparison period.
+  const delta = (current: number | null | undefined, previous: number | null | undefined) =>
+    base !== null && current != null && previous != null ? current - previous : null
+  const kind = base !== null ? (props.compare ?? Compare.CUSTOM) : null
   return [
-    { key: 'requests', label: 'Requests', value: data.request_count },
-    { key: 'success_rate', label: 'Success rate', value: data.success_rate, unit: 'ratio' },
-    { key: 'error_rate', label: 'Error rate', value: data.error_rate, unit: 'ratio' },
-    { key: 'latency_p50', label: 'Latency p50', value: data.latency_p50_ms, unit: 'ms' },
-    { key: 'latency_p95', label: 'Latency p95', value: data.latency_p95_ms, unit: 'ms' },
-    { key: 'latency_max', label: 'Latency max', value: data.latency_max_ms, unit: 'ms' },
-    { key: 'timeout_count', label: 'Timeouts', value: data.timeout_count },
+    {
+      key: 'requests',
+      label: 'Requests',
+      value: data.request_count,
+      delta: delta(data.request_count, base?.request_count),
+      delta_kind: kind,
+    },
+    {
+      key: 'success_rate',
+      label: 'Success rate',
+      value: data.success_rate,
+      unit: 'ratio',
+      delta: delta(data.success_rate, base?.success_rate),
+      delta_kind: kind,
+    },
+    {
+      key: 'error_rate',
+      label: 'Error rate',
+      value: data.error_rate,
+      unit: 'ratio',
+      delta: delta(data.error_rate, base?.error_rate),
+      delta_kind: kind,
+    },
+    {
+      key: 'latency_p50',
+      label: 'Latency p50',
+      value: data.latency_p50_ms,
+      unit: 'ms',
+      delta: delta(data.latency_p50_ms, base?.latency_p50_ms),
+      delta_kind: kind,
+    },
+    {
+      key: 'latency_p95',
+      label: 'Latency p95',
+      value: data.latency_p95_ms,
+      unit: 'ms',
+      delta: delta(data.latency_p95_ms, base?.latency_p95_ms),
+      delta_kind: kind,
+    },
+    {
+      key: 'latency_max',
+      label: 'Latency max',
+      value: data.latency_max_ms,
+      unit: 'ms',
+      delta: delta(data.latency_max_ms, base?.latency_max_ms),
+      delta_kind: kind,
+    },
+    {
+      key: 'timeout_count',
+      label: 'Timeouts',
+      value: data.timeout_count,
+      delta: delta(data.timeout_count, base?.timeout_count),
+      delta_kind: kind,
+    },
     {
       key: 'failed_inference_count',
       label: 'Failed inferences',
       value: data.failed_inference_count,
+      delta: delta(data.failed_inference_count, base?.failed_inference_count),
+      delta_kind: kind,
     },
   ]
 })
@@ -190,13 +246,9 @@ function outcomeLabel(status: string): string {
 }
 .breakdown th {
   text-align: left;
-  padding: 10px 12px;
-  background: var(--luml-surface-50);
+  padding: 8px 12px;
   color: var(--luml-fg-muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 500;
   border-bottom: 1px solid var(--luml-border);
   white-space: nowrap;
 }

@@ -1,6 +1,6 @@
 <template>
   <div class="controls" data-testid="global-controls">
-    <div class="control range-control">
+    <div ref="rangeControl" class="control range-control">
       <span class="control-label">Window</span>
       <div class="segmented" role="group" aria-label="Window">
         <button
@@ -43,23 +43,6 @@
     </div>
 
     <div class="control">
-      <span class="control-label">Compare</span>
-      <div class="segmented" role="group" aria-label="Compare">
-        <button
-          v-for="option in compareOptions"
-          :key="option"
-          type="button"
-          class="segment"
-          :class="{ active: dimensions.compare === option }"
-          :data-testid="`compare-${option}`"
-          @click="$emit('update:compare', option)"
-        >
-          {{ option }}
-        </button>
-      </div>
-    </div>
-
-    <div class="control">
       <span class="control-label">Severity</span>
       <div class="segmented" role="group" aria-label="Severity">
         <button
@@ -76,13 +59,12 @@
       </div>
     </div>
 
-    <button type="button" class="refresh" data-testid="refresh" @click="$emit('refresh')">
-      <RefreshCw :size="14" />
-      Refresh
-    </button>
-
-    <div class="control">
-      <span class="control-label">Auto</span>
+    <!-- One refresh story: the manual button and its auto cadence sit together. -->
+    <div class="control refresh-group">
+      <button type="button" class="refresh" data-testid="refresh" @click="$emit('refresh')">
+        <RefreshCw :size="14" />
+        Refresh
+      </button>
       <div class="segmented" role="group" aria-label="Auto-refresh">
         <button
           v-for="option in autoOptions"
@@ -97,12 +79,23 @@
         </button>
       </div>
     </div>
+
+    <button
+      type="button"
+      class="compare"
+      :class="{ active: compareOn }"
+      data-testid="compare-button"
+      @click="$emit('open-compare')"
+    >
+      <ArrowLeftRight :size="14" />
+      Compare
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { CalendarDays, RefreshCw } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { ArrowLeftRight, CalendarDays, RefreshCw } from 'lucide-vue-next'
 import { Compare, SeverityFilter, Window, type Dimensions } from '@/api/types'
 import { AUTO_REFRESH_OPTIONS, type AutoRefreshSeconds } from '@/composables/useMonitoringDashboard'
 import DateRangePicker from '@/components/DateRangePicker.vue'
@@ -111,14 +104,17 @@ const props = defineProps<{ dimensions: Dimensions; autoRefresh: AutoRefreshSeco
 const emit = defineEmits<{
   'update:window': [Window]
   'update:range': [string | null, string | null]
-  'update:compare': [Compare]
   'update:severity': [SeverityFilter]
   'update:auto': [AutoRefreshSeconds]
+  'open-compare': []
   refresh: []
 }>()
 
+const compareOn = computed(
+  () => props.dimensions.compare === Compare.PREVIOUS || props.dimensions.compare === Compare.CUSTOM,
+)
+
 const windowOptions = [Window.H24, Window.D7, Window.D30]
-const compareOptions = [Compare.REFERENCE, Compare.PREVIOUS]
 const severityOptions = [SeverityFilter.ALL, SeverityFilter.WARNING, SeverityFilter.CRITICAL]
 
 const customActive = computed(() => props.dimensions.start !== null && props.dimensions.end !== null)
@@ -126,11 +122,34 @@ const customActive = computed(() => props.dimensions.start !== null && props.dim
 const pickerOpen = ref(false)
 // Remounts the calendar per opening, so it re-anchors on the current selection.
 const pickerSession = ref(0)
+const rangeControl = ref<HTMLElement | null>(null)
 
 function togglePicker(): void {
   pickerOpen.value = !pickerOpen.value
   if (pickerOpen.value) pickerSession.value += 1
 }
+
+// A popover that only closes through Apply turns into furniture: a click anywhere
+// outside it, or Escape, dismisses without applying.
+function onPointerDown(event: PointerEvent) {
+  if (!rangeControl.value?.contains(event.target as Node)) pickerOpen.value = false
+}
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') pickerOpen.value = false
+}
+watch(pickerOpen, (open) => {
+  if (open) {
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeydown)
+  } else {
+    document.removeEventListener('pointerdown', onPointerDown)
+    document.removeEventListener('keydown', onKeydown)
+  }
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onPointerDown)
+  document.removeEventListener('keydown', onKeydown)
+})
 
 function applyRange(start: string, end: string): void {
   emit('update:range', start, end)
@@ -219,6 +238,31 @@ function autoLabel(seconds: AutoRefreshSeconds): string {
   background: var(--luml-brand);
   color: var(--luml-brand-contrast);
   font-weight: 500;
+}
+.compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--luml-border);
+  border-radius: var(--luml-radius-md);
+  background: var(--luml-bg-card);
+  color: var(--luml-fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.compare:hover {
+  background: var(--luml-bg-hover);
+}
+.compare.active {
+  background: var(--luml-brand);
+  border-color: var(--luml-brand);
+  color: var(--luml-brand-contrast);
+}
+.refresh-group {
+  gap: var(--luml-space-3);
 }
 .refresh {
   display: inline-flex;

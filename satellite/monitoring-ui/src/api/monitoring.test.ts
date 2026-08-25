@@ -10,6 +10,8 @@ const dims: Dimensions = {
   feature: null,
   start: null,
   end: null,
+  compareStart: null,
+  compareEnd: null,
 }
 
 describe('monitoring API client', () => {

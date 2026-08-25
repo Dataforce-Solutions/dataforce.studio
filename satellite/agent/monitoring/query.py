@@ -62,6 +62,7 @@ from agent.schemas.monitoring_query import (
     ProfileStatus,
     ReferenceProfileFeature,
     ReferenceProfileResponse,
+    RuntimeBaseline,
     RuntimeResponse,
     SectionState,
     Series,
@@ -147,6 +148,9 @@ class QueryDimensions:
     # is only a fallback label; retention caps useful ranges at 30 days back.
     start: datetime | None = None
     end: datetime | None = None
+    # The comparison period, when compare is CUSTOM.
+    compare_start: datetime | None = None
+    compare_end: datetime | None = None
 
     @property
     def is_custom_range(self) -> bool:
@@ -402,6 +406,21 @@ class MonitoringQueryService:
         end = datetime.fromtimestamp(self._clock(), tz=UTC)
         return end - timedelta(seconds=_WINDOW_SECONDS[dims.window]), end
 
+    def _baseline_bounds(self, dims: QueryDimensions) -> tuple[datetime, datetime] | None:
+        """The comparison period, or None when no comparison is on.
+
+        PREVIOUS is the same span butted right up against the current window's start;
+        CUSTOM is whatever the caller chose. REFERENCE (and OFF) carry no period: the
+        training reference is a distribution, not a stretch of runtime.
+        """
+        if dims.compare is Compare.PREVIOUS:
+            start, _ = self._window_bounds(dims)
+            span = timedelta(seconds=dims.span_seconds())
+            return start - span, start
+        if dims.compare is Compare.CUSTOM and dims.compare_start and dims.compare_end:
+            return dims.compare_start, dims.compare_end
+        return None
+
     async def header(self, deployment_id: UUID) -> HeaderResponse:
         try:
             descriptor = await self._store.describe_deployment(deployment_id)
@@ -430,6 +449,7 @@ class MonitoringQueryService:
     async def runtime(self, deployment_id: UUID, dims: QueryDimensions) -> RuntimeResponse:
         try:
             rollup, series = await self._runtime(deployment_id, dims)
+            baseline_rollup = await self._previous_rollup(deployment_id, dims)
             # with dims: the banners carry history and threshold provenance, so an alert
             # opened here is the same view the Alerts tab gives it
             alerts = await self._banners(
@@ -452,6 +472,7 @@ class MonitoringQueryService:
             timeout_count=rollup.timeout_count,
             failed_inference_count=rollup.failed_inference_count,
             status_breakdown=list(rollup.status_breakdown),
+            baseline=self._runtime_baseline(baseline_rollup, dims),
             series=series,
             alerts=alerts,
         )
@@ -514,6 +535,37 @@ class MonitoringQueryService:
                 state=SectionState.EMPTY, profile_status=profile, alerts=alerts
             )
         rows = _data_quality_rows(result.values, dims.feature)
+        baseline_rows = await self._baseline_history(deployment_id, GROUP_DATA_QUALITY, dims)
+        if baseline_rows:
+            missing = _mean_feature_values(baseline_rows, "missing_rate")
+            type_mismatch = _mean_feature_values(baseline_rows, "type_mismatch_rate")
+            range_violation = _mean_feature_values(baseline_rows, "range_violation_rate")
+            unseen = _mean_feature_values(baseline_rows, "unseen_category_rate")
+            def _delta_of(current: float | None, base: float | None) -> float | None:
+                return current - base if current is not None and base is not None else None
+            rows = [
+                row.model_copy(
+                    update={
+                        "missing_delta": _delta_of(row.missing_rate, missing.get(row.feature)),
+                        "type_error_delta": _delta_of(
+                            row.type_error_rate, type_mismatch.get(row.feature)
+                        ),
+                        "range_unseen_delta": _delta_of(
+                            row.range_unseen_rate,
+                            (
+                                max(v for v in (
+                                    range_violation.get(row.feature),
+                                    unseen.get(row.feature),
+                                ) if v is not None)
+                                if range_violation.get(row.feature) is not None
+                                or unseen.get(row.feature) is not None
+                                else None
+                            ),
+                        ),
+                    }
+                )
+                for row in rows
+            ]
         trends = await self._data_quality_trends(deployment_id, dims)
         return DataQualityResponse(
             state=SectionState.OK,
@@ -603,6 +655,23 @@ class MonitoringQueryService:
                 alerts=alerts,
             )
         ranked = sorted(_drifted_features(drift.values), key=lambda d: d.psi, reverse=True)
+        baseline_psi = _mean_feature_values(
+            await self._baseline_history(deployment_id, GROUP_FEATURE_DRIFT, dims), "psi"
+        )
+        if baseline_psi:
+            ranked = [
+                one.model_copy(
+                    update={
+                        "baseline_psi": baseline_psi.get(one.feature),
+                        "psi_delta": (
+                            one.psi - baseline_psi[one.feature]
+                            if one.feature in baseline_psi
+                            else None
+                        ),
+                    }
+                )
+                for one in ranked
+            ]
         selected = _feature_detail(drift.values, dims.feature)
         if selected is not None and selected.psi_over_time is None:
             history = await self._psi_history(deployment_id, dims)
@@ -646,12 +715,26 @@ class MonitoringQueryService:
             history = []
 
         values = result.values
+        current_psi = _maybe_float(values.get("psi"))
+        baseline_rows = await self._baseline_history(deployment_id, GROUP_OUTPUT_DRIFT, dims)
+        baseline_psis = [
+            value
+            for row in baseline_rows
+            if (value := _maybe_float(row.values.get("psi"))) is not None
+        ]
+        baseline_psi = sum(baseline_psis) / len(baseline_psis) if baseline_psis else None
         return OutputDriftResponse(
             state=SectionState.OK,
             profile_status=profile,
             name=values.get("name"),
             kind=values.get("kind"),
-            psi=_maybe_float(values.get("psi")),
+            psi=current_psi,
+            baseline_psi=baseline_psi,
+            psi_delta=(
+                current_psi - baseline_psi
+                if current_psi is not None and baseline_psi is not None
+                else None
+            ),
             severity=Severity(values.get("status", result.severity or Severity.OK)),
             count=int(values.get("count") or 0),
             distribution=_distribution(values.get("distribution")),
@@ -919,19 +1002,69 @@ class MonitoringQueryService:
     ) -> tuple[_Rollup, list[Series]]:
         start, end = self._window_bounds(dims)
         events = await self._store.fetch_events(deployment_id, start, end)
-        # The rollup always covers the whole selected window; only the series layout follows
-        # where the events actually are.
-        series_start, bucket, n_buckets = _series_layout(events, start, dims)
-        return _rollup(events), _runtime_series(events, series_start, bucket, n_buckets)
+        baseline_bounds = self._baseline_bounds(dims)
+        if baseline_bounds is None:
+            # The rollup always covers the whole selected window; only the series layout
+            # follows where the events actually are.
+            series_start, bucket, n_buckets = _series_layout(events, start, dims)
+            return _rollup(events), _runtime_series(events, series_start, bucket, n_buckets)
+
+        # Compare mode: both periods share one fixed grid — zooming to either period's
+        # data would break the bucket-for-bucket overlay the charts draw.
+        bucket = _bucket_seconds(dims)
+        n_buckets = math.ceil(dims.span_seconds() / bucket)
+        series = _runtime_series(events, start, bucket, n_buckets)
+        base_events = await self._store.fetch_events(deployment_id, *baseline_bounds)
+        base_series = _runtime_series(base_events, baseline_bounds[0], bucket, n_buckets)
+        # Shift the baseline onto the current window's axis so the lines overlay.
+        shift = start - baseline_bounds[0]
+        base_by_key = {one.key: one for one in base_series}
+        for one in series:
+            base = base_by_key.get(one.key)
+            if base is not None:
+                one.baseline = [
+                    SeriesPoint(t=point.t + shift, value=point.value) for point in base.points
+                ]
+        return _rollup(events), series
+
+    def _runtime_baseline(
+        self, rollup: _Rollup | None, dims: QueryDimensions
+    ) -> RuntimeBaseline | None:
+        bounds = self._baseline_bounds(dims)
+        if rollup is None or bounds is None:
+            return None
+        return RuntimeBaseline(
+            start=bounds[0],
+            end=bounds[1],
+            request_count=rollup.request_count,
+            success_rate=rollup.success_rate,
+            error_rate=rollup.error_rate,
+            latency_p50_ms=rollup.latency_p50_ms,
+            latency_p95_ms=rollup.latency_p95_ms,
+            latency_max_ms=rollup.latency_max_ms,
+            timeout_count=rollup.timeout_count,
+            failed_inference_count=rollup.failed_inference_count,
+        )
+
+    async def _baseline_history(
+        self, deployment_id: UUID, group: str, dims: QueryDimensions
+    ) -> list[StoredMetricResult]:
+        """The materialized windows of one group inside the comparison period."""
+        bounds = self._baseline_bounds(dims)
+        if bounds is None:
+            return []
+        try:
+            return await self._store.fetch_result_history(
+                deployment_id, group, dims.window.value, since=bounds[0], until=bounds[1]
+            )
+        except MonitoringStoreUnavailable:
+            return []
 
     async def _previous_rollup(self, deployment_id: UUID, dims: QueryDimensions) -> _Rollup | None:
-        if dims.compare is not Compare.PREVIOUS:
+        bounds = self._baseline_bounds(dims)
+        if bounds is None:
             return None
-        current_start, _ = self._window_bounds(dims)
-        duration = timedelta(seconds=dims.span_seconds())
-        prev_start = current_start - duration
-        prev_end = current_start
-        return _rollup(await self._store.fetch_events(deployment_id, prev_start, prev_end))
+        return _rollup(await self._store.fetch_events(deployment_id, bounds[0], bounds[1]))
 
     async def _banners(
         self,
@@ -988,6 +1121,25 @@ def _group_alerts(
     ]
     extra = [AlertGroup(group=group, alerts=items) for group, items in by_group.items()]
     return known + extra
+
+
+def _mean_feature_values(history: list[StoredMetricResult], key: str) -> dict[str, float]:
+    """Per-feature mean of one numeric field across materialized windows.
+
+    The comparison period is summarized as the mean rather than any single window:
+    which 5-minute window happens to sit at the period's edge is noise, the typical
+    level over the period is the signal.
+    """
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for row in history:
+        for name, entry in (row.values.get("features") or {}).items():
+            value = _maybe_float(entry.get(key)) if isinstance(entry, dict) else None
+            if value is None:
+                continue
+            sums[name] = sums.get(name, 0.0) + value
+            counts[name] = counts.get(name, 0) + 1
+    return {name: sums[name] / counts[name] for name in sums}
 
 
 def _drifted_features(values: dict) -> list[DriftedFeature]:

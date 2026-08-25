@@ -59,11 +59,22 @@
               <td class="mono feature" :title="checkedTitle(row)">{{ row.feature }}</td>
               <td class="mono num" :class="rateClass(row.missing_rate, 'missing')">
                 {{ formatRate(row.missing_rate) }}
+                <span v-if="row.missing_delta != null" class="rate-delta" :class="deltaTone(row.missing_delta)">
+                  {{ deltaLabel(row.missing_delta) }}
+                </span>
               </td>
               <td class="mono num" :class="rateClass(row.type_error_rate, 'type_mismatch')">
                 {{ formatRate(row.type_error_rate) }}
+                <span v-if="row.type_error_delta != null" class="rate-delta" :class="deltaTone(row.type_error_delta)">
+                  {{ deltaLabel(row.type_error_delta) }}
+                </span>
               </td>
-              <td class="mono range">{{ rangeLabel(row) }}</td>
+              <td class="mono range">
+                {{ rangeLabel(row) }}
+                <span v-if="row.range_unseen_delta != null" class="rate-delta" :class="deltaTone(row.range_unseen_delta)">
+                  {{ deltaLabel(row.range_unseen_delta) }}
+                </span>
+              </td>
               <td><SeverityTag :severity="row.status" /></td>
             </tr>
           </tbody>
@@ -188,6 +199,17 @@ function rangeLabel(row: DataQualityFeatureRow): string {
   return formatRate(row.range_unseen_rate)
 }
 
+/** A quality rate growing is bad news; the delta chip's color follows the meaning. */
+function deltaTone(delta: number): string {
+  return delta > 0 ? 'up' : 'down'
+}
+
+function deltaLabel(delta: number): string {
+  const points = Math.abs(delta * 100)
+  const text = points >= 10 ? points.toFixed(0) : points.toFixed(1)
+  return `${delta > 0 ? '↑' : '↓'} ${text}pp`
+}
+
 function checkedTitle(row: DataQualityFeatureRow): string | undefined {
   return row.checked == null ? undefined : `${row.checked.toLocaleString()} values checked`
 }
@@ -209,19 +231,16 @@ function checkedTitle(row: DataQualityFeatureRow): string | undefined {
 }
 .dq th {
   text-align: left;
-  padding: 12px 18px;
-  background: var(--luml-surface-50);
+  padding: 8px 12px;
   color: var(--luml-fg-muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 500;
   border-bottom: 1px solid var(--luml-border);
   white-space: nowrap;
   /* the header stays put while the list scrolls under it */
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--luml-bg-card);
 }
 .row {
   cursor: pointer;
@@ -251,6 +270,17 @@ function checkedTitle(row: DataQualityFeatureRow): string | undefined {
 .dq .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.rate-delta {
+  display: block;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.rate-delta.up {
+  color: var(--luml-danger-tint-fg);
+}
+.rate-delta.down {
+  color: var(--luml-success-tint-fg);
 }
 .feature {
   font-weight: 500;

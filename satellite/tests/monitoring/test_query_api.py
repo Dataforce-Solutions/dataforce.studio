@@ -1,5 +1,7 @@
 import uuid
 
+import pytest
+
 from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_returning
 
 from agent.monitoring import SESSION_COOKIE_NAME, MonitoringSessionStore
@@ -244,6 +246,131 @@ async def test_custom_range_validation() -> None:
     assert lonely.status_code == 422
     assert backwards.status_code == 422
     assert too_wide.status_code == 422
+
+
+async def test_custom_compare_returns_baseline_rollup_and_overlay() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for seconds_back in (100, 200):  # current window
+        e = _event(dep)
+        store.add_event(
+            InferenceEvent(
+                event_id=e.event_id, deployment_id=dep, ts=ago(seconds_back),
+                status="success", status_code=200, latency_ms=12.0,
+            )
+        )
+    for seconds_back in (1000, 1100, 1200):  # the chosen comparison period
+        e = _event(dep)
+        store.add_event(
+            InferenceEvent(
+                event_id=e.event_id, deployment_id=dep, ts=ago(seconds_back),
+                status="success", status_code=200, latency_ms=30.0,
+            )
+        )
+
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/runtime",
+            params={
+                "start": ago(300).isoformat(),
+                "end": ago(0).isoformat(),
+                "compare": "custom",
+                "compare_start": ago(1300).isoformat(),
+                "compare_end": ago(1000).isoformat(),
+            },
+            headers=_cookie(session.session_id),
+        )
+
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["request_count"] == 2
+    # the comparison period's own rollup rides along for the card deltas
+    assert body["baseline"]["request_count"] == 3
+    # overlay: every series carries baseline points on the current window's axis
+    requests = next(one for one in body["series"] if one["key"] == "requests")
+    assert requests["baseline"] is not None
+    assert len(requests["baseline"]) == len(requests["points"])
+    assert requests["points"][0]["t"] == requests["baseline"][0]["t"]
+
+
+async def test_custom_compare_adds_deltas_to_drift_and_data_quality() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    # comparison period first: add_result keeps the last write as "the" snapshot,
+    # so the current window must land last. Two windows averaging PSI 0.3, missing 5%.
+    for seconds_back, psi, miss in ((2000, 0.2, 0.04), (2200, 0.4, 0.06)):
+        store.add_result(
+            StoredMetricResult(
+                deployment_id=dep, group="feature_drift", window="24h",
+                values={"features": {"income": {"psi": psi}}},
+                severity="ok", computed_at=ago(seconds_back),
+            )
+        )
+        store.add_result(
+            StoredMetricResult(
+                deployment_id=dep, group="data_quality", window="24h",
+                values={"features": {"income": {"missing_rate": miss}}},
+                severity="ok", computed_at=ago(seconds_back),
+            )
+        )
+    # the current snapshot: PSI 0.9, missing 20%
+    store.add_result(
+        StoredMetricResult(
+            deployment_id=dep, group="feature_drift", window="24h",
+            values={"features": {"income": {"psi": 0.9, "status": "critical"}}},
+            severity="critical", computed_at=ago(60),
+        )
+    )
+    store.add_result(
+        StoredMetricResult(
+            deployment_id=dep, group="data_quality", window="24h",
+            values={"features": {"income": {"kind": "numeric", "missing_rate": 0.2, "status": "warning"}}},
+            severity="warning", computed_at=ago(60),
+        )
+    )
+
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+    params = {
+        "compare": "custom",
+        "compare_start": ago(2400).isoformat(),
+        "compare_end": ago(1800).isoformat(),
+    }
+
+    async with client_for(app) as client:
+        drift = await client.get(
+            "/monitoring/api/feature-drift", params=params, headers=_cookie(session.session_id)
+        )
+        quality = await client.get(
+            "/monitoring/api/data-quality", params=params, headers=_cookie(session.session_id)
+        )
+
+    row = drift.json()["features"][0]
+    assert row["baseline_psi"] == pytest.approx(0.3)
+    assert row["psi_delta"] == pytest.approx(0.6)
+    dq = quality.json()["features"][0]
+    assert dq["missing_delta"] == pytest.approx(0.15)
+
+
+async def test_compare_custom_without_bounds_is_rejected() -> None:
+    dep = uuid.uuid4()
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=InMemoryMonitoringStore())
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/runtime",
+            params={"compare": "custom"},
+            headers=_cookie(session.session_id),
+        )
+
+    assert resp.status_code == 422
 
 
 async def test_alerts_endpoint_is_read_only() -> None:

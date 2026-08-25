@@ -50,12 +50,14 @@ export type TabKey = (typeof DASHBOARD_TABS)[number]['key']
 export function useMonitoringDashboard() {
   const dimensions = reactive<Dimensions>({
     window: Window.H24,
-    compare: Compare.REFERENCE,
+    compare: Compare.OFF,
     severity: SeverityFilter.ALL,
     granularity: Granularity.AUTO,
     feature: null,
     start: null,
     end: null,
+    compareStart: null,
+    compareEnd: null,
   })
 
   const activeTab = ref<TabKey>('overview')
@@ -443,6 +445,24 @@ export function useMonitoringDashboard() {
     await reloadActiveTab()
   }
 
+  /**
+   * Custom comparison of two hand-picked periods: the first becomes the page's
+   * window, the second the baseline — set together so the tab reloads once.
+   */
+  async function setComparePeriods(
+    start: string,
+    end: string,
+    compareStart: string,
+    compareEnd: string,
+  ): Promise<void> {
+    dimensions.start = start
+    dimensions.end = end
+    dimensions.compare = Compare.CUSTOM
+    dimensions.compareStart = compareStart
+    dimensions.compareEnd = compareEnd
+    await reloadActiveTab()
+  }
+
   /** Absolute range from the calendar; both ISO timestamps, or both null to leave. */
   async function setCustomRange(start: string | null, end: string | null): Promise<void> {
     if (dimensions.start === start && dimensions.end === end) return
@@ -457,9 +477,26 @@ export function useMonitoringDashboard() {
     await reloadActiveTab()
   }
 
-  async function setCompare(next: Compare): Promise<void> {
-    if (dimensions.compare === next) return
+  /**
+   * Enter, change or leave compare mode.
+   *
+   * PREVIOUS derives its period from the current window; CUSTOM carries the chosen
+   * one; OFF drops the baseline everywhere.
+   */
+  async function setCompare(
+    next: Compare,
+    compareStart: string | null = null,
+    compareEnd: string | null = null,
+  ): Promise<void> {
+    if (
+      dimensions.compare === next &&
+      dimensions.compareStart === compareStart &&
+      dimensions.compareEnd === compareEnd
+    )
+      return
     dimensions.compare = next
+    dimensions.compareStart = next === Compare.CUSTOM ? compareStart : null
+    dimensions.compareEnd = next === Compare.CUSTOM ? compareEnd : null
     await reloadActiveTab()
   }
 
@@ -570,6 +607,7 @@ export function useMonitoringDashboard() {
     refresh,
     setWindow,
     setCustomRange,
+    setComparePeriods,
     setGranularity,
     setCompare,
     setSeverity,

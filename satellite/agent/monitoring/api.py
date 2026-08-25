@@ -56,6 +56,8 @@ def _dimensions(
     feature: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
+    compare_start: datetime | None = None,
+    compare_end: datetime | None = None,
 ) -> QueryDimensions:
     if (start is None) != (end is None):
         raise HTTPException(
@@ -77,6 +79,26 @@ def _dimensions(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="range too wide: monitoring data is retained for 30 days",
             )
+    if compare is Compare.CUSTOM:
+        if compare_start is None or compare_end is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="compare=custom needs compare_start and compare_end",
+            )
+        if compare_start.tzinfo is None:
+            compare_start = compare_start.replace(tzinfo=UTC)
+        if compare_end.tzinfo is None:
+            compare_end = compare_end.replace(tzinfo=UTC)
+        if compare_end <= compare_start:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="compare_end must be after compare_start",
+            )
+        if (compare_end - compare_start).total_seconds() > _MAX_RANGE_SECONDS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="comparison range too wide: monitoring data is retained for 30 days",
+            )
     return QueryDimensions(
         window=window,
         compare=compare,
@@ -85,6 +107,8 @@ def _dimensions(
         feature=feature,
         start=start,
         end=end,
+        compare_start=compare_start if compare is Compare.CUSTOM else None,
+        compare_end=compare_end if compare is Compare.CUSTOM else None,
     )
 
 

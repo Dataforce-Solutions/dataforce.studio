@@ -15,10 +15,33 @@
       :auto-refresh="autoRefreshSeconds"
       @update:window="setWindow"
       @update:range="setCustomRange"
-      @update:compare="setCompare"
       @update:severity="setSeverity"
       @update:auto="setAutoRefresh"
+      @open-compare="compareOpen = true"
       @refresh="refresh"
+    />
+
+    <!-- Compare mode is page state, not a per-tab detail: the strip stays visible on
+         every tab so nobody reads ghost lines and deltas as plain data. -->
+    <div v-if="comparing" class="compare-strip" data-testid="compare-strip">
+      <ArrowLeftRight :size="13" />
+      <span>Comparing with {{ compareLabel }}</span>
+      <button
+        type="button"
+        class="strip-off"
+        aria-label="Turn comparison off"
+        data-testid="compare-off"
+        @click="setCompare(Compare.OFF)"
+      >
+        <X :size="13" />
+      </button>
+    </div>
+
+    <CompareDrawer
+      :open="compareOpen"
+      :dimensions="dimensions"
+      @close="compareOpen = false"
+      @apply="applyCompare"
     />
 
     <PlaceholderBanner v-if="isPlaceholderProfile" />
@@ -44,6 +67,7 @@
       :runtime="runtime"
       :status="runtimeStatus"
       :granularity="dimensions.granularity"
+      :compare="dimensions.compare"
       @acknowledge="acknowledgeAlert($event.metric)"
       @update:granularity="setGranularity"
     />
@@ -117,11 +141,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { ArrowLeftRight, X } from 'lucide-vue-next'
+import { Compare } from '@/api/types'
 import { useMonitoringDashboard } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import DashboardHeader from '@/components/DashboardHeader.vue'
 import GlobalControls from '@/components/GlobalControls.vue'
+import CompareDrawer from '@/components/CompareDrawer.vue'
 import DashboardTabs from '@/components/DashboardTabs.vue'
 import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 import SessionExpiredOverlay from '@/components/SessionExpiredOverlay.vue'
@@ -183,6 +210,7 @@ const {
   refresh,
   setWindow,
   setCustomRange,
+  setComparePeriods,
   setGranularity,
   setCompare,
   setSeverity,
@@ -192,6 +220,38 @@ const {
 } = useMonitoringDashboard()
 
 const headerView = computed(() => sectionView(headerStatus.value, header.value?.state))
+
+const compareOpen = ref(false)
+
+const comparing = computed(
+  () => dimensions.compare === Compare.PREVIOUS || dimensions.compare === Compare.CUSTOM,
+)
+
+const compareLabel = computed(() => {
+  if (dimensions.compare === Compare.PREVIOUS) return 'the previous period'
+  const fmt = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+  return `${fmt(dimensions.compareStart)} — ${fmt(dimensions.compareEnd)}`
+})
+
+function applyCompare(
+  mode: Compare,
+  periods: { start: string; end: string; compareStart: string; compareEnd: string } | null,
+): void {
+  compareOpen.value = false
+  if (mode === Compare.CUSTOM && periods !== null) {
+    void setComparePeriods(periods.start, periods.end, periods.compareStart, periods.compareEnd)
+    return
+  }
+  void setCompare(mode)
+}
 
 /** The active tab is fetching; its stale content stays up, dimmed a touch. */
 const refreshing = computed(() => {
@@ -214,6 +274,32 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.compare-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--luml-brand-tint-strong);
+  border-radius: var(--luml-radius-pill);
+  background: var(--luml-brand-tint);
+  color: var(--luml-brand);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.strip-off {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.strip-off:hover {
+  opacity: 1;
+}
 .tab-stage {
   transition: opacity 0.15s ease;
 }

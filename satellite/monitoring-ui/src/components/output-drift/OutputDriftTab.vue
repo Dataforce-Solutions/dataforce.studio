@@ -35,6 +35,15 @@
         <div class="score">
           <p class="eyebrow">PSI · {{ outputDrift.name || 'output' }}</p>
           <p class="value">{{ psiLabel }}</p>
+          <p
+            v-if="outputDrift.psi_delta != null"
+            class="headline-delta"
+            :class="outputDrift.psi_delta > 0 ? 'up' : 'down'"
+            data-testid="output-psi-delta"
+          >
+            {{ outputDrift.psi_delta > 0 ? '↑' : '↓' }}
+            {{ Math.abs(outputDrift.psi_delta).toFixed(2) }} vs compared period
+          </p>
         </div>
         <SeverityTag :severity="outputDrift.severity" />
         <p class="count">{{ outputDrift.count.toLocaleString() }} predictions in the window</p>
@@ -291,6 +300,17 @@ function psiTone(psi: number): string {
   display: flex;
   flex-direction: column;
   gap: var(--luml-space-4);
+}
+.headline-delta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.headline-delta.up {
+  color: var(--luml-danger-tint-fg);
+}
+.headline-delta.down {
+  color: var(--luml-success-tint-fg);
 }
 .headline {
   display: flex;

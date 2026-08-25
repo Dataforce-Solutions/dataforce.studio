@@ -23,6 +23,8 @@ export function dimensionParams(dims: Dimensions): QueryParams {
     feature: dims.feature,
     start: dims.start,
     end: dims.end,
+    compare_start: dims.compareStart,
+    compare_end: dims.compareEnd,
   }
 }
 

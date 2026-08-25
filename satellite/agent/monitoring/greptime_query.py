@@ -362,14 +362,21 @@ class GreptimeQueryStore:
         return self._to_result(deployment_id, group, window, dict(zip(columns, rows[0], strict=False)))
 
     async def fetch_result_history(
-        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+        self,
+        deployment_id: UUID,
+        group: str,
+        window: str,
+        *,
+        since: datetime,
+        until: datetime | None = None,
     ) -> list[StoredMetricResult]:
         sql = (
             f"SELECT deployment_id, metric, metric_values, severity, profile_status, window_end "
             f"FROM {RESULTS_TABLE} "
             f"WHERE deployment_id = {_sql_str(str(deployment_id))} "
             f"AND metric = {_sql_str(group)} AND window_end >= {_sql_ts(since)} "
-            f"ORDER BY window_end ASC LIMIT {_HISTORY_LIMIT}"
+            + (f"AND window_end <= {_sql_ts(until)} " if until is not None else "")
+            + f"ORDER BY window_end ASC LIMIT {_HISTORY_LIMIT}"
         )
         try:
             columns, rows = await self._query(sql)

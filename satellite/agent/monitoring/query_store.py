@@ -165,12 +165,20 @@ class MonitoringStore(Protocol):
     ) -> StoredMetricResult | None: ...
 
     async def fetch_result_history(
-        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+        self,
+        deployment_id: UUID,
+        group: str,
+        window: str,
+        *,
+        since: datetime,
+        until: datetime | None = None,
     ) -> list[StoredMetricResult]:
         """Every materialized window of a metric group since ``since``, oldest first.
 
         The worker writes one row per window, so a trend line over a metric — PSI of a
         feature, say — is assembled from these rows rather than stored as a series.
+        ``until`` bounds the read from above; compare mode uses it to aggregate a past
+        period without dragging the present in.
         """
         ...
 
@@ -275,7 +283,13 @@ class InMemoryMonitoringStore:
         return self._results.get((deployment_id, group, window))
 
     async def fetch_result_history(
-        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+        self,
+        deployment_id: UUID,
+        group: str,
+        window: str,
+        *,
+        since: datetime,
+        until: datetime | None = None,
     ) -> list[StoredMetricResult]:
         self._guard()
         matching = [
@@ -286,6 +300,7 @@ class InMemoryMonitoringStore:
             and result.window == window
             and result.computed_at is not None
             and result.computed_at >= since
+            and (until is None or result.computed_at <= until)
         ]
         return sorted(matching, key=lambda result: result.computed_at or since)
 

@@ -17,7 +17,17 @@
         @click="$emit('select', feature.feature)"
       >
         <span class="name mono">{{ feature.feature }}</span>
-        <span class="psi">PSI {{ feature.psi.toFixed(2) }}</span>
+        <span class="psi-cell">
+          <span class="psi">PSI {{ feature.psi.toFixed(2) }}</span>
+          <span
+            v-if="feature.psi_delta != null"
+            class="psi-delta"
+            :class="feature.psi_delta > 0 ? 'up' : 'down'"
+            data-testid="psi-delta"
+          >
+            {{ feature.psi_delta > 0 ? '↑' : '↓' }} {{ Math.abs(feature.psi_delta).toFixed(2) }}
+          </span>
+        </span>
         <SeverityTag :severity="feature.severity" />
       </button>
     </div>
@@ -100,6 +110,23 @@ defineEmits<{ select: [string] }>()
   font-size: 13px;
   font-weight: 500;
   color: var(--luml-fg-strong);
+}
+.psi-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+/* Drift growing is bad news, shrinking good — the colors follow the meaning. */
+.psi-delta {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.psi-delta.up {
+  color: var(--luml-danger-tint-fg);
+}
+.psi-delta.down {
+  color: var(--luml-success-tint-fg);
 }
 .psi {
   font-size: 12px;

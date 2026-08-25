@@ -11,12 +11,23 @@ const props = withDefaults(
   { color: '#2673fd', threshold: undefined, height: 180 },
 )
 
-const chartSeries = computed(() => [
-  {
+const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
+
+const chartSeries = computed(() => {
+  const main = {
     name: props.series.label,
     data: props.series.points.map((point) => [new Date(point.t).getTime(), point.value]),
-  },
-])
+  }
+  if (!hasBaseline.value) return [main]
+  // The comparison period, already shifted onto this window's axis by the server.
+  return [
+    main,
+    {
+      name: 'Compared period',
+      data: (props.series.baseline ?? []).map((point) => [new Date(point.t).getTime(), point.value]),
+    },
+  ]
+})
 
 const isRatio = computed(() => props.series.unit === 'ratio')
 
@@ -103,11 +114,16 @@ const options = computed(() => ({
     fontFamily: 'inherit',
     sparkline: { enabled: false },
   },
-  colors: [props.color],
+  colors: hasBaseline.value ? [props.color, '#94a3b8'] : [props.color],
   dataLabels: { enabled: false },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
-  stroke: { curve: 'smooth', width: 2 },
-  fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
+  // The baseline reads as a ghost: dashed, grey, no fill of its own.
+  stroke: hasBaseline.value
+    ? { curve: 'smooth', width: [2, 2], dashArray: [0, 5] }
+    : { curve: 'smooth', width: 2 },
+  fill: hasBaseline.value
+    ? { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.25, opacityTo: 0.02 }, opacity: [1, 0] }
+    : { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
   grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
   xaxis: {
     type: 'datetime',

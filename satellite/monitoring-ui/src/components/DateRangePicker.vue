@@ -60,7 +60,7 @@
 
     <p v-if="error" class="error">{{ error }}</p>
 
-    <div class="actions">
+    <div v-if="standalone" class="actions">
       <button
         type="button"
         class="apply"
@@ -84,17 +84,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 const RETENTION_DAYS = 30
 
-const props = defineProps<{
-  start: string | null
-  end: string | null
-  clearable: boolean
-}>()
-const emit = defineEmits<{ apply: [string, string]; clear: [] }>()
+const props = withDefaults(
+  defineProps<{
+    start: string | null
+    end: string | null
+    clearable: boolean
+    /** Standalone shows its own Apply; embedded emits `change` and lets the host apply. */
+    standalone?: boolean
+  }>(),
+  { standalone: true },
+)
+const emit = defineEmits<{ apply: [string, string]; clear: []; change: [string, string] }>()
 
 const now = new Date()
 const minDay = startOfDay(new Date(now.getTime() - RETENTION_DAYS * 86_400_000))
@@ -229,6 +234,18 @@ function apply(): void {
   if (!start || !end) return
   emit('apply', start.toISOString(), end.toISOString())
 }
+
+// Embedded mode reports every valid selection upward — including the one it opens
+// with — so a host composing several pickers always holds a complete picture.
+watch(
+  [valid, draft],
+  () => {
+    if (props.standalone || !valid.value) return
+    const { start, end } = draft.value
+    if (start && end) emit('change', start.toISOString(), end.toISOString())
+  },
+  { immediate: true, deep: true },
+)
 </script>
 
 <style scoped>

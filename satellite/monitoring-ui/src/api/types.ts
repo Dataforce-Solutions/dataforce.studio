@@ -15,8 +15,10 @@ export enum Granularity {
 }
 
 export enum Compare {
+  OFF = 'off',
   REFERENCE = 'reference',
   PREVIOUS = 'previous',
+  CUSTOM = 'custom',
 }
 
 export enum SeverityFilter {
@@ -52,6 +54,8 @@ export interface Series {
   label: string
   unit?: string | null
   points: SeriesPoint[]
+  /** Comparison period, time-shifted onto this window's axis. */
+  baseline?: SeriesPoint[] | null
 }
 
 export interface AlertBanner {
@@ -133,6 +137,8 @@ export interface DriftedFeature {
   feature: string
   psi: number
   severity: Severity
+  baseline_psi?: number | null
+  psi_delta?: number | null
 }
 
 export interface HeaderResponse {
@@ -167,6 +173,19 @@ export interface StatusBreakdownRow {
   share: number
 }
 
+export interface RuntimeBaseline {
+  start: string
+  end: string
+  request_count: number
+  success_rate: number
+  error_rate: number
+  latency_p50_ms: number | null
+  latency_p95_ms: number | null
+  latency_max_ms: number | null
+  timeout_count: number
+  failed_inference_count: number
+}
+
 export interface RuntimeResponse {
   state: SectionState
   profile_status: ProfileStatus
@@ -181,6 +200,7 @@ export interface RuntimeResponse {
   timeout_count: number
   failed_inference_count: number
   status_breakdown: StatusBreakdownRow[]
+  baseline?: RuntimeBaseline | null
   series: Series[]
   alerts: AlertBanner[]
 }
@@ -221,6 +241,9 @@ export interface DataQualityFeatureRow {
   checked?: number | null
   status: Severity
   invalid?: InvalidValueSummary | null
+  missing_delta?: number | null
+  type_error_delta?: number | null
+  range_unseen_delta?: number | null
 }
 
 export interface DataQualityResponse {
@@ -343,6 +366,8 @@ export interface OutputDriftResponse {
   name?: string | null
   kind?: string | null // "numeric" | "categorical"
   psi?: number | null
+  baseline_psi?: number | null
+  psi_delta?: number | null
   severity: Severity
   count: number
   distribution?: FeatureDistribution | null
@@ -467,4 +492,7 @@ export interface Dimensions {
   /** Custom absolute range (ISO timestamps); when both are set they override `window`. */
   start: string | null
   end: string | null
+  /** The comparison period, when compare is CUSTOM. */
+  compareStart: string | null
+  compareEnd: string | null
 }

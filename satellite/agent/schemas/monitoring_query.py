@@ -13,8 +13,12 @@ class Window(StrEnum):
 
 
 class Compare(StrEnum):
+    # "reference" is the legacy no-op: drift metrics always measure against the training
+    # reference anyway, so as a *compare mode* it carries no baseline — same as "off".
+    OFF = "off"
     REFERENCE = "reference"
     PREVIOUS = "previous"
+    CUSTOM = "custom"
 
 
 class SeverityFilter(StrEnum):
@@ -58,6 +62,9 @@ class Series(BaseModel):
     label: str
     unit: str | None = None
     points: list[SeriesPoint]
+    # The same metric over the comparison period, time-shifted onto this window's axis
+    # so the two lines overlay bucket for bucket. Present only in compare mode.
+    baseline: list[SeriesPoint] | None = None
 
 
 class AlertBanner(BaseModel):
@@ -101,6 +108,10 @@ class DriftedFeature(BaseModel):
     feature: str
     psi: float
     severity: Severity
+    # Compare mode: this feature's typical PSI over the comparison period, and how far
+    # the current reading moved from it.
+    baseline_psi: float | None = None
+    psi_delta: float | None = None
 
 
 class HeaderResponse(BaseModel):
@@ -125,6 +136,21 @@ class OverviewResponse(BaseModel):
     alert_banners: list[AlertBanner] = []
     series: list[Series] = []
     top_drifted_features: list[DriftedFeature] = []
+
+
+class RuntimeBaseline(BaseModel):
+    """The comparison period's rollup, so every runtime card can show its delta."""
+
+    start: datetime
+    end: datetime
+    request_count: int
+    success_rate: float
+    error_rate: float
+    latency_p50_ms: float | None = None
+    latency_p95_ms: float | None = None
+    latency_max_ms: float | None = None
+    timeout_count: int
+    failed_inference_count: int
 
 
 class StatusBreakdownRow(BaseModel):
@@ -154,6 +180,7 @@ class RuntimeResponse(BaseModel):
     timeout_count: int = 0
     failed_inference_count: int = 0
     status_breakdown: list[StatusBreakdownRow] = []
+    baseline: RuntimeBaseline | None = None
     series: list[Series] = []
     alerts: list[AlertBanner] = []
 
@@ -201,6 +228,10 @@ class DataQualityFeatureRow(BaseModel):
     status: Severity = Severity.OK
     # None when nothing was rejected in this window — the panel then has nothing to explain.
     invalid: InvalidValueSummary | None = None
+    # Compare mode: current rate minus the comparison period's mean, per check.
+    missing_delta: float | None = None
+    type_error_delta: float | None = None
+    range_unseen_delta: float | None = None
 
 
 class DataQualityResponse(BaseModel):
@@ -349,6 +380,9 @@ class OutputDriftResponse(BaseModel):
     psi: float | None = None
     severity: Severity = Severity.OK
     count: int = 0
+    # Compare mode: mean PSI over the comparison period, and the move from it.
+    baseline_psi: float | None = None
+    psi_delta: float | None = None
     distribution: FeatureDistribution | None = None
     psi_over_time: Series | None = None
     # Numerical outputs only: median with its p05–p95 band, and the mean, per window.

@@ -235,19 +235,16 @@ watch(
 }
 .alerts-table th {
   text-align: left;
-  padding: 12px 18px;
-  background: var(--luml-surface-50);
+  padding: 8px 12px;
   color: var(--luml-fg-muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 500;
   border-bottom: 1px solid var(--luml-border);
   white-space: nowrap;
   /* the header stays put while the list scrolls under it */
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--luml-bg-card);
 }
 .alerts-table td {
   padding: 11px 18px;

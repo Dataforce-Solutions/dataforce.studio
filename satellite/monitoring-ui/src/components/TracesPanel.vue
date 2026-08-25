@@ -1,21 +1,5 @@
 <template>
   <div class="card" data-testid="traces-panel">
-    <div class="head">
-      <div>
-        <p class="section-title small">Traces</p>
-        <p class="section-subtitle">
-          Recent inference calls in this window — the raw request log behind every metric.
-        </p>
-      </div>
-      <span
-        class="local-badge"
-        title="Fetched directly from the Satellite, never through the Platform"
-      >
-        <ShieldCheck :size="13" />
-        local only
-      </span>
-    </div>
-
     <!-- Arrivals counted while the reader sits on a deeper page; one click catches up. -->
     <button
       v-if="newCount > 0"
@@ -117,7 +101,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ArrowUp, ShieldCheck } from 'lucide-vue-next'
+import { ArrowUp } from 'lucide-vue-next'
 import type { TraceDetail, TracesResponse } from '@/api/types'
 import { TRACES_PAGE_SIZE, type LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
@@ -191,27 +175,8 @@ function statusClass(statusCode: number): string {
 </script>
 
 <style scoped>
-.head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--luml-space-4);
-  margin-bottom: var(--luml-space-4);
-}
 .section-title.small {
   font-size: var(--luml-text-base);
-}
-.local-badge {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: var(--luml-radius-pill);
-  background: var(--luml-surface-100);
-  color: var(--luml-fg-muted);
-  font-size: 11px;
-  font-weight: 500;
 }
 .new-traces {
   align-self: flex-start;
