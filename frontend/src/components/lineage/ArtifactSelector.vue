@@ -92,7 +92,6 @@ const values = ref({
   search: null,
 })
 const selectedArtifact = defineModel<Artifact | null>('artifact', { default: null })
-const isResetting = ref(false)
 
 function selectArtifact(artifactId: string) {
   const artifact = filteredList.value.find((a) => a.id === artifactId)
@@ -132,7 +131,6 @@ function onTypeChanged(type: ArtifactTypeEnum | null) {
 watch(
   () => values.value.collection,
   (collectionId: string | null) => {
-    if (isResetting.value) return
     onCollectionChanged(collectionId)
   },
 )
@@ -140,7 +138,6 @@ watch(
 watch(
   () => values.value.type,
   (type: ArtifactTypeEnum | null) => {
-    if (isResetting.value) return
     onTypeChanged(type)
   },
 )
@@ -148,7 +145,6 @@ watch(
 watch(
   () => values.value.search,
   (query: string | null) => {
-    if (isResetting.value) return
     clearSelectedArtifact()
     setSearchQuery(query ?? '')
   },

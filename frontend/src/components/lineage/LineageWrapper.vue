@@ -9,14 +9,11 @@
 </template>
 
 <script setup lang="ts">
-import { useVueFlow } from '@vue-flow/core'
 import LineageStateControls from './LineageStateControls.vue'
 import LineageToolbar from './LineageToolbar.vue'
 import LineageArea from './LineageArea.vue'
 import LineageActions from './LineageActions.vue'
 import LineageHeading from './LineageHeading.vue'
-
-const {} = useVueFlow()
 
 const isMaximized = defineModel('isMaximized', { default: false })
 </script>

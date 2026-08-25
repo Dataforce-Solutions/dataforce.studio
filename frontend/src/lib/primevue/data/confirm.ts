@@ -262,12 +262,11 @@ export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationO
   accept,
 })
 
-// TODO: Change message text
 export const saveLineageChangesConfirmOptions = (
   accept: () => void,
   reject: () => void,
 ): ConfirmationOptions => ({
-  message: 'NEW TEXT NEDEED',
+  message: 'If you exit without saving, your changes will be lost.',
   header: 'Save changes before exit lineage?',
   rejectProps: {
     label: 'Exit without saving',

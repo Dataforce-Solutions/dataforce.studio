@@ -6,6 +6,8 @@ import { defineStore } from 'pinia'
 import { computed, nextTick, ref, shallowRef } from 'vue'
 import { useRoute } from 'vue-router'
 
+const STATE_CHANGE_DEBOUNCE_MS = 200
+
 export const useLineageStore = defineStore('lineage', () => {
   const {
     nodes,
@@ -46,10 +48,10 @@ export const useLineageStore = defineStore('lineage', () => {
     isRestoring = true
     setNodes(state.nodes)
     setEdges(state.edges)
-    nextTick(() => {
-      prev = snapshot()
+    prev = snapshot()
+    setTimeout(() => {
       isRestoring = false
-    })
+    }, STATE_CHANGE_DEBOUNCE_MS)
   }
 
   const usedArtifactsIds = computed(() => {
@@ -126,9 +128,10 @@ export const useLineageStore = defineStore('lineage', () => {
     setNodes(history.value[0].nodes)
     setEdges(history.value[0].edges)
     history.value = []
-    nextTick(() => {
+    prev = snapshot()
+    setTimeout(() => {
       isRestoring = false
-    })
+    }, STATE_CHANGE_DEBOUNCE_MS)
   }
 
   async function save() {
@@ -150,7 +153,7 @@ export const useLineageStore = defineStore('lineage', () => {
     })
   })
 
-  const debouncedOnStateChanged = useDebounceFn(onStateChanged, 200)
+  const debouncedOnStateChanged = useDebounceFn(onStateChanged, STATE_CHANGE_DEBOUNCE_MS)
 
   onNodesChange(debouncedOnStateChanged)
 
