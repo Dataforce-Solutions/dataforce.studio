@@ -128,11 +128,13 @@ describe('DeploymentMonitoringPage', () => {
     expect(wrapper.find('[data-testid="monitoring-unavailable"]').exists()).toBe(false)
   })
 
-  it('marks the session expired on a session-expired message from the Satellite origin', async () => {
+  it('silently re-launches on a session-expired message from the Satellite origin', async () => {
     store.status = 'active'
     store.launchUrl = LAUNCH_URL
     store.satelliteOrigin = SATELLITE_ORIGIN
     mountPage()
+    await flushPromises()
+    store.launch.mockClear()
 
     window.dispatchEvent(
       new MessageEvent('message', {
@@ -142,6 +144,35 @@ describe('DeploymentMonitoringPage', () => {
     )
     await flushPromises()
 
+    // no click needed: the page mints a fresh token itself
+    expect(store.launch).toHaveBeenCalledWith(ORG, ORBIT, DEPLOYMENT)
+    expect(store.markExpired).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the manual panel when a fresh session dies right away', async () => {
+    store.status = 'active'
+    store.launchUrl = LAUNCH_URL
+    store.satelliteOrigin = SATELLITE_ORIGIN
+    mountPage()
+    await flushPromises()
+
+    const expired = () =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: MONITORING_SESSION_EXPIRED_MESSAGE },
+          origin: SATELLITE_ORIGIN,
+        }),
+      )
+
+    expired()
+    await flushPromises()
+    store.launch.mockClear()
+
+    // a second expiry inside the guard window is a re-launch loop, not a stale session
+    expired()
+    await flushPromises()
+
+    expect(store.launch).not.toHaveBeenCalled()
     expect(store.markExpired).toHaveBeenCalled()
   })
 

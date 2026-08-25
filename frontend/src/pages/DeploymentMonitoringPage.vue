@@ -116,10 +116,27 @@ function relaunch() {
   store.launch(organizationId, orbitId, deploymentId)
 }
 
+/**
+ * An expired dashboard session re-launches itself: the user is already
+ * authenticated on the Platform, so minting a fresh token needs no click.
+ * The guard interval is the loop-breaker — if a freshly minted session dies
+ * right away (Satellite restarting, launch endpoint broken), the second
+ * expiry inside the window falls through to the manual re-launch panel
+ * instead of hammering the mint endpoint forever.
+ */
+const AUTO_RELAUNCH_GUARD_MS = 30_000
+let lastAutoRelaunchAt = 0
+
 function onMessage(event: MessageEvent) {
   if (!store.satelliteOrigin || event.origin !== store.satelliteOrigin) return
   if (event.data?.type === MONITORING_SESSION_EXPIRED_MESSAGE) {
-    store.markExpired()
+    const now = Date.now()
+    if (now - lastAutoRelaunchAt > AUTO_RELAUNCH_GUARD_MS) {
+      lastAutoRelaunchAt = now
+      relaunch()
+    } else {
+      store.markExpired()
+    }
   }
 }
 

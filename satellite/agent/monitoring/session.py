@@ -1,13 +1,16 @@
 import secrets
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
 
 SESSION_COOKIE_NAME = "monitoring_session"
 DEFAULT_SESSION_TTL_SECONDS = 30 * 60
+# Sliding renewal never extends a session past this point: activity keeps a dashboard
+# alive across a working day, but a tab left open forever still re-authenticates.
+DEFAULT_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -16,6 +19,7 @@ class MonitoringSession:
     deployment_id: UUID
     scope: str
     expires_at: float
+    hard_deadline: float
 
     def is_expired(self, now: float) -> bool:
         return now >= self.expires_at
@@ -26,14 +30,21 @@ class MonitoringSessionStore:
 
     The Agent runs as a single process, so sessions live in memory. Each session is
     scoped to exactly one ``deployment_id``; the cookie only carries the opaque id.
+
+    The TTL slides: every authenticated request pushes the expiry ``ttl_seconds`` out
+    again, so a dashboard someone is actually looking at (or that auto-refreshes) does
+    not die under them mid-use. ``max_age_seconds`` is the absolute cap activity cannot
+    extend past.
     """
 
     def __init__(
         self,
         ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
         clock: Callable[[], float] = time.time,
+        max_age_seconds: int = DEFAULT_SESSION_MAX_AGE_SECONDS,
     ) -> None:
         self._ttl_seconds = ttl_seconds
+        self._max_age_seconds = max_age_seconds
         self._clock = clock
         self._sessions: dict[str, MonitoringSession] = {}
 
@@ -49,6 +60,7 @@ class MonitoringSessionStore:
             deployment_id=deployment_id,
             scope=scope,
             expires_at=now + self._ttl_seconds,
+            hard_deadline=now + self._max_age_seconds,
         )
         self._sessions[session.session_id] = session
         return session
@@ -57,10 +69,16 @@ class MonitoringSessionStore:
         session = self._sessions.get(session_id)
         if session is None:
             return None
-        if session.is_expired(self._clock()):
+        now = self._clock()
+        if session.is_expired(now):
             del self._sessions[session_id]
             return None
-        return session
+        # Use is renewal: slide the expiry, but never past the hard deadline.
+        renewed = replace(
+            session, expires_at=min(now + self._ttl_seconds, session.hard_deadline)
+        )
+        self._sessions[session_id] = renewed
+        return renewed
 
     def _purge_expired(self, now: float) -> None:
         expired = [sid for sid, s in self._sessions.items() if s.is_expired(now)]
