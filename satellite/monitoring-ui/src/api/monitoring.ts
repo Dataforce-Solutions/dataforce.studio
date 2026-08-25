@@ -30,6 +30,10 @@ export function dimensionParams(dims: Dimensions): QueryParams {
   }
 }
 
+export function getSessionInfo(): Promise<{ deployment_id: string; scope: string }> {
+  return apiGet('/session')
+}
+
 export function getHeader(): Promise<HeaderResponse> {
   return apiGet<HeaderResponse>('/header')
 }

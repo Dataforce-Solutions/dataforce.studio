@@ -91,6 +91,10 @@ const options = computed(() => ({
       formatter: (value: number) => formatTick(value),
     },
   },
-  tooltip: { theme: chartTooltipTheme.value, x: { format: 'dd MMM HH:mm' } },
+  tooltip: {
+    theme: chartTooltipTheme.value,
+    x: { format: 'dd MMM HH:mm' },
+    y: { formatter: (value: number | null) => formatTick(value) },
+  },
 }))
 </script>

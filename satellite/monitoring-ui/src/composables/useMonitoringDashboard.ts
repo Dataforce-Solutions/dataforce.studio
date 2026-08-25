@@ -1,4 +1,4 @@
-import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref, watch } from 'vue'
 import * as monitoringApi from '@/api/monitoring'
 import { SessionExpiredError } from '@/api/client'
 import {
@@ -394,7 +394,112 @@ export function useMonitoringDashboard() {
     return top ? setFeature(top) : Promise.resolve()
   }
 
+  /**
+   * Settings survive a reload.
+   *
+   * Everything a reader dials in — window (custom range included), compare mode and
+   * its periods, severity, series step, auto-refresh cadence, active tab, traces
+   * sort — is written to localStorage keyed by deployment id (the storage is
+   * per-Satellite-origin, and one Satellite hosts many deployments), restored before
+   * the first fetch so the page comes back exactly as it was left. Anything that
+   * fails validation on the way back is dropped field by field, so a stale or
+   * hand-edited blob degrades to defaults instead of breaking the boot.
+   */
+  const SETTINGS_VERSION = 1
+
+  function settingsKey(deploymentId: string): string {
+    return `monitoring-settings:${deploymentId}`
+  }
+
+  function persistSettings(): void {
+    if (persistKey === null) return
+    const blob = {
+      v: SETTINGS_VERSION,
+      window: dimensions.window,
+      start: dimensions.start,
+      end: dimensions.end,
+      compare: dimensions.compare,
+      compareStart: dimensions.compareStart,
+      compareEnd: dimensions.compareEnd,
+      severity: dimensions.severity,
+      granularity: dimensions.granularity,
+      tab: activeTab.value,
+      autoRefreshSeconds: autoRefreshSeconds.value,
+      tracesSort: tracesSort.value,
+    }
+    try {
+      localStorage.setItem(persistKey, JSON.stringify(blob))
+    } catch {
+      // storage can be unavailable in strict embeds; the dashboard still works
+    }
+  }
+
+  let persistKey: string | null = null
+
+  function restoreSettings(deploymentId: string): void {
+    persistKey = settingsKey(deploymentId)
+    let raw: string | null = null
+    try {
+      raw = localStorage.getItem(persistKey)
+    } catch {
+      return
+    }
+    if (!raw) return
+    let blob: Record<string, unknown>
+    try {
+      blob = JSON.parse(raw) as Record<string, unknown>
+    } catch {
+      return
+    }
+    if (blob.v !== SETTINGS_VERSION) return
+    const oneOf = <T,>(value: unknown, allowed: readonly T[]): T | null =>
+      allowed.includes(value as T) ? (value as T) : null
+    const iso = (value: unknown): string | null =>
+      typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null
+
+    dimensions.window = oneOf(blob.window, Object.values(Window)) ?? dimensions.window
+    dimensions.severity = oneOf(blob.severity, Object.values(SeverityFilter)) ?? dimensions.severity
+    dimensions.granularity =
+      oneOf(blob.granularity, Object.values(Granularity)) ?? dimensions.granularity
+    const start = iso(blob.start)
+    const end = iso(blob.end)
+    if (start && end) {
+      dimensions.start = start
+      dimensions.end = end
+    }
+    const compare = oneOf(blob.compare, Object.values(Compare))
+    const compareStart = iso(blob.compareStart)
+    const compareEnd = iso(blob.compareEnd)
+    if (compare === Compare.CUSTOM) {
+      if (compareStart && compareEnd) {
+        dimensions.compare = compare
+        dimensions.compareStart = compareStart
+        dimensions.compareEnd = compareEnd
+      }
+    } else if (compare !== null) {
+      dimensions.compare = compare
+    }
+    const tab = oneOf(blob.tab, DASHBOARD_TABS.map((one) => one.key))
+    if (tab !== null) activeTab.value = tab
+    const auto = oneOf(blob.autoRefreshSeconds, AUTO_REFRESH_OPTIONS)
+    if (auto !== null && auto !== 0) setAutoRefresh(auto)
+    const sortRaw = blob.tracesSort as { key?: unknown; order?: unknown } | undefined
+    const sortKey = oneOf(sortRaw?.key, ['ts', 'latency', 'status'] as const)
+    const sortOrder = oneOf(sortRaw?.order, ['asc', 'desc'] as const)
+    if (sortKey !== null && sortOrder !== null) {
+      tracesSort.value = { key: sortKey, order: sortOrder }
+    }
+  }
+
   async function load(): Promise<void> {
+    // The session names the deployment; settings restore before anything is fetched,
+    // so the first load already speaks the reader's window, compare and tab.
+    try {
+      const info = await monitoringApi.getSessionInfo()
+      restoreSettings(info.deployment_id)
+    } catch {
+      // no session info, no restore — the defaults still stand
+    }
     await Promise.all([loadHeader(), reloadActiveTab()])
   }
 
@@ -587,6 +692,10 @@ export function useMonitoringDashboard() {
     activeTab.value = next
     await reloadActiveTab()
   }
+
+  // Every later change lands in storage as it happens. Registered last, after every
+  // piece of state it watches exists.
+  watch([dimensions, activeTab, autoRefreshSeconds, tracesSort], persistSettings, { deep: true })
 
   return {
     dimensions,

@@ -9,6 +9,7 @@ vi.mock('@/api/monitoring', () => ({
   getTraces: vi.fn(),
   getAlerts: vi.fn(),
   getWorkerHealth: vi.fn(),
+  getSessionInfo: vi.fn(),
   acknowledgeAlert: vi.fn(),
   dimensionParams: (dims: unknown) => dims,
 }))
@@ -39,6 +40,7 @@ const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
 const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
+const getSessionInfo = vi.mocked(monitoringApi.getSessionInfo)
 const getAlerts = vi.mocked(monitoringApi.getAlerts)
 
 describe('useMonitoringDashboard', () => {
@@ -51,6 +53,8 @@ describe('useMonitoringDashboard', () => {
     getReferenceProfile.mockResolvedValue(makeReferenceProfile())
     getTraces.mockResolvedValue(makeTraces())
     getWorkerHealth.mockResolvedValue(makeWorkerHealth())
+    getSessionInfo.mockResolvedValue({ deployment_id: 'dep-1', scope: 'monitoring:read' })
+    localStorage.clear()
   })
 
   it('loads header and overview for the default 24h window', async () => {
@@ -458,6 +462,40 @@ describe('useMonitoringDashboard', () => {
     expect(getOverview).toHaveBeenLastCalledWith(
       expect.objectContaining({ window: Window.D7, start: null, end: null }),
     )
+  })
+
+  it('settings survive a reload: a second dashboard boots with the saved ones', async () => {
+    vi.useFakeTimers()
+    try {
+      const first = useMonitoringDashboard()
+      await first.load()
+      await first.setWindow(Window.D7)
+      await first.setActiveTab('data-quality')
+      first.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(0)
+
+      const second = useMonitoringDashboard()
+      await second.load()
+
+      expect(second.dimensions.window).toBe(Window.D7)
+      expect(second.activeTab.value).toBe('data-quality')
+      expect(second.autoRefreshSeconds.value).toBe(30)
+      // and the first fetch already used the restored window and tab
+      expect(getDataQuality).toHaveBeenLastCalledWith(
+        expect.objectContaining({ window: Window.D7 }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a corrupted settings blob falls back to defaults instead of breaking boot', async () => {
+    localStorage.setItem('monitoring-settings:dep-1', '{not json')
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+
+    expect(dashboard.dimensions.window).toBe(Window.H24)
+    expect(dashboard.activeTab.value).toBe('overview')
   })
 
   it('stops polling for good once the session expires', async () => {

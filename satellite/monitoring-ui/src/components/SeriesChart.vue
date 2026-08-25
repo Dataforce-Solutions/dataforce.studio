@@ -140,7 +140,13 @@ const options = computed(() => ({
       formatter: (value: number) => formatTick(value),
     },
   },
-  tooltip: { theme: chartTooltipTheme.value, x: { format: 'dd MMM HH:mm' } },
+  // The tooltip speaks the same numbers as the axis: an error rate reads 0.2%,
+  // never 0.200000000000000011.
+  tooltip: {
+    theme: chartTooltipTheme.value,
+    x: { format: 'dd MMM HH:mm' },
+    y: { formatter: (value: number | null) => formatTick(value) },
+  },
   // The line the metric had to cross to raise its alert.
   annotations: props.threshold
     ? {
