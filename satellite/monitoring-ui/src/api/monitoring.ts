@@ -21,6 +21,8 @@ export function dimensionParams(dims: Dimensions): QueryParams {
     severity: dims.severity,
     granularity: dims.granularity,
     feature: dims.feature,
+    start: dims.start,
+    end: dims.end,
   }
 }
 

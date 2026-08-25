@@ -1,7 +1,8 @@
 from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.routing import APIRouter
 
 from agent.monitoring.query import (
@@ -42,19 +43,48 @@ def get_query_service(request: Request) -> MonitoringQueryService:
     return request.app.state.monitoring_query
 
 
+# Retention keeps 30 days of data; a touch of slack spares clients that compute
+# "30 days ago" a hair differently from a pointless 422.
+_MAX_RANGE_SECONDS = 31 * 24 * 3600
+
+
 def _dimensions(
     window: Window = Window.H24,
     compare: Compare = Compare.REFERENCE,
     severity: SeverityFilter = SeverityFilter.ALL,
     granularity: Granularity = Granularity.AUTO,
     feature: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
 ) -> QueryDimensions:
+    if (start is None) != (end is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start and end come together: pass both for a custom range, or neither",
+        )
+    if start is not None and end is not None:
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=UTC)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=UTC)
+        if end <= start:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="end must be after start",
+            )
+        if (end - start).total_seconds() > _MAX_RANGE_SECONDS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="range too wide: monitoring data is retained for 30 days",
+            )
     return QueryDimensions(
         window=window,
         compare=compare,
         severity=severity,
         granularity=granularity,
         feature=feature,
+        start=start,
+        end=end,
     )
 
 

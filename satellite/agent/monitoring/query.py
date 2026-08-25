@@ -143,6 +143,19 @@ class QueryDimensions:
     severity: SeverityFilter = SeverityFilter.ALL
     granularity: Granularity = Granularity.AUTO
     feature: str | None = None
+    # A custom absolute range. When both are set they define the interval and ``window``
+    # is only a fallback label; retention caps useful ranges at 30 days back.
+    start: datetime | None = None
+    end: datetime | None = None
+
+    @property
+    def is_custom_range(self) -> bool:
+        return self.start is not None and self.end is not None
+
+    def span_seconds(self) -> int:
+        if self.start is not None and self.end is not None:
+            return max(1, int((self.end - self.start).total_seconds()))
+        return _WINDOW_SECONDS[self.window]
 
 
 @dataclass(frozen=True)
@@ -221,13 +234,18 @@ def _status_breakdown(events: list[InferenceEvent]) -> tuple[StatusBreakdownRow,
 
 
 def _bucket_seconds(dims: QueryDimensions) -> int:
+    span = dims.span_seconds()
     if dims.granularity is Granularity.HOUR:
         bucket = 3600
     elif dims.granularity is Granularity.DAY:
         bucket = 24 * 3600
+    elif dims.is_custom_range:
+        # No preset table fits an arbitrary span: take the smallest ladder step that
+        # keeps the series at or under the density of the densest preset (96 buckets).
+        bucket = next((b for b in _BUCKET_LADDER if span / b <= 96), _BUCKET_LADDER[-1])
     else:
         bucket = _AUTO_BUCKET_SECONDS[dims.window]
-    return min(bucket, _WINDOW_SECONDS[dims.window])
+    return min(bucket, span)
 
 
 def _series_layout(
@@ -245,7 +263,7 @@ def _series_layout(
     that keeps the point count sane; traffic spread across the window keeps the plain
     window-wide layout, and an explicitly chosen granularity is always honoured.
     """
-    window_seconds = _WINDOW_SECONDS[dims.window]
+    window_seconds = dims.span_seconds()
     bucket = _bucket_seconds(dims)
     full_window = (window_start, bucket, math.ceil(window_seconds / bucket))
 
@@ -378,9 +396,11 @@ class MonitoringQueryService:
         # The worker's own counters live in this process, not in the database.
         self._health_source = health_source
 
-    def _window_bounds(self, window: Window) -> tuple[datetime, datetime]:
+    def _window_bounds(self, dims: QueryDimensions) -> tuple[datetime, datetime]:
+        if dims.start is not None and dims.end is not None:
+            return dims.start, dims.end
         end = datetime.fromtimestamp(self._clock(), tz=UTC)
-        return end - timedelta(seconds=_WINDOW_SECONDS[window]), end
+        return end - timedelta(seconds=_WINDOW_SECONDS[dims.window]), end
 
     async def header(self, deployment_id: UUID) -> HeaderResponse:
         try:
@@ -502,10 +522,10 @@ class MonitoringQueryService:
             trends=trends,
             alerts=alerts,
             computed_at=result.computed_at,
-            stale=self._is_stale(result.computed_at, dims.window),
+            stale=self._is_stale(result.computed_at, dims),
         )
 
-    def _is_stale(self, computed_at: datetime | None, window: Window) -> bool:
+    def _is_stale(self, computed_at: datetime | None, dims: QueryDimensions) -> bool:
         """Whether a snapshot's window closed before the selected range began.
 
         The snapshot tabs read the newest stored window outright, with no time bound —
@@ -515,7 +535,7 @@ class MonitoringQueryService:
         """
         if computed_at is None:
             return False
-        start, _ = self._window_bounds(window)
+        start, _ = self._window_bounds(dims)
         # The store reads these as UTC-aware, but a naive value must not raise here and take
         # the whole tab down with it — read it as UTC, which is what the Agent writes.
         if computed_at.tzinfo is None:
@@ -533,7 +553,7 @@ class MonitoringQueryService:
         feature = dims.feature
         if feature is None:
             return []
-        start, _ = self._window_bounds(dims.window)
+        start, _ = self._window_bounds(dims)
         history = await self._store.fetch_result_history(
             deployment_id, GROUP_DATA_QUALITY, dims.window.value, since=start
         )
@@ -596,7 +616,7 @@ class MonitoringQueryService:
             multivariate=panel,
             alerts=alerts,
             computed_at=drift.computed_at,
-            stale=self._is_stale(drift.computed_at, dims.window),
+            stale=self._is_stale(drift.computed_at, dims),
         )
 
     async def output_drift(
@@ -617,7 +637,7 @@ class MonitoringQueryService:
                 state=SectionState.EMPTY, profile_status=profile, alerts=alerts
             )
 
-        start, _ = self._window_bounds(dims.window)
+        start, _ = self._window_bounds(dims)
         try:
             history = await self._store.fetch_result_history(
                 deployment_id, GROUP_OUTPUT_DRIFT, dims.window.value, since=start
@@ -651,7 +671,7 @@ class MonitoringQueryService:
             ],
             alerts=alerts,
             computed_at=result.computed_at,
-            stale=self._is_stale(result.computed_at, dims.window),
+            stale=self._is_stale(result.computed_at, dims),
         )
 
     async def _psi_history(self, deployment_id: UUID, dims: QueryDimensions) -> Series | None:
@@ -663,7 +683,7 @@ class MonitoringQueryService:
         feature = dims.feature
         if feature is None:
             return None
-        start, _ = self._window_bounds(dims.window)
+        start, _ = self._window_bounds(dims)
         history = await self._store.fetch_result_history(
             deployment_id, GROUP_FEATURE_DRIFT, dims.window.value, since=start
         )
@@ -809,7 +829,7 @@ class MonitoringQueryService:
         One query per metric group, not per alert: every alert of a group reads its own
         value out of the same windows.
         """
-        start, _ = self._window_bounds(dims.window)
+        start, _ = self._window_bounds(dims)
         histories: dict[str, Series] = {}
         for group in {alert.group for alert in alerts}:
             try:
@@ -845,7 +865,7 @@ class MonitoringQueryService:
         offset: int = 0,
     ) -> TracesResponse:
         try:
-            start, end = self._window_bounds(dims.window)
+            start, end = self._window_bounds(dims)
             events = await self._store.fetch_events(deployment_id, start, end)
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
@@ -870,7 +890,7 @@ class MonitoringQueryService:
         scrolled out of the window is reported as missing (`trace=None` -> 404).
         """
         try:
-            start, end = self._window_bounds(dims.window)
+            start, end = self._window_bounds(dims)
             events = await self._store.fetch_events(deployment_id, start, end)
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
@@ -897,7 +917,7 @@ class MonitoringQueryService:
     async def _runtime(
         self, deployment_id: UUID, dims: QueryDimensions
     ) -> tuple[_Rollup, list[Series]]:
-        start, end = self._window_bounds(dims.window)
+        start, end = self._window_bounds(dims)
         events = await self._store.fetch_events(deployment_id, start, end)
         # The rollup always covers the whole selected window; only the series layout follows
         # where the events actually are.
@@ -907,10 +927,10 @@ class MonitoringQueryService:
     async def _previous_rollup(self, deployment_id: UUID, dims: QueryDimensions) -> _Rollup | None:
         if dims.compare is not Compare.PREVIOUS:
             return None
-        _, current_start = self._window_bounds(dims.window)
-        duration = timedelta(seconds=_WINDOW_SECONDS[dims.window])
-        prev_start = current_start - 2 * duration
-        prev_end = current_start - duration
+        current_start, _ = self._window_bounds(dims)
+        duration = timedelta(seconds=dims.span_seconds())
+        prev_start = current_start - duration
+        prev_end = current_start
         return _rollup(await self._store.fetch_events(deployment_id, prev_start, prev_end))
 
     async def _banners(

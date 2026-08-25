@@ -1,6 +1,6 @@
 <template>
   <div class="controls" data-testid="global-controls">
-    <div class="control">
+    <div class="control range-control">
       <span class="control-label">Window</span>
       <div class="segmented" role="group" aria-label="Window">
         <button
@@ -8,12 +8,37 @@
           :key="option"
           type="button"
           class="segment"
-          :class="{ active: dimensions.window === option }"
+          :class="{ active: !customActive && dimensions.window === option }"
           :data-testid="`window-${option}`"
           @click="$emit('update:window', option)"
         >
           {{ option }}
         </button>
+        <button
+          type="button"
+          class="segment custom-segment"
+          :class="{ active: customActive }"
+          data-testid="window-custom"
+          :aria-expanded="pickerOpen"
+          @click="togglePicker"
+        >
+          <CalendarDays :size="13" />
+          {{ customActive ? customLabel : 'Custom' }}
+        </button>
+      </div>
+
+      <!-- Own calendar, not the browser's grey dropdown: the grid, the range
+           highlight and the time fields all speak the design system. Retention
+           holds 30 days, so the grid cannot reach further back. -->
+      <div v-if="pickerOpen" class="range-anchor">
+        <DateRangePicker
+          :key="pickerSession"
+          :start="dimensions.start"
+          :end="dimensions.end"
+          :clearable="customActive"
+          @apply="applyRange"
+          @clear="clearRange"
+        />
       </div>
     </div>
 
@@ -76,13 +101,16 @@
 </template>
 
 <script setup lang="ts">
-import { RefreshCw } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { CalendarDays, RefreshCw } from 'lucide-vue-next'
 import { Compare, SeverityFilter, Window, type Dimensions } from '@/api/types'
 import { AUTO_REFRESH_OPTIONS, type AutoRefreshSeconds } from '@/composables/useMonitoringDashboard'
+import DateRangePicker from '@/components/DateRangePicker.vue'
 
-defineProps<{ dimensions: Dimensions; autoRefresh: AutoRefreshSeconds }>()
-defineEmits<{
+const props = defineProps<{ dimensions: Dimensions; autoRefresh: AutoRefreshSeconds }>()
+const emit = defineEmits<{
   'update:window': [Window]
+  'update:range': [string | null, string | null]
   'update:compare': [Compare]
   'update:severity': [SeverityFilter]
   'update:auto': [AutoRefreshSeconds]
@@ -92,6 +120,42 @@ defineEmits<{
 const windowOptions = [Window.H24, Window.D7, Window.D30]
 const compareOptions = [Compare.REFERENCE, Compare.PREVIOUS]
 const severityOptions = [SeverityFilter.ALL, SeverityFilter.WARNING, SeverityFilter.CRITICAL]
+
+const customActive = computed(() => props.dimensions.start !== null && props.dimensions.end !== null)
+
+const pickerOpen = ref(false)
+// Remounts the calendar per opening, so it re-anchors on the current selection.
+const pickerSession = ref(0)
+
+function togglePicker(): void {
+  pickerOpen.value = !pickerOpen.value
+  if (pickerOpen.value) pickerSession.value += 1
+}
+
+function applyRange(start: string, end: string): void {
+  emit('update:range', start, end)
+  pickerOpen.value = false
+}
+
+function clearRange(): void {
+  emit('update:range', null, null)
+  pickerOpen.value = false
+}
+
+// A preset click elsewhere leaves custom mode; the stale draft must not linger open.
+watch(customActive, (active) => {
+  if (!active) pickerOpen.value = false
+})
+
+const customLabel = computed(() => {
+  if (!customActive.value) return ''
+  const fmt = (iso: string | null) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+  return `${fmt(props.dimensions.start)} — ${fmt(props.dimensions.end)}`
+})
 const autoOptions = AUTO_REFRESH_OPTIONS
 
 function autoLabel(seconds: AutoRefreshSeconds): string {
@@ -101,6 +165,21 @@ function autoLabel(seconds: AutoRefreshSeconds): string {
 </script>
 
 <style scoped>
+.range-control {
+  position: relative;
+}
+.range-anchor {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+}
+.custom-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
 .controls {
   display: flex;
   align-items: center;

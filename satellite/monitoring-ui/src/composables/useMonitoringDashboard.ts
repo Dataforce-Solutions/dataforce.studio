@@ -54,6 +54,8 @@ export function useMonitoringDashboard() {
     severity: SeverityFilter.ALL,
     granularity: Granularity.AUTO,
     feature: null,
+    start: null,
+    end: null,
   })
 
   const activeTab = ref<TabKey>('overview')
@@ -433,8 +435,19 @@ export function useMonitoringDashboard() {
   if (getCurrentScope()) onScopeDispose(() => setAutoRefresh(0))
 
   async function setWindow(next: Window): Promise<void> {
-    if (dimensions.window === next) return
+    if (dimensions.window === next && dimensions.start === null) return
     dimensions.window = next
+    // a preset click leaves custom-range mode
+    dimensions.start = null
+    dimensions.end = null
+    await reloadActiveTab()
+  }
+
+  /** Absolute range from the calendar; both ISO timestamps, or both null to leave. */
+  async function setCustomRange(start: string | null, end: string | null): Promise<void> {
+    if (dimensions.start === start && dimensions.end === end) return
+    dimensions.start = start
+    dimensions.end = end
     await reloadActiveTab()
   }
 
@@ -556,6 +569,7 @@ export function useMonitoringDashboard() {
     load,
     refresh,
     setWindow,
+    setCustomRange,
     setGranularity,
     setCompare,
     setSeverity,

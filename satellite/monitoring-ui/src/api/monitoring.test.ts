@@ -8,6 +8,8 @@ const dims: Dimensions = {
   severity: SeverityFilter.ALL,
   granularity: Granularity.AUTO,
   feature: null,
+  start: null,
+  end: null,
 }
 
 describe('monitoring API client', () => {

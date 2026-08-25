@@ -188,6 +188,64 @@ async def test_invalid_window_is_rejected() -> None:
     assert resp.status_code == 422
 
 
+async def test_custom_range_bounds_the_events_it_counts() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for seconds_back in (100, 200, 5000):  # two inside the range below, one before it
+        event = _event(dep)
+        store.add_event(
+            InferenceEvent(
+                event_id=event.event_id,
+                deployment_id=dep,
+                ts=ago(seconds_back),
+                status="success",
+                status_code=200,
+                latency_ms=12.0,
+            )
+        )
+
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/runtime",
+            params={"start": ago(300).isoformat(), "end": ago(0).isoformat()},
+            headers=_cookie(session.session_id),
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["request_count"] == 2
+
+
+async def test_custom_range_validation() -> None:
+    dep = uuid.uuid4()
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=InMemoryMonitoringStore())
+    headers = _cookie(session.session_id)
+
+    async with client_for(app) as client:
+        lonely = await client.get(
+            "/monitoring/api/runtime", params={"start": ago(300).isoformat()}, headers=headers
+        )
+        backwards = await client.get(
+            "/monitoring/api/runtime",
+            params={"start": ago(0).isoformat(), "end": ago(300).isoformat()},
+            headers=headers,
+        )
+        too_wide = await client.get(
+            "/monitoring/api/runtime",
+            params={"start": ago(40 * 24 * 3600).isoformat(), "end": ago(0).isoformat()},
+            headers=headers,
+        )
+
+    assert lonely.status_code == 422
+    assert backwards.status_code == 422
+    assert too_wide.status_code == 422
+
+
 async def test_alerts_endpoint_is_read_only() -> None:
     dep = uuid.uuid4()
     sessions = MonitoringSessionStore()

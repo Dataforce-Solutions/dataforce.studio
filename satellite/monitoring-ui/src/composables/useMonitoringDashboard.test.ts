@@ -441,6 +441,25 @@ describe('useMonitoringDashboard', () => {
     expect(dashboard.alertsNewCount.value).toBe(0)
   })
 
+  it('a custom range rides along in queries and a preset click clears it', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+    getOverview.mockClear()
+
+    await dashboard.setCustomRange('2026-08-20T10:00:00.000Z', '2026-08-22T18:00:00.000Z')
+    expect(getOverview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start: '2026-08-20T10:00:00.000Z',
+        end: '2026-08-22T18:00:00.000Z',
+      }),
+    )
+
+    await dashboard.setWindow(Window.D7)
+    expect(getOverview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ window: Window.D7, start: null, end: null }),
+    )
+  })
+
   it('stops polling for good once the session expires', async () => {
     vi.useFakeTimers()
     try {

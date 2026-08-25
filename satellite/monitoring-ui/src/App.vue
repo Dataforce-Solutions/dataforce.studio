@@ -14,6 +14,7 @@
       :dimensions="dimensions"
       :auto-refresh="autoRefreshSeconds"
       @update:window="setWindow"
+      @update:range="setCustomRange"
       @update:compare="setCompare"
       @update:severity="setSeverity"
       @update:auto="setAutoRefresh"
@@ -181,6 +182,7 @@ const {
   load,
   refresh,
   setWindow,
+  setCustomRange,
   setGranularity,
   setCompare,
   setSeverity,

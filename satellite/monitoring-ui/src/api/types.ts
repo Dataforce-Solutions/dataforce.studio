@@ -464,4 +464,7 @@ export interface Dimensions {
   severity: SeverityFilter
   granularity: Granularity
   feature: string | null
+  /** Custom absolute range (ISO timestamps); when both are set they override `window`. */
+  start: string | null
+  end: string | null
 }
