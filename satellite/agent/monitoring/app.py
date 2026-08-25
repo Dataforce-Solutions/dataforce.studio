@@ -87,7 +87,9 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
     router = APIRouter(prefix=MONITORING_PATH_PREFIX, tags=["Monitoring Dashboard"])
 
     @router.get("/launch")
-    async def launch(request: Request, token: str | None = None) -> Response:
+    async def launch(
+        request: Request, token: str | None = None, theme: str | None = None
+    ) -> Response:
         if not token:
             return _denied_response()
         try:
@@ -102,7 +104,12 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
 
         store: MonitoringSessionStore = request.app.state.monitoring_sessions
         session = store.create(claims.deployment_id, claims.scope)
-        response = RedirectResponse(url=MONITORING_APP_PATH, status_code=status.HTTP_303_SEE_OTHER)
+        # The Platform forwards its theme so the first paint matches; anything but the
+        # two known values is dropped rather than echoed into the redirect.
+        target = MONITORING_APP_PATH
+        if theme in ("light", "dark"):
+            target = f"{MONITORING_APP_PATH}?theme={theme}"
+        response = RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=session.session_id,

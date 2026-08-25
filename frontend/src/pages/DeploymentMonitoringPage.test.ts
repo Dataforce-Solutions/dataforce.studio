@@ -26,6 +26,10 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({ getCurrentTheme: 'light' }),
+}))
+
 vi.mock('@/stores/monitoring', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
@@ -123,7 +127,8 @@ describe('DeploymentMonitoringPage', () => {
 
     const iframe = wrapper.find('[data-testid="monitoring-iframe"]')
     expect(iframe.exists()).toBe(true)
-    expect(iframe.attributes('src')).toBe(LAUNCH_URL)
+    // the Platform's theme rides the launch URL so the first paint matches
+    expect(iframe.attributes('src')).toBe(`${LAUNCH_URL}&theme=light`)
     expect(wrapper.find('[data-testid="monitoring-disabled"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="monitoring-unavailable"]').exists()).toBe(false)
   })

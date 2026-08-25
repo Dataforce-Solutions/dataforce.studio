@@ -55,21 +55,24 @@
     -->
     <iframe
       v-else-if="store.status === 'active' && store.launchUrl"
-      :src="store.launchUrl"
+      ref="frameRef"
+      :src="themedLaunchUrl"
       credentialless
       class="monitoring-frame"
       title="Deployment monitoring dashboard"
       data-testid="monitoring-iframe"
+      @load="pushTheme"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Breadcrumb, Button } from 'primevue'
 import { PowerOff, TriangleAlert, Clock, RefreshCw } from 'lucide-vue-next'
 import { useMonitoringStore, MONITORING_SESSION_EXPIRED_MESSAGE } from '@/stores/monitoring'
+import { useThemeStore } from '@/stores/theme'
 import { MonitoringIneligibilityReason } from '@/lib/api/monitoring/interfaces'
 import MonitoringStatePanel from '@/components/deployments/monitoring/MonitoringStatePanel.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
@@ -111,7 +114,42 @@ const disabledDescription = computed(() => {
   return 'Monitoring is turned off for this deployment. Enable monitoring to view the dashboard.'
 })
 
+const themeStore = useThemeStore()
+// the store exposes the value as getCurrentTheme; there is no raw `theme` field
+const theme = computed(() => themeStore.getCurrentTheme)
+const frameRef = ref<HTMLIFrameElement | null>(null)
+
+/**
+ * The dashboard paints in the Platform's theme from its first frame: the theme rides
+ * the launch URL. Frozen at launch time on purpose — the URL holds a single-use
+ * token, so it must not become reactive to later theme flips; those go over
+ * postMessage instead.
+ */
+const launchTheme = ref(theme.value)
+
+const themedLaunchUrl = computed(() =>
+  store.launchUrl ? `${store.launchUrl}&theme=${launchTheme.value}` : null,
+)
+
+/**
+ * Tell the frame what theme to wear. Called on every flip and once per frame load:
+ * on a page reload the launch URL can be minted before the theme store has read
+ * localStorage, so the URL says light while the user runs dark — the load-time
+ * push corrects that the moment the dashboard can listen.
+ */
+function pushTheme(): void {
+  if (!store.satelliteOrigin) return
+  frameRef.value?.contentWindow?.postMessage(
+    { type: 'monitoring:theme', theme: theme.value },
+    store.satelliteOrigin,
+  )
+}
+
+// A theme flip while the dashboard is open reaches it without a reload.
+watch(theme, pushTheme)
+
 function relaunch() {
+  launchTheme.value = theme.value
   const { organizationId, orbitId, deploymentId } = requestInfo.value
   store.launch(organizationId, orbitId, deploymentId)
 }

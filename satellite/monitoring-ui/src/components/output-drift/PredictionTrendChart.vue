@@ -4,6 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
 import type { Series } from '@/api/types'
 
 /**
@@ -77,7 +78,7 @@ const options = computed(() => ({
   stroke: { curve: ['straight', 'smooth', 'smooth'], width: [0, 2, 2], dashArray: [0, 0, 4] },
   fill: { opacity: [0.55, 1, 1] },
   legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px' },
-  grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
+  grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
   xaxis: {
     type: 'datetime',
     axisBorder: { show: false },
@@ -90,6 +91,6 @@ const options = computed(() => ({
       formatter: (value: number) => formatTick(value),
     },
   },
-  tooltip: { x: { format: 'dd MMM HH:mm' } },
+  tooltip: { theme: chartTooltipTheme.value, x: { format: 'dd MMM HH:mm' } },
 }))
 </script>
