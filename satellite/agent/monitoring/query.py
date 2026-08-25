@@ -64,6 +64,8 @@ from agent.schemas.monitoring_query import (
     ReferenceProfileResponse,
     RuntimeBaseline,
     RuntimeResponse,
+    SortOrder,
+    TraceSort,
     SectionState,
     Series,
     SeriesPoint,
@@ -946,6 +948,8 @@ class MonitoringQueryService:
         *,
         limit: int = TRACES_DEFAULT_LIMIT,
         offset: int = 0,
+        sort: TraceSort = TraceSort.TS,
+        order: SortOrder = SortOrder.DESC,
     ) -> TracesResponse:
         try:
             start, end = self._window_bounds(dims)
@@ -953,7 +957,15 @@ class MonitoringQueryService:
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return TracesResponse(state=SectionState.UNAVAILABLE, limit=limit, offset=offset)
-        ordered = sorted(events, key=lambda e: e.ts, reverse=True)
+        # Sorting happens before pagination — a page of a sorted list, not a sorted page.
+        # Status sorts by HTTP code with the timestamp as a stable tiebreaker, so equal
+        # codes keep a meaningful order instead of an arbitrary one.
+        keys = {
+            TraceSort.TS: lambda e: e.ts,
+            TraceSort.LATENCY: lambda e: e.latency_ms,
+            TraceSort.STATUS: lambda e: (e.status_code, e.ts),
+        }
+        ordered = sorted(events, key=keys[sort], reverse=order is SortOrder.DESC)
         page = ordered[offset : offset + limit]
         return TracesResponse(
             state=SectionState.OK if ordered else SectionState.EMPTY,

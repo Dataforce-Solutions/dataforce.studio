@@ -30,6 +30,8 @@ from agent.schemas.monitoring_query import (
     RuntimeResponse,
     SectionState,
     SeverityFilter,
+    SortOrder,
+    TraceSort,
     TraceDetailResponse,
     TracesResponse,
     Window,
@@ -202,9 +204,13 @@ def build_query_router() -> APIRouter:
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
         limit: int = Query(TRACES_DEFAULT_LIMIT, ge=1, le=TRACES_MAX_LIMIT),
         offset: int = Query(0, ge=0),
+        sort: TraceSort = TraceSort.TS,
+        order: SortOrder = SortOrder.DESC,
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> TracesResponse:
-        return await service.traces(session.deployment_id, dims, limit=limit, offset=offset)
+        return await service.traces(
+            session.deployment_id, dims, limit=limit, offset=offset, sort=sort, order=order
+        )
 
     @router.get("/traces/{event_id}", response_model=TraceDetailResponse)
     async def trace_detail(
@@ -313,9 +319,13 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
         limit: int = Query(TRACES_DEFAULT_LIMIT, ge=1, le=TRACES_MAX_LIMIT),
         offset: int = Query(0, ge=0),
+        sort: TraceSort = TraceSort.TS,
+        order: SortOrder = SortOrder.DESC,
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> TracesResponse:
-        return await service.traces(deployment_id, dims, limit=limit, offset=offset)
+        return await service.traces(
+            deployment_id, dims, limit=limit, offset=offset, sort=sort, order=order
+        )
 
     @router.get("/traces/{event_id}", response_model=TraceDetailResponse)
     async def trace_detail(

@@ -35,16 +35,36 @@
         <table class="dq" data-testid="data-quality-table">
           <thead>
             <tr>
-              <th>Feature</th>
-              <th class="num">Missing</th>
-              <th class="num">Type errors</th>
-              <th>Range / unseen</th>
-              <th>Status</th>
+              <th>
+                <button type="button" class="sort" data-testid="dq-sort-feature" @click="toggleSort('feature')">
+                  Feature <span class="arrow">{{ arrow('feature') }}</span>
+                </button>
+              </th>
+              <th class="num">
+                <button type="button" class="sort" data-testid="dq-sort-missing" @click="toggleSort('missing')">
+                  Missing <span class="arrow">{{ arrow('missing') }}</span>
+                </button>
+              </th>
+              <th class="num">
+                <button type="button" class="sort" data-testid="dq-sort-type" @click="toggleSort('type')">
+                  Type errors <span class="arrow">{{ arrow('type') }}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" class="sort" data-testid="dq-sort-range" @click="toggleSort('range')">
+                  Range / unseen <span class="arrow">{{ arrow('range') }}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" class="sort" data-testid="dq-sort-status" @click="toggleSort('status')">
+                  Status <span class="arrow">{{ arrow('status') }}</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="row in dataQuality.features"
+              v-for="row in sortedFeatures"
               :key="row.feature"
               class="row"
               :class="{ selected: row.feature === selected?.feature }"
@@ -210,6 +230,46 @@ function deltaLabel(delta: number): string {
   return `${delta > 0 ? '↑' : '↓'} ${text}pp`
 }
 
+type DqSortKey = 'feature' | 'missing' | 'type' | 'range' | 'status'
+const SEVERITY_RANK: Record<string, number> = { ok: 0, warning: 1, critical: 2 }
+
+const sortKey = ref<DqSortKey | null>(null)
+const sortDesc = ref(true)
+
+function toggleSort(key: DqSortKey): void {
+  if (sortKey.value === key) {
+    sortDesc.value = !sortDesc.value
+  } else {
+    sortKey.value = key
+    // rates and status start with the worst on top; names start alphabetical
+    sortDesc.value = key !== 'feature'
+  }
+}
+
+function arrow(key: DqSortKey): string {
+  if (sortKey.value !== key) return '↕'
+  return sortDesc.value ? '↓' : '↑'
+}
+
+const sortedFeatures = computed(() => {
+  const rows = props.dataQuality?.features ?? []
+  const key = sortKey.value
+  if (key === null) return rows
+  const value = (row: DataQualityFeatureRow): number | string => {
+    if (key === 'feature') return row.feature
+    if (key === 'missing') return row.missing_rate ?? -1
+    if (key === 'type') return row.type_error_rate ?? -1
+    if (key === 'range') return row.range_unseen_rate ?? -1
+    return SEVERITY_RANK[row.status] ?? 0
+  }
+  const sorted = [...rows].sort((a, b) => {
+    const va = value(a)
+    const vb = value(b)
+    return typeof va === 'string' ? String(va).localeCompare(String(vb)) : Number(va) - Number(vb)
+  })
+  return sortDesc.value ? sorted.reverse() : sorted
+})
+
 function checkedTitle(row: DataQualityFeatureRow): string | undefined {
   return row.checked == null ? undefined : `${row.checked.toLocaleString()} values checked`
 }
@@ -228,6 +288,22 @@ function checkedTitle(row: DataQualityFeatureRow): string | undefined {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+}
+.sort {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort:hover {
+  color: var(--luml-fg-strong);
+}
+.arrow {
+  font-size: 10px;
+  opacity: 0.7;
 }
 .dq th {
   text-align: left;

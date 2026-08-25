@@ -250,6 +250,53 @@ monitoring = luml.deployments.monitoring("insurance regression")
 feature_drift = monitoring.feature_drift(severity="critical")
 ```
 
+<a id="luml_api.resources.monitoring.DeploymentMonitoring.output_drift"></a>
+
+#### output_drift
+
+```python
+def output_drift(window: str = "24h", severity: str = "all") -> dict
+```
+
+Did the model's outputs shift against the training reference.
+
+**Arguments**:
+
+- `window` - Time range the section covers: "24h", "7d" or "30d".
+- `severity` - Alert severity filter: "all", "warning" or "critical".
+  
+
+**Returns**:
+
+  dict with the output's PSI score and severity, the reference vs
+  current distribution of predictions, the PSI history, and the output
+  drift alerts. Numerical outputs add the prediction trend (median
+  with its p05-p95 band); categorical outputs add the top changed
+  classes, each drifted class's share across windows, and — when the
+  artifact reports probabilities — the confidence block, per-class
+  probability drift and the decision-boundary rate; forecasting
+  deployments add per-horizon drift, the headline describing the
+  worst horizon.
+  
+
+**Raises**:
+
+- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `NotFoundError` - If the Satellite does not host this deployment.
+  
+
+**Example**:
+
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+)
+monitoring = luml.deployments.monitoring("insurance regression")
+output_drift = monitoring.output_drift(window="7d")
+```
+
 <a id="luml_api.resources.monitoring.DeploymentMonitoring.reference_profile"></a>
 
 #### reference_profile
@@ -337,16 +384,27 @@ alerts = monitoring.alerts(window="7d", severity="critical")
 #### traces
 
 ```python
-def traces(window: str = "24h", limit: int = 50, offset: int = 0) -> dict
+def traces(
+        window: str = "24h",
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "ts",
+        order: str = "desc"
+) -> dict
 ```
 
 The local request log: one row per inference call.
+
+Sorting happens on the Satellite before pagination, so a page is a slice of
+the fully sorted log — not a sorted slice.
 
 **Arguments**:
 
 - `window` - Time range the section covers: "24h", "7d" or "30d".
 - `limit` - Maximum rows per page (up to 200).
 - `offset` - Rows to skip, for paging.
+- `sort` - Column to order by: "ts" (call time, the default), "latency" (response time) or "status" (HTTP status code).
+- `order` - "desc" (default) or "asc".
   
 
 **Returns**:
@@ -357,7 +415,7 @@ The local request log: one row per inference call.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `LumlAPIError` - If ``window``, ``sort`` or ``order`` is not one the dashboard offers.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -370,7 +428,8 @@ luml = LumlClient(
     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
 )
 monitoring = luml.deployments.monitoring("insurance regression")
-traces = monitoring.traces(limit=20)
+latest = monitoring.traces(limit=20)
+slowest = monitoring.traces(sort="latency", order="desc", limit=10)
 ```
 
 <a id="luml_api.resources.monitoring.DeploymentMonitoring.trace"></a>
@@ -725,6 +784,59 @@ async def main():
     feature_drift = await monitoring.feature_drift(severity="critical")
 ```
 
+<a id="luml_api.resources.monitoring.AsyncDeploymentMonitoring.output_drift"></a>
+
+#### output_drift
+
+```python
+async def output_drift(window: str = "24h", severity: str = "all") -> dict
+```
+
+Did the model's outputs shift against the training reference.
+
+**Arguments**:
+
+- `window` - Time range the section covers: "24h", "7d" or "30d".
+- `severity` - Alert severity filter: "all", "warning" or "critical".
+  
+
+**Returns**:
+
+  dict with the output's PSI score and severity, the reference vs
+  current distribution of predictions, the PSI history, and the output
+  drift alerts. Numerical outputs add the prediction trend (median
+  with its p05-p95 band); categorical outputs add the top changed
+  classes, each drifted class's share across windows, and — when the
+  artifact reports probabilities — the confidence block, per-class
+  probability drift and the decision-boundary rate; forecasting
+  deployments add per-horizon drift, the headline describing the
+  worst horizon.
+  
+
+**Raises**:
+
+- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `NotFoundError` - If the Satellite does not host this deployment.
+  
+
+**Example**:
+
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    )
+    monitoring = await luml.deployments.monitoring(
+        "insurance regression"
+    )
+    output_drift = await monitoring.output_drift(window="7d")
+```
+
 <a id="luml_api.resources.monitoring.AsyncDeploymentMonitoring.reference_profile"></a>
 
 #### reference_profile
@@ -824,16 +936,27 @@ async def main():
 #### traces
 
 ```python
-async def traces(window: str = "24h", limit: int = 50, offset: int = 0) -> dict
+async def traces(
+        window: str = "24h",
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "ts",
+        order: str = "desc"
+) -> dict
 ```
 
 The local request log: one row per inference call.
+
+Sorting happens on the Satellite before pagination, so a page is a slice of
+the fully sorted log — not a sorted slice.
 
 **Arguments**:
 
 - `window` - Time range the section covers: "24h", "7d" or "30d".
 - `limit` - Maximum rows per page (up to 200).
 - `offset` - Rows to skip, for paging.
+- `sort` - Column to order by: "ts" (call time, the default), "latency" (response time) or "status" (HTTP status code).
+- `order` - "desc" (default) or "asc".
   
 
 **Returns**:
@@ -844,7 +967,7 @@ The local request log: one row per inference call.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `LumlAPIError` - If ``window``, ``sort`` or ``order`` is not one the dashboard offers.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -863,7 +986,8 @@ async def main():
     monitoring = await luml.deployments.monitoring(
         "insurance regression"
     )
-    traces = await monitoring.traces(limit=20)
+    latest = await monitoring.traces(limit=20)
+    slowest = await monitoring.traces(sort="latency", order="desc", limit=10)
 ```
 
 <a id="luml_api.resources.monitoring.AsyncDeploymentMonitoring.trace"></a>

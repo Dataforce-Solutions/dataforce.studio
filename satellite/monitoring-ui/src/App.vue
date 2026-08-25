@@ -80,10 +80,13 @@
       :trace-detail="traceDetail"
       :trace-detail-status="traceDetailStatus"
       :new-count="tracesNewCount"
+      :sort-key="tracesSort.key"
+      :sort-order="tracesSort.order"
       @page="setTracesPage"
       @open="openTrace"
       @close-trace="closeTrace"
       @show-latest="showLatestTraces"
+      @sort="setTracesSort"
     />
 
     <DataQualityTab
@@ -192,6 +195,8 @@ const {
   tracesStatus,
   tracesNewCount,
   showLatestTraces,
+  tracesSort,
+  setTracesSort,
   openTraceId,
   traceDetail,
   traceDetailStatus,

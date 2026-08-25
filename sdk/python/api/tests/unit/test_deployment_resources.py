@@ -101,7 +101,7 @@ def test_monitoring_sections_share_one_address_scheme(mock_sync_client: Mock) ->
     monitoring.data_quality(feature="age")
     monitoring.output_drift(severity="critical")
     monitoring.alerts(severity="warning")
-    monitoring.traces(limit=5, offset=10)
+    monitoring.traces(limit=5, offset=10, sort="latency", order="asc")
     monitoring.trace("evt-1")
     monitoring.worker()
 
@@ -120,6 +120,8 @@ def test_monitoring_sections_share_one_address_scheme(mock_sync_client: Mock) ->
     assert dq_params["feature"] == "age"
     traces_params = mock_sync_client.get.call_args_list[4].kwargs["params"]
     assert traces_params["limit"] == "5"
+    assert traces_params["sort"] == "latency"
+    assert traces_params["order"] == "asc"
 
 
 def test_monitoring_refuses_a_satellite_without_an_address(
@@ -130,6 +132,16 @@ def test_monitoring_refuses_a_satellite_without_an_address(
 
     with pytest.raises(LumlAPIError, match="no reachable base URL"):
         DeploymentResource(mock_sync_client).monitoring(DEPLOYMENT_ID)
+
+
+def test_traces_rejects_a_sort_the_log_does_not_offer(mock_sync_client: Mock) -> None:
+    mock_sync_client.get.side_effect = [_record(), {"base_url": SATELLITE_URL}]
+    monitoring = DeploymentResource(mock_sync_client).monitoring(DEPLOYMENT_ID)
+
+    with pytest.raises(LumlAPIError, match="sort must be one of"):
+        monitoring.traces(sort="color")
+    with pytest.raises(LumlAPIError, match="order must be one of"):
+        monitoring.traces(order="sideways")
 
 
 def test_monitoring_rejects_a_window_the_dashboard_does_not_offer(

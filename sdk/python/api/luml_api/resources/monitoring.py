@@ -3,6 +3,16 @@ from typing import Any
 from luml_api._exceptions import LumlAPIError
 
 _WINDOWS = ("24h", "7d", "30d")
+_TRACE_SORTS = ("ts", "latency", "status")
+_SORT_ORDERS = ("asc", "desc")
+
+
+def _trace_page(limit: int, offset: int, sort: str, order: str) -> dict[str, str]:
+    if sort not in _TRACE_SORTS:
+        raise LumlAPIError(f"sort must be one of {_TRACE_SORTS}, got {sort!r}")
+    if order not in _SORT_ORDERS:
+        raise LumlAPIError(f"order must be one of {_SORT_ORDERS}, got {order!r}")
+    return {"limit": str(limit), "offset": str(offset), "sort": sort, "order": order}
 
 
 def _dims(
@@ -354,21 +364,35 @@ class DeploymentMonitoring(_MonitoringBase):
             params=_dims(window, "reference", severity, "auto", None),
         )
 
-    def traces(self, window: str = "24h", limit: int = 50, offset: int = 0) -> dict:
+    def traces(
+        self,
+        window: str = "24h",
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "ts",
+        order: str = "desc",
+    ) -> dict:
         """
         The local request log: one row per inference call.
+
+        Sorting happens on the Satellite before pagination, so a page is a slice of
+        the fully sorted log — not a sorted slice.
 
         Args:
             window: Time range the section covers: "24h", "7d" or "30d".
             limit: Maximum rows per page (up to 200).
             offset: Rows to skip, for paging.
+            sort: Column to order by: "ts" (call time, the default), "latency"
+                (response time) or "status" (HTTP status code).
+            order: "desc" (default) or "asc".
 
         Returns:
             dict with the page's rows (event id, timestamp, feature summary, prediction,
             latency, status) and the total count.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            LumlAPIError: If ``window``, ``sort`` or ``order`` is not one the
+                dashboard offers.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -379,11 +403,12 @@ class DeploymentMonitoring(_MonitoringBase):
             orbit="0199c455-21ed-7aba-9fe5-5231611220de",
         )
         monitoring = luml.deployments.monitoring("insurance regression")
-        traces = monitoring.traces(limit=20)
+        latest = monitoring.traces(limit=20)
+        slowest = monitoring.traces(sort="latency", order="desc", limit=10)
         ```
         """
         params = _dims(window, "reference", "all", "auto", None)
-        params.update({"limit": str(limit), "offset": str(offset)})
+        params.update(_trace_page(limit, offset, sort, order))
         return self._client.get(self._url("traces"), params=params)
 
     def trace(self, event_id: str, window: str = "24h") -> dict:
@@ -799,22 +824,34 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         )
 
     async def traces(
-        self, window: str = "24h", limit: int = 50, offset: int = 0
+        self,
+        window: str = "24h",
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "ts",
+        order: str = "desc",
     ) -> dict:
         """
         The local request log: one row per inference call.
+
+        Sorting happens on the Satellite before pagination, so a page is a slice of
+        the fully sorted log — not a sorted slice.
 
         Args:
             window: Time range the section covers: "24h", "7d" or "30d".
             limit: Maximum rows per page (up to 200).
             offset: Rows to skip, for paging.
+            sort: Column to order by: "ts" (call time, the default), "latency"
+                (response time) or "status" (HTTP status code).
+            order: "desc" (default) or "asc".
 
         Returns:
             dict with the page's rows (event id, timestamp, feature summary, prediction,
             latency, status) and the total count.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            LumlAPIError: If ``window``, ``sort`` or ``order`` is not one the
+                dashboard offers.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -831,11 +868,12 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             monitoring = await luml.deployments.monitoring(
                 "insurance regression"
             )
-            traces = await monitoring.traces(limit=20)
+            latest = await monitoring.traces(limit=20)
+            slowest = await monitoring.traces(sort="latency", order="desc", limit=10)
         ```
         """
         params = _dims(window, "reference", "all", "auto", None)
-        params.update({"limit": str(limit), "offset": str(offset)})
+        params.update(_trace_page(limit, offset, sort, order))
         return await self._client.get(self._url("traces"), params=params)
 
     async def trace(self, event_id: str, window: str = "24h") -> dict:

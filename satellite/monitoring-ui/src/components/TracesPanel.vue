@@ -26,12 +26,24 @@
         <table class="traces">
           <thead>
             <tr>
-              <th>Time</th>
+              <th>
+                <button type="button" class="sort" data-testid="sort-ts" @click="$emit('sort', 'ts')">
+                  Time <span class="arrow">{{ arrow('ts') }}</span>
+                </button>
+              </th>
               <th>Request</th>
               <th>Features</th>
               <th>Prediction</th>
-              <th class="num">Latency</th>
-              <th>Status</th>
+              <th class="num">
+                <button type="button" class="sort" data-testid="sort-latency" @click="$emit('sort', 'latency')">
+                  Latency <span class="arrow">{{ arrow('latency') }}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" class="sort" data-testid="sort-status" @click="$emit('sort', 'status')">
+                  Status <span class="arrow">{{ arrow('status') }}</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -102,7 +114,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ArrowUp } from 'lucide-vue-next'
-import type { TraceDetail, TracesResponse } from '@/api/types'
+import type { SortOrder, TraceDetail, TraceSortKey, TracesResponse } from '@/api/types'
 import { TRACES_PAGE_SIZE, type LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { formatTimestamp } from '@/lib/format'
@@ -118,10 +130,24 @@ const props = withDefaults(
     traceDetail: TraceDetail | null
     traceDetailStatus: LoadStatus
     newCount?: number
+    sortKey?: TraceSortKey
+    sortOrder?: SortOrder
   }>(),
-  { newCount: 0 },
+  { newCount: 0, sortKey: 'ts', sortOrder: 'desc' },
 )
-defineEmits<{ page: [number]; open: [string]; 'close-trace': []; 'show-latest': [] }>()
+defineEmits<{
+  page: [number]
+  open: [string]
+  'close-trace': []
+  'show-latest': []
+  sort: [TraceSortKey]
+}>()
+
+/** The active column shows its direction; the others a quiet both-ways hint. */
+function arrow(key: TraceSortKey): string {
+  if (props.sortKey !== key) return '↕'
+  return props.sortOrder === 'desc' ? '↓' : '↑'
+}
 
 const pageSize = TRACES_PAGE_SIZE
 
@@ -204,6 +230,22 @@ function statusClass(statusCode: number): string {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+}
+.sort {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort:hover {
+  color: var(--luml-fg-strong);
+}
+.arrow {
+  font-size: 10px;
+  opacity: 0.7;
 }
 .traces th {
   text-align: left;

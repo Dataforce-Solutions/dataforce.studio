@@ -18,6 +18,8 @@ import {
   type WorkerHealthResponse,
   type ReferenceProfileResponse,
   type Series,
+  type SortOrder,
+  type TraceSortKey,
   type TraceDetail,
   type TracesResponse,
 } from '@/api/types'
@@ -256,15 +258,40 @@ export function useMonitoringDashboard() {
     return run(alertsStatus, () => monitoringApi.getAlerts({ ...dimensions }), applyAlerts)
   }
 
+  /** How the traces table is ordered; a header click flows through here. */
+  const tracesSort = ref<{ key: TraceSortKey; order: SortOrder }>({ key: 'ts', order: 'desc' })
+
+  function setTracesSort(key: TraceSortKey): Promise<void> {
+    const current = tracesSort.value
+    // Clicking the active column flips it; a new column starts descending.
+    tracesSort.value =
+      current.key === key
+        ? { key, order: current.order === 'desc' ? 'asc' : 'desc' }
+        : { key, order: 'desc' }
+    return loadTraces(0)
+  }
+
   function loadTraces(offset = 0): Promise<void> {
     tracesOffset.value = offset
     return run(
       tracesStatus,
-      () => monitoringApi.getTraces({ ...dimensions }, { limit: TRACES_PAGE_SIZE, offset }),
+      () =>
+        monitoringApi.getTraces(
+          { ...dimensions },
+          {
+            limit: TRACES_PAGE_SIZE,
+            offset,
+            sort: tracesSort.value.key,
+            order: tracesSort.value.order,
+          },
+        ),
       (value) => {
         traces.value = value
         // Any deliberate load re-anchors "new since": what's on screen is now seen.
-        if (offset === 0) tracesTopEventId = value.rows[0]?.event_id ?? null
+        // The anchor only means "newest" under time ordering, so only then is it set.
+        if (offset === 0 && tracesSort.value.key === 'ts' && tracesSort.value.order === 'desc') {
+          tracesTopEventId = value.rows[0]?.event_id ?? null
+        }
         tracesNewCount.value = 0
       },
     )
@@ -285,7 +312,10 @@ export function useMonitoringDashboard() {
   async function peekNewTraces(): Promise<void> {
     let page: TracesResponse
     try {
-      page = await monitoringApi.getTraces({ ...dimensions }, { limit: TRACES_PAGE_SIZE, offset: 0 })
+      page = await monitoringApi.getTraces(
+        { ...dimensions },
+        { limit: TRACES_PAGE_SIZE, offset: 0, sort: 'ts', order: 'desc' },
+      )
     } catch (error) {
       if (error instanceof SessionExpiredError) reportSessionExpired()
       return
@@ -589,6 +619,8 @@ export function useMonitoringDashboard() {
     tracesOffset,
     tracesNewCount,
     showLatestTraces,
+    tracesSort,
+    setTracesSort,
     openTraceId,
     traceDetail,
     traceDetailStatus,

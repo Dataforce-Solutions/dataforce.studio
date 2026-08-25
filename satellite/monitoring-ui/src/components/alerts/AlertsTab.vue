@@ -39,15 +39,35 @@
           <table class="alerts-table" data-testid="alerts-table">
             <thead>
               <tr>
-                <th>Alert</th>
-                <th>Seen</th>
-                <th class="num">Value</th>
-                <th>Status</th>
-                <th class="num">Duration</th>
+                <th>
+                  <button type="button" class="sort" data-testid="al-sort-metric" @click="toggleSort('metric')">
+                    Alert <span class="arrow">{{ arrow('metric') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort" data-testid="al-sort-seen" @click="toggleSort('seen')">
+                    Seen <span class="arrow">{{ arrow('seen') }}</span>
+                  </button>
+                </th>
+                <th class="num">
+                  <button type="button" class="sort" data-testid="al-sort-value" @click="toggleSort('value')">
+                    Value <span class="arrow">{{ arrow('value') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort" data-testid="al-sort-status" @click="toggleSort('status')">
+                    Status <span class="arrow">{{ arrow('status') }}</span>
+                  </button>
+                </th>
+                <th class="num">
+                  <button type="button" class="sort" data-testid="al-sort-duration" @click="toggleSort('duration')">
+                    Duration <span class="arrow">{{ arrow('duration') }}</span>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="group in alerts?.groups ?? []" :key="group.group">
+              <template v-for="group in sortedGroups" :key="group.group">
                 <tr class="group-row">
                   <td colspan="5">
                     {{ groupLabel(group.group) }}
@@ -149,6 +169,50 @@ const view = computed(() => {
 
 const selected = ref<AlertBanner | null>(null)
 
+/** Sorting rearranges alerts inside each group; the groups themselves stay put. */
+type AlertSortKey = 'metric' | 'seen' | 'value' | 'status' | 'duration'
+const SEVERITY_RANK: Record<string, number> = { ok: 0, warning: 1, critical: 2 }
+
+const sortKey = ref<AlertSortKey | null>(null)
+const sortDesc = ref(true)
+
+function toggleSort(key: AlertSortKey): void {
+  if (sortKey.value === key) {
+    sortDesc.value = !sortDesc.value
+  } else {
+    sortKey.value = key
+    sortDesc.value = key !== 'metric'
+  }
+}
+
+function arrow(key: AlertSortKey): string {
+  if (sortKey.value !== key) return '↕'
+  return sortDesc.value ? '↓' : '↑'
+}
+
+const sortedGroups = computed(() => {
+  const groups = props.alerts?.groups ?? []
+  const key = sortKey.value
+  if (key === null) return groups
+  const value = (alert: AlertBanner): number | string => {
+    if (key === 'metric') return subject(alert)
+    if (key === 'seen') return alert.state === 'acknowledged' ? 1 : 0
+    if (key === 'value') return alert.current_value ?? Number.NEGATIVE_INFINITY
+    if (key === 'status') return SEVERITY_RANK[alert.severity] ?? 0
+    return alert.duration_seconds ?? 0
+  }
+  return groups.map((group) => {
+    const sorted = [...group.alerts].sort((a, b) => {
+      const va = value(a)
+      const vb = value(b)
+      return typeof va === 'string'
+        ? String(va).localeCompare(String(vb))
+        : Number(va) - Number(vb)
+    })
+    return { ...group, alerts: sortDesc.value ? sorted.reverse() : sorted }
+  })
+})
+
 const total = computed(() =>
   (props.alerts?.groups ?? []).reduce((sum, group) => sum + group.alerts.length, 0),
 )
@@ -232,6 +296,22 @@ watch(
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+}
+.sort {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort:hover {
+  color: var(--luml-fg-strong);
+}
+.arrow {
+  font-size: 10px;
+  opacity: 0.7;
 }
 .alerts-table th {
   text-align: left;

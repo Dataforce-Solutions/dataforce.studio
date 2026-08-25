@@ -283,6 +283,9 @@ async def demo_monitoring() -> None:
     traces = await monitoring.traces(limit=20)
     print(f"Traces: {traces}")
 
+    slowest = await monitoring.traces(sort="latency", order="desc", limit=5)
+    print(f"Slowest calls: {slowest}")
+
     # One call with its full payloads and span tree
     trace = await monitoring.trace("0199c455-21ee-74c6-b747-19a82f1a1e75")
     print(f"Trace: {trace}")

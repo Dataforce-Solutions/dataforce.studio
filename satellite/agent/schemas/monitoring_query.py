@@ -21,6 +21,17 @@ class Compare(StrEnum):
     CUSTOM = "custom"
 
 
+class TraceSort(StrEnum):
+    TS = "ts"
+    LATENCY = "latency"
+    STATUS = "status"
+
+
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
 class SeverityFilter(StrEnum):
     ALL = "all"
     WARNING = "warning"

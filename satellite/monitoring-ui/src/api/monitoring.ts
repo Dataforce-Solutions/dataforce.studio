@@ -1,5 +1,7 @@
 import { apiGet, apiPost, type QueryParams } from './client'
 import type {
+  SortOrder,
+  TraceSortKey,
   AlertsResponse,
   DataQualityResponse,
   Dimensions,
@@ -70,12 +72,14 @@ export function getWorkerHealth(): Promise<WorkerHealthResponse> {
 
 export function getTraces(
   dims: Dimensions,
-  page: { limit: number; offset: number },
+  page: { limit: number; offset: number; sort?: TraceSortKey; order?: SortOrder },
 ): Promise<TracesResponse> {
   return apiGet<TracesResponse>('/traces', {
     ...dimensionParams(dims),
     limit: String(page.limit),
     offset: String(page.offset),
+    sort: page.sort ?? null,
+    order: page.order ?? null,
   })
 }
 

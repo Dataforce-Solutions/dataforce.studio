@@ -483,6 +483,9 @@ export interface TraceDetailResponse {
   trace: TraceDetail | null
 }
 
+export type TraceSortKey = 'ts' | 'latency' | 'status'
+export type SortOrder = 'asc' | 'desc'
+
 export interface Dimensions {
   window: Window
   compare: Compare

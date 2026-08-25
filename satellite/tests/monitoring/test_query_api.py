@@ -475,6 +475,40 @@ async def test_traces_endpoint_paginates_and_is_session_scoped() -> None:
     assert body["limit"] == 2 and body["offset"] == 0
 
 
+async def test_traces_sort_by_latency_and_status() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for latency, code in ((10.0, 200), (300.0, 500), (40.0, 200)):
+        e = _event(dep)
+        store.add_event(
+            InferenceEvent(
+                event_id=e.event_id, deployment_id=dep, ts=ago(100 + latency),
+                status="success" if code == 200 else "error", status_code=code,
+                latency_ms=latency,
+            )
+        )
+
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+    headers = _cookie(session.session_id)
+
+    async with client_for(app) as client:
+        slowest_first = await client.get(
+            "/monitoring/api/traces", params={"sort": "latency", "order": "desc"}, headers=headers
+        )
+        errors_first = await client.get(
+            "/monitoring/api/traces", params={"sort": "status", "order": "desc"}, headers=headers
+        )
+        bad = await client.get(
+            "/monitoring/api/traces", params={"sort": "nope"}, headers=headers
+        )
+
+    assert [row["latency_ms"] for row in slowest_first.json()["rows"]] == [300.0, 40.0, 10.0]
+    assert [row["status_code"] for row in errors_first.json()["rows"]][0] == 500
+    assert bad.status_code == 422
+
+
 async def test_traces_endpoint_rejects_invalid_pagination() -> None:
     dep = uuid.uuid4()
     sessions = MonitoringSessionStore()
