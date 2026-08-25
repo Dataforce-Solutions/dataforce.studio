@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import * as monitoringApi from '@/api/monitoring'
 import { SessionExpiredError } from '@/api/client'
 import {
@@ -26,6 +26,10 @@ export const MONITORING_SESSION_EXPIRED_MESSAGE = 'monitoring:session-expired'
 
 /** Page size for the local Traces panel (bounded by the Query API's max limit). */
 export const TRACES_PAGE_SIZE = 20
+
+/** Auto-refresh cadences offered by the controls, in seconds; 0 is off. */
+export const AUTO_REFRESH_OPTIONS = [0, 30, 60, 300] as const
+export type AutoRefreshSeconds = (typeof AUTO_REFRESH_OPTIONS)[number]
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -181,7 +185,8 @@ export function useMonitoringDashboard() {
     await run(
       alertsStatus,
       () => monitoringApi.acknowledgeAlert({ ...dimensions }, metric),
-      (value) => (alerts.value = value),
+      // Not an anchor: acknowledging one alert is not "I saw the new ones too".
+      applyAlerts,
     )
     // Each section response carries its own copy of the banners, and section tabs hide
     // acknowledged ones — so the tab the user is looking at must refetch now, or the
@@ -193,12 +198,56 @@ export function useMonitoringDashboard() {
     else if (activeTab.value === 'output-drift') await loadOutputDrift()
   }
 
+  /**
+   * Alerts that fired while the tab sat on an auto-refresh cadence.
+   *
+   * A deliberate load anchors "seen" to whatever it shows — the reader is looking at
+   * it. Ticks then compare against that anchor: newly firing alerts are counted and
+   * highlighted until the reader dismisses the notice, surviving intermediate ticks
+   * (and acknowledges) so a glance away doesn't swallow the news.
+   */
+  const alertsNewCount = ref(0)
+  const alertsFreshKeys = ref<Set<string>>(new Set())
+  let alertsSeenKeys: Set<string> | null = null
+
+  function alertKeys(response: AlertsResponse): string[] {
+    return (response.groups ?? []).flatMap((group) => group.alerts.map((alert) => alert.metric))
+  }
+
+  function anchorAlerts(response: AlertsResponse): void {
+    alertsSeenKeys = new Set(alertKeys(response))
+    alertsNewCount.value = 0
+    alertsFreshKeys.value = new Set()
+  }
+
+  function applyAlerts(response: AlertsResponse): void {
+    alerts.value = response
+    if (alertsSeenKeys === null) {
+      anchorAlerts(response)
+      return
+    }
+    const fresh = alertKeys(response).filter((key) => !alertsSeenKeys!.has(key))
+    alertsFreshKeys.value = new Set(fresh)
+    alertsNewCount.value = fresh.length
+  }
+
+  function markAlertsSeen(): void {
+    if (alerts.value) anchorAlerts(alerts.value)
+  }
+
   function loadAlerts(): Promise<void> {
     return run(
       alertsStatus,
       () => monitoringApi.getAlerts({ ...dimensions }),
-      (value) => (alerts.value = value),
+      (value) => {
+        alerts.value = value
+        anchorAlerts(value)
+      },
     )
+  }
+
+  function autoReloadAlerts(): Promise<void> {
+    return run(alertsStatus, () => monitoringApi.getAlerts({ ...dimensions }), applyAlerts)
   }
 
   function loadTraces(offset = 0): Promise<void> {
@@ -206,8 +255,41 @@ export function useMonitoringDashboard() {
     return run(
       tracesStatus,
       () => monitoringApi.getTraces({ ...dimensions }, { limit: TRACES_PAGE_SIZE, offset }),
-      (value) => (traces.value = value),
+      (value) => {
+        traces.value = value
+        // Any deliberate load re-anchors "new since": what's on screen is now seen.
+        if (offset === 0) tracesTopEventId = value.rows[0]?.event_id ?? null
+        tracesNewCount.value = 0
+      },
     )
+  }
+
+  /**
+   * Traces arriving while the reader is away from the newest page.
+   *
+   * The newest page live-tails on the auto-refresh tick. A deeper page must hold
+   * still — offset pagination over a growing list would slide rows under the
+   * reader — so the tick peeks at the newest page instead and counts what arrived
+   * since the reader last saw it; the panel offers a jump. Page-capped: past a
+   * full page of arrivals the count reads "20+", which is all a human needs.
+   */
+  const tracesNewCount = ref(0)
+  let tracesTopEventId: string | null = null
+
+  async function peekNewTraces(): Promise<void> {
+    let page: TracesResponse
+    try {
+      page = await monitoringApi.getTraces({ ...dimensions }, { limit: TRACES_PAGE_SIZE, offset: 0 })
+    } catch (error) {
+      if (error instanceof SessionExpiredError) reportSessionExpired()
+      return
+    }
+    const index = page.rows.findIndex((row) => row.event_id === tracesTopEventId)
+    tracesNewCount.value = index === -1 ? page.rows.length : index
+  }
+
+  function showLatestTraces(): Promise<void> {
+    return loadTraces(0)
   }
 
   function loadFeatureDrift(): Promise<void> {
@@ -283,6 +365,70 @@ export function useMonitoringDashboard() {
   function refresh(): Promise<void> {
     return load()
   }
+
+  const autoRefreshSeconds = ref<AutoRefreshSeconds>(0)
+  let autoRefreshTimer: number | null = null
+  let autoRefreshInFlight = false
+
+  function setAutoRefresh(seconds: AutoRefreshSeconds): void {
+    autoRefreshSeconds.value = seconds
+    if (autoRefreshTimer !== null) {
+      window.clearInterval(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
+    if (seconds > 0) {
+      autoRefreshTimer = window.setInterval(() => void autoRefreshTick(), seconds * 1000)
+    }
+  }
+
+  /**
+   * A timer tick reloads the header and the active section's data — and nothing else.
+   *
+   * A manual refresh may reset what the user is doing; a background one must not: the
+   * Traces page stays where it is and an open trace stays open, the Data quality tab
+   * keeps its trends panel, the reference profile is a static document and is skipped.
+   * A hidden dashboard skips the network entirely, and an expired session stops the
+   * timer for good — polling a dead session would just spam 401s.
+   */
+  async function autoRefreshTick(): Promise<void> {
+    if (document.hidden || autoRefreshInFlight) return
+    if (sessionExpired.value) {
+      setAutoRefresh(0)
+      return
+    }
+    autoRefreshInFlight = true
+    try {
+      await Promise.all([loadHeader(), autoReloadActiveSection()])
+    } finally {
+      autoRefreshInFlight = false
+    }
+  }
+
+  function autoReloadActiveSection(): Promise<void> {
+    switch (activeTab.value) {
+      case 'overview':
+        return loadOverview()
+      case 'runtime':
+        return loadRuntime()
+      case 'traces':
+        // The newest page tails live; a deeper page holds still and counts arrivals.
+        return tracesOffset.value === 0 ? loadTraces(0) : peekNewTraces()
+      case 'alerts':
+        return autoReloadAlerts()
+      case 'output-drift':
+        return loadOutputDrift()
+      case 'data-quality':
+        return loadDataQuality()
+      case 'reference-profile':
+        return Promise.resolve()
+      default:
+        return loadFeatureDrift()
+    }
+  }
+
+  // App.vue owns the only instance, so the timer dies with the app; the guard keeps
+  // tests that call the composable outside a component scope warning-free.
+  if (getCurrentScope()) onScopeDispose(() => setAutoRefresh(0))
 
   async function setWindow(next: Window): Promise<void> {
     if (dimensions.window === next) return
@@ -373,6 +519,9 @@ export function useMonitoringDashboard() {
     profileDocumentStatus,
     alerts,
     alertsStatus,
+    alertsNewCount,
+    alertsFreshKeys,
+    markAlertsSeen,
     acknowledgeAlert,
     workerHealth,
     focusAlert,
@@ -380,6 +529,8 @@ export function useMonitoringDashboard() {
     traces,
     tracesStatus,
     tracesOffset,
+    tracesNewCount,
+    showLatestTraces,
     openTraceId,
     traceDetail,
     traceDetailStatus,
@@ -392,6 +543,8 @@ export function useMonitoringDashboard() {
     referenceProfile,
     referenceProfileStatus,
     isPlaceholderProfile,
+    autoRefreshSeconds,
+    setAutoRefresh,
     load,
     refresh,
     setWindow,

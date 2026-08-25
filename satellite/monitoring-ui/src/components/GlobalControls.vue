@@ -55,24 +55,49 @@
       <RefreshCw :size="14" />
       Refresh
     </button>
+
+    <div class="control">
+      <span class="control-label">Auto</span>
+      <div class="segmented" role="group" aria-label="Auto-refresh">
+        <button
+          v-for="option in autoOptions"
+          :key="option"
+          type="button"
+          class="segment"
+          :class="{ active: autoRefresh === option }"
+          :data-testid="`auto-${option}`"
+          @click="$emit('update:auto', option)"
+        >
+          {{ autoLabel(option) }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { RefreshCw } from 'lucide-vue-next'
 import { Compare, SeverityFilter, Window, type Dimensions } from '@/api/types'
+import { AUTO_REFRESH_OPTIONS, type AutoRefreshSeconds } from '@/composables/useMonitoringDashboard'
 
-defineProps<{ dimensions: Dimensions }>()
+defineProps<{ dimensions: Dimensions; autoRefresh: AutoRefreshSeconds }>()
 defineEmits<{
   'update:window': [Window]
   'update:compare': [Compare]
   'update:severity': [SeverityFilter]
+  'update:auto': [AutoRefreshSeconds]
   refresh: []
 }>()
 
 const windowOptions = [Window.H24, Window.D7, Window.D30]
 const compareOptions = [Compare.REFERENCE, Compare.PREVIOUS]
 const severityOptions = [SeverityFilter.ALL, SeverityFilter.WARNING, SeverityFilter.CRITICAL]
+const autoOptions = AUTO_REFRESH_OPTIONS
+
+function autoLabel(seconds: AutoRefreshSeconds): string {
+  if (seconds === 0) return 'off'
+  return seconds < 60 ? `${seconds}s` : `${seconds / 60}m`
+}
 </script>
 
 <style scoped>

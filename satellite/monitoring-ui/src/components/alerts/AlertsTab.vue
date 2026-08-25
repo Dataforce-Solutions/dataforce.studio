@@ -22,6 +22,18 @@
           <span v-if="criticals" class="count critical">{{ criticals }} critical</span>
         </div>
 
+        <!-- Alerts that fired since the reader last looked; dismissing marks them seen. -->
+        <button
+          v-if="newCount > 0"
+          type="button"
+          class="new-alerts"
+          data-testid="new-alerts"
+          @click="$emit('seen')"
+        >
+          <BellRing :size="13" />
+          {{ newCount }} new {{ newCount === 1 ? 'alert' : 'alerts' }} — mark seen
+        </button>
+
         <!-- Same viewport as the Traces table: past that the list scrolls, not the page. -->
         <div class="table-scroll table-viewport">
           <table class="alerts-table" data-testid="alerts-table">
@@ -46,7 +58,7 @@
                   v-for="alert in group.alerts"
                   :key="alert.metric"
                   class="row"
-                  :class="{ selected: alert.metric === selected?.metric }"
+                  :class="{ selected: alert.metric === selected?.metric, fresh: freshKeys?.has(alert.metric) }"
                   data-testid="alert-row"
                   role="button"
                   tabindex="0"
@@ -112,17 +124,22 @@ import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { alertSubject, durationLabel, groupLabel } from '@/lib/alerts'
 import StateBlock from '@/components/StateBlock.vue'
-import { Check } from 'lucide-vue-next'
+import { BellRing, Check } from 'lucide-vue-next'
 import SeverityTag from '@/components/SeverityTag.vue'
 import DetailDrawer from '@/components/DetailDrawer.vue'
 import AlertDetailPanel from './AlertDetailPanel.vue'
 
-const props = defineProps<{
-  alerts: AlertsResponse | null
-  status: LoadStatus
-}>()
+const props = withDefaults(
+  defineProps<{
+    alerts: AlertsResponse | null
+    status: LoadStatus
+    newCount?: number
+    freshKeys?: Set<string>
+  }>(),
+  { newCount: 0, freshKeys: undefined },
+)
 
-const emit = defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner] }>()
+const emit = defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner]; seen: [] }>()
 
 const view = computed(() => {
   const state = sectionView(props.status, props.alerts?.state)
@@ -188,6 +205,25 @@ watch(
 .count.critical {
   color: var(--luml-danger-tint-fg);
 }
+.new-alerts {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+  padding: 5px 12px;
+  border: 1px solid var(--luml-brand-tint-strong);
+  border-radius: var(--luml-radius-pill);
+  background: var(--luml-brand-tint);
+  color: var(--luml-brand);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.new-alerts:hover {
+  background: var(--luml-brand-tint-strong);
+}
 .table-scroll {
   overflow-x: auto;
 }
@@ -244,6 +280,17 @@ watch(
 .row:hover td,
 .row.selected td {
   background: var(--luml-surface-50);
+}
+.row.fresh td {
+  animation: fresh-alert 2.2s ease-out;
+}
+@keyframes fresh-alert {
+  from {
+    background: var(--luml-brand-tint);
+  }
+  to {
+    background: transparent;
+  }
 }
 .subject-cell {
   display: inline-flex;

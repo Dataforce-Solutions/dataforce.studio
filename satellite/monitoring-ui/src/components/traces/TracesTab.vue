@@ -13,9 +13,11 @@
       :open-trace-id="openTraceId"
       :trace-detail="traceDetail"
       :trace-detail-status="traceDetailStatus"
+      :new-count="newCount"
       @page="$emit('page', $event)"
       @open="$emit('open', $event)"
       @close-trace="$emit('close-trace')"
+      @show-latest="$emit('show-latest')"
     />
   </section>
 </template>
@@ -25,15 +27,19 @@ import type { TraceDetail, TracesResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import TracesPanel from '@/components/TracesPanel.vue'
 
-defineProps<{
-  traces: TracesResponse | null
-  status: LoadStatus
-  openTraceId: string | null
-  traceDetail: TraceDetail | null
-  traceDetailStatus: LoadStatus
-}>()
+withDefaults(
+  defineProps<{
+    traces: TracesResponse | null
+    status: LoadStatus
+    openTraceId: string | null
+    traceDetail: TraceDetail | null
+    traceDetailStatus: LoadStatus
+    newCount?: number
+  }>(),
+  { newCount: 0 },
+)
 
-defineEmits<{ page: [number]; open: [string]; 'close-trace': [] }>()
+defineEmits<{ page: [number]; open: [string]; 'close-trace': []; 'show-latest': [] }>()
 </script>
 
 <style scoped>

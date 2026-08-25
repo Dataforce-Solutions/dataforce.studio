@@ -12,9 +12,11 @@
 
     <GlobalControls
       :dimensions="dimensions"
+      :auto-refresh="autoRefreshSeconds"
       @update:window="setWindow"
       @update:compare="setCompare"
       @update:severity="setSeverity"
+      @update:auto="setAutoRefresh"
       @refresh="refresh"
     />
 
@@ -48,9 +50,11 @@
       :open-trace-id="openTraceId"
       :trace-detail="traceDetail"
       :trace-detail-status="traceDetailStatus"
+      :new-count="tracesNewCount"
       @page="setTracesPage"
       @open="openTrace"
       @close-trace="closeTrace"
+      @show-latest="showLatestTraces"
     />
 
     <DataQualityTab
@@ -70,8 +74,11 @@
       v-else-if="activeTab === 'alerts'"
       :alerts="alerts"
       :status="alertsStatus"
+      :new-count="alertsNewCount"
+      :fresh-keys="alertsFreshKeys"
       @show-feature="focusAlert"
       @acknowledge="acknowledgeAlert($event.metric)"
+      @seen="markAlertsSeen"
     />
 
     <OutputDriftTab
@@ -142,12 +149,17 @@ const {
   profileDocumentStatus,
   alerts,
   alertsStatus,
+  alertsNewCount,
+  alertsFreshKeys,
+  markAlertsSeen,
   acknowledgeAlert,
   workerHealth,
   focusAlert,
   focusedFeature,
   traces,
   tracesStatus,
+  tracesNewCount,
+  showLatestTraces,
   openTraceId,
   traceDetail,
   traceDetailStatus,
@@ -160,6 +172,8 @@ const {
   referenceProfile,
   referenceProfileStatus,
   isPlaceholderProfile,
+  autoRefreshSeconds,
+  setAutoRefresh,
   load,
   refresh,
   setWindow,

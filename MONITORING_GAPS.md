@@ -238,7 +238,7 @@ compare (reference / previous), severity (all / warning / critical), кнопк�
   нельзя;
 - **feature filter как глобальный контрол**: измерение `feature` в API есть, но фича
   выбирается внутри вкладок Data quality и Feature drift, а не в шапке;
-- **auto-refresh**: только ручная кнопка;
+- ~~**auto-refresh**: только ручная кнопка~~ — сделано 25.08;
 - **`compare=previous` работает не везде**: влияет только на дельты карточек Overview
   (`query.py:794 _previous_rollup`). На вкладках дрейфа сравнение всегда с reference.
 
@@ -320,7 +320,9 @@ compare (reference / previous), severity (all / warning / critical), кнопк�
 
 - **Granularity в контролах** — API умеет (`granularity=hour|day`), UI всегда шлёт auto.
 - **Feature filter как глобальный контрол** — сейчас фича выбирается внутри вкладок.
-- **Auto-refresh** — только ручная кнопка.
+- ~~**Auto-refresh**~~ — сделано 25.08: контрол Auto (off/30s/1m/5m) рядом с Refresh; тик
+  обновляет шапку и активную секцию, не трогая состояние (страница трейсов, открытые
+  панели), молчит в скрытой вкладке и глохнет насовсем при истёкшей сессии.
 - **`compare=previous` не везде** — влияет только на дельты карточек Overview; вкладки
   дрейфа всегда сравнивают с reference.
 - **Alert timeline на Overview** — вместо таймлайна из спеки список баннеров; либо

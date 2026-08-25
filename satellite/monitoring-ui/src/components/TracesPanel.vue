@@ -16,6 +16,19 @@
       </span>
     </div>
 
+    <!-- Arrivals counted while the reader sits on a deeper page; one click catches up. -->
+    <button
+      v-if="newCount > 0"
+      type="button"
+      class="new-traces"
+      data-testid="new-traces"
+      @click="$emit('show-latest')"
+    >
+      <ArrowUp :size="13" />
+      {{ newCount >= pageSize ? `${pageSize}+` : newCount }} new
+      {{ newCount === 1 ? 'trace' : 'traces' }} — show latest
+    </button>
+
     <StateBlock
       v-if="view !== 'ready'"
       :view="view"
@@ -42,6 +55,7 @@
               v-for="row in traces.rows"
               :key="row.event_id"
               class="row"
+              :class="{ fresh: freshIds.has(row.event_id) }"
               data-testid="trace-row"
               tabindex="0"
               role="button"
@@ -102,26 +116,60 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ShieldCheck } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { ArrowUp, ShieldCheck } from 'lucide-vue-next'
 import type { TraceDetail, TracesResponse } from '@/api/types'
-import type { LoadStatus } from '@/composables/useMonitoringDashboard'
+import { TRACES_PAGE_SIZE, type LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { formatTimestamp } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
 import TraceDetailDialog from '@/components/TraceDetailDialog.vue'
 import CopyButton from '@/components/CopyButton.vue'
 
-const props = defineProps<{
-  traces: TracesResponse | null
-  status: LoadStatus
-  openTraceId: string | null
-  traceDetail: TraceDetail | null
-  traceDetailStatus: LoadStatus
-}>()
-defineEmits<{ page: [number]; open: [string]; 'close-trace': [] }>()
+const props = withDefaults(
+  defineProps<{
+    traces: TracesResponse | null
+    status: LoadStatus
+    openTraceId: string | null
+    traceDetail: TraceDetail | null
+    traceDetailStatus: LoadStatus
+    newCount?: number
+  }>(),
+  { newCount: 0 },
+)
+defineEmits<{ page: [number]; open: [string]; 'close-trace': []; 'show-latest': [] }>()
+
+const pageSize = TRACES_PAGE_SIZE
 
 const view = computed(() => sectionView(props.status, props.traces?.state))
+
+/**
+ * Rows that were not in the previous newest-page response get a brief highlight,
+ * so a live tail reads as "these just arrived" instead of a silent reshuffle.
+ * Only successive first pages compare — flipping pages is navigation, not news.
+ */
+const freshIds = ref<Set<string>>(new Set())
+let prevFirstPageIds: Set<string> | null = null
+
+watch(
+  () => props.traces,
+  (response) => {
+    if (!response || response.offset !== 0) {
+      freshIds.value = new Set()
+      prevFirstPageIds = null
+      return
+    }
+    const ids = new Set(response.rows.map((row) => row.event_id))
+    freshIds.value =
+      prevFirstPageIds === null
+        ? new Set()
+        : new Set(response.rows.filter((row) => !prevFirstPageIds!.has(row.event_id)).map((row) => row.event_id))
+    prevFirstPageIds = ids
+  },
+  // The page the panel mounts with is the baseline — without it, everything the
+  // first tick brings would count as old.
+  { immediate: true },
+)
 
 const rangeLabel = computed(() => {
   const traces = props.traces
@@ -165,6 +213,25 @@ function statusClass(statusCode: number): string {
   font-size: 11px;
   font-weight: 500;
 }
+.new-traces {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 5px 12px;
+  border: 1px solid var(--luml-brand-tint-strong);
+  border-radius: var(--luml-radius-pill);
+  background: var(--luml-brand-tint);
+  color: var(--luml-brand);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.new-traces:hover {
+  background: var(--luml-brand-tint-strong);
+}
 .table-scroll {
   overflow-x: auto;
 }
@@ -202,6 +269,17 @@ function statusClass(statusCode: number): string {
 .row:focus-visible {
   background: var(--luml-bg-hover);
   outline: none;
+}
+.row.fresh td {
+  animation: fresh-row 2.2s ease-out;
+}
+@keyframes fresh-row {
+  from {
+    background: var(--luml-brand-tint);
+  }
+  to {
+    background: transparent;
+  }
 }
 .nowrap {
   white-space: nowrap;

@@ -22,6 +22,7 @@ import {
 } from '@/composables/useMonitoringDashboard'
 import { ProfileStatus, Window } from '@/api/types'
 import {
+  makeAlerts,
   makeDataQuality,
   makeFeatureDrift,
   makeHeader,
@@ -38,6 +39,7 @@ const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
 const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
+const getAlerts = vi.mocked(monitoringApi.getAlerts)
 
 describe('useMonitoringDashboard', () => {
   beforeEach(() => {
@@ -285,5 +287,178 @@ describe('useMonitoringDashboard', () => {
 
     expect(dashboard.sessionExpired.value).toBe(true)
     expect(postMessage).toHaveBeenCalledWith({ type: MONITORING_SESSION_EXPIRED_MESSAGE }, '*')
+  })
+
+  it('auto-refresh polls the header and active section on its cadence, off stops it', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      await dashboard.load()
+      getOverview.mockClear()
+      getHeader.mockClear()
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(getOverview).toHaveBeenCalledTimes(1)
+      expect(getHeader).toHaveBeenCalledTimes(1)
+
+      dashboard.setAutoRefresh(0)
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(getOverview).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an auto-refresh tick never rewrites a deeper traces page under the reader', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      await dashboard.setActiveTab('traces')
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const shown = dashboard.traces.value
+      getTraces.mockClear()
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      // the tick peeked at the newest page, but what the reader sees is untouched
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.traces.value).toBe(shown)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('live-tails the newest traces page on a tick, and only that page', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      await dashboard.setActiveTab('traces')
+      getTraces.mockClear()
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(getTraces).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ offset: 0 }),
+      )
+      expect(dashboard.tracesOffset.value).toBe(0)
+      expect(dashboard.tracesNewCount.value).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a deeper traces page holds still while a tick counts what arrived on top', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      await dashboard.setActiveTab('traces')
+      const firstPage = makeTraces()
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      getTraces.mockClear()
+
+      // two new rows in front, the old top now sits at index 2
+      const fresh = {
+        ...firstPage,
+        rows: [
+          { ...firstPage.rows[0], event_id: 'evt-new-2' },
+          { ...firstPage.rows[0], event_id: 'evt-new-1' },
+          ...firstPage.rows,
+        ],
+      }
+      getTraces.mockResolvedValue(fresh)
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      // the peek asked for the newest page, but the table stayed on its offset
+      expect(getTraces).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ offset: 0 }),
+      )
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.tracesNewCount.value).toBe(2)
+
+      // the jump lands on the newest page and clears the counter
+      await dashboard.showLatestTraces()
+      expect(dashboard.tracesOffset.value).toBe(0)
+      expect(dashboard.tracesNewCount.value).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts alerts that fire between ticks and clears them on mark-seen', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      const baseline = makeAlerts()
+      getAlerts.mockResolvedValue(baseline)
+      await dashboard.setActiveTab('alerts')
+      expect(dashboard.alertsNewCount.value).toBe(0)
+
+      const firing = {
+        ...baseline,
+        groups: [
+          ...baseline.groups,
+          {
+            group: 'runtime',
+            alerts: [{ ...baseline.groups[0].alerts[0], metric: 'runtime:error_rate' }],
+          },
+        ],
+      }
+      getAlerts.mockResolvedValue(firing)
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dashboard.alertsNewCount.value).toBe(1)
+      expect(dashboard.alertsFreshKeys.value.has('runtime:error_rate')).toBe(true)
+
+      // the count survives another tick with the same list — a glance away is not "seen"
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dashboard.alertsNewCount.value).toBe(1)
+
+      dashboard.markAlertsSeen()
+      expect(dashboard.alertsNewCount.value).toBe(0)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dashboard.alertsNewCount.value).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a deliberate alerts load anchors seen, so nothing counts as new', async () => {
+    const dashboard = useMonitoringDashboard()
+    getAlerts.mockResolvedValue(makeAlerts())
+    await dashboard.setActiveTab('alerts')
+
+    await dashboard.setActiveTab('overview')
+    await dashboard.setActiveTab('alerts')
+
+    expect(dashboard.alertsNewCount.value).toBe(0)
+  })
+
+  it('stops polling for good once the session expires', async () => {
+    vi.useFakeTimers()
+    try {
+      const dashboard = useMonitoringDashboard()
+      await dashboard.load()
+      dashboard.setAutoRefresh(30)
+
+      getHeader.mockRejectedValue(new SessionExpiredError())
+      getOverview.mockRejectedValue(new SessionExpiredError())
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dashboard.sessionExpired.value).toBe(true)
+
+      getHeader.mockClear()
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(getHeader).not.toHaveBeenCalled()
+      expect(dashboard.autoRefreshSeconds.value).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
