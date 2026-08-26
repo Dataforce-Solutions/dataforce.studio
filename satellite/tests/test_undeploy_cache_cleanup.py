@@ -1,9 +1,9 @@
-"""Undeploy reclaims the cache entry its deployment used — nothing else ever will.
+"""Undeploy reclaims the cache volume its deployment used — nothing else ever will.
 
-Extracted models live on a shared volume precisely so they outlive any one container, which
-means no container's death frees them. The undeploy task is the only moment the Satellite
-knows a model may have lost its last user, so it is where the cache is cleaned — and only
-when no other deployment still uses the same artifact.
+Extracted models live on per-artifact volumes precisely so they outlive any one container,
+which means no container's death frees them. The undeploy task is the only moment the
+Satellite knows a model may have lost its last user, so it is where the volume is deleted —
+and only when no other deployment still uses the same artifact.
 """
 
 import uuid
@@ -66,7 +66,7 @@ async def test_a_failed_cleanup_does_not_fail_the_undeploy() -> None:
 
 
 async def test_a_model_another_deployment_still_uses_is_not_deleted() -> None:
-    """The cache key is the artifact id, shared by every deployment of that artifact."""
+    """The cache volume is per artifact, shared by every deployment of that artifact."""
     with patch("agent.clients.docker_client.aiodocker.Docker"):
         service = DockerService()
         other_container = AsyncMock()
@@ -74,21 +74,37 @@ async def test_a_model_another_deployment_still_uses_is_not_deleted() -> None:
             return_value={"Config": {"Labels": {"df.model_id": MODEL_ID}}}
         )
         service.client.containers.list = AsyncMock(return_value=[other_container])
-        service.client.containers.create = AsyncMock()
+        service.client.volumes.get = AsyncMock()
 
         await service.cleanup_model_cache(MODEL_ID)
 
-        service.client.containers.create.assert_not_awaited()
+        service.client.volumes.get.assert_not_awaited()
 
 
-async def test_the_last_deployments_model_is_deleted() -> None:
+async def test_the_last_deployments_model_loses_its_cache_volume() -> None:
+    from agent.clients.docker_client import model_cache_volume
+
     with patch("agent.clients.docker_client.aiodocker.Docker"):
         service = DockerService()
         service.client.containers.list = AsyncMock(return_value=[])
-        service.client.containers.create = AsyncMock()
-        service.client.images.get = AsyncMock()
+        volume = AsyncMock()
+        service.client.volumes.get = AsyncMock(return_value=volume)
 
         await service.cleanup_model_cache(MODEL_ID)
 
-        config_arg = service.client.containers.create.await_args.kwargs["config"]
-        assert f"/app/models/{MODEL_ID}" in config_arg["Cmd"]
+        service.client.volumes.get.assert_awaited_once_with(model_cache_volume(MODEL_ID))
+        volume.delete.assert_awaited_once()
+
+
+async def test_a_model_that_was_never_cached_here_is_not_an_error() -> None:
+    """A deployment can be undeployed before its container ever downloaded anything."""
+    from aiodocker.exceptions import DockerError
+
+    with patch("agent.clients.docker_client.aiodocker.Docker"):
+        service = DockerService()
+        service.client.containers.list = AsyncMock(return_value=[])
+        service.client.volumes.get = AsyncMock(
+            side_effect=DockerError(404, {"message": "no such volume"})
+        )
+
+        await service.cleanup_model_cache(MODEL_ID)  # must simply return, not raise

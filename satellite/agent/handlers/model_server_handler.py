@@ -12,7 +12,11 @@ from agent._exceptions import (
 )
 from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
-from agent.handlers.container_launcher import launch_model_container
+from agent.handlers.container_launcher import (
+    LAUNCHER_PROTOCOL,
+    LAUNCHER_PROTOCOL_LABEL,
+    launch_model_container,
+)
 from agent.monitoring.instrumentation import InferenceInstrumentation
 from agent.monitoring.telemetry import TelemetrySetup
 from agent.schemas import (
@@ -119,12 +123,13 @@ class ModelServerHandler:
         deployment_id: str,
         reason: str,
     ) -> bool:
-        """Recreate a stopped model container with a newly signed artifact URL.
+        """Recreate a deployment's model container under the current launch contract.
 
-        The URL a container carries is presigned and outlived by the container itself, so a
-        stopped container can never simply be started again — it would try to download its
-        model from a link that expired hours ago and die. Recreating is the only way back,
-        and the Platform record says this deployment is supposed to be serving.
+        Two kinds of container end up here: stopped ones, which can never simply be started
+        again — a legacy container would try to download its model from a presigned link
+        that expired hours ago and die — and running legacy ones, which are one restart away
+        from the same death. Recreating is the only way forward, and the Platform record
+        says this deployment is supposed to be serving.
         """
         logger.info(f"[ModelServerHandler] relaunching '{deployment_id}': {reason}")
         try:
@@ -242,7 +247,7 @@ class ModelServerHandler:
             for dep in serving_deployments_db:
                 dep_id = dep["id"]
                 try:
-                    await docker.check_container_running(dep_id)
+                    labels = await docker.check_container_running(dep_id)
                 except ContainerNotFoundError:
                     # No container at all: this Satellite holds nothing to restart. Creating
                     # one here would resurrect every deployment that ever failed on any
@@ -262,6 +267,20 @@ class ModelServerHandler:
                 except ContainerNotRunningError as e:
                     # The container exists but is stopped — the case this recovery is for.
                     if await self._relaunch(docker, platform_client, dep_id, str(e)):
+                        recovering.append(dep)
+                    continue
+
+                if labels.get(LAUNCHER_PROTOCOL_LABEL) != LAUNCHER_PROTOCOL:
+                    # A container launched under an older contract still carries what made
+                    # the old world break — a presigned URL that expired long ago. It serves
+                    # fine until its first restart, and that restart happens when nothing is
+                    # watching. Replaced now instead, while the replacement can be watched.
+                    if await self._relaunch(
+                        docker,
+                        platform_client,
+                        dep_id,
+                        "container was launched under an older Agent protocol",
+                    ):
                         recovering.append(dep)
                     continue
 

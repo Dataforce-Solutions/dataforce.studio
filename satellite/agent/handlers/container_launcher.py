@@ -21,6 +21,17 @@ from agent.settings import config
 
 logger = logging.getLogger(__name__)
 
+# The contract between the Agent and the containers it launches, stamped on every container
+# so reconciliation can tell the ones built under an older contract apart from its own — a
+# running container cannot be asked, only inspected. Bump it whenever a container built the
+# old way must be replaced rather than kept:
+#
+#   (no label) — a presigned MODEL_ARTIFACT_URL baked into the environment, one shared
+#                read-write cache volume for every container
+#   "2"        — an artifact token instead of a URL, a cache volume private to the artifact
+LAUNCHER_PROTOCOL_LABEL = "df.launcher_protocol"
+LAUNCHER_PROTOCOL = "2"
+
 
 async def secrets_env(
     platform: PlatformClient, secrets_payload: dict[str, str] | None
@@ -64,11 +75,13 @@ async def launch_model_container(
     return await docker.run_model_container(
         image=config.MODEL_IMAGE,
         name=f"sat-{deployment.id}",
+        model_id=str(deployment.artifact_id),
         container_port=config.MODEL_SERVER_PORT,
         labels={
             "df.deployment_id": str(deployment.id),
             # the cache key the container will use, so undeploy can clean the same entry
             "df.model_id": str(deployment.artifact_id),
+            LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL,
         },
         env=await container_env(platform, deployment),
     )

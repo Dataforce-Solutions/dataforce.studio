@@ -136,8 +136,12 @@ class TestSyncDeploymentsCarriesFlag:
         # so we patch the docker check at the handler level.
         from unittest.mock import AsyncMock, patch
 
+        from agent.handlers.container_launcher import LAUNCHER_PROTOCOL, LAUNCHER_PROTOCOL_LABEL
+
         mock_docker = AsyncMock()
-        mock_docker.check_container_running = AsyncMock()
+        mock_docker.check_container_running = AsyncMock(
+            return_value={LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}
+        )
         mock_docker.__aenter__ = AsyncMock(return_value=mock_docker)
         mock_docker.__aexit__ = AsyncMock(return_value=False)
 
@@ -202,8 +206,12 @@ class TestSyncDeploymentsCarriesFlag:
 
         from unittest.mock import AsyncMock, patch
 
+        from agent.handlers.container_launcher import LAUNCHER_PROTOCOL, LAUNCHER_PROTOCOL_LABEL
+
         mock_docker = AsyncMock()
-        mock_docker.check_container_running = AsyncMock()
+        mock_docker.check_container_running = AsyncMock(
+            return_value={LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}
+        )
         mock_docker.__aenter__ = AsyncMock(return_value=mock_docker)
         mock_docker.__aexit__ = AsyncMock(return_value=False)
 
