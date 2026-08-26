@@ -143,8 +143,20 @@ class ModelServerHandler:
             )
             return False
 
+        # Still `not_responding`, not `pending`, while the relaunched container boots.
+        # `pending` belongs to deploy tasks, and reconciliation skips it on that assumption
+        # — a deployment parked there by a recovery the Agent did not live to finish would
+        # be skipped forever. `not_responding` is re-examined on every start, so an
+        # interrupted recovery is picked up by the next one.
         await platform.update_deployment(
-            deployment_id, DeploymentUpdate(status=DeploymentStatus.PENDING)
+            deployment_id,
+            DeploymentUpdate(
+                status=DeploymentStatus.NOT_RESPONDING,
+                error_message={
+                    "reason": "Recovering",
+                    "error": f"Container was relaunched and is starting up: {reason}",
+                },
+            ),
         )
         return True
 
@@ -208,10 +220,12 @@ class ModelServerHandler:
         ):
             deployments_db = await platform_client.list_deployments()
             # `not_responding` is in scope on purpose: it is where an earlier reconciliation
-            # parks a deployment it could not revive. Leaving it out would make the first
-            # failure permanent — the deployment stops being `active`, and nothing ever looks
-            # at it again. `failed` and `pending` stay out: the first needs a real redeploy,
-            # the second has a deploy task in flight that this must not race.
+            # parks a deployment it could not revive, and where a recovery it started but did
+            # not live to finish still sits. Leaving it out would make the first failure
+            # permanent — the deployment stops being `active`, and nothing ever looks at it
+            # again. `failed` and `pending` stay out: the first needs a real redeploy, the
+            # second has a deploy task in flight that this must not race — which is why
+            # recovery itself never writes `pending`.
             serving_deployments_db = [
                 dep
                 for dep in deployments_db
@@ -307,6 +321,12 @@ class ModelServerHandler:
                 await asyncio.gather(
                     *(self._settle_recovered(docker, platform_client, dep) for dep in recovering)
                 )
+
+            # Staging directories abandoned by hard-killed containers are reclaimed here
+            # because nothing else ever will — each unpack uses a path of its own and only
+            # cleans that. The sweep's age threshold keeps it away from unpacks still in
+            # flight, including the ones this reconciliation just started.
+            await docker.cleanup_stale_staging()
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

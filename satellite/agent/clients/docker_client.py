@@ -21,6 +21,10 @@ MODEL_CACHE_BIND = "satellite-models-cache:/app/models"
 # "agent", and neither is stable enough to hard-code here.
 AGENT_HOST = "satellite-agent"
 
+# How old a `.partial` staging directory must be before the sweep may assume the unpack
+# that created it is dead rather than slow. Unpacking takes minutes; an hour is margin.
+STALE_STAGING_MINUTES = 60
+
 
 class DockerService:
     def __init__(self) -> None:
@@ -99,7 +103,12 @@ class DockerService:
                 return True
         return False
 
-    async def _container_for_model_cache_clean_up(self, model_id: str) -> DockerContainer:
+    async def _run_in_cache_volume(self, cmd: list[str]) -> DockerContainer:
+        """Run one command against the shared model cache and wait for it to finish.
+
+        The cache lives on a named volume, not on the Agent's own filesystem, so the only
+        way to touch it is through a container that mounts it.
+        """
         image_name = "alpine:latest"
 
         try:
@@ -110,7 +119,7 @@ class DockerService:
 
         config: dict[str, Any] = {
             "Image": image_name,
-            "Cmd": ["rm", "-rf", f"/app/models/{model_id}"],
+            "Cmd": cmd,
             "HostConfig": {
                 "Binds": [MODEL_CACHE_BIND],
             },
@@ -120,6 +129,9 @@ class DockerService:
         await container.wait()
 
         return container
+
+    async def _container_for_model_cache_clean_up(self, model_id: str) -> DockerContainer:
+        return await self._run_in_cache_volume(["rm", "-rf", f"/app/models/{model_id}"])
 
     async def check_container_running(self, deployment_id: str) -> None:
         try:
@@ -132,6 +144,29 @@ class DockerService:
 
         if status != "running":
             raise ContainerNotRunningError(deployment_id, status)
+
+    async def cleanup_stale_staging(self) -> None:
+        """Reclaim `.partial` staging directories abandoned by a hard-killed unpack.
+
+        A container that dies mid-unpack cannot remove its own staging directory, and no
+        later start will either: staging paths are unique per attempt precisely so that
+        concurrent unpacks never share one. Only age tells an orphan apart from an unpack
+        still in flight, so only directories old enough that no live unpack can still own
+        them are removed.
+        """
+        try:
+            container = await self._run_in_cache_volume(
+                [
+                    "find", "/app/models", "-mindepth", "1", "-maxdepth", "1",
+                    "-name", ".*.partial", "-mmin", f"+{STALE_STAGING_MINUTES}",
+                    "-exec", "rm", "-rf", "{}", "+",
+                ]
+            )
+
+            with contextlib.suppress(DockerError):
+                await container.delete(force=True)
+        except Exception as error:
+            logger.error(f"[DockerService] Error cleaning stale staging directories.\n{error}")
 
     async def cleanup_model_cache(self, model_id: str) -> None:
         if await self.is_model_in_use(model_id):

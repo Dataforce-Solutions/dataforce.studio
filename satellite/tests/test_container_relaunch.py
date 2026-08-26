@@ -6,6 +6,7 @@ try to download its model from a dead link. These tests pin the recovery: recrea
 a URL signed at that moment.
 """
 
+import json
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -113,10 +114,12 @@ async def test_a_stopped_container_is_recreated_with_a_token_not_a_url() -> None
     # once it answers, the deployment is serving again and known locally
     assert DEPLOYMENT_ID in handler.deployments
     assert handler.deployments[DEPLOYMENT_ID].monitoring_enabled is True
-    # pending while it boots, active once it answers
+    # recovering while it boots, active once it answers — and never `pending`, which
+    # reconciliation skips: an Agent dying mid-recovery must not strand the deployment
     updates = [call.request.read() for call in patch_route.calls]
-    assert b'"pending"' in updates[0]
+    assert b'"not_responding"' in updates[0]
     assert b'"active"' in updates[-1]
+    assert all(b'"pending"' not in update for update in updates)
 
 
 @respx.mock
@@ -201,6 +204,50 @@ async def test_a_recovered_container_that_still_runs_is_promoted_back_to_active(
     # it answers on its own, so it is promoted without touching the container
     docker.run_model_container.assert_not_awaited()
     assert b'"active"' in patch_route.calls[-1].request.read()
+
+
+async def test_a_recovery_the_agent_did_not_live_to_finish_is_settled_by_the_next_start() -> None:
+    """The status recovery parks a deployment in must be one reconciliation looks at.
+
+    Relaunching and seeing the container answer can be half an hour apart, and the Agent
+    can die in between. All that survives it is the interim status on the Platform. Were
+    that `pending` — which reconciliation skips as "a deploy task owns this" — the
+    deployment would be stranded there forever, its container healthy and serving.
+    """
+    # First life: the stopped container is relaunched, then the Agent dies before it
+    # answers — nothing after the interim status write is allowed to matter.
+    handler = ModelServerHandler()
+    handler.recovery_health_check_timeout = 1
+    with respx.mock:
+        _mock_platform()
+        _mock_model_server(healthy=False)
+        patch_route = respx.patch(
+            f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+        ).mock(return_value=httpx.Response(200, json=_platform_record()))
+        with _patched(_stopped_docker()):
+            await handler.sync_deployments()
+        interim_status = json.loads(patch_route.calls[0].request.read())["status"]
+
+    # Second life: a fresh Agent finds the world as the first one left it — the record in
+    # the interim status, the relaunched container running and by now healthy.
+    record = _platform_record() | {"status": interim_status}
+    fresh_handler = ModelServerHandler()
+    with respx.mock:
+        _mock_platform(record=record)
+        _mock_model_server()
+        patch_route = respx.patch(
+            f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+        ).mock(return_value=httpx.Response(200, json=record))
+        docker = AsyncMock()
+        docker.check_container_running = AsyncMock()
+        docker.__aenter__ = AsyncMock(return_value=docker)
+        docker.__aexit__ = AsyncMock(return_value=False)
+        with _patched(docker):
+            await fresh_handler.sync_deployments()
+
+        assert patch_route.called, f"a deployment in '{interim_status}' was never looked at"
+        assert b'"active"' in patch_route.calls[-1].request.read()
+    assert DEPLOYMENT_ID in fresh_handler.deployments
 
 
 @respx.mock
@@ -301,3 +348,31 @@ async def test_model_containers_mount_the_shared_cache(method: str) -> None:
             config_arg = service.client.containers.create.await_args.kwargs["config"]
 
     assert MODEL_CACHE_BIND in config_arg["HostConfig"]["Binds"]
+
+
+async def test_the_stale_staging_sweep_spares_what_might_still_be_unpacking() -> None:
+    """Orphaned `.partial` directories are reclaimed; everything else is untouchable.
+
+    The sweep runs while relaunched containers may be unpacking into fresh staging
+    directories of their own, so it must select on both name and age — never extracted
+    models, never staging young enough to have a live owner.
+    """
+    from agent.clients.docker_client import (
+        MODEL_CACHE_BIND,
+        STALE_STAGING_MINUTES,
+        DockerService,
+    )
+
+    with patch("agent.clients.docker_client.aiodocker.Docker"):
+        service = DockerService()
+        service.client.containers.create = AsyncMock()
+        service.client.images.get = AsyncMock()
+        await service.cleanup_stale_staging()
+        config_arg = service.client.containers.create.await_args.kwargs["config"]
+
+    assert MODEL_CACHE_BIND in config_arg["HostConfig"]["Binds"]
+    cmd = config_arg["Cmd"]
+    assert ".*.partial" in cmd
+    assert f"+{STALE_STAGING_MINUTES}" in cmd
+    # one level deep only: a model's own dot-files are the model's business
+    assert "-maxdepth" in cmd and "1" in cmd
