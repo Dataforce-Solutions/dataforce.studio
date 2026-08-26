@@ -719,6 +719,7 @@ async def test_get_orbit_collections_success(
         ),
         search=None,
         types=None,
+        tags=None,
     )
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
@@ -727,6 +728,77 @@ async def test_get_orbit_collections_success(
         Action.LIST,
         orbit_id,
     )
+
+
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_tags_success(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+    mock_get_tags.return_value = ["prod", "staging"]
+
+    result = await handler.get_orbit_collections_tags(
+        user_id, organization_id, orbit_id
+    )
+
+    assert result == ["prod", "staging"]
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_get_tags.assert_awaited_once_with(orbit_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.LIST,
+        orbit_id,
+    )
+
+
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_tags_orbit_not_found(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_get_orbit_simple.return_value = None
+
+    with pytest.raises(NotFoundError, match="Orbit not found"):
+        await handler.get_orbit_collections_tags(user_id, organization_id, orbit_id)
+
+    mock_get_tags.assert_not_called()
 
 
 def test_validate_cursor_matching() -> None:

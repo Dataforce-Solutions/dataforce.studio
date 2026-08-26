@@ -200,3 +200,97 @@ async def test_get_orbit_collections_search_by_tags(
     assert "collection-1" in names
     assert "collection-3" in names
     assert "collection-2" not in names
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_collections_filter_by_tags(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    engine, orbit = data.engine, data.orbit
+    repo = CollectionRepository(engine)
+
+    collections_data = [
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 1",
+            name="collection-1",
+            type=CollectionType.MODEL,
+            tags=["production", "ml-model"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 2",
+            name="collection-2",
+            type=CollectionType.DATASET,
+            tags=["staging"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 3",
+            name="collection-3",
+            type=CollectionType.MODEL,
+            tags=None,
+        ),
+    ]
+
+    for collection_data in collections_data:
+        await repo.create_collection(collection_data)
+
+    pagination = PaginationParams(limit=100)
+
+    filtered, _ = await repo.get_orbit_collections(
+        orbit.id, pagination, tags=["production"]
+    )
+    assert [c.name for c in filtered] == ["collection-1"]
+
+    filtered, _ = await repo.get_orbit_collections(
+        orbit.id, pagination, tags=["production", "staging"]
+    )
+    names = [c.name for c in filtered]
+    assert len(filtered) == 2
+    assert "collection-1" in names
+    assert "collection-2" in names
+
+    filtered, _ = await repo.get_orbit_collections(
+        orbit.id, pagination, tags=["nonexistent"]
+    )
+    assert filtered == []
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_collections_tags(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    engine, orbit = data.engine, data.orbit
+    repo = CollectionRepository(engine)
+
+    collections_data = [
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 1",
+            name="collection-1",
+            type=CollectionType.MODEL,
+            tags=["production", "ml-model"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 2",
+            name="collection-2",
+            type=CollectionType.DATASET,
+            tags=["staging", "production"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 3",
+            name="collection-3",
+            type=CollectionType.MODEL,
+            tags=None,
+        ),
+    ]
+
+    for collection_data in collections_data:
+        await repo.create_collection(collection_data)
+
+    tags = await repo.get_orbit_collections_tags(orbit.id)
+
+    assert tags == ["ml-model", "production", "staging"]

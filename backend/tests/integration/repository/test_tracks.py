@@ -156,6 +156,86 @@ async def test_list_orbit_tracks(create_orbit: OrbitFixtureData) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_orbit_tracks_filter_by_tags(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+
+    tracks_data = [
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-1",
+            artifact_type=ArtifactType.MODEL,
+            tags=["production", "ml"],
+        ),
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-2",
+            artifact_type=ArtifactType.MODEL,
+            tags=["staging"],
+        ),
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-3",
+            artifact_type=ArtifactType.MODEL,
+        ),
+    ]
+    for track_data in tracks_data:
+        await repo.create_track(track_data)
+
+    pagination = PaginationParams(limit=100)
+
+    filtered, _ = await repo.get_orbit_tracks(
+        data.orbit.id, pagination, tags=["production"]
+    )
+    assert [t.name for t in filtered] == ["track-1"]
+
+    filtered, _ = await repo.get_orbit_tracks(
+        data.orbit.id, pagination, tags=["production", "staging"]
+    )
+    names = [t.name for t in filtered]
+    assert len(filtered) == 2
+    assert "track-1" in names
+    assert "track-2" in names
+
+    filtered, _ = await repo.get_orbit_tracks(
+        data.orbit.id, pagination, tags=["nonexistent"]
+    )
+    assert filtered == []
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_tracks_tags(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+
+    tracks_data = [
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-1",
+            artifact_type=ArtifactType.MODEL,
+            tags=["production", "ml"],
+        ),
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-2",
+            artifact_type=ArtifactType.MODEL,
+            tags=["staging", "production"],
+        ),
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-3",
+            artifact_type=ArtifactType.MODEL,
+        ),
+    ]
+    for track_data in tracks_data:
+        await repo.create_track(track_data)
+
+    tags = await repo.get_orbit_tracks_tags(data.orbit.id)
+
+    assert tags == ["ml", "production", "staging"]
+
+
+@pytest.mark.asyncio
 async def test_update_track(create_orbit: OrbitFixtureData) -> None:
     data = create_orbit
     repo = TrackRepository(data.engine)

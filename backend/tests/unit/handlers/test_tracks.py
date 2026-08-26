@@ -335,6 +335,62 @@ async def test_list_tracks(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.tracks.TrackRepository.get_orbit_tracks_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_list_tracks_tags(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    mock_get_tags.return_value = ["prod", "staging"]
+
+    result = await tracks_handler.list_tracks_tags(USER_ID, ORG_ID, ORBIT_ID)
+
+    assert result == ["prod", "staging"]
+    mock_get_tags.assert_awaited_once_with(ORBIT_ID)
+    mock_perms.assert_awaited_once_with(
+        ORG_ID, USER_ID, Resource.TRACK, Action.LIST, ORBIT_ID
+    )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.TrackRepository.get_orbit_tracks_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_list_tracks_tags_orbit_not_found(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = None
+
+    with pytest.raises(NotFoundError, match="Orbit not found"):
+        await tracks_handler.list_tracks_tags(USER_ID, ORG_ID, ORBIT_ID)
+
+    mock_get_tags.assert_not_called()
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.tracks.TrackRepository.update_track",
     new_callable=AsyncMock,
 )
