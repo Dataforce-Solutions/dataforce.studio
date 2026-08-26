@@ -80,3 +80,15 @@ docker compose exec greptimedb curl -s \
 Set `monitoring_enabled = false` on the deployment (or remove it), wait for a
 sync cycle, then send another inference request. The model response should
 still return normally, but no new rows should appear in the GreptimeDB tables.
+
+## Verify the Agent alias from a dynamic container
+
+Model containers are created by the Agent, not by Compose, and call back to the
+`satellite-agent` network alias. With the stack up, this is verified end-to-end
+by an automated smoke test (it skips itself when Docker or the stack is down):
+
+```bash
+.venv/bin/python -m pytest tests/test_smoke_agent_alias.py -v
+```
+
+Expected: `PASSED` while the Agent container is running, `SKIPPED` otherwise.
