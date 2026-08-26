@@ -34,6 +34,12 @@ from agent.settings import config
 
 logger = logging.getLogger(__name__)
 
+# What a recovery writes into the deployment's error message while the relaunched container
+# boots. The next reconciliation reads it back to tell a container that is still warming up
+# from one that is genuinely wedged — the Agent that started the wait may not live to
+# finish it, and this marker is all that survives.
+RECOVERING_REASON = "Recovering"
+
 
 class ModelServerHandler:
     # How long a relaunched container may take to download its model, build its environment
@@ -158,7 +164,7 @@ class ModelServerHandler:
             DeploymentUpdate(
                 status=DeploymentStatus.NOT_RESPONDING,
                 error_message={
-                    "reason": "Recovering",
+                    "reason": RECOVERING_REASON,
                     "error": f"Container was relaunched and is starting up: {reason}",
                 },
             ),
@@ -310,6 +316,16 @@ class ModelServerHandler:
                         await platform_client.update_deployment(
                             dep_id, DeploymentUpdate(status=DeploymentStatus.ACTIVE)
                         )
+                elif (
+                    dep.get("status", "") == DeploymentStatus.NOT_RESPONDING
+                    and (dep.get("error_message") or {}).get("reason") == RECOVERING_REASON
+                ):
+                    # A recovery some earlier Agent began and did not live to see through:
+                    # the container it relaunched runs, but is still booting. Wait for it
+                    # the way that Agent would have — writing it off after one failed check
+                    # would leave a container that answers minutes later serving nothing
+                    # until the next restart.
+                    recovering.append(dep)
                 else:
                     logs = ""
                     with suppress(Exception):

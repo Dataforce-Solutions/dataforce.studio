@@ -14,9 +14,10 @@ import httpx
 import respx
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
+from agent.clients import ModelServerClient
 from agent.handlers import artifact_tokens
 from agent.handlers.container_launcher import LAUNCHER_PROTOCOL, LAUNCHER_PROTOCOL_LABEL
-from agent.handlers.model_server_handler import ModelServerHandler
+from agent.handlers.model_server_handler import RECOVERING_REASON, ModelServerHandler
 from agent.settings import config
 
 PLATFORM_URL = str(config.PLATFORM_URL).rstrip("/")
@@ -256,6 +257,67 @@ async def test_a_recovery_the_agent_did_not_live_to_finish_is_settled_by_the_nex
         assert patch_route.called, f"a deployment in '{interim_status}' was never looked at"
         assert b'"active"' in patch_route.calls[-1].request.read()
     assert DEPLOYMENT_ID in fresh_handler.deployments
+
+
+@respx.mock
+async def test_a_recovery_interrupted_mid_boot_is_waited_for_not_written_off() -> None:
+    """The next Agent finishes the wait its predecessor began.
+
+    The Agent died while its relaunched container was still booting. The next start finds
+    the container running but not yet answering — and the record carrying the recovery
+    marker. One failed health check must not condemn it: minutes later it will answer, and
+    an Agent that wrote it off would neither serve it nor look again until the next restart.
+    """
+    handler = ModelServerHandler()
+    record = _platform_record() | {
+        "status": "not_responding",
+        "error_message": {"reason": RECOVERING_REASON, "error": "container was relaunched"},
+    }
+    _mock_platform(record=record)
+    _mock_model_server()  # healthy for the settling wait — it answers once waited for
+    patch_route = respx.patch(
+        f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+    ).mock(return_value=httpx.Response(200, json=record))
+    docker = _running_docker()
+
+    # not yet healthy when reconciliation first looks (is_healthy retries internally for
+    # minutes, so the "first look fails" moment is pinned directly)
+    with (
+        _patched(docker),
+        patch.object(ModelServerClient, "is_healthy", AsyncMock(return_value=False)),
+    ):
+        await handler.sync_deployments()
+
+    # the container itself was fine — nothing recreated, just waited for and promoted
+    docker.run_model_container.assert_not_awaited()
+    assert DEPLOYMENT_ID in handler.deployments
+    assert b'"active"' in patch_route.calls[-1].request.read()
+
+
+@respx.mock
+async def test_a_wedged_container_without_the_recovery_marker_is_reported_at_once() -> None:
+    """Only an interrupted recovery earns the wait; a plain broken container does not.
+
+    A deployment that was serving and stopped answering carries no recovery marker, and
+    stalling its bad news by a health-check timeout would help nobody.
+    """
+    handler = ModelServerHandler()
+    _mock_platform()  # status "active", no recovery marker
+    _mock_model_server(healthy=False)
+    patch_route = respx.patch(
+        f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+    ).mock(return_value=httpx.Response(200, json=_platform_record()))
+    docker = _running_docker()
+
+    with (
+        _patched(docker),
+        patch.object(ModelServerClient, "is_healthy", AsyncMock(return_value=False)),
+    ):
+        await handler.sync_deployments()
+
+    docker.run_model_container.assert_not_awaited()
+    assert DEPLOYMENT_ID not in handler.deployments
+    assert b'"not_responding"' in patch_route.calls[-1].request.read()
 
 
 @respx.mock

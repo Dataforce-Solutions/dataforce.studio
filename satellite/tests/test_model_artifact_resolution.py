@@ -126,19 +126,30 @@ def test_a_cache_miss_still_asks_the_agent(tmp_path: Path) -> None:
 
 @respx.mock
 def test_a_url_that_expires_mid_download_is_retried_once(tmp_path: Path) -> None:
-    """A large artifact can outlive the link it started downloading from."""
-    _artifact_route(return_value=_ok_response())
-    respx.get(DOWNLOAD_URL).mock(
+    """A large artifact can outlive the link it started downloading from.
+
+    The retry must go back to the Agent for a freshly signed link — repeating the request
+    on the stale one would be refused the same way. The two links differ so the test can
+    tell a real re-ask from a blind retry.
+    """
+    stale_url = "https://s3.example.com/artifacts/iris.luml?X-Amz-Signature=stale"
+    agent_route = _artifact_route(
         side_effect=[
-            httpx.Response(403),
-            httpx.Response(200, content=_make_archive(tmp_path)),
+            httpx.Response(200, json={"url": stale_url, "artifact_id": ARTIFACT_ID}),
+            _ok_response(),  # a fresh link, signed for the retry
         ]
+    )
+    respx.get(stale_url).mock(return_value=httpx.Response(403))
+    fresh_route = respx.get(DOWNLOAD_URL).mock(
+        return_value=httpx.Response(200, content=_make_archive(tmp_path))
     )
     cache = tmp_path / "models"
     cache.mkdir()
 
     extracted = _handler(cache)._get_or_extract_model()
 
+    assert agent_route.call_count == 2
+    assert fresh_route.called
     assert (Path(extracted) / "manifest.json").exists()
 
 
