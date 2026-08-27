@@ -22,11 +22,13 @@ from agent.schemas import (
     InferenceAccessOut,
 )
 from agent.schemas.deployments import detect_model_kind
+from agent.schemas.monitoring_query import ProfileStatus
 from agent.settings import config
 
 openapi_handler = OpenAPIHandler(ms_handler)
 
 # TODO fix frontend env
+
 
 class OpenAPISchemaBuilder:
     @staticmethod
@@ -76,6 +78,11 @@ def _deployment_reference_profile(deployment_id: UUID) -> dict[str, Any] | None:
     return deployment.reference_profile if deployment else None
 
 
+def _deployment_profile_status(deployment_id: UUID) -> ProfileStatus:
+    deployment = ms_handler.deployments.get(str(deployment_id))
+    return deployment.profile_status if deployment else ProfileStatus.ABSENT
+
+
 def _worker_health(deployment_id: UUID) -> tuple[HealthSnapshot, tuple[float, float]]:
     """The worker's counters for one deployment, plus the cadence it runs at."""
     return (
@@ -95,9 +102,7 @@ def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
         return None
     descriptor = deployment.metadata.model_dump()
     descriptor["task_type"] = (deployment.reference_profile or {}).get("task_type")
-    descriptor["model_kind"] = detect_model_kind(
-        deployment.manifest, deployment.reference_profile
-    )
+    descriptor["model_kind"] = detect_model_kind(deployment.manifest)
     return descriptor
 
 
@@ -129,6 +134,7 @@ def create_agent_app(
             port=config.GREPTIMEDB_HTTP_PORT,
             database=config.GREPTIMEDB_DATABASE,
             profile_source=_deployment_reference_profile,
+            profile_status_source=_deployment_profile_status,
             deployment_source=_deployment_descriptor,
         )
         if config.MONITORING_ENABLED
@@ -234,5 +240,5 @@ def create_agent_app(
 
     ms_handler.register_openapi_cache_invalidation_callback(invalidate_openapi_cache)
 
-    app.openapi = custom_openapi
+    app.openapi = custom_openapi  # type: ignore[method-assign]  # FastAPI supports overrides.
     return app

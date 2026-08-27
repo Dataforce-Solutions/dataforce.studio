@@ -32,12 +32,14 @@ class TaskHandler:
 
         except ValidationError as e:
             logger.error(f"[dispatch] Task validation failed: {e}")
-            with contextlib.suppress(Exception):
-                await self.platform.update_task_status(
-                    raw_task.get("id"),
-                    SatelliteTaskStatus.FAILED,
-                    {"reason": "invalid task payload"},
-                )
+            raw_task_id = raw_task.get("id")
+            if isinstance(raw_task_id, str):
+                with contextlib.suppress(Exception):
+                    await self.platform.update_task_status(
+                        raw_task_id,
+                        SatelliteTaskStatus.FAILED,
+                        {"reason": "invalid task payload"},
+                    )
             return
 
         handler = self._handlers.get(task.type)

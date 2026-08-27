@@ -131,7 +131,6 @@ class TestSyncDeploymentsCarriesFlag:
         assert local.metadata.model_name == "model-a"
         assert local.metadata.satellite == "test-sat"
 
-
     @respx.mock
     async def test_sync_absent_mode_means_off(self) -> None:
         handler = ModelServerHandler()

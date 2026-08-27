@@ -721,10 +721,10 @@ in the second
         manifest, refusing `luml.ai::kind_llm:v1`
   - [x] Tests: embed, re-embed idempotency, llm refusal, artifact still validates
 
-- [ ] Derive model kind and metric gating from manifest tags on the satellite
-  - [ ] Replace `detect_model_kind` in `satellite/agent/schemas/deployments.py` with tag-based
+- [x] Derive model kind and metric gating from manifest tags on the satellite
+  - [x] Replace `detect_model_kind` in `satellite/agent/schemas/deployments.py` with tag-based
         `tabular|llm|unknown`; rename `ml` to `tabular` wherever the header exposes it
-  - [ ] Gate the profile on the `luml.ai::tabular_monitoring:v<N>` tag and its version in the deployment
+  - [x] Gate the profile on the `luml.ai::tabular_monitoring:v<N>` tag and its version in the deployment
         loading path (`satellite/agent/handlers/model_server_handler.py`); one
         `profile_status` enum (`ready | placeholder | absent | unsupported`) in
         `satellite/agent/schemas/monitoring_query.py` used by the worker, header and section
@@ -732,10 +732,10 @@ in the second
         (`satellite/agent/monitoring/query_store.py`,
         `satellite/agent/monitoring/greptime_query.py`,
         `satellite/agent/schemas/monitoring_query.py`)
-  - [ ] Dashboard (`satellite/monitoring-ui`): universal tabs for `llm` and `unknown`, neutral
+  - [x] Dashboard (`satellite/monitoring-ui`): universal tabs for `llm` and `unknown`, neutral
         wording for `unknown`, tab collapse on restore; regenerate the committed bundle under
         `satellite/agent/monitoring/static/assets`
-  - [ ] Update `satellite/tests/monitoring/test_model_kind.py`, worker/metric tests and
+  - [x] Update `satellite/tests/monitoring/test_model_kind.py`, worker/metric tests and
         dashboard tests
 
 - [ ] Type and version satellite capability declarations on the platform

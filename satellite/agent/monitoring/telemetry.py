@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Protocol
 
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -16,6 +17,12 @@ from agent.monitoring.metrics import InferenceMetrics
 logger = logging.getLogger(__name__)
 
 _SERVICE_NAME = "satellite-agent"
+
+
+class _EventExporter(Protocol):
+    def emit(self, event: InferenceEvent) -> None: ...
+
+    def shutdown(self) -> None: ...
 
 
 class _NoOpEventExporter:
@@ -55,7 +62,7 @@ class TelemetrySetup:
         enabled: bool = True,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
-        event_exporter: _NoOpEventExporter | _OTLPEventExporter | None = None,
+        event_exporter: _EventExporter | None = None,
         span_exporter: SpanExporter | None = None,
     ) -> None:
         self._active = False
@@ -64,9 +71,7 @@ class TelemetrySetup:
         if tracer_provider or meter_provider or event_exporter:
             self._tracer_provider: TracerProvider = tracer_provider or NoOpTracerProvider()
             self._meter_provider: MeterProvider = meter_provider or NoOpMeterProvider()
-            self._event_exporter: _NoOpEventExporter | _OTLPEventExporter = (
-                event_exporter or _NoOpEventExporter()
-            )
+            self._event_exporter: _EventExporter = event_exporter or _NoOpEventExporter()
             self._active = bool(enabled and endpoint)
             return
 

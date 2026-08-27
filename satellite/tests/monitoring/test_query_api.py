@@ -1,7 +1,6 @@
 import uuid
 
 import pytest
-
 from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_returning
 
 from agent.monitoring import SESSION_COOKIE_NAME, MonitoringSessionStore
@@ -191,10 +190,13 @@ async def test_invalid_window_is_rejected() -> None:
     assert resp.status_code == 422
 
 
-async def test_header_carries_the_model_kind() -> None:
+@pytest.mark.parametrize("model_kind", ["tabular", "llm", "unknown"])
+async def test_header_carries_the_model_kind(model_kind: str) -> None:
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
-    store.add_deployment(DeploymentDescriptor(deployment_id=dep, name="router", model_kind="llm"))
+    store.add_deployment(
+        DeploymentDescriptor(deployment_id=dep, name="model", model_kind=model_kind)
+    )
 
     sessions = MonitoringSessionStore()
     session = sessions.create(dep, MONITORING_READ_SCOPE)
@@ -203,7 +205,7 @@ async def test_header_carries_the_model_kind() -> None:
     async with client_for(app) as client:
         resp = await client.get("/monitoring/api/header", headers=_cookie(session.session_id))
 
-    assert resp.json()["model_kind"] == "llm"
+    assert resp.json()["model_kind"] == model_kind
 
 
 async def test_custom_range_bounds_the_events_it_counts() -> None:
@@ -271,16 +273,24 @@ async def test_custom_compare_returns_baseline_rollup_and_overlay() -> None:
         e = _event(dep)
         store.add_event(
             InferenceEvent(
-                event_id=e.event_id, deployment_id=dep, ts=ago(seconds_back),
-                status="success", status_code=200, latency_ms=12.0,
+                event_id=e.event_id,
+                deployment_id=dep,
+                ts=ago(seconds_back),
+                status="success",
+                status_code=200,
+                latency_ms=12.0,
             )
         )
     for seconds_back in (1000, 1100, 1200):  # the chosen comparison period
         e = _event(dep)
         store.add_event(
             InferenceEvent(
-                event_id=e.event_id, deployment_id=dep, ts=ago(seconds_back),
-                status="success", status_code=200, latency_ms=30.0,
+                event_id=e.event_id,
+                deployment_id=dep,
+                ts=ago(seconds_back),
+                status="success",
+                status_code=200,
+                latency_ms=30.0,
             )
         )
 
@@ -321,31 +331,51 @@ async def test_custom_compare_adds_deltas_to_drift_and_data_quality() -> None:
     for seconds_back, psi, miss in ((2000, 0.2, 0.04), (2200, 0.4, 0.06)):
         store.add_result(
             StoredMetricResult(
-                deployment_id=dep, group="feature_drift", window="24h",
+                deployment_id=dep,
+                group="feature_drift",
+                window="24h",
                 values={"features": {"income": {"psi": psi}}},
-                severity="ok", computed_at=ago(seconds_back),
+                severity="ok",
+                computed_at=ago(seconds_back),
             )
         )
         store.add_result(
             StoredMetricResult(
-                deployment_id=dep, group="data_quality", window="24h",
+                deployment_id=dep,
+                group="data_quality",
+                window="24h",
                 values={"features": {"income": {"missing_rate": miss}}},
-                severity="ok", computed_at=ago(seconds_back),
+                severity="ok",
+                computed_at=ago(seconds_back),
             )
         )
     # the current snapshot: PSI 0.9, missing 20%
     store.add_result(
         StoredMetricResult(
-            deployment_id=dep, group="feature_drift", window="24h",
+            deployment_id=dep,
+            group="feature_drift",
+            window="24h",
             values={"features": {"income": {"psi": 0.9, "status": "critical"}}},
-            severity="critical", computed_at=ago(60),
+            severity="critical",
+            computed_at=ago(60),
         )
     )
     store.add_result(
         StoredMetricResult(
-            deployment_id=dep, group="data_quality", window="24h",
-            values={"features": {"income": {"kind": "numeric", "missing_rate": 0.2, "status": "warning"}}},
-            severity="warning", computed_at=ago(60),
+            deployment_id=dep,
+            group="data_quality",
+            window="24h",
+            values={
+                "features": {
+                    "income": {
+                        "kind": "numeric",
+                        "missing_rate": 0.2,
+                        "status": "warning",
+                    }
+                }
+            },
+            severity="warning",
+            computed_at=ago(60),
         )
     )
 
@@ -498,8 +528,11 @@ async def test_traces_sort_by_latency_and_status() -> None:
         e = _event(dep)
         store.add_event(
             InferenceEvent(
-                event_id=e.event_id, deployment_id=dep, ts=ago(100 + latency),
-                status="success" if code == 200 else "error", status_code=code,
+                event_id=e.event_id,
+                deployment_id=dep,
+                ts=ago(100 + latency),
+                status="success" if code == 200 else "error",
+                status_code=code,
                 latency_ms=latency,
             )
         )
@@ -516,9 +549,7 @@ async def test_traces_sort_by_latency_and_status() -> None:
         errors_first = await client.get(
             "/monitoring/api/traces", params={"sort": "status", "order": "desc"}, headers=headers
         )
-        bad = await client.get(
-            "/monitoring/api/traces", params={"sort": "nope"}, headers=headers
-        )
+        bad = await client.get("/monitoring/api/traces", params={"sort": "nope"}, headers=headers)
 
     assert [row["latency_ms"] for row in slowest_first.json()["rows"]] == [300.0, 40.0, 10.0]
     assert [row["status_code"] for row in errors_first.json()["rows"]][0] == 500

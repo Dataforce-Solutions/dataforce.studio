@@ -12,6 +12,8 @@ from enum import StrEnum
 from typing import Any, Protocol
 from uuid import UUID
 
+from agent.schemas.monitoring_query import ProfileStatus
+
 
 class EventStatus(StrEnum):
     SUCCESS = "success"
@@ -34,7 +36,7 @@ class DeploymentDescriptor:
     name: str | None = None
     status: str | None = None
     task_type: str | None = None
-    model_kind: str = "ml"
+    model_kind: str = "unknown"
     model_name: str | None = None
     environment: str | None = None
     satellite: str | None = None
@@ -134,7 +136,7 @@ class ReferenceProfile:
     """The per-deployment reference profile part 2 loads on the deploy path."""
 
     deployment_id: UUID
-    status: str = "ready"  # ready | placeholder
+    status: ProfileStatus = ProfileStatus.READY
     baseline_label: str | None = None
     computed_at: datetime | None = None
     features: dict[str, ReferenceFeatureProfile] = field(default_factory=dict)
@@ -201,7 +203,7 @@ class MonitoringStore(Protocol):
 
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None: ...
 
-    async def profile_status(self, deployment_id: UUID) -> str: ...
+    async def profile_status(self, deployment_id: UUID) -> ProfileStatus: ...
 
 
 @dataclass
@@ -216,7 +218,7 @@ class InMemoryMonitoringStore:
     # every window ever written, so trend lines can be assembled from past windows
     _history: list[StoredMetricResult] = field(default_factory=list)
     _alerts: list[StoredAlert] = field(default_factory=list)
-    _profiles: dict[UUID, str] = field(default_factory=dict)
+    _profiles: dict[UUID, ProfileStatus] = field(default_factory=dict)
     _profile_data: dict[UUID, ReferenceProfile] = field(default_factory=dict)
     # The worker's own failure history, as the dashboard reads it back.
     transitions: list[StoredMetricTransition] = field(default_factory=list)
@@ -237,12 +239,12 @@ class InMemoryMonitoringStore:
     def add_alert(self, alert: StoredAlert) -> None:
         self._alerts.append(alert)
 
-    def set_profile_status(self, deployment_id: UUID, status: str) -> None:
-        self._profiles[deployment_id] = status
+    def set_profile_status(self, deployment_id: UUID, status: ProfileStatus | str) -> None:
+        self._profiles[deployment_id] = ProfileStatus(status)
 
     def add_profile(self, profile: ReferenceProfile) -> None:
         self._profile_data[profile.deployment_id] = profile
-        self._profiles[profile.deployment_id] = profile.status
+        self._profiles[profile.deployment_id] = ProfileStatus(profile.status)
 
     def _guard(self) -> None:
         if self.unavailable:
@@ -310,9 +312,7 @@ class InMemoryMonitoringStore:
         # Everything that still needs attention: an acknowledged alert is still firing,
         # only a resolved one is gone. Matches what the Greptime store returns.
         return [
-            a
-            for a in self._alerts
-            if a.deployment_id == deployment_id and a.state != "resolved"
+            a for a in self._alerts if a.deployment_id == deployment_id and a.state != "resolved"
         ]
 
     async def fetch_metric_transitions(
@@ -333,6 +333,6 @@ class InMemoryMonitoringStore:
         self._guard()
         return self._profile_data.get(deployment_id)
 
-    async def profile_status(self, deployment_id: UUID) -> str:
+    async def profile_status(self, deployment_id: UUID) -> ProfileStatus:
         self._guard()
-        return self._profiles.get(deployment_id, "ready")
+        return self._profiles.get(deployment_id, ProfileStatus.ABSENT)

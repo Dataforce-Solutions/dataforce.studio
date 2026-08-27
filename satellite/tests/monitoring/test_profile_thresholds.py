@@ -159,7 +159,9 @@ async def test_alert_says_where_its_threshold_came_from() -> None:
         "feature_summaries": {"numerical_features": {"income": _BINS}},
         "thresholds": {"psi": {"warning": 0.15, "critical": 0.3}},
     }
-    store.add_profile(build_reference_profile(dep, raw))
+    profile = build_reference_profile(dep, raw)
+    assert profile is not None
+    store.add_profile(profile)
     service = MonitoringQueryService(store, clock=lambda: FIXED_NOW)
 
     result = await service.alerts(dep, QueryDimensions(window=Window.H24))

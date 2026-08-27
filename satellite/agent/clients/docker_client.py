@@ -1,6 +1,6 @@
 import contextlib
 import logging
-from typing import Self
+from typing import Any, Self
 from uuid import UUID
 
 import aiodocker
@@ -40,7 +40,7 @@ class DockerService:
         if env:
             base_env.update(env)
 
-        config = {
+        config: dict[str, Any] = {
             "Image": image,
             "Labels": labels or {},
             "ExposedPorts": {f"{container_port}/tcp": {}},
@@ -96,7 +96,7 @@ class DockerService:
             logger.info("[DockerService] Pulling alpine:latest image...")
             await self.client.images.pull(image_name)
 
-        config = {
+        config: dict[str, Any] = {
             "Image": image_name,
             "Cmd": ["rm", "-rf", f"/app/models/{model_id}"],
             "HostConfig": {

@@ -49,10 +49,7 @@ export const DASHBOARD_TABS = [
 
 export type TabKey = (typeof DASHBOARD_TABS)[number]['key']
 
-/** The runtime-shaped tabs — all an LLM deployment gets: it has no reference
- * profile to drift against, so the data-quality and drift tabs would only ever
- * show empty states. */
-export const LLM_TAB_KEYS: readonly TabKey[] = ['overview', 'runtime', 'traces', 'alerts']
+export const UNIVERSAL_TAB_KEYS: readonly TabKey[] = ['overview', 'runtime', 'traces', 'alerts']
 
 export function useMonitoringDashboard() {
   const dimensions = reactive<Dimensions>({
@@ -700,9 +697,9 @@ export function useMonitoringDashboard() {
 
   /** The tabs this deployment gets, decided by what kind of model it serves. */
   const visibleTabs = computed(() =>
-    header.value?.model_kind === 'llm'
-      ? DASHBOARD_TABS.filter((tab) => LLM_TAB_KEYS.includes(tab.key))
-      : DASHBOARD_TABS,
+    header.value?.model_kind === 'tabular'
+      ? DASHBOARD_TABS
+      : DASHBOARD_TABS.filter((tab) => UNIVERSAL_TAB_KEYS.includes(tab.key)),
   )
 
   // A restored or remembered tab may not exist for this model kind (settings are

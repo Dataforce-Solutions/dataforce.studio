@@ -54,7 +54,7 @@ class PlatformClient:
         self,
         task_id: str,
         status: SatelliteTaskStatus,
-        result: ErrorMessage | dict[str, str] | None = None,
+        result: ErrorMessage | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         assert self._session is not None
         body: dict[str, Any] = {"status": status.value}
@@ -160,6 +160,7 @@ class PlatformClient:
     async def update_deployment(
         self, deployment_id: str, deployment: DeploymentUpdate
     ) -> Deployment:
+        assert self._session is not None
         r = await self._session.patch(
             self._url(f"/satellites/v1/deployments/{deployment_id}"),
             json=deployment.model_dump(exclude_unset=True),

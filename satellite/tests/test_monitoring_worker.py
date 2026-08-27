@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+import pytest
+
 from agent.monitoring.metric import Metric, MetricInput
 from agent.monitoring.models import (
     AlertSignal,
@@ -16,6 +18,7 @@ from agent.monitoring.runtime_health import RuntimeHealthMetric
 from agent.monitoring.store import InMemoryMonitoringStore
 from agent.monitoring.worker import MonitoringWorker, monitored_deployments
 from agent.schemas import LocalDeployment
+from agent.schemas.monitoring_query import ProfileStatus
 
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 LATER = datetime(2026, 1, 1, 12, 5, tzinfo=UTC)
@@ -116,6 +119,32 @@ async def test_selection_runs_runtime_health_and_skips_profile_metrics() -> None
     assert needs_profile.compute_calls == 0
 
 
+async def test_absent_profile_status_gates_profile_metrics_even_if_profile_data_exists() -> None:
+    store = InMemoryMonitoringStore()
+    store.add_events("dep", [_ok_event()])
+    deployment = LocalDeployment(
+        deployment_id="dep",
+        monitoring_enabled=True,
+        reference_profile={
+            "profile_status": "ready",
+            "feature_summaries": {"numerical_features": {"age": {}}},
+        },
+        profile_status=ProfileStatus.ABSENT,
+    )
+    worker = MonitoringWorker(
+        store=store,
+        registry=default_registry(),
+        provider=lambda: monitored_deployments([deployment]),
+        window_seconds=300.0,
+        interval_seconds=60.0,
+    )
+
+    await worker.tick(now=NOW)
+
+    assert [result.metric for result in store.results] == ["runtime"]
+    assert store.results[0].profile_status is ProfileStatus.ABSENT
+
+
 async def test_no_events_produces_no_runtime_result() -> None:
     store = InMemoryMonitoringStore()
     worker = _worker(store, default_registry())
@@ -158,6 +187,31 @@ async def test_profile_status_ready_when_profile_present() -> None:
     await worker.tick(now=NOW)
 
     assert store.results[0].profile_status == "ready"
+
+
+@pytest.mark.parametrize(
+    "profile_status",
+    [ProfileStatus.ABSENT, ProfileStatus.PLACEHOLDER, ProfileStatus.UNSUPPORTED],
+)
+async def test_non_ready_profile_status_is_materialized_and_profile_metrics_are_skipped(
+    profile_status: ProfileStatus,
+) -> None:
+    store = InMemoryMonitoringStore()
+    store.add_events("dep", [_ok_event()])
+    needs_profile = FakeMetric("needs_profile", applies=lambda ctx: ctx.has_profile)
+    worker = MonitoringWorker(
+        store=store,
+        registry=MetricRegistry([RuntimeHealthMetric(), needs_profile]),
+        provider=lambda: [MonitoredDeployment("dep", profile=None, profile_status=profile_status)],
+        window_seconds=300.0,
+        interval_seconds=60.0,
+    )
+
+    await worker.tick(now=NOW)
+
+    assert [result.metric for result in store.results] == ["runtime"]
+    assert store.results[0].profile_status is profile_status
+    assert needs_profile.compute_calls == 0
 
 
 async def test_alert_opens_then_resolves() -> None:

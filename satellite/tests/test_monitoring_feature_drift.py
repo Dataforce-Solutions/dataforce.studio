@@ -230,6 +230,7 @@ async def test_worker_runs_applicable_subset_with_feature_summaries() -> None:
     assert {"runtime", "data_quality", "feature_drift"} <= groups
     assert "output_drift" not in groups
 
+
 def test_feature_drift_aggregates_batched_observations() -> None:
     metric = FeatureDriftMetric()
     # One event carrying a batch spread evenly across the four reference bins.

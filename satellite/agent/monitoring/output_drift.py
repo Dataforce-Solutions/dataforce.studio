@@ -22,9 +22,7 @@ from agent.monitoring.runtime_health import quantile
 from agent.monitoring.thresholds import Threshold
 
 # The spec puts PSI 0.1 itself in the warning band, hence the inclusive bound.
-DEFAULT_PSI = Threshold(
-    warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True
-)
+DEFAULT_PSI = Threshold(warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True)
 
 _EMPTY = MetricComputation(values={}, severity=Severity.NORMAL, signals=[])
 
@@ -141,9 +139,7 @@ class OutputDriftMetric(Metric):
             values = columns[index]
             if not values or not psi.has_numerical_reference(summary):
                 continue
-            score = psi.numerical_psi(
-                values, summary["bin_edges"], summary["probabilities"]
-            )
+            score = psi.numerical_psi(values, summary["bin_edges"], summary["probabilities"])
             per_horizon.append(
                 {
                     "label": horizon,
@@ -165,17 +161,13 @@ class OutputDriftMetric(Metric):
             "name": f"{name}[{worst_label}]",
             "kind": "forecast",
             "horizons": per_horizon,
-            "distribution": _numerical_distribution(
-                summaries[worst_label], columns[worst_index]
-            ),
+            "distribution": _numerical_distribution(summaries[worst_label], columns[worst_index]),
         }
         signals: list[AlertSignal] = []
         evaluated = bounds.evaluate(worst_score)
         if evaluated is not None:
             severity, breached = evaluated
-            signals.append(
-                AlertSignal(f"horizon.{worst_label}", worst_score, breached, severity)
-            )
+            signals.append(AlertSignal(f"horizon.{worst_label}", worst_score, breached, severity))
         computed = worst_severity(s.severity for s in signals)
         values_block["status"] = computed.value
         return MetricComputation(values=values_block, severity=computed, signals=signals)
@@ -254,9 +246,7 @@ def _probabilities(
         if not values or not psi.has_numerical_reference(summary):
             continue
         score = psi.numerical_psi(values, summary["bin_edges"], summary["probabilities"])
-        per_class.append(
-            {"label": label, "psi": score, "mean": sum(values) / len(values)}
-        )
+        per_class.append({"label": label, "psi": score, "mean": sum(values) / len(values)})
         if worst is None or score > worst[1]:
             worst = (label, score)
     if not per_class:

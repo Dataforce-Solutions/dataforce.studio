@@ -47,14 +47,20 @@
         </ChartFrame>
       </div>
 
-      <TopDriftedList v-if="modelKind !== 'llm'" :features="overview.top_drifted_features" />
+      <TopDriftedList v-if="modelKind === 'tabular'" :features="overview.top_drifted_features" />
     </template>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AlertBanner, Granularity, OverviewResponse, WorkerHealthResponse } from '@/api/types'
+import type {
+  AlertBanner,
+  Granularity,
+  ModelKind,
+  OverviewResponse,
+  WorkerHealthResponse,
+} from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 // shared with the Runtime tab, which plots the same three series
@@ -79,13 +85,12 @@ const props = defineProps<{
   status: LoadStatus
   workerHealth?: WorkerHealthResponse | null
   granularity: Granularity
-  modelKind?: 'ml' | 'llm'
+  modelKind?: ModelKind
 }>()
 
-/** An LLM has no reference to drift against; its Overview drops the drift cards. */
 const cardsForKind = computed(() => {
   const cards = props.overview?.cards ?? []
-  if (props.modelKind !== 'llm') return cards
+  if (props.modelKind === 'tabular') return cards
   return cards.filter((card) => card.key !== 'drifted_features' && card.key !== 'output_drift')
 })
 

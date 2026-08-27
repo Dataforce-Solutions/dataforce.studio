@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     SATELLITE_TOKEN: str
-    PLATFORM_URL: AnyHttpUrl = "https://api.luml.ai"
+    PLATFORM_URL: AnyHttpUrl = AnyHttpUrl("https://api.luml.ai")
     BASE_URL: str = "http://localhost"
     MODEL_IMAGE: str = "luml-random-svc:latest"
     POLL_INTERVAL_SEC: float = 2.0
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_config() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # BaseSettings reads required values from env.
 
 
 config = get_config()

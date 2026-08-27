@@ -182,7 +182,8 @@ def test_prediction_is_unwrapped_from_the_response_body_by_name() -> None:
     server answers ``{"y": [value]}``. Scoring that envelope as-is found nothing numeric
     and output drift silently stayed empty on every real deployment."""
     summary = {**NUM_OUT, "name": "y"}
-    outputs = [{"y": [value], "decision": ["assisted"]} for value in ([5] * 25 + [15] * 25 + [25] * 25 + [35] * 25)]
+    values = [5] * 25 + [15] * 25 + [25] * 25 + [35] * 25
+    outputs = [{"y": [value], "decision": ["assisted"]} for value in values]
 
     result = _compute(_events(outputs), _profile(summary))
 
@@ -263,8 +264,7 @@ def test_categorical_window_carries_the_distribution_with_unseen_classes() -> No
     # a class the reference never saw still shows up, with reference share zero
     assert "escalate" in labels
     escalate = next(
-        entry for entry in result.values["distribution"]["bins"]
-        if entry["label"] == "escalate"
+        entry for entry in result.values["distribution"]["bins"] if entry["label"] == "escalate"
     )
     assert escalate["reference"] == 0.0
     assert escalate["current"] == pytest.approx(0.25)
@@ -284,15 +284,15 @@ def _confident_profile() -> dict[str, Any]:
 
 
 def _scored_events(labels: list[str], scores: list[float]) -> list[InferenceEvent]:
-    return _events([{"y": [label], "y_score": [score]} for label, score in zip(labels, scores)])
+    return _events(
+        [{"y": [label], "y_score": [score]} for label, score in zip(labels, scores, strict=True)]
+    )
 
 
 def test_confident_predictions_keep_the_confidence_block_quiet() -> None:
     """Scores shaped like the training data's: PSI small, low-confidence share small."""
     # mirror the reference proportions across the bins: 2/3/5/20/70 out of 100
-    scores = (
-        [0.55] * 2 + [0.65] * 3 + [0.75] * 5 + [0.85] * 20 + [0.95] * 70
-    )
+    scores = [0.55] * 2 + [0.65] * 3 + [0.75] * 5 + [0.85] * 20 + [0.95] * 70
     events = _scored_events(["cat", "dog"] * 50, scores)
 
     result = _compute(events, _confident_profile())
@@ -356,12 +356,7 @@ PROBA_REF = {
 
 
 def _proba_events(rows: list[list[float]]) -> list[InferenceEvent]:
-    return _events(
-        [
-            {"y": ["dog" if row[1] >= 0.5 else "cat"], "y_proba": [row]}
-            for row in rows
-        ]
-    )
+    return _events([{"y": ["dog" if row[1] >= 0.5 else "cat"], "y_proba": [row]} for row in rows])
 
 
 def _proba_profile() -> dict[str, Any]:
@@ -395,9 +390,7 @@ def test_the_coin_flip_zone_is_measured_against_training() -> None:
 
 
 def test_label_only_events_leave_probabilities_out() -> None:
-    result = _compute(
-        _events([{"y": ["cat"]}, {"y": ["dog"]}]), _proba_profile()
-    )
+    result = _compute(_events([{"y": ["cat"]}, {"y": ["dog"]}]), _proba_profile())
 
     assert "probabilities" not in result.values
 

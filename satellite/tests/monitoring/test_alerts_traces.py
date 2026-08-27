@@ -335,12 +335,21 @@ async def test_trace_detail_attaches_payloads_to_the_root_span_only() -> None:
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
     store.add_event(
-        _trace_event(dep, 100, trace_id="trc-1", span_id="root", inputs='{"a": 1}', output='{"b": 2}')
+        _trace_event(
+            dep,
+            100,
+            trace_id="trc-1",
+            span_id="root",
+            inputs='{"a": 1}',
+            output='{"b": 2}',
+        )
     )
     store.add_span(_span("root", "trc-1", "inference", start=0, end=10))
     store.add_span(_span("child", "trc-1", "model.execute", start=1, end=2, parent="root"))
 
-    spans = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace.spans
+    detail = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace
+    assert detail is not None
+    spans = detail.spans
 
     # the collector keeps payloads on the event, not the raw span
     assert spans[0].attributes["inference.inputs"] == {"a": 1}
@@ -353,7 +362,9 @@ async def test_trace_detail_synthesizes_one_span_when_none_were_collected() -> N
     store = InMemoryMonitoringStore()
     store.add_event(_trace_event(dep, 100, latency=25.0))  # no spans stored
 
-    spans = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace.spans
+    detail = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace
+    assert detail is not None
+    spans = detail.spans
 
     assert len(spans) == 1
     assert spans[0].name == "inference"

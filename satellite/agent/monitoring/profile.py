@@ -7,35 +7,40 @@ profile into the Query API's read model, so the tab shows the exact distribution
 PSI numbers were computed from rather than a separately maintained copy.
 """
 
-from typing import Any
+from typing import Any, TypeGuard
 from uuid import UUID
 
 from agent.monitoring.query_store import ReferenceFeatureProfile, ReferenceProfile
+from agent.schemas.monitoring_query import ProfileStatus
 
 _QUANTILE_KEYS = ("q05", "q25", "q50", "q75", "q95")
 _NUMERIC_SUMMARY_KEYS = ("mean", "std", "min", "max", "count", "missing")
 _CATEGORICAL_SUMMARY_KEYS = ("count", "missing", "n_unique")
 
-PLACEHOLDER = "placeholder"
-READY = "ready"
 
-
-def profile_status(raw: dict[str, Any] | None) -> str:
-    """``ready`` only when a profile with real baselines is loaded for the deployment."""
+def profile_status(raw: dict[str, Any] | None) -> ProfileStatus:
     if not raw:
-        return PLACEHOLDER
-    if raw.get("profile_status") == PLACEHOLDER:
-        return PLACEHOLDER
-    return READY if _feature_summaries(raw) else PLACEHOLDER
+        return ProfileStatus.ABSENT
+    declared = raw.get("profile_status")
+    if isinstance(declared, str):
+        try:
+            status = ProfileStatus(declared)
+        except ValueError:
+            status = None
+        if status is not None and status is not ProfileStatus.READY:
+            return status
+    return ProfileStatus.READY if _feature_summaries(raw) else ProfileStatus.PLACEHOLDER
 
 
-def build_reference_profile(deployment_id: UUID, raw: dict[str, Any] | None) -> ReferenceProfile | None:
+def build_reference_profile(
+    deployment_id: UUID, raw: dict[str, Any] | None
+) -> ReferenceProfile | None:
     """Map an artifact reference profile onto the Query API read model.
 
     Returns ``None`` when there is nothing to show — no profile at all, or one whose
     feature summaries are empty — which the service renders as the tab's empty state.
     """
-    if not raw:
+    if not raw or profile_status(raw) is not ProfileStatus.READY:
         return None
     summaries = _feature_summaries(raw)
     if not summaries:
@@ -49,7 +54,7 @@ def build_reference_profile(deployment_id: UUID, raw: dict[str, Any] | None) -> 
 
     return ReferenceProfile(
         deployment_id=deployment_id,
-        status=profile_status(raw),
+        status=ProfileStatus.READY,
         baseline_label=_baseline_label(raw),
         features=features,
         document=raw,
@@ -136,5 +141,5 @@ def _float_list(value: Any) -> list[float] | None:  # noqa: ANN401
     return [float(item) for item in value]
 
 
-def _is_number(value: Any) -> bool:  # noqa: ANN401
+def _is_number(value: Any) -> TypeGuard[int | float]:  # noqa: ANN401
     return isinstance(value, int | float) and not isinstance(value, bool)

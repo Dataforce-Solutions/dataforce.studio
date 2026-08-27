@@ -5,6 +5,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from agent.schemas.monitoring_query import ProfileStatus
+
+_KIND_TABULAR_TAG = "luml.ai::kind_tabular:v1"
+_KIND_LLM_TAG = "luml.ai::kind_llm:v1"
+_TABULAR_MONITORING_TAG_PREFIX = "luml.ai::tabular_monitoring:v"
+_SUPPORTED_TABULAR_MONITORING_VERSION = 1
+
 
 class DeploymentStatus(StrEnum):
     PENDING = "pending"
@@ -86,14 +93,17 @@ class DeploymentMetadata(BaseModel):
 class LocalDeployment(BaseModel):
     deployment_id: str
     dynamic_attributes_secrets: dict[str, str] | None = {}
-    manifest: dict | None = None
-    openapi_schema: dict | None = None
-    reference_profile: dict | None = None
+    manifest: dict[str, Any] | None = None
+    openapi_schema: dict[str, Any] | None = None
+    reference_profile: dict[str, Any] | None = None
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     monitoring_enabled: bool = False
     metadata: DeploymentMetadata = Field(default_factory=DeploymentMetadata)
 
 
-def usable_reference_profile(profile: dict | None) -> dict | None:
+def usable_reference_profile(
+    profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     """Return the profile only when it carries a usable baseline.
 
     An explicit ``placeholder`` status is treated as "no profile" so callers can key off
@@ -114,26 +124,42 @@ def usable_reference_profile(profile: dict | None) -> dict | None:
     return None
 
 
-def detect_model_kind(manifest: dict | None, reference_profile: dict | None) -> str:
-    """What family of model a deployment serves: ``"ml"`` or ``"llm"``.
+def detect_model_kind(manifest: Mapping[str, Any] | None) -> str:
+    tags = _producer_tags(manifest)
+    if _KIND_TABULAR_TAG in tags:
+        return "tabular"
+    if _KIND_LLM_TAG in tags:
+        return "llm"
+    return "unknown"
 
-    A usable reference profile is definitive classic ML — only the classic packaging
-    produces one. Without a profile, a ``pyfunc`` manifest variant is the LLM-app
-    shape (routers, chains) — except when the producer tags name a classic framework:
-    the early experiment packaging wrapped plain sklearn estimators as pyfunc too
-    (``luml.ai::sklearn:v1``), and those are models, not LLM apps. Everything else
-    defaults to classic ML: the safe direction to be wrong in, since it shows every
-    tab rather than hiding some.
-    """
-    if usable_reference_profile(reference_profile) is not None:
-        return "ml"
-    manifest = manifest or {}
-    if manifest.get("variant") != "pyfunc":
-        return "ml"
-    tags = manifest.get("producer_tags") or []
-    if any("sklearn" in str(tag) for tag in tags):
-        return "ml"
-    return "llm"
+
+def gate_reference_profile(
+    manifest: Mapping[str, Any] | None,
+    profile: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, ProfileStatus]:
+    versions = {
+        int(suffix)
+        for tag in _producer_tags(manifest)
+        if tag.startswith(_TABULAR_MONITORING_TAG_PREFIX)
+        and (suffix := tag.removeprefix(_TABULAR_MONITORING_TAG_PREFIX)).isdecimal()
+    }
+    if not versions:
+        return None, ProfileStatus.ABSENT
+    if _SUPPORTED_TABULAR_MONITORING_VERSION not in versions:
+        return None, ProfileStatus.UNSUPPORTED
+    if not profile:
+        return None, ProfileStatus.ABSENT
+    usable_profile = usable_reference_profile(profile)
+    if usable_profile is None:
+        return None, ProfileStatus.PLACEHOLDER
+    return usable_profile, ProfileStatus.READY
+
+
+def _producer_tags(manifest: Mapping[str, Any] | None) -> set[str]:
+    tags = (manifest or {}).get("producer_tags")
+    if not isinstance(tags, list):
+        return set()
+    return {tag for tag in tags if isinstance(tag, str)}
 
 
 class Secret(BaseModel):

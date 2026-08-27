@@ -65,9 +65,7 @@ def app():  # noqa: ANN201
 
 
 def _client(app) -> httpx.AsyncClient:  # noqa: ANN001
-    return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
-    )
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
 
 
 def _url(section: str = "overview", deployment: uuid.UUID = DEPLOYMENT_ID) -> str:

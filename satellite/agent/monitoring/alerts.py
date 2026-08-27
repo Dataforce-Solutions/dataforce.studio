@@ -159,14 +159,16 @@ def history_value(parsed: ParsedAlert, values: dict[str, Any]) -> float | None:
         if parsed.subject.startswith("probability."):
             label = parsed.subject.removeprefix("probability.")
             per_class = (values.get("probabilities") or {}).get("per_class") or []
-            entry = next((e for e in per_class if e.get("label") == label), {})
-            return _number(entry.get("psi"))
+            probability_entry: dict[str, Any] = next(
+                (e for e in per_class if e.get("label") == label), {}
+            )
+            return _number(probability_entry.get("psi"))
         if parsed.subject.startswith("horizon."):
             label = parsed.subject.removeprefix("horizon.")
-            entry = next(
+            horizon_entry: dict[str, Any] = next(
                 (e for e in values.get("horizons") or [] if e.get("label") == label), {}
             )
-            return _number(entry.get("psi"))
+            return _number(horizon_entry.get("psi"))
         return _number(values.get("psi"))
     if parsed.group == "runtime":
         return _number(values.get(parsed.subject))

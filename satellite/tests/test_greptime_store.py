@@ -5,6 +5,7 @@ import httpx
 
 from agent.monitoring.greptime import GreptimeMonitoringStore, _to_ns
 from agent.monitoring.models import Alert, AlertState, MetricResult, Severity, TimeWindow
+from agent.schemas.monitoring_query import ProfileStatus
 
 WINDOW = TimeWindow(
     start=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
@@ -102,7 +103,7 @@ async def test_write_result_creates_tables_then_inserts() -> None:
         window_end=WINDOW.end,
         values={"error_rate": 0.1, "request_count": 10},
         severity=Severity.CRITICAL,
-        profile_status="absent",
+        profile_status=ProfileStatus.ABSENT,
     )
 
     await store.write_result(result)
@@ -127,7 +128,7 @@ async def test_tables_created_only_once() -> None:
         window_end=WINDOW.end,
         values={},
         severity=Severity.NORMAL,
-        profile_status="absent",
+        profile_status=ProfileStatus.ABSENT,
     )
 
     await store.write_result(result)

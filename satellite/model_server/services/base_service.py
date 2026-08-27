@@ -34,10 +34,10 @@ class UvicornBaseService:
         self,
         path: str,
         *,
-        summary: str = None,
-        description: str = None,
-        response_model: type = None,
-        tags: list = None,
+        summary: str | None = None,
+        description: str | None = None,
+        response_model: type[Any] | None = None,
+        tags: list[Any] | None = None,
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(
@@ -84,11 +84,11 @@ class UvicornBaseService:
         self,
         path: str,
         *,
-        summary: str = None,
-        description: str = None,
-        request_model: type = None,
-        response_model: type = None,
-        tags: list = None,
+        summary: str | None = None,
+        description: str | None = None,
+        request_model: type[Any] | None = None,
+        response_model: type[Any] | None = None,
+        tags: list[Any] | None = None,
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(

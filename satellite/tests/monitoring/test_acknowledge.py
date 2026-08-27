@@ -9,7 +9,13 @@ from tests.support import FIXED_NOW, ago
 
 from agent.monitoring import MonitoringQueryService, QueryDimensions
 from agent.monitoring.greptime_query import GreptimeQueryStore
-from agent.monitoring.models import Alert, AlertState, MonitoredDeployment, TimeWindow
+from agent.monitoring.models import (
+    Alert,
+    AlertState,
+    MonitoredDeployment,
+    Severity as WorkerSeverity,
+    TimeWindow,
+)
 from agent.monitoring.query_store import InMemoryMonitoringStore, StoredAlert
 from agent.monitoring.registry import default_registry
 from agent.monitoring.store import InMemoryMonitoringStore as WorkerStore
@@ -74,7 +80,7 @@ async def test_an_acknowledged_alert_stays_acknowledged_while_it_keeps_firing() 
         metric="runtime:error_rate",
         current_value=0.2,
         threshold=0.05,
-        severity=Severity.CRITICAL,
+        severity=WorkerSeverity.CRITICAL,
         state=AlertState.ACKNOWLEDGED,
         first_seen=datetime(2026, 1, 1, 11, 55, tzinfo=UTC),
         last_seen=datetime(2026, 1, 1, 11, 55, tzinfo=UTC),
@@ -176,9 +182,7 @@ async def test_nothing_to_acknowledge_is_not_an_error() -> None:
             200,
             json={
                 "code": 0,
-                "output": [
-                    {"records": {"schema": {"column_schemas": []}, "rows": []}}
-                ],
+                "output": [{"records": {"schema": {"column_schemas": []}, "rows": []}}],
             },
         )
     )

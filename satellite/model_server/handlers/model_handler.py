@@ -26,7 +26,7 @@ class ModelHandler:
         self._request_model_schema = None
         self._response_model_schema = None
         self._model_envs = None
-        self.conda_worker = None
+        self.conda_worker: ModelCondaManager | None = None
 
         try:
             self.extracted_path = self._get_or_extract_model(self._model_url)

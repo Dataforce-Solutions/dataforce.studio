@@ -14,9 +14,7 @@ from agent.monitoring.models import (
 from agent.monitoring.thresholds import Threshold
 
 # The spec puts PSI 0.1 itself in the warning band, hence the inclusive bound.
-DEFAULT_PSI = Threshold(
-    warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True
-)
+DEFAULT_PSI = Threshold(warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True)
 
 
 class FeatureDriftMetric(Metric):
@@ -48,35 +46,37 @@ class FeatureDriftMetric(Metric):
         for name, summary in numerical.items():
             if not psi.has_numerical_reference(summary):
                 continue
-            values = _numeric_inputs(data.events, name)
-            if not values:
+            numeric_values = _numeric_inputs(data.events, name)
+            if not numeric_values:
                 continue
-            score = psi.numerical_psi(values, summary["bin_edges"], summary["probabilities"])
+            score = psi.numerical_psi(
+                numeric_values, summary["bin_edges"], summary["probabilities"]
+            )
             self._record(
                 name,
                 score,
-                len(values),
+                len(numeric_values),
                 features,
                 signals,
                 bounds,
-                distribution=_numerical_distribution(summary, values),
+                distribution=_numerical_distribution(summary, numeric_values),
             )
 
         for name, summary in categorical.items():
             if not psi.has_categorical_reference(summary):
                 continue
-            values = _categorical_inputs(data.events, name)
-            if not values:
+            categorical_values = _categorical_inputs(data.events, name)
+            if not categorical_values:
                 continue
-            score = psi.categorical_psi(values, summary["probabilities"])
+            score = psi.categorical_psi(categorical_values, summary["probabilities"])
             self._record(
                 name,
                 score,
-                len(values),
+                len(categorical_values),
                 features,
                 signals,
                 bounds,
-                distribution=_categorical_distribution(summary, values),
+                distribution=_categorical_distribution(summary, categorical_values),
             )
 
         severity = worst_severity(signal.severity for signal in signals)

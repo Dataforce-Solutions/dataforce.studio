@@ -139,6 +139,7 @@ class MonitoringWorker:
             deployment_id=deployment.deployment_id,
             profile=deployment.profile,
             has_events=bool(events),
+            profile_status=deployment.effective_profile_status,
         )
         active_by_metric = {alert.metric: alert for alert in active_alerts}
         if self._health is not None:
@@ -185,9 +186,7 @@ class MonitoringWorker:
             if key.startswith(prefix) and alert.state != AlertState.RESOLVED
         )
         computation = metric.compute(
-            MetricInput(
-                context=context, events=events, window=window, open_signals=open_signals
-            )
+            MetricInput(context=context, events=events, window=window, open_signals=open_signals)
         )
         await self._materialize(deployment, metric.metric, computation, window, context)
         await self._reconcile_alerts(
@@ -250,7 +249,7 @@ class MonitoringWorker:
             window_end=window.end,
             values=computation.values,
             severity=computation.severity,
-            profile_status="ready" if context.has_profile else "absent",
+            profile_status=context.effective_profile_status,
         )
         await self._store.write_result(result)
 
@@ -317,7 +316,9 @@ def monitored_deployments(
     """Select the deployments the worker should process — those with monitoring on."""
     return [
         MonitoredDeployment(
-            deployment_id=deployment.deployment_id, profile=deployment.reference_profile
+            deployment_id=deployment.deployment_id,
+            profile=deployment.reference_profile,
+            profile_status=deployment.profile_status,
         )
         for deployment in local_deployments
         if deployment.monitoring_enabled

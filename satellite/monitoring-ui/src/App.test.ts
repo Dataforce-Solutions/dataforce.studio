@@ -136,6 +136,22 @@ describe('App (dashboard shell)', () => {
     ])
   })
 
+  it('uses universal tabs and neutral content for an unknown model kind', async () => {
+    getHeader.mockResolvedValue(makeHeader({ model_kind: 'unknown' }))
+
+    const wrapper = mountApp()
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid^="tab-"]').map((tab) => tab.text())).toEqual([
+      'Overview',
+      'Runtime',
+      'Traces',
+      'Alerts',
+    ])
+    expect(wrapper.find('[data-testid="drifted-row"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toMatch(/\bLLM\b/i)
+  })
+
   it('switches to the Data quality tab and renders its table', async () => {
     const wrapper = mountApp()
     await flushPromises()

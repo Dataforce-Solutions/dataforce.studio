@@ -7,6 +7,7 @@ from agent.clients.model_server_client import ModelServerClient
 from agent.handlers import model_server_handler
 from agent.handlers.model_server_handler import ModelServerHandler
 from agent.schemas import Deployment, usable_reference_profile
+from agent.schemas.monitoring_query import ProfileStatus
 
 READY_PROFILE: dict = {
     "task_type": "regression",
@@ -53,10 +54,11 @@ class FakeModelServerClient:
 def _install_fake_client(
     monkeypatch: pytest.MonkeyPatch,
     *,
+    manifest: dict[str, object] | None = None,
     reference_profile: dict | None = None,
 ) -> None:
     def _factory(*args: object, **kwargs: object) -> FakeModelServerClient:
-        return FakeModelServerClient(reference_profile=reference_profile)
+        return FakeModelServerClient(manifest=manifest, reference_profile=reference_profile)
 
     monkeypatch.setattr(model_server_handler, "ModelServerClient", _factory)
 
@@ -94,7 +96,11 @@ def test_usable_reference_profile_treats_empty_as_no_profile(profile: dict | Non
 
 
 async def test_deploy_loads_reference_profile(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_fake_client(monkeypatch, reference_profile=READY_PROFILE)
+    _install_fake_client(
+        monkeypatch,
+        manifest={"producer_tags": ["luml.ai::tabular_monitoring:v1"]},
+        reference_profile=READY_PROFILE,
+    )
     handler = ModelServerHandler()
 
     await handler.add_deployment(_make_deployment("dep-ready"))
@@ -102,6 +108,7 @@ async def test_deploy_loads_reference_profile(monkeypatch: pytest.MonkeyPatch) -
     local = await handler.get_deployment("dep-ready")
     assert local is not None
     assert local.reference_profile == READY_PROFILE
+    assert local.profile_status is ProfileStatus.READY
 
 
 @pytest.mark.parametrize("profile", [None, {}])
@@ -116,12 +123,17 @@ async def test_deploy_without_profile_marks_no_profile(
     local = await handler.get_deployment("dep-none")
     assert local is not None
     assert local.reference_profile is None
+    assert local.profile_status is ProfileStatus.ABSENT
 
 
 async def test_deploy_with_placeholder_profile_marks_no_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_client(monkeypatch, reference_profile=PLACEHOLDER_PROFILE)
+    _install_fake_client(
+        monkeypatch,
+        manifest={"producer_tags": ["luml.ai::tabular_monitoring:v1"]},
+        reference_profile=PLACEHOLDER_PROFILE,
+    )
     handler = ModelServerHandler()
 
     await handler.add_deployment(_make_deployment("dep-placeholder"))
@@ -129,6 +141,43 @@ async def test_deploy_with_placeholder_profile_marks_no_profile(
     local = await handler.get_deployment("dep-placeholder")
     assert local is not None
     assert local.reference_profile is None
+    assert local.profile_status is ProfileStatus.PLACEHOLDER
+
+
+async def test_profile_file_without_monitoring_tag_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_client(
+        monkeypatch,
+        manifest={"variant": "pyfunc", "producer_tags": []},
+        reference_profile=READY_PROFILE,
+    )
+    handler = ModelServerHandler()
+
+    await handler.add_deployment(_make_deployment("dep-untagged"))
+
+    local = await handler.get_deployment("dep-untagged")
+    assert local is not None
+    assert local.reference_profile is None
+    assert local.profile_status is ProfileStatus.ABSENT
+
+
+async def test_unsupported_monitoring_tag_disables_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_client(
+        monkeypatch,
+        manifest={"producer_tags": ["luml.ai::tabular_monitoring:v9"]},
+        reference_profile=READY_PROFILE,
+    )
+    handler = ModelServerHandler()
+
+    await handler.add_deployment(_make_deployment("dep-unsupported"))
+
+    local = await handler.get_deployment("dep-unsupported")
+    assert local is not None
+    assert local.reference_profile is None
+    assert local.profile_status is ProfileStatus.UNSUPPORTED
 
 
 async def test_client_returns_profile_on_200() -> None:

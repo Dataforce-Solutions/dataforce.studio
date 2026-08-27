@@ -16,8 +16,9 @@ from agent.schemas import (
     DeploymentUpdate,
     LocalDeployment,
     Secret,
-    usable_reference_profile,
+    gate_reference_profile,
 )
+from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
 
 logger = logging.getLogger(__name__)
@@ -53,13 +54,16 @@ class ModelServerHandler:
                 f"[add_single_deployment] Could not fetch manifest/schema for {deployment_id}: {e}"
             )
 
+        reference_profile, profile_status = gate_reference_profile(manifest, reference_profile)
+
         self.deployments[deployment_id] = LocalDeployment(
             deployment_id=deployment_id,
             dynamic_attributes_secrets=dynamic_attributes_secrets,
             manifest=manifest,
             openapi_schema=openapi_schema,
             monitoring_enabled=monitoring_enabled,
-            reference_profile=usable_reference_profile(reference_profile),
+            reference_profile=reference_profile,
+            profile_status=profile_status,
             metadata=metadata or DeploymentMetadata(),
         )
 
@@ -121,10 +125,10 @@ class ModelServerHandler:
                         dep_id,
                         DeploymentUpdate(
                             status=DeploymentStatus.NOT_RESPONDING,
-                            error_message={
-                                "reason": "Not Found",
-                                "error": f"Container with deployment id '{dep_id}' not found",
-                            },
+                            error_message=ErrorMessage(
+                                reason="Not Found",
+                                error=f"Container with deployment id '{dep_id}' not found",
+                            ),
                         ),
                     )
                     continue
@@ -133,7 +137,9 @@ class ModelServerHandler:
                         dep_id,
                         DeploymentUpdate(
                             status=DeploymentStatus.NOT_RESPONDING,
-                            error_message={"reason": "Container not running", "error": str(e)},
+                            error_message=ErrorMessage(
+                                reason="Container not running", error=str(e)
+                            ),
                         ),
                     )
                     continue
@@ -161,13 +167,13 @@ class ModelServerHandler:
                         dep_id,
                         DeploymentUpdate(
                             status=DeploymentStatus.NOT_RESPONDING,
-                            error_message={
-                                "reason": "Health check failed",
-                                "error": (
+                            error_message=ErrorMessage(
+                                reason="Health check failed",
+                                error=(
                                     f"Health check failed for deployment '{dep_id}'."
                                     + (f"\n\nContainer logs:\n{str(logs)[-3000:]}" if logs else "")
                                 ),
-                            },
+                            ),
                         ),
                     )
 
@@ -177,12 +183,12 @@ class ModelServerHandler:
 
     @staticmethod
     async def get_compute_missing_secrets(
-        deployment: LocalDeployment, compute_dynamic_atr: dict
-    ) -> dict:
+        deployment: LocalDeployment, compute_dynamic_atr: dict[str, Any]
+    ) -> dict[str, Any]:
         missing_secrets: dict[str, str] = {}
         deployment_secrets = deployment.dynamic_attributes_secrets or {}
 
-        secrets_to_fetch: list[tuple[str, UUID]] = []
+        secrets_to_fetch: list[tuple[str, str]] = []
         for attr_name, secret_id in deployment_secrets.items():
             if attr_name in compute_dynamic_atr:
                 continue
@@ -197,7 +203,7 @@ class ModelServerHandler:
             ) as platform_client:
                 for attr_name, secret_id in secrets_to_fetch:
                     try:
-                        secret_data = await platform_client.get_orbit_secret(secret_id)
+                        secret_data = await platform_client.get_orbit_secret(UUID(secret_id))
                     except Exception as e:
                         logger.warning(
                             f"Failed to fetch secret '{attr_name}' (id={secret_id}): {e}"
@@ -212,7 +218,9 @@ class ModelServerHandler:
 
         return compute_dynamic_atr | missing_secrets
 
-    async def model_compute(self, deployment_id: str, body: dict) -> tuple[dict, str | None]:
+    async def model_compute(
+        self, deployment_id: str, body: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
         deployment = await self.get_deployment(deployment_id)
         if not deployment:
             raise ValueError(f"Deployment {deployment_id} not found")
@@ -257,13 +265,15 @@ class ModelServerHandler:
             raise RuntimeError(f"Model server request failed: {str(e)}") from e
         return result, None
 
-    async def get_deployment_schemas(self, deployment_id) -> dict[str, Any] | None:  # noqa ANN101
+    async def get_deployment_schemas(self, deployment_id: str) -> dict[str, Any] | None:
         logger.info(f"[get_deployment_schemas] Starting for deployment_id='{deployment_id}'...")
 
         local_dep = await self.get_deployment(deployment_id)
+        if local_dep is None or local_dep.openapi_schema is None:
+            return None
         schema = local_dep.openapi_schema
 
-        if local_dep and local_dep.dynamic_attributes_secrets:
+        if local_dep.dynamic_attributes_secrets:
             dyna_props = (
                 schema.get("components", {})
                 .get("schemas", {})

@@ -7,6 +7,7 @@ import respx
 
 from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.monitoring.query_store import MonitoringStoreUnavailable
+from agent.schemas.monitoring_query import ProfileStatus
 
 _URL = "http://gt:4000/v1/sql"
 _DEP = UUID("019f46e3-3aa1-7672-96a9-8c6d98ab25cd")
@@ -72,6 +73,7 @@ async def test_describe_deployment_uses_max_timestamp() -> None:
 
     assert desc is not None
     assert desc.deployment_id == _DEP
+    assert desc.model_kind == "unknown"
     assert desc.last_prediction_at == datetime(2026, 7, 9, 20, 30, tzinfo=UTC)
     await store.aclose()
 
@@ -221,7 +223,7 @@ async def test_no_profile_source_keeps_the_tab_empty() -> None:
     store = _store()
 
     assert await store.fetch_profile(_DEP) is None
-    assert await store.profile_status(_DEP) == "placeholder"
+    assert await store.profile_status(_DEP) is ProfileStatus.ABSENT
 
 
 async def test_placeholder_profile_is_reported_as_such() -> None:
@@ -246,7 +248,18 @@ async def test_failing_profile_lookup_does_not_break_the_dashboard() -> None:
     store = GreptimeQueryStore(host="gt", port=4000, profile_source=explode)
 
     assert await store.fetch_profile(_DEP) is None
-    assert await store.profile_status(_DEP) == "placeholder"
+    assert await store.profile_status(_DEP) is ProfileStatus.ABSENT
+
+
+async def test_deployment_profile_status_source_preserves_unsupported() -> None:
+    store = GreptimeQueryStore(
+        host="gt",
+        port=4000,
+        profile_status_source=lambda _: ProfileStatus.UNSUPPORTED,
+    )
+
+    assert await store.fetch_profile(_DEP) is None
+    assert await store.profile_status(_DEP) is ProfileStatus.UNSUPPORTED
 
 
 _ALERT_COLUMNS = [
@@ -278,9 +291,7 @@ async def test_alert_history_collapses_to_the_current_state() -> None:
         _alert_row("feature_drift:income", "open", 5, 0.38),
         _alert_row("feature_drift:income", "open", 10, 0.31),
     ]
-    respx.post(_URL).mock(
-        return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows))
-    )
+    respx.post(_URL).mock(return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows)))
     store = _store()
 
     alerts = await store.fetch_alerts(_DEP)
@@ -300,9 +311,7 @@ async def test_resolved_alerts_are_not_active_any_more() -> None:
         _alert_row("data_quality:region.unseen_category", "open", 5, 0.03),
         _alert_row("runtime:error_rate", "open", 1, 0.09),
     ]
-    respx.post(_URL).mock(
-        return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows))
-    )
+    respx.post(_URL).mock(return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows)))
     store = _store()
 
     alerts = await store.fetch_alerts(_DEP)

@@ -54,6 +54,7 @@ from agent.schemas.monitoring_query import (
     InvalidValueSummary,
     MetricFailure,
     MetricIncident,
+    ModelKind,
     MultivariatePanel,
     OutputDriftResponse,
     OverviewResponse,
@@ -62,20 +63,19 @@ from agent.schemas.monitoring_query import (
     ProfileStatus,
     ReferenceProfileFeature,
     ReferenceProfileResponse,
-    ModelKind,
     RuntimeBaseline,
     RuntimeResponse,
-    SortOrder,
-    TraceSort,
     SectionState,
     Series,
     SeriesPoint,
     Severity,
     SeverityFilter,
+    SortOrder,
     StatusBreakdownRow,
     TraceDetail,
     TraceDetailResponse,
     TraceRow,
+    TraceSort,
     TraceSpan,
     TracesResponse,
     UnseenCategoryCount,
@@ -545,8 +545,10 @@ class MonitoringQueryService:
             type_mismatch = _mean_feature_values(baseline_rows, "type_mismatch_rate")
             range_violation = _mean_feature_values(baseline_rows, "range_violation_rate")
             unseen = _mean_feature_values(baseline_rows, "unseen_category_rate")
+
             def _delta_of(current: float | None, base: float | None) -> float | None:
                 return current - base if current is not None and base is not None else None
+
             rows = [
                 row.model_copy(
                     update={
@@ -557,10 +559,14 @@ class MonitoringQueryService:
                         "range_unseen_delta": _delta_of(
                             row.range_unseen_rate,
                             (
-                                max(v for v in (
-                                    range_violation.get(row.feature),
-                                    unseen.get(row.feature),
-                                ) if v is not None)
+                                max(
+                                    v
+                                    for v in (
+                                        range_violation.get(row.feature),
+                                        unseen.get(row.feature),
+                                    )
+                                    if v is not None
+                                )
                                 if range_violation.get(row.feature) is not None
                                 or unseen.get(row.feature) is not None
                                 else None
@@ -692,9 +698,7 @@ class MonitoringQueryService:
             stale=self._is_stale(drift.computed_at, dims),
         )
 
-    async def output_drift(
-        self, deployment_id: UUID, dims: QueryDimensions
-    ) -> OutputDriftResponse:
+    async def output_drift(self, deployment_id: UUID, dims: QueryDimensions) -> OutputDriftResponse:
         try:
             result = await self._store.fetch_result(
                 deployment_id, GROUP_OUTPUT_DRIFT, dims.window.value
@@ -752,10 +756,7 @@ class MonitoringQueryService:
                 if values.get("probabilities")
                 else None
             ),
-            horizons=[
-                HorizonDrift.model_validate(entry)
-                for entry in values.get("horizons") or []
-            ],
+            horizons=[HorizonDrift.model_validate(entry) for entry in values.get("horizons") or []],
             alerts=alerts,
             computed_at=result.computed_at,
             stale=self._is_stale(result.computed_at, dims),
@@ -777,7 +778,9 @@ class MonitoringQueryService:
         points = [
             SeriesPoint(
                 t=result.computed_at,
-                value=_maybe_float((result.values.get("features") or {}).get(feature, {}).get("psi")),
+                value=_maybe_float(
+                    (result.values.get("features") or {}).get(feature, {}).get("psi")
+                ),
             )
             for result in history
             if result.computed_at is not None
@@ -832,8 +835,7 @@ class MonitoringQueryService:
             window_seconds=cadence[0],
             interval_seconds=cadence[1],
             failures=[
-                MetricFailure(metric=f.metric, error=f.error, at=f.at)
-                for f in deployment.failures
+                MetricFailure(metric=f.metric, error=f.error, at=f.at) for f in deployment.failures
             ],
             incidents=incidents,
         )
@@ -1108,7 +1110,10 @@ class MonitoringQueryService:
 
     async def _profile_status(self, deployment_id: UUID) -> ProfileStatus:
         raw = await self._store.profile_status(deployment_id)
-        return ProfileStatus.PLACEHOLDER if raw != ProfileStatus.READY else ProfileStatus.READY
+        try:
+            return ProfileStatus(raw)
+        except (TypeError, ValueError):
+            return ProfileStatus.ABSENT
 
 
 def _banner_order(alert: StoredAlert) -> tuple[int, float]:
@@ -1218,9 +1223,7 @@ def _output_trend_series(history: list[StoredMetricResult]) -> list[Series]:
         Series(
             key=f"prediction_{key}",
             label=label,
-            points=[
-                SeriesPoint(t=at, value=_maybe_float(trend.get(key))) for at, trend in rows
-            ],
+            points=[SeriesPoint(t=at, value=_maybe_float(trend.get(key))) for at, trend in rows],
         )
         for key, label in _TREND_KEYS
     ]
@@ -1268,8 +1271,7 @@ def _class_share_series(
         if result.computed_at is None or stored.get("kind") != "categorical":
             continue
         shares = {
-            entry["label"]: float(entry.get("current") or 0.0)
-            for entry in stored.get("bins", [])
+            entry["label"]: float(entry.get("current") or 0.0) for entry in stored.get("bins", [])
         }
         rows.append((result.computed_at, shares))
     if not rows:
@@ -1300,9 +1302,7 @@ def _confidence_block(
         if result.computed_at is not None and result.values.get("confidence")
     ]
     mean_series = (
-        Series(key="confidence_mean", label="Mean confidence", points=points)
-        if points
-        else None
+        Series(key="confidence_mean", label="Mean confidence", points=points) if points else None
     )
     return ConfidenceBlock(
         psi=_maybe_float(raw.get("psi")),

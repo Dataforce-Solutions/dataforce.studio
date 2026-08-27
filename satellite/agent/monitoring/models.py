@@ -4,6 +4,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from agent.schemas.monitoring_query import ProfileStatus
+
 _SUCCESS_STATUSES = frozenset({"success", "ok", "succeeded", "completed"})
 _ERROR_STATUSES = frozenset({"error", "failed", "failure"})
 _FAILED_INFERENCE_STATUSES = frozenset({"failed", "failure"})
@@ -101,29 +103,38 @@ class DeploymentContext:
     """What a deployment offers a metric this window: its profile parts and data."""
 
     deployment_id: str
-    profile: dict | None
+    profile: dict[str, Any] | None
     has_events: bool
+    profile_status: ProfileStatus | None = None
+
+    @property
+    def effective_profile_status(self) -> ProfileStatus:
+        if self.profile_status is not None:
+            return self.profile_status
+        return ProfileStatus.READY if self.profile is not None else ProfileStatus.ABSENT
 
     @property
     def has_profile(self) -> bool:
-        return self.profile is not None
+        return self.effective_profile_status is ProfileStatus.READY and self.profile is not None
 
     @property
     def task_type(self) -> str | None:
-        return self.profile.get("task_type") if self.profile else None
+        return self.profile.get("task_type") if self.has_profile and self.profile else None
 
     @property
     def has_feature_summaries(self) -> bool:
+        if not self.has_profile:
+            return False
         summaries = (self.profile or {}).get("feature_summaries") or {}
         return bool(summaries.get("numerical_features") or summaries.get("categorical_features"))
 
     @property
     def has_output_summary(self) -> bool:
-        return bool((self.profile or {}).get("output_summary"))
+        return self.has_profile and bool((self.profile or {}).get("output_summary"))
 
     @property
     def has_pca_profile(self) -> bool:
-        return bool((self.profile or {}).get("pca_profile"))
+        return self.has_profile and bool((self.profile or {}).get("pca_profile"))
 
 
 @dataclass(frozen=True)
@@ -163,7 +174,7 @@ class MetricResult:
     window_end: datetime
     values: dict[str, Any]
     severity: Severity
-    profile_status: str
+    profile_status: ProfileStatus
 
 
 @dataclass
@@ -181,4 +192,11 @@ class Alert:
 @dataclass(frozen=True)
 class MonitoredDeployment:
     deployment_id: str
-    profile: dict | None = None
+    profile: dict[str, Any] | None = None
+    profile_status: ProfileStatus | None = None
+
+    @property
+    def effective_profile_status(self) -> ProfileStatus:
+        if self.profile_status is not None:
+            return self.profile_status
+        return ProfileStatus.READY if self.profile is not None else ProfileStatus.ABSENT

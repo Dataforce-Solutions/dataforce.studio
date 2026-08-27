@@ -131,7 +131,7 @@ async def test_series_zooms_to_a_short_burst_of_traffic() -> None:
 
     assert spacing == 30  # smallest ladder step for a ~7-minute span
     assert len(requests.points) == 14
-    assert sum(p.value for p in requests.points) == result.request_count
+    assert sum(p.value for p in requests.points if p.value is not None) == result.request_count
     assert len([p for p in latency.points if p.value is not None]) > 1
 
 
@@ -145,7 +145,7 @@ async def test_series_keeps_the_window_layout_when_traffic_spans_it() -> None:
 
     requests = next(s for s in result.series if s.key == "requests")
     assert len(requests.points) == 96  # 24h at auto (15-minute) granularity
-    assert sum(p.value for p in requests.points) == result.request_count
+    assert sum(p.value for p in requests.points if p.value is not None) == result.request_count
 
 
 async def test_explicit_granularity_is_never_overridden_by_the_zoom() -> None:
@@ -160,7 +160,7 @@ async def test_explicit_granularity_is_never_overridden_by_the_zoom() -> None:
 
     requests = next(s for s in result.series if s.key == "requests")
     assert len(requests.points) == 24
-    assert sum(p.value for p in requests.points) == result.request_count
+    assert sum(p.value for p in requests.points if p.value is not None) == result.request_count
 
 
 async def test_bursty_traffic_yields_several_latency_points() -> None:
@@ -530,14 +530,48 @@ async def test_data_quality_empty_shape_when_not_computed() -> None:
     assert result.features == []
 
 
-async def test_placeholder_profile_status_is_carried() -> None:
+@pytest.mark.parametrize(
+    "profile_status",
+    [
+        ProfileStatus.READY,
+        ProfileStatus.PLACEHOLDER,
+        ProfileStatus.ABSENT,
+        ProfileStatus.UNSUPPORTED,
+    ],
+)
+async def test_profile_status_is_carried_by_section_responses(
+    profile_status: ProfileStatus,
+) -> None:
     dep = uuid.uuid4()
     store = _data_quality_store(dep)
-    store.set_profile_status(dep, "placeholder")
+    store.set_profile_status(dep, profile_status)
 
     result = await _service(store).data_quality(dep, QueryDimensions(window=Window.H24))
 
-    assert result.profile_status is ProfileStatus.PLACEHOLDER
+    assert result.profile_status is profile_status
+
+
+async def test_unsupported_profile_status_is_carried_by_every_profile_aware_response() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.set_profile_status(dep, ProfileStatus.UNSUPPORTED)
+    service = _service(store)
+    dimensions = QueryDimensions(window=Window.H24)
+
+    responses = (
+        await service.header(dep),
+        await service.overview(dep, dimensions),
+        await service.runtime(dep, dimensions),
+        await service.data_quality(dep, dimensions),
+        await service.feature_drift(dep, dimensions),
+        await service.output_drift(dep, dimensions),
+        await service.reference_profile(dep, dimensions),
+        await service.alerts(dep, dimensions),
+        await service.traces(dep, dimensions),
+        await service.trace_detail(dep, dimensions, "missing-event"),
+    )
+
+    assert all(response.profile_status is ProfileStatus.UNSUPPORTED for response in responses)
 
 
 async def test_header_reports_context_and_timestamps() -> None:
@@ -575,7 +609,7 @@ async def test_header_reports_context_and_timestamps() -> None:
     assert header.satellite == "edge-1"
     assert header.last_prediction_at == ago(100)
     assert header.last_monitored_at == ago(3600)
-    assert header.profile_status is ProfileStatus.READY
+    assert header.profile_status is ProfileStatus.ABSENT
 
 
 async def test_missing_descriptor_yields_empty_header() -> None:
@@ -584,6 +618,7 @@ async def test_missing_descriptor_yields_empty_header() -> None:
 
     assert header.state is SectionState.EMPTY
     assert header.deployment_id == dep
+    assert header.model_kind.value == "unknown"
 
 
 async def test_store_unavailable_yields_unavailable_state_not_crash() -> None:
@@ -736,6 +771,7 @@ async def test_output_drift_snapshot_reads_the_latest_window() -> None:
     assert result.psi == pytest.approx(0.42)
     assert result.severity is Severity.CRITICAL
     assert result.count == 120
+    assert result.distribution is not None
     assert [b.label for b in result.distribution.bins] == ["0–10", "10–20"]
     assert result.stale is False
 
@@ -749,6 +785,7 @@ async def test_output_drift_series_come_from_the_window_history() -> None:
 
     result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
 
+    assert result.psi_over_time is not None
     assert [p.value for p in result.psi_over_time.points] == [
         pytest.approx(0.10),
         pytest.approx(0.42),
@@ -790,9 +827,7 @@ async def test_overview_carries_the_output_drift_card() -> None:
 async def test_overview_without_output_windows_has_no_output_card() -> None:
     dep = uuid.uuid4()
 
-    result = await _service(_overview_store(dep)).overview(
-        dep, QueryDimensions(window=Window.H24)
-    )
+    result = await _service(_overview_store(dep)).overview(dep, QueryDimensions(window=Window.H24))
 
     assert all(card.key != "output_drift" for card in result.cards)
 
@@ -863,8 +898,8 @@ async def test_the_confidence_block_rides_with_its_mean_history() -> None:
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
     for offset, mean in ((600, 0.93), (300, 0.71)):
-        result = _categorical_output_result(dep, at=ago(offset))
-        result.values["confidence"] = {
+        stored_result = _categorical_output_result(dep, at=ago(offset))
+        stored_result.values["confidence"] = {
             "psi": 0.4,
             "mean": mean,
             "low_confidence_rate": 0.3,
@@ -874,13 +909,15 @@ async def test_the_confidence_block_rides_with_its_mean_history() -> None:
                 "bins": [{"label": "0.9–1", "reference": 0.7, "current": 0.2}],
             },
         }
-        store.add_result(result)
+        store.add_result(stored_result)
 
-    result = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
+    served = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
 
-    confidence = result.confidence
+    confidence = served.confidence
+    assert confidence is not None
     assert confidence.psi == pytest.approx(0.4)
     assert confidence.low_confidence_threshold == pytest.approx(0.88)
+    assert confidence.mean_over_time is not None
     assert [p.value for p in confidence.mean_over_time.points] == [
         pytest.approx(0.93),
         pytest.approx(0.71),
@@ -914,7 +951,9 @@ async def test_probability_and_horizon_blocks_pass_through() -> None:
 
     served = await _service(store).output_drift(dep, QueryDimensions(window=Window.H24))
 
+    assert served.probabilities is not None
     assert served.probabilities.per_class[0].label == "dog"
+    assert served.probabilities.near_threshold is not None
     assert served.probabilities.near_threshold.rate == pytest.approx(0.5)
 
 

@@ -61,6 +61,8 @@ class SectionState(StrEnum):
 class ProfileStatus(StrEnum):
     READY = "ready"
     PLACEHOLDER = "placeholder"
+    ABSENT = "absent"
+    UNSUPPORTED = "unsupported"
 
 
 class SeriesPoint(BaseModel):
@@ -126,15 +128,9 @@ class DriftedFeature(BaseModel):
 
 
 class ModelKind(StrEnum):
-    """What family of model the deployment serves; decides which tabs make sense.
-
-    A classic ML model gets the full dashboard. An LLM has no reference profile to
-    drift against, so only the runtime-shaped tabs (Overview, Runtime, Traces,
-    Alerts) apply.
-    """
-
-    ML = "ml"
+    TABULAR = "tabular"
     LLM = "llm"
+    UNKNOWN = "unknown"
 
 
 class HeaderResponse(BaseModel):
@@ -143,19 +139,19 @@ class HeaderResponse(BaseModel):
     name: str | None = None
     status: str | None = None
     task_type: str | None = None
-    model_kind: ModelKind = ModelKind.ML
+    model_kind: ModelKind = ModelKind.UNKNOWN
     model_name: str | None = None
     environment: str | None = None
     satellite: str | None = None
     inference_url: str | None = None
     last_prediction_at: datetime | None = None
     last_monitored_at: datetime | None = None
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
 
 
 class OverviewResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     cards: list[Card] = []
     alert_banners: list[AlertBanner] = []
     series: list[Series] = []
@@ -192,7 +188,7 @@ class StatusBreakdownRow(BaseModel):
 
 class RuntimeResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     request_count: int = 0
     success_count: int = 0
     success_rate: float = 0.0
@@ -260,7 +256,7 @@ class DataQualityFeatureRow(BaseModel):
 
 class DataQualityResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     features: list[DataQualityFeatureRow] = []
     # One series per check of the selected feature; empty when no feature is asked for.
     trends: list[Series] = []
@@ -321,7 +317,7 @@ class MultivariatePanel(BaseModel):
 
 class FeatureDriftResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     features: list[DriftedFeature] = []  # ranked PSI list with per-feature status
     selected: FeatureDriftDetail | None = None
     multivariate: MultivariatePanel = Field(default_factory=MultivariatePanel)
@@ -397,7 +393,7 @@ class OutputDriftResponse(BaseModel):
     """
 
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     # Which output is monitored and how its values are compared.
     name: str | None = None
     kind: str | None = None  # "numeric" | "categorical"
@@ -440,7 +436,7 @@ class ReferenceProfileFeature(BaseModel):
 
 class ReferenceProfileResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     baseline_label: str | None = None
     computed_at: datetime | None = None
     features: list[str] = []  # available feature names to select from
@@ -498,7 +494,7 @@ class AcknowledgeAlertRequest(BaseModel):
 
 class AlertsResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     groups: list[AlertGroup] = []  # read-only; no acknowledge/resolve in this slice
 
 
@@ -516,7 +512,7 @@ class TraceRow(BaseModel):
 
 class TracesResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     rows: list[TraceRow] = []
     total: int = 0  # matching rows across all pages, so the UI can paginate
     limit: int = 50
@@ -568,5 +564,5 @@ class TraceDetail(BaseModel):
 
 class TraceDetailResponse(BaseModel):
     state: SectionState
-    profile_status: ProfileStatus = ProfileStatus.READY
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
     trace: TraceDetail | None = None

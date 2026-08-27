@@ -42,7 +42,11 @@ export enum SectionState {
 export enum ProfileStatus {
   READY = 'ready',
   PLACEHOLDER = 'placeholder',
+  ABSENT = 'absent',
+  UNSUPPORTED = 'unsupported',
 }
+
+export type ModelKind = 'tabular' | 'llm' | 'unknown'
 
 export interface SeriesPoint {
   t: string
@@ -147,8 +151,7 @@ export interface HeaderResponse {
   name?: string | null
   status?: string | null
   task_type?: string | null
-  /** 'ml' shows the full dashboard; 'llm' only the runtime-shaped tabs. */
-  model_kind?: 'ml' | 'llm'
+  model_kind: ModelKind
   model_name?: string | null
   environment?: string | null
   satellite?: string | null

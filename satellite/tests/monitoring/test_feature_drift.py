@@ -84,7 +84,9 @@ def _multivariate_result(dep: uuid.UUID) -> StoredMetricResult:
     )
 
 
-def _reference_profile(dep: uuid.UUID, status: str = "ready") -> ReferenceProfile:
+def _reference_profile(
+    dep: uuid.UUID, status: ProfileStatus = ProfileStatus.READY
+) -> ReferenceProfile:
     return ReferenceProfile(
         deployment_id=dep,
         status=status,
@@ -342,7 +344,7 @@ async def test_reference_profile_empty_shape_when_absent() -> None:
 async def test_reference_profile_placeholder_degrades_gracefully() -> None:
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
-    store.add_profile(_reference_profile(dep, status="placeholder"))
+    store.add_profile(_reference_profile(dep, status=ProfileStatus.PLACEHOLDER))
     dims = QueryDimensions(feature="income")
 
     result = await _service(store).reference_profile(dep, dims)
@@ -365,7 +367,9 @@ async def test_reference_profile_carries_the_whole_document() -> None:
         },
         "pca_profile": {"pca": {"explained_variance_ratio": [0.7, 0.2]}},
     }
-    store.add_profile(build_reference_profile(dep, raw))
+    profile = build_reference_profile(dep, raw)
+    assert profile is not None
+    store.add_profile(profile)
 
     result = await _service(store).reference_profile(dep, QueryDimensions())
 

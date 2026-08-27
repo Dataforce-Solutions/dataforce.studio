@@ -24,6 +24,7 @@ export function makeHeader(overrides: Partial<HeaderResponse> = {}): HeaderRespo
     name: 'tabular_regression_1781778223788',
     status: 'Active',
     task_type: 'Tabular Regression',
+    model_kind: 'tabular',
     model_name: 'v3',
     environment: 'insurance charges',
     satellite: 'eu-west-sat-2',

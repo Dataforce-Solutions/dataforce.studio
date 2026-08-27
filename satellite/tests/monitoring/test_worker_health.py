@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from agent.monitoring import MonitoringQueryService, QueryDimensions
 from agent.monitoring.health import WorkerHealth
@@ -13,7 +14,7 @@ from agent.monitoring.models import (
     MonitoredDeployment,
     Severity,
 )
-from agent.monitoring.query_store import InMemoryMonitoringStore
+from agent.monitoring.query_store import InMemoryMonitoringStore, StoredMetricTransition
 from agent.monitoring.registry import MetricRegistry
 from agent.monitoring.store import InMemoryMonitoringStore as WorkerStore
 from agent.monitoring.worker import MonitoringWorker
@@ -153,7 +154,7 @@ async def test_failure_history_survives_the_process() -> None:
     worker = _worker(health, _ExplodingMetric())
     await worker.tick(now=NOW)
 
-    store: WorkerStore = worker._store
+    store = cast(WorkerStore, worker._store)
     written = store.transitions["dep"]
     assert [(t.metric, t.kind) for t in written] == [("exploding", "failed")]
     assert "bin edges" in written[0].error
@@ -168,7 +169,7 @@ async def test_only_transitions_are_written_not_every_tick() -> None:
     await worker.tick(now=NOW)
     await worker.tick(now=NOW)
 
-    store: WorkerStore = worker._store
+    store = cast(WorkerStore, worker._store)
     assert len(store.transitions["dep"]) == 1
 
 
@@ -178,12 +179,13 @@ async def test_recovery_closes_the_incident() -> None:
     health = WorkerHealth()
     broken = _worker(health, _ExplodingMetric())
     await broken.tick(now=NOW)
+    worker_store = cast(WorkerStore, broken._store)
 
     class _Fixed(_QuietMetric):
         metric = "exploding"
 
     fixed = MonitoringWorker(
-        store=broken._store,
+        store=worker_store,
         registry=broken._registry,
         provider=lambda: [MonitoredDeployment("dep", profile={})],
         window_seconds=300.0,
@@ -195,12 +197,15 @@ async def test_recovery_closes_the_incident() -> None:
     fixed._registry.register(_Fixed())
     await fixed.tick(now=NOW)
 
-    kinds = [t.kind for t in broken._store.transitions["dep"]]
+    kinds = [t.kind for t in worker_store.transitions["dep"]]
     assert kinds == ["failed", "recovered"]
 
     # and the dashboard reads them as one closed stretch
     query_store = QueryStore()
-    query_store.transitions = broken._store.transitions["dep"]
+    query_store.transitions = [
+        StoredMetricTransition(metric=item.metric, kind=item.kind, error=item.error, at=item.at)
+        for item in worker_store.transitions["dep"]
+    ]
     service = MonitoringQueryService(
         query_store,
         clock=lambda: NOW.timestamp(),

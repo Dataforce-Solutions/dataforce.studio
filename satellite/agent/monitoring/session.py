@@ -74,9 +74,7 @@ class MonitoringSessionStore:
             del self._sessions[session_id]
             return None
         # Use is renewal: slide the expiry, but never past the hard deadline.
-        renewed = replace(
-            session, expires_at=min(now + self._ttl_seconds, session.hard_deadline)
-        )
+        renewed = replace(session, expires_at=min(now + self._ttl_seconds, session.hard_deadline))
         self._sessions[session_id] = renewed
         return renewed
 

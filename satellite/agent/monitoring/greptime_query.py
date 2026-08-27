@@ -31,6 +31,7 @@ from agent.monitoring.query_store import (
     StoredMetricResult,
     StoredMetricTransition,
 )
+from agent.schemas.monitoring_query import ProfileStatus
 
 logger = logging.getLogger("satellite")
 
@@ -162,6 +163,7 @@ class GreptimeQueryStore:
         client: httpx.AsyncClient | None = None,
         timeout: float = 15.0,
         profile_source: Callable[[UUID], dict[str, Any] | None] | None = None,
+        profile_status_source: Callable[[UUID], ProfileStatus | str] | None = None,
         deployment_source: Callable[[UUID], dict[str, Any] | None] | None = None,
     ) -> None:
         self._url = f"http://{host}:{port}/v1/sql"
@@ -173,6 +175,7 @@ class GreptimeQueryStore:
         # and the Agent loads it per deployment on the deploy path. The caller passes a
         # lookup into that in-memory state; without one the tab stays empty.
         self._profile_source = profile_source
+        self._profile_status_source = profile_status_source
         # Same story for the deployment's own identity — name, status, served model: it is
         # Platform state the Agent syncs, never telemetry, so it cannot come from SQL.
         self._deployment_source = deployment_source
@@ -229,7 +232,7 @@ class GreptimeQueryStore:
             name=meta.get("name"),
             status=meta.get("status"),
             task_type=meta.get("task_type"),
-            model_kind=meta.get("model_kind") or "ml",
+            model_kind=meta.get("model_kind") or "unknown",
             model_name=meta.get("model_name"),
             environment=meta.get("environment"),
             satellite=meta.get("satellite"),
@@ -360,7 +363,8 @@ class GreptimeQueryStore:
             return None
         if not rows:
             return None
-        return self._to_result(deployment_id, group, window, dict(zip(columns, rows[0], strict=False)))
+        record = dict(zip(columns, rows[0], strict=False))
+        return self._to_result(deployment_id, group, window, record)
 
     async def fetch_result_history(
         self,
@@ -504,7 +508,14 @@ class GreptimeQueryStore:
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None:
         return build_reference_profile(deployment_id, self._raw_profile(deployment_id))
 
-    async def profile_status(self, deployment_id: UUID) -> str:
+    async def profile_status(self, deployment_id: UUID) -> ProfileStatus:
+        if self._profile_status_source is not None:
+            try:
+                return ProfileStatus(self._profile_status_source(deployment_id))
+            except (TypeError, ValueError):
+                logger.warning("Invalid reference profile status", exc_info=True)
+            except Exception:  # noqa: BLE001 — deployment lookup must not break the dashboard
+                logger.warning("Failed to read reference profile status", exc_info=True)
         return profile_status(self._raw_profile(deployment_id))
 
     def _raw_profile(self, deployment_id: UUID) -> dict[str, Any] | None:

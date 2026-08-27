@@ -156,22 +156,16 @@ class MultivariateDriftMetric(Metric):
         )
         if shift_severity is not None:
             threshold = (
-                self._critical_shift
-                if shift_severity is Severity.CRITICAL
-                else self._warning_shift
+                self._critical_shift if shift_severity is Severity.CRITICAL else self._warning_shift
             )
-            signals.append(
-                AlertSignal("centroid_shift", centroid_shift, threshold, shift_severity)
-            )
+            signals.append(AlertSignal("centroid_shift", centroid_shift, threshold, shift_severity))
 
         outlier_severity = _threshold_severity(
             outlier_rate, self._warning_rate, self._critical_rate
         )
         if outlier_severity is not None:
             threshold = (
-                self._critical_rate
-                if outlier_severity is Severity.CRITICAL
-                else self._warning_rate
+                self._critical_rate if outlier_severity is Severity.CRITICAL else self._warning_rate
             )
             signals.append(
                 AlertSignal("mahalanobis_outliers", outlier_rate, threshold, outlier_severity)
