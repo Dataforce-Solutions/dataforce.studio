@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         AsyncOrganizationResource,
         OrganizationResource,
     )
+    from luml_api.resources.tracks import AsyncTrackResource, TrackResource
 
 
 class LumlClientBase(ABC):
@@ -155,6 +156,11 @@ class LumlClientBase(ABC):
     def artifacts(self) -> "ArtifactResource | AsyncArtifactResource":
         raise NotImplementedError()
 
+    @cached_property
+    @abstractmethod
+    def tracks(self) -> "TrackResource | AsyncTrackResource":
+        raise NotImplementedError()
+
 
 class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     def __init__(
@@ -178,6 +184,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
             artifacts: Interface for managing Artifacts.
+            tracks: Interface for managing Tracks.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -372,6 +379,13 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncArtifactResource(self)
 
+    @cached_property
+    def tracks(self) -> "AsyncTrackResource":
+        """Tracks interface."""
+        from luml_api.resources.tracks import AsyncTrackResource
+
+        return AsyncTrackResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -404,6 +418,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
             artifacts: Interface for managing Artifacts.
+            tracks: Interface for managing Tracks.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -574,3 +589,10 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         from luml_api.resources.artifacts import ArtifactResource
 
         return ArtifactResource(self)
+
+    @cached_property
+    def tracks(self) -> "TrackResource":
+        """Tracks interface."""
+        from luml_api.resources.tracks import TrackResource
+
+        return TrackResource(self)

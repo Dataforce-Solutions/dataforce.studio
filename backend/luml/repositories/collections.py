@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, cast, or_, select
 
 from luml.models import CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
@@ -49,6 +49,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
         pagination: PaginationParams,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: list[str] | None = None,
     ) -> tuple[list[Collection], Cursor | None]:
         async with self._get_session() as session:
             conditions = [CollectionOrm.orbit_id == orbit_id]
@@ -65,6 +66,11 @@ class CollectionRepository(RepositoryBase, CrudMixin):
             if types:
                 conditions.append(or_(*[CollectionOrm.type == t.value for t in types]))
 
+            if tags:
+                conditions.append(
+                    or_(*[CollectionOrm.tags.contains([tag]) for tag in tags])
+                )
+
             result = await self.get_models_with_pagination(
                 session,
                 CollectionOrm,
@@ -78,6 +84,15 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                 else self._get_cursor_from_record(db_collections[-1], pagination)
             )
             return [mc.to_collection() for mc in db_collections], cursor
+
+    async def get_orbit_collections_tags(self, orbit_id: UUID) -> list[str]:
+        async with self._get_session() as session:
+            tags_query = select(CollectionOrm.tags).where(
+                CollectionOrm.orbit_id == orbit_id,
+                CollectionOrm.tags.is_not(None),
+            )
+            tags_query_result = await session.execute(tags_query)
+            return self.collect_unique_values_from_array_column(tags_query_result.all())
 
     async def update_collection(
         self, collection_id: UUID, orbit_id: UUID, collection: CollectionUpdate

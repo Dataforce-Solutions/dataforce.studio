@@ -45,7 +45,12 @@ class TrackResourceBase(ABC):
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         types: list[str] | None = None,
+        tags: list[str] | None = None,
     ) -> TracksList:
+        pass
+
+    @abstractmethod
+    def list_tags(self) -> builtins.list[str]:
         pass
 
     @abstractmethod
@@ -154,6 +159,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         types: list[ArtifactType] | None = None,
+        tags: list[str] | None = None,
     ) -> TracksList:
         params: dict[str, Any] = {
             "limit": limit,
@@ -172,6 +178,8 @@ class TrackResource(TrackResourceBase, ListedResource):
             ]
         if search:
             params["search"] = search
+        if tags:
+            params["tags"] = tags
 
         response = self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks",
@@ -182,6 +190,16 @@ class TrackResource(TrackResourceBase, ListedResource):
             return TracksList(items=[])
 
         return TracksList.model_validate(response)
+
+    @validate_orbit
+    def list_tags(self) -> builtins.list[str]:
+        """List unique tags across all tracks in the default orbit (sorted)."""
+        response = self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/tags",
+        )
+        if response is None:
+            return []
+        return [str(tag) for tag in response]
 
     def _get_by_name(self, name: str) -> Track | None:
         return find_by_value(
@@ -376,6 +394,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         types: list[ArtifactType] | None = None,
+        tags: list[str] | None = None,
     ) -> TracksList:
         params: dict[str, Any] = {
             "limit": limit,
@@ -394,6 +413,8 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
             ]
         if search:
             params["search"] = search
+        if tags:
+            params["tags"] = tags
 
         response = await self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks",
@@ -404,6 +425,16 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
             return TracksList(items=[])
 
         return TracksList.model_validate(response)
+
+    @validate_orbit
+    async def list_tags(self) -> builtins.list[str]:
+        """List unique tags across all tracks in the default orbit (sorted)."""
+        response = await self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/tags",
+        )
+        if response is None:
+            return []
+        return [str(tag) for tag in response]
 
     async def _get_by_name(self, name: str) -> Track | None:
         tracks = await self.list()

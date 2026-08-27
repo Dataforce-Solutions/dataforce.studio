@@ -78,6 +78,7 @@ class CollectionHandler:
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: list[str] | None = None,
     ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -108,9 +109,31 @@ class CollectionHandler:
             pagination=pagination,
             search=search,
             types=types,
+            tags=tags,
         )
 
         return CollectionsList(items=items, cursor=encode_cursor(cursor))
+
+    async def get_orbit_collections_tags(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+    ) -> list[str]:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.COLLECTION,
+            Action.LIST,
+            orbit_id,
+        )
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
+        if not orbit or orbit.organization_id != organization_id:
+            raise NotFoundError("Orbit not found")
+
+        return await self.__repository.get_orbit_collections_tags(orbit_id)
 
     async def get_collection_details(
         self,
