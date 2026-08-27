@@ -161,6 +161,9 @@ class DeployTask(Task):
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
+            # error_message=None clears whatever a failed earlier attempt left behind;
+            # the Platform honours only the fields actually sent, so an omitted field
+            # would keep its stale value.
             await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
@@ -172,6 +175,7 @@ class DeployTask(Task):
                     ),
                     schemas=schemas,
                     status=DeploymentStatus.ACTIVE,
+                    error_message=None,
                 ),
             )
             await self.platform.update_task_status(

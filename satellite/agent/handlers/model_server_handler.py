@@ -136,8 +136,36 @@ class ModelServerHandler:
         that expired hours ago and die — and running legacy ones, which are one restart away
         from the same death. Recreating is the only way forward, and the Platform record
         says this deployment is supposed to be serving.
+
+        The marker goes down before the container is touched. Replacement deletes the old
+        container before it creates the new one, and if the Agent dies — or creation fails —
+        between the two, the persisted marker is the only proof that the missing container
+        is recovery's own doing and may be recreated. It also keeps recovery in
+        `not_responding` rather than `pending`: `pending` belongs to deploy tasks, and
+        reconciliation skips it on that assumption, so a deployment parked there by a
+        recovery nobody finished would be skipped forever.
         """
         logger.info(f"[ModelServerHandler] relaunching '{deployment_id}': {reason}")
+        try:
+            await platform.update_deployment(
+                deployment_id,
+                DeploymentUpdate(
+                    status=DeploymentStatus.NOT_RESPONDING,
+                    error_message={
+                        "reason": RECOVERING_REASON,
+                        "error": f"Container is being relaunched: {reason}",
+                    },
+                ),
+            )
+        except Exception as error:
+            # No persisted ownership means no destructive replacement: dying between the
+            # delete and the create would leave a container nothing may recreate.
+            logger.warning(
+                f"[ModelServerHandler] could not mark '{deployment_id}' as recovering, "
+                f"leaving its container alone: {error}"
+            )
+            return False
+
         try:
             deployment = await platform.get_deployment(UUID(deployment_id))
             if deployment is None:
@@ -145,31 +173,33 @@ class ModelServerHandler:
             await launch_model_container(platform, docker, deployment)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] relaunch of '{deployment_id}' failed: {error}")
-            await platform.update_deployment(
-                deployment_id,
-                DeploymentUpdate(
-                    status=DeploymentStatus.NOT_RESPONDING,
-                    error_message={"reason": reason, "error": f"Relaunch failed: {error}"},
-                ),
-            )
+            # The marker stays: the old container may already be gone, and only records
+            # carrying it are allowed a container-less retry on the next start.
+            with suppress(Exception):
+                await platform.update_deployment(
+                    deployment_id,
+                    DeploymentUpdate(
+                        status=DeploymentStatus.NOT_RESPONDING,
+                        error_message={
+                            "reason": RECOVERING_REASON,
+                            "error": (
+                                f"Relaunch failed, the next start will retry: {error}. "
+                                f"Relaunch reason: {reason}"
+                            ),
+                        },
+                    ),
+                )
             return False
 
-        # Still `not_responding`, not `pending`, while the relaunched container boots.
-        # `pending` belongs to deploy tasks, and reconciliation skips it on that assumption
-        # — a deployment parked there by a recovery the Agent did not live to finish would
-        # be skipped forever. `not_responding` is re-examined on every start, so an
-        # interrupted recovery is picked up by the next one.
-        await platform.update_deployment(
-            deployment_id,
-            DeploymentUpdate(
-                status=DeploymentStatus.NOT_RESPONDING,
-                error_message={
-                    "reason": RECOVERING_REASON,
-                    "error": f"Container was relaunched and is starting up: {reason}",
-                },
-            ),
-        )
         return True
+
+    @staticmethod
+    def _recovery_marked(dep: dict[str, Any]) -> bool:
+        """Whether this Platform record is mid-recovery by some Agent's own hand."""
+        return (
+            dep.get("status", "") == DeploymentStatus.NOT_RESPONDING
+            and (dep.get("error_message") or {}).get("reason") == RECOVERING_REASON
+        )
 
     async def _settle_recovered(
         self, docker: DockerService, platform: PlatformClient, dep: dict[str, Any]
@@ -193,8 +223,12 @@ class ModelServerHandler:
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
                     )
+                    # error_message=None is deliberate: the Platform honours only the
+                    # fields actually sent, so the recovery marker must be cleared
+                    # explicitly or it would outlive the recovery it belongs to.
                     await platform.update_deployment(
-                        dep_id, DeploymentUpdate(status=DeploymentStatus.ACTIVE)
+                        dep_id,
+                        DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
                     )
                     logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
                     return
@@ -255,6 +289,20 @@ class ModelServerHandler:
                 try:
                     labels = await docker.check_container_running(dep_id)
                 except ContainerNotFoundError:
+                    if self._recovery_marked(dep):
+                        # The container is missing by recovery's own hand: replacement
+                        # deletes before it creates, and the creation failed or the Agent
+                        # died between the two. The marker is written by nothing but
+                        # recovery itself, so recreating here is a retry, not a
+                        # resurrection.
+                        if await self._relaunch(
+                            docker,
+                            platform_client,
+                            dep_id,
+                            "retrying a replacement that lost its container",
+                        ):
+                            recovering.append(dep)
+                        continue
                     # No container at all: this Satellite holds nothing to restart. Creating
                     # one here would resurrect every deployment that ever failed on any
                     # Satellite, including ones abandoned months ago. Bringing a deployment
@@ -311,15 +359,15 @@ class ModelServerHandler:
                             )
                         ),
                     )
-                    # It answers, so whatever demoted it earlier is over.
+                    # It answers, so whatever demoted it earlier is over — including the
+                    # error message, which must be cleared explicitly now that the
+                    # Platform honours only the fields actually sent.
                     if dep.get("status", "") != DeploymentStatus.ACTIVE:
                         await platform_client.update_deployment(
-                            dep_id, DeploymentUpdate(status=DeploymentStatus.ACTIVE)
+                            dep_id,
+                            DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
                         )
-                elif (
-                    dep.get("status", "") == DeploymentStatus.NOT_RESPONDING
-                    and (dep.get("error_message") or {}).get("reason") == RECOVERING_REASON
-                ):
+                elif self._recovery_marked(dep):
                     # A recovery some earlier Agent began and did not live to see through:
                     # the container it relaunched runs, but is still booting. Wait for it
                     # the way that Agent would have — writing it off after one failed check

@@ -50,7 +50,14 @@ async def secrets_env(
 
 
 async def container_env(platform: PlatformClient, deployment: Deployment) -> dict[str, str]:
-    env: dict[str, str] = {
+    env: dict[str, str] = {}
+    env.update(await secrets_env(platform, deployment.env_variables_secrets))
+    env.update(deployment.env_variables or {})
+
+    # The runtime contract goes on top of deployment-supplied variables, never under
+    # them: a deployment that could redefine its own token, identity or cache key
+    # would be redefining the boundary that isolates it.
+    internal: dict[str, str] = {
         # not a URL: what the container proves itself with when it asks for one
         "MODEL_ARTIFACT_TOKEN": artifact_tokens.mint(str(deployment.id)),
         # the cache key, so a container with the model already unpacked can start without
@@ -61,10 +68,16 @@ async def container_env(platform: PlatformClient, deployment: Deployment) -> dic
         "MODEL_NAME": deployment.artifact_name,
     }
     if config.OTEL_EXPORTER_OTLP_ENDPOINT:
-        env["OTEL_EXPORTER_OTLP_ENDPOINT"] = config.OTEL_EXPORTER_OTLP_ENDPOINT
+        internal["OTEL_EXPORTER_OTLP_ENDPOINT"] = config.OTEL_EXPORTER_OTLP_ENDPOINT
 
-    env.update(await secrets_env(platform, deployment.env_variables_secrets))
-    env.update(deployment.env_variables or {})
+    overridden = sorted(set(env) & set(internal))
+    if overridden:
+        logger.warning(
+            f"[container_env] Deployment '{deployment.id}' supplied reserved environment "
+            f"variables, ignoring them: {overridden}"
+        )
+
+    env.update(internal)
     return env
 
 

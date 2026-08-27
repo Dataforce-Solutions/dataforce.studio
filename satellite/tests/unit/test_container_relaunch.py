@@ -153,7 +153,61 @@ class TestContainerRelaunch:
             await handler.sync_deployments()
 
         assert DEPLOYMENT_ID not in handler.deployments
-        assert b'"not_responding"' in patch_route.calls[-1].request.read()
+        final = json.loads(patch_route.calls[-1].request.read())
+        assert final["status"] == "not_responding"
+        # the marker survives the failure: replacement may already have deleted the old
+        # container, and only marked records are allowed a container-less retry
+        assert final["error_message"]["reason"] == RECOVERING_REASON
+
+    async def test_a_replacement_that_lost_its_container_is_retried_by_the_next_start(
+        self,
+    ) -> None:
+        """Replacement deletes before it creates, and the creation can fail.
+
+        Without the persisted marker the next reconciliation would find no container and
+        refuse to create one — by design, since resurrecting arbitrary container-less
+        deployments revived 19 abandoned ones at once. The marker is recovery's own
+        signature: recreating a record that carries it is a retry, not a resurrection.
+        """
+        # First pass: the old container is deleted, the new one never gets created.
+        handler = ModelServerHandler()
+        with respx.mock:
+            _mock_platform()
+            _mock_model_server()
+            patch_route = respx.patch(
+                f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+            ).mock(return_value=httpx.Response(200, json=_platform_record()))
+            docker = _stopped_docker()
+            docker.run_model_container = AsyncMock(side_effect=RuntimeError("pull failed"))
+            with _patched(docker):
+                await handler.sync_deployments()
+            left_behind = json.loads(patch_route.calls[-1].request.read())
+
+        # Second pass: a fresh Agent finds the record as the first one left it and no
+        # container at all — exactly what the resurrection guard normally refuses.
+        record = _platform_record() | {
+            "status": left_behind["status"],
+            "error_message": left_behind["error_message"],
+        }
+        fresh_handler = ModelServerHandler()
+        with respx.mock:
+            _mock_platform(record=record)
+            _mock_model_server()
+            patch_route = respx.patch(
+                f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
+            ).mock(return_value=httpx.Response(200, json=record))
+            docker = AsyncMock()
+            docker.check_container_running = AsyncMock(
+                side_effect=ContainerNotFoundError(DEPLOYMENT_ID)
+            )
+            docker.__aenter__ = AsyncMock(return_value=docker)
+            docker.__aexit__ = AsyncMock(return_value=False)
+            with _patched(docker):
+                await fresh_handler.sync_deployments()
+
+            docker.run_model_container.assert_awaited_once()
+            assert b'"active"' in patch_route.calls[-1].request.read()
+        assert DEPLOYMENT_ID in fresh_handler.deployments
 
     @respx.mock
     async def test_a_recreated_container_that_never_answers_is_reported_not_responding(
@@ -290,7 +344,11 @@ class TestContainerRelaunch:
         # the container itself was fine — nothing recreated, just waited for and promoted
         docker.run_model_container.assert_not_awaited()
         assert DEPLOYMENT_ID in handler.deployments
-        assert b'"active"' in patch_route.calls[-1].request.read()
+        final = json.loads(patch_route.calls[-1].request.read())
+        assert final["status"] == "active"
+        # the marker is cleared explicitly: the Platform honours only the fields sent,
+        # so an omitted error_message would leave the recovery marker on an active record
+        assert "error_message" in final and final["error_message"] is None
 
     @respx.mock
     async def test_a_wedged_container_without_the_recovery_marker_is_reported_at_once(self) -> None:
@@ -400,12 +458,47 @@ class TestContainerRelaunch:
         assert b'"active"' in patch_route.calls[-1].request.read()
         assert DEPLOYMENT_ID in handler.deployments
 
+    @respx.mock
+    async def test_deployment_env_cannot_override_the_runtime_contract(self) -> None:
+        """User-supplied env_variables must never redefine token, identity or cache key.
+
+        A deployment that could set MODEL_ARTIFACT_TOKEN or MODEL_ARTIFACT_ID in its own
+        environment would be redefining the boundary that isolates it from the others.
+        """
+        handler = ModelServerHandler()
+        record = _platform_record() | {
+            "env_variables": {
+                "MODEL_ARTIFACT_TOKEN": "forged",
+                "MODEL_ARTIFACT_ID": "someone-elses-artifact",
+                "DEPLOYMENT_ID": "someone-elses-deployment",
+                "SOME_APP_SETTING": "kept",
+            }
+        }
+        _mock_platform(record=record)
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=record)
+        )
+        docker = _stopped_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        env = docker.run_model_container.await_args.kwargs["env"]
+        assert env["MODEL_ARTIFACT_TOKEN"] == artifact_tokens.mint(DEPLOYMENT_ID)
+        assert env["MODEL_ARTIFACT_ID"] == ARTIFACT_ID
+        assert env["DEPLOYMENT_ID"] == DEPLOYMENT_ID
+        # ordinary variables still pass through — only the contract is off limits
+        assert env["SOME_APP_SETTING"] == "kept"
+
     async def test_model_containers_are_told_where_the_agent_is(self) -> None:
         """The callback address, built from the Agent's own host and port.
 
         It used to be assembled from the model server's port and a hostname with no network
         alias behind it, so it resolved to nothing. Nothing read the variable, so nothing broke
-        — until something needed to call back.
+        — until something needed to call back. And it wins over a caller-supplied value: a
+        container that could point it elsewhere would send its artifact token to that
+        elsewhere.
         """
         from agent.clients.docker_client import AGENT_HOST, DockerService
 
@@ -413,7 +506,10 @@ class TestContainerRelaunch:
             service = DockerService()
             service.client.containers.create_or_replace = AsyncMock()
             await service.run_model_container(
-                image="img", name="sat-x", model_id=ARTIFACT_ID, env={}
+                image="img",
+                name="sat-x",
+                model_id=ARTIFACT_ID,
+                env={"SATELLITE_AGENT_URL": "http://attacker:1"},
             )
             config_arg = service.client.containers.create_or_replace.await_args.kwargs["config"]
 

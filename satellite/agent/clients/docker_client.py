@@ -27,6 +27,7 @@ LEGACY_MODEL_CACHE_VOLUME = "satellite-models-cache"
 def model_cache_volume(model_id: str) -> str:
     return f"{MODEL_CACHE_VOLUME_PREFIX}{model_id}"
 
+
 # The hostname model containers reach the Agent by. It is a network alias declared in
 # docker-compose, not the container or service name: those are "satellite-agent-1" and
 # "agent", and neither is stable enough to hard-code here.
@@ -59,13 +60,16 @@ class DockerService:
         env: dict[str, str] | None = None,
         restart: str = "on-failure",
     ) -> DockerContainer:
-        base_env = {
-            # the Agent's port, not the model server's — this address is where the
-            # container calls back to, not where it listens
-            "SATELLITE_AGENT_URL": f"http://{AGENT_HOST}:{config_settings.AGENT_PORT}",
-        }
-        if env:
-            base_env.update(env)
+        base_env = dict(env or {})
+        # the Agent's port, not the model server's — this address is where the container
+        # calls back to, not where it listens. Applied last on purpose: a container that
+        # could point it elsewhere would send its artifact token to that elsewhere.
+        agent_url = f"http://{AGENT_HOST}:{config_settings.AGENT_PORT}"
+        if base_env.get("SATELLITE_AGENT_URL") not in (None, agent_url):
+            logger.warning(
+                f"[DockerService] Ignoring caller-supplied SATELLITE_AGENT_URL for '{name}'."
+            )
+        base_env["SATELLITE_AGENT_URL"] = agent_url
 
         config: dict[str, Any] = {
             "Image": image,
@@ -206,9 +210,21 @@ class DockerService:
         try:
             container = await self._run_cache_container(
                 cmd=[
-                    "find", "/sweep", "-mindepth", "2", "-maxdepth", "2",
-                    "-name", ".*.partial", "-mmin", f"+{STALE_STAGING_MINUTES}",
-                    "-exec", "rm", "-rf", "{}", "+",
+                    "find",
+                    "/sweep",
+                    "-mindepth",
+                    "2",
+                    "-maxdepth",
+                    "2",
+                    "-name",
+                    ".*.partial",
+                    "-mmin",
+                    f"+{STALE_STAGING_MINUTES}",
+                    "-exec",
+                    "rm",
+                    "-rf",
+                    "{}",
+                    "+",
                 ],
                 binds=[f"{name}:/sweep/{name}" for name in still_in_use],
             )
