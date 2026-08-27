@@ -225,7 +225,10 @@ class ModelServerHandler:
                 if await client.check_health_once(dep_id):
                     # The Platform speaks before the local registry, and may refuse:
                     # the user can request deletion during this wait, and a deployment
-                    # being deleted must be neither promoted nor served.
+                    # being deleted must be neither promoted nor served. Only a 4xx is
+                    # that refusal, though — a network blip or a 5xx says nothing about
+                    # the deployment, and writing off a healthy container over one
+                    # would leave it unserved until the next Agent restart.
                     # error_message=None is deliberate — the Platform honours only the
                     # fields actually sent, so the recovery marker must be cleared
                     # explicitly or it would outlive the recovery it belongs to.
@@ -235,23 +238,28 @@ class ModelServerHandler:
                             DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
                         )
                     except httpx.HTTPStatusError as error:
+                        if error.response.status_code < 500:
+                            logger.warning(
+                                f"[ModelServerHandler] not promoting '{dep_id}': the "
+                                f"Platform refused ({error})"
+                            )
+                            if error.response.status_code == 404:
+                                # The record is gone: deletion won while this wait was
+                                # running, after the undeploy task had already removed
+                                # the old container — so the one recovery created is
+                                # nobody's, and nothing record-driven will ever stop
+                                # it. Remove it.
+                                await self._remove_orphan(docker, dep_id)
+                            return
                         logger.warning(
-                            f"[ModelServerHandler] not promoting '{dep_id}': the Platform "
-                            f"refused ({error})"
+                            f"[ModelServerHandler] promoting '{dep_id}' failed on the "
+                            f"Platform side ({error}); serving it locally anyway"
                         )
-                        if error.response.status_code == 404:
-                            # The record is gone: deletion won while this wait was
-                            # running, after the undeploy task had already removed the
-                            # old container — so the one recovery created is nobody's,
-                            # and nothing record-driven will ever stop it. Remove it.
-                            await self._remove_orphan(docker, dep_id)
-                        return
                     except Exception as error:
                         logger.warning(
-                            f"[ModelServerHandler] not promoting '{dep_id}': the Platform "
-                            f"refused ({error}) — likely deleted during the wait"
+                            f"[ModelServerHandler] promoting '{dep_id}' failed "
+                            f"({error}); serving it locally anyway"
                         )
-                        return
                     monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
@@ -428,6 +436,8 @@ class ModelServerHandler:
                     # Platform honours only the fields actually sent. The Platform speaks
                     # before the local registry, and may refuse — a deletion requested
                     # since the snapshot — in which case the deployment is not served.
+                    # Only a 4xx is that refusal; a network blip or a 5xx says nothing
+                    # about the deployment, and a healthy container is served anyway.
                     if dep.get("status", "") != DeploymentStatus.ACTIVE:
                         try:
                             await platform_client.update_deployment(
@@ -436,12 +446,24 @@ class ModelServerHandler:
                                     status=DeploymentStatus.ACTIVE, error_message=None
                                 ),
                             )
+                        except httpx.HTTPStatusError as error:
+                            if error.response.status_code < 500:
+                                logger.warning(
+                                    f"[ModelServerHandler] not promoting '{dep_id}': "
+                                    f"the Platform refused ({error})"
+                                )
+                                if error.response.status_code == 404:
+                                    await self._remove_orphan(docker, dep_id)
+                                continue
+                            logger.warning(
+                                f"[ModelServerHandler] promoting '{dep_id}' failed on "
+                                f"the Platform side ({error}); serving it locally anyway"
+                            )
                         except Exception as error:
                             logger.warning(
-                                f"[ModelServerHandler] not promoting '{dep_id}': the "
-                                f"Platform refused ({error})"
+                                f"[ModelServerHandler] promoting '{dep_id}' failed "
+                                f"({error}); serving it locally anyway"
                             )
-                            continue
                     monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
@@ -519,8 +541,12 @@ class ModelServerHandler:
             # Staging directories abandoned by hard-killed containers are reclaimed here
             # because nothing else ever will — each unpack uses a path of its own and only
             # cleans that. The sweep's age threshold keeps it away from unpacks still in
-            # flight, including the ones this reconciliation just started.
-            await docker.cleanup_stale_staging()
+            # flight, including the ones this reconciliation just started; the artifacts
+            # named by live records are off limits entirely, so a redeploy caught in its
+            # own delete-then-create gap cannot lose a warm cache to this pass.
+            await docker.cleanup_stale_staging(
+                keep_artifacts={str(dep.get("artifact_id", "")) for dep in deployments_db}
+            )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

@@ -166,7 +166,10 @@ def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
-    asyncio.create_task(ms_handler.sync_deployments())
+    # The loop holds only a weak reference to a bare task; kept on app.state so a
+    # reconciliation that now waits on container recoveries for up to half an hour
+    # cannot be garbage-collected mid-flight.
+    app.state.sync_task = asyncio.create_task(ms_handler.sync_deployments())
 
     yield
 

@@ -1,5 +1,6 @@
 import contextlib
 import logging
+from collections.abc import Iterable
 from typing import Any, Self
 from uuid import UUID
 
@@ -170,13 +171,17 @@ class DockerService:
 
         return container_info.get("Config", {}).get("Labels") or {}
 
-    async def cleanup_stale_staging(self) -> None:
+    async def cleanup_stale_staging(self, keep_artifacts: Iterable[str] = ()) -> None:
         """Reclaim cache volumes and staging directories nothing will ever use again.
 
         Whole volumes go first: an undeploy that died before its own cleanup leaves the
         artifact's volume behind, and no later task will ask about that artifact again.
         Docker refuses to delete a volume any container still references, so the deletion
-        attempt doubles as the in-use check. The volumes that refuse are alive, and inside
+        attempt doubles as the in-use check — except for ``keep_artifacts``, the
+        artifacts some deployment still points at. Those volumes are never deleted, no
+        matter what the reference count says this instant: container replacement is
+        delete-then-create, and inside that gap a warm cache is momentarily referenced
+        by nobody. The volumes that refuse (or are kept) are alive, and inside
         them only `.partial` staging directories abandoned by a hard-killed unpack are
         swept — no later start removes those either, staging paths being unique per
         attempt. Only age tells such an orphan apart from an unpack still in flight —
@@ -197,9 +202,13 @@ class DockerService:
             for name in names
             if name.startswith(MODEL_CACHE_VOLUME_PREFIX) or name == LEGACY_MODEL_CACHE_VOLUME
         ]
+        keep = {model_cache_volume(str(artifact)) for artifact in keep_artifacts if artifact}
 
         still_in_use: list[str] = []
         for name in candidates:
+            if name in keep:
+                still_in_use.append(name)
+                continue
             try:
                 volume = await self.client.volumes.get(name)
                 await volume.delete()

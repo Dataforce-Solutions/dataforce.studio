@@ -408,6 +408,53 @@ class TestContainerRelaunch:
         assert DEPLOYMENT_ID not in handler.deployments
 
     @respx.mock
+    async def test_a_platform_blip_during_promotion_does_not_unserve_a_healthy_container(
+        self,
+    ) -> None:
+        """Only a deliberate 4xx is a refusal; a 5xx says nothing about the deployment.
+
+        Treating a network blip as "the Platform said no" left a healthy container
+        unserved until the next Agent restart. The blip only delays the status flip:
+        the container is registered and serves, and a later reconciliation retries.
+        """
+        handler = ModelServerHandler()
+        record = _platform_record() | {"status": "not_responding"}
+        _mock_platform(record=record)
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(502)
+        )
+        docker = _running_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert DEPLOYMENT_ID in handler.deployments
+        docker.remove_model_container.assert_not_awaited()
+
+    @respx.mock
+    async def test_a_platform_blip_while_settling_does_not_unserve_the_recovered_container(
+        self,
+    ) -> None:
+        handler = ModelServerHandler()
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            side_effect=[
+                httpx.Response(200, json=_platform_record()),  # the recovery marker lands
+                httpx.Response(502),  # the promotion hits a one-off Platform error
+            ]
+        )
+        docker = _stopped_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        docker.run_model_container.assert_awaited_once()
+        assert DEPLOYMENT_ID in handler.deployments
+        docker.remove_model_container.assert_not_awaited()
+
+    @respx.mock
     async def test_an_orphan_container_is_removed_on_the_next_start(self) -> None:
         """A container whose deployment no longer exists is invisible to reconciliation.
 
@@ -689,6 +736,7 @@ class TestContainerRelaunch:
 
         orphan = model_cache_volume("abandoned-artifact")
         alive = model_cache_volume("serving-artifact")
+        deployed = model_cache_volume("still-deployed-artifact")
 
         with patch("agent.clients.docker_client.aiodocker.Docker"):
             service = DockerService()
@@ -697,6 +745,7 @@ class TestContainerRelaunch:
                     "Volumes": [
                         {"Name": orphan},
                         {"Name": alive},
+                        {"Name": deployed},
                         {"Name": LEGACY_MODEL_CACHE_VOLUME},
                         {"Name": "unrelated-volume"},
                     ]
@@ -718,19 +767,25 @@ class TestContainerRelaunch:
             service.client.containers.create = AsyncMock()
             service.client.images.get = AsyncMock()
 
-            await service.cleanup_stale_staging()
+            await service.cleanup_stale_staging(keep_artifacts={"still-deployed-artifact"})
 
             config_arg = service.client.containers.create.await_args.kwargs["config"]
 
-        # the orphaned and legacy volumes are gone; volumes that are not caches were not touched
+        # the orphaned and legacy volumes are gone; volumes that are not caches were not
+        # touched, and the artifact a live record points at was never even attempted —
+        # a redeploy caught in its delete-then-create gap must not lose its warm cache
         volumes[orphan].delete.assert_awaited_once()
         volumes[LEGACY_MODEL_CACHE_VOLUME].delete.assert_awaited_once()
         assert "unrelated-volume" not in volumes
+        assert deployed not in volumes
 
-        # only the volume that refused deletion is swept, and only for staging directories
-        # whose whole tree has gone quiet — the root's own mtime freezes early in a live
-        # unpack, so the age test must look inside, at the newest path
-        assert config_arg["HostConfig"]["Binds"] == [f"{alive}:/sweep/{alive}"]
+        # the volume that refused deletion and the kept one are swept for stale staging,
+        # and only for directories whose whole tree has gone quiet — the root's own mtime
+        # freezes early in a live unpack, so the age test must look inside
+        assert set(config_arg["HostConfig"]["Binds"]) == {
+            f"{alive}:/sweep/{alive}",
+            f"{deployed}:/sweep/{deployed}",
+        }
         script = config_arg["Cmd"][2]
         assert config_arg["Cmd"][:2] == ["sh", "-c"]
         assert ".partial" in script

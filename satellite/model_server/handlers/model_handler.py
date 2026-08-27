@@ -84,7 +84,7 @@ class ModelHandler:
         try:
             return self._download_model(url)
         except ArtifactAccessExpired:
-            if self._model_url:  # caller-supplied URL: nothing fresher to ask for
+            if self._caller_supplied_url():  # caller-supplied URL: nothing fresher to ask
                 raise
             logger.warning("Download URL was refused; asking the Agent for a fresh one.")
             fresh_url, _ = self._resolve_artifact()
@@ -107,6 +107,16 @@ class ModelHandler:
     def _unpack_model_archive(self, model_archive_path: Path, extraction_dir: Path) -> str:
         return self._file_handler.unpack_tar_archive(model_archive_path, extraction_dir)
 
+    def _caller_supplied_url(self) -> str | None:
+        """A download URL the container was handed instead of a token, if any.
+
+        Tests and local runs pass one directly; an Agent from before the token contract
+        passes one through MODEL_ARTIFACT_URL. Both must be honoured — a new image
+        launched by an old Agent holds a perfectly valid link and nothing else, and
+        ignoring it would crash-loop a container that has everything it needs.
+        """
+        return self._model_url or os.getenv("MODEL_ARTIFACT_URL") or None
+
     def _known_model_id(self) -> str | None:
         """The cache key, if it can be known without asking anyone.
 
@@ -114,8 +124,9 @@ class ModelHandler:
         is already unpacked can be found with no network at all. A caller that supplied its
         own URL keys on that instead.
         """
-        if self._model_url:
-            return self._generate_model_id(self._model_url)
+        url = self._caller_supplied_url()
+        if url:
+            return self._generate_model_id(url)
         return os.getenv("MODEL_ARTIFACT_ID") or None
 
     def _resolve_artifact(self) -> tuple[str, str]:
@@ -124,8 +135,9 @@ class ModelHandler:
         A presigned URL expires in hours while this container lives for weeks, so the only
         link that can be trusted is one minted for this request.
         """
-        if self._model_url:
-            return self._model_url, self._generate_model_id(self._model_url)
+        url = self._caller_supplied_url()
+        if url:
+            return url, self._generate_model_id(url)
         artifact = self._agent.fetch_artifact()
         return artifact.url, artifact.artifact_id
 

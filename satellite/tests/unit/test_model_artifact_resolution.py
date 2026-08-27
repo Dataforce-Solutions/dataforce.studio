@@ -196,6 +196,27 @@ class TestModelArtifactResolution:
             with pytest.raises(ArtifactResolutionError, match="missing from the environment"):
                 client.fetch_artifact()
 
+    @respx.mock
+    def test_a_url_from_an_old_agents_environment_is_honoured(self, tmp_path: Path) -> None:
+        """An Agent from before the token contract hands over a URL, not a token.
+
+        Image tags move independently of the Agent, so a new model_server image can be
+        launched by an old Agent: MODEL_ARTIFACT_URL set, MODEL_ARTIFACT_TOKEN absent.
+        Ignoring the URL would crash-loop a container that holds everything it needs.
+        """
+        route = _artifact_route(return_value=_ok_response())
+        respx.get(DOWNLOAD_URL).mock(
+            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        )
+        cache = tmp_path / "models"
+        cache.mkdir()
+
+        with patch.dict("os.environ", {"MODEL_ARTIFACT_URL": DOWNLOAD_URL}):
+            extracted = _handler(cache)._get_or_extract_model()
+
+        assert not route.called  # the Agent was never asked — there is no token to ask with
+        assert (Path(extracted) / "manifest.json").exists()
+
     def test_the_agent_request_ignores_environment_proxies(self) -> None:
         """HTTP_PROXY must not stand between the container and its Agent.
 
