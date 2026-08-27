@@ -80,9 +80,14 @@ class OpenAPISchemaBuilder:
         security_schemes["HTTPBearer"] = {"type": "http", "scheme": "bearer"}
 
     @classmethod
-    def generate_static_schema(cls, app: FastAPI, facets: set[str]) -> dict[str, Any]:
+    def generate_full_static_schema(cls, app: FastAPI) -> dict[str, Any]:
         openapi_schema = cls.generate_base_schema(app)
         cls.add_security_to_schema(openapi_schema)
+        return openapi_schema
+
+    @classmethod
+    def generate_static_schema(cls, app: FastAPI, facets: set[str]) -> dict[str, Any]:
+        openapi_schema = cls.generate_full_static_schema(app)
 
         paths = openapi_schema.get("paths", {})
         filtered_paths: dict[str, Any] = {}

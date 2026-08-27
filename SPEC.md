@@ -847,7 +847,7 @@ in the second
   - [x] Update `sdk/python/api/tests/unit/test_deployment_resources.py` and add tests for each
         pre-flight error, pass-through, contract violation and out-of-sync mapping
 
-- [ ] Add the satellite OpenAPI contract snapshot and tests
-  - [ ] Commit the snapshot of the full static spec (monitoring enabled, before facet
+- [x] Add the satellite OpenAPI contract snapshot and tests
+  - [x] Commit the snapshot of the full static spec (monitoring enabled, before facet
         filtering); satellite test asserting the generated spec equals it; SDK test asserting
         every native method's path and parameters exist in it

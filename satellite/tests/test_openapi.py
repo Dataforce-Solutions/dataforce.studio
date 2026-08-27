@@ -1,13 +1,17 @@
+import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi import FastAPI
 
-from agent.agent_api import create_agent_app
+from agent.agent_api import OpenAPISchemaBuilder, create_agent_app
 from agent.schemas.monitoring import MonitoringIntrospection
+from agent.settings import config
 
 GOOD_KEY = "dfs_good"
+OPENAPI_SNAPSHOT = Path(__file__).parent / "snapshots" / "static_openapi.json"
 
 
 async def _authorize(api_key: str) -> bool:
@@ -93,6 +97,18 @@ def test_machine_operations_have_facets_security_and_descriptions(app: FastAPI) 
     components = schema["components"]
     assert isinstance(components, dict)
     assert components["securitySchemes"] == {"HTTPBearer": {"type": "http", "scheme": "bearer"}}
+
+
+def test_full_static_openapi_matches_contract_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MONITORING_ENABLED", True)
+    app = create_agent_app(_authorize, _introspect)
+
+    schema = OpenAPISchemaBuilder.generate_full_static_schema(app)
+    snapshot = json.loads(OPENAPI_SNAPSHOT.read_text())
+
+    assert schema == snapshot
 
 
 def test_dashboard_operations_are_untagged_and_described(app: FastAPI) -> None:
