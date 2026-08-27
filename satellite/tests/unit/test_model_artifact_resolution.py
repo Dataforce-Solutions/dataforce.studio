@@ -196,6 +196,21 @@ class TestModelArtifactResolution:
             with pytest.raises(ArtifactResolutionError, match="missing from the environment"):
                 client.fetch_artifact()
 
+    def test_the_agent_request_ignores_environment_proxies(self) -> None:
+        """HTTP_PROXY must not stand between the container and its Agent.
+
+        Deployment environment variables can set proxy variables, and httpx honours
+        them by default — the internal request carrying the artifact token would go
+        through, and disclose the token to, whatever host they name.
+        """
+        with patch("clients.agent_client.httpx.get") as get:
+            get.return_value = httpx.Response(
+                200, json={"url": DOWNLOAD_URL, "artifact_id": ARTIFACT_ID}
+            )
+            _agent().fetch_artifact()
+
+        assert get.call_args.kwargs["trust_env"] is False
+
     @respx.mock
     def test_two_containers_unpacking_the_same_artifact_do_not_corrupt_each_other(
         self,

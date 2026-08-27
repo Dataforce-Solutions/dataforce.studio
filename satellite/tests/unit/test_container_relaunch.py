@@ -6,6 +6,7 @@ try to download its model from a dead link. These tests pin the recovery: recrea
 a URL signed at that moment.
 """
 
+import asyncio
 import json
 import uuid
 from unittest.mock import AsyncMock, patch
@@ -349,6 +350,66 @@ class TestContainerRelaunch:
         # the marker is cleared explicitly: the Platform honours only the fields sent,
         # so an omitted error_message would leave the recovery marker on an active record
         assert "error_message" in final and final["error_message"] is None
+
+    @respx.mock
+    async def test_a_deletion_requested_mid_recovery_wins_over_the_promotion(self) -> None:
+        """The Platform speaks before the local registry, and may say no.
+
+        Recovery can wait half an hour between relaunching a container and seeing it
+        answer; a deletion requested during that wait makes the Platform refuse the
+        stale promotion to active. The refusal must be final: no local registration —
+        serving a deployment the user is deleting — and no crash that would cancel the
+        settling of every other recovered deployment.
+        """
+        handler = ModelServerHandler()
+        _mock_platform()
+        _mock_model_server()
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            side_effect=[
+                httpx.Response(200, json=_platform_record()),  # the recovery marker lands
+                httpx.Response(400, json={"detail": "Deployment is being deleted"}),
+            ]
+        )
+        docker = _stopped_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()  # must not raise
+
+        docker.run_model_container.assert_awaited_once()
+        # promoted nowhere: not on the Platform, not locally
+        assert len(patch_route.calls) == 2
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
+    async def test_the_recovery_wait_is_bounded_by_wall_clock_not_attempts(self) -> None:
+        """A hanging health endpoint spends seconds per attempt.
+
+        Counting attempts would multiply the configured timeout by the seconds each
+        hanging request takes — an "1800-second" wait quietly becoming hours. The wait
+        is bounded by elapsed time, so a check that hangs simply gets fewer attempts.
+        """
+        handler = ModelServerHandler()
+        record = _platform_record() | {
+            "satellite_parameters": {"health_check_timeout": 2, "monitoring_enabled": False}
+        }
+        _mock_platform(record=record)
+        _mock_model_server()
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=record)
+        )
+        docker = _stopped_docker()
+
+        async def hanging_check(*args: object, **kwargs: object) -> bool:
+            await asyncio.sleep(1.5)  # most of the 2-second budget, every attempt
+            return False
+
+        health = AsyncMock(side_effect=hanging_check)
+        with _patched(docker), patch.object(ModelServerClient, "check_health_once", health):
+            await handler.sync_deployments()
+
+        # an attempt count of 2 would have allowed a second try past the deadline
+        assert health.await_count == 1
+        assert b'"not_responding"' in patch_route.calls[-1].request.read()
 
     @respx.mock
     async def test_a_wedged_container_without_the_recovery_marker_is_reported_at_once(self) -> None:

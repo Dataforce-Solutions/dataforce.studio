@@ -212,9 +212,32 @@ class ModelServerHandler:
             )
         )
 
+        # A wall-clock deadline, not an attempt count: a hanging health endpoint spends
+        # seconds inside every attempt, and counting attempts would quietly stretch a
+        # "1800-second" timeout into hours.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+
         async with ModelServerClient() as client:
-            for _ in range(timeout):
+            while loop.time() < deadline:
                 if await client.check_health_once(dep_id):
+                    # The Platform speaks before the local registry, and may refuse:
+                    # the user can request deletion during this wait, and a deployment
+                    # being deleted must be neither promoted nor served.
+                    # error_message=None is deliberate — the Platform honours only the
+                    # fields actually sent, so the recovery marker must be cleared
+                    # explicitly or it would outlive the recovery it belongs to.
+                    try:
+                        await platform.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
+                        )
+                    except Exception as error:
+                        logger.warning(
+                            f"[ModelServerHandler] not promoting '{dep_id}': the Platform "
+                            f"refused ({error}) — likely deleted during the wait"
+                        )
+                        return
                     monitoring_enabled = self._read_monitoring_enabled(
                         dep.get("satellite_parameters")
                     )
@@ -223,31 +246,28 @@ class ModelServerHandler:
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
                     )
-                    # error_message=None is deliberate: the Platform honours only the
-                    # fields actually sent, so the recovery marker must be cleared
-                    # explicitly or it would outlive the recovery it belongs to.
-                    await platform.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
-                    )
                     logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
                     return
                 await asyncio.sleep(1)
 
         logs = await self._container_logs(docker, dep_id)
-        await platform.update_deployment(
-            dep_id,
-            DeploymentUpdate(
-                status=DeploymentStatus.NOT_RESPONDING,
-                error_message={
-                    "reason": "Relaunched container did not become healthy",
-                    "error": (
-                        f"Deployment '{dep_id}' was relaunched but did not answer in {timeout}s."
-                        + (f"\n\nContainer logs:\n{logs[-3000:]}" if logs else "")
-                    ),
-                },
-            ),
-        )
+        try:
+            await platform.update_deployment(
+                dep_id,
+                DeploymentUpdate(
+                    status=DeploymentStatus.NOT_RESPONDING,
+                    error_message={
+                        "reason": "Relaunched container did not become healthy",
+                        "error": (
+                            f"Deployment '{dep_id}' was relaunched but did not answer "
+                            f"in {timeout}s."
+                            + (f"\n\nContainer logs:\n{logs[-3000:]}" if logs else "")
+                        ),
+                    },
+                ),
+            )
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
 
     @staticmethod
     async def _container_logs(docker: DockerService, deployment_id: str) -> str:
@@ -307,16 +327,17 @@ class ModelServerHandler:
                     # one here would resurrect every deployment that ever failed on any
                     # Satellite, including ones abandoned months ago. Bringing a deployment
                     # back from nothing is a redeploy, and the Platform owns that decision.
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Not Found",
-                                error=f"Container with deployment id '{dep_id}' not found",
+                    with suppress(Exception):  # refused mid-deletion — nothing to report
+                        await platform_client.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(
+                                status=DeploymentStatus.NOT_RESPONDING,
+                                error_message={
+                                    "reason": "Not Found",
+                                    "error": f"Container with deployment id '{dep_id}' not found",
+                                },
                             ),
-                        ),
-                    )
+                        )
                     continue
                 except ContainerNotRunningError as e:
                     # The container exists but is stopped — the case this recovery is for.
@@ -342,7 +363,28 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
-                    monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
+                    # It answers, so whatever demoted it earlier is over — including the
+                    # error message, which must be cleared explicitly now that the
+                    # Platform honours only the fields actually sent. The Platform speaks
+                    # before the local registry, and may refuse — a deletion requested
+                    # since the snapshot — in which case the deployment is not served.
+                    if dep.get("status", "") != DeploymentStatus.ACTIVE:
+                        try:
+                            await platform_client.update_deployment(
+                                dep_id,
+                                DeploymentUpdate(
+                                    status=DeploymentStatus.ACTIVE, error_message=None
+                                ),
+                            )
+                        except Exception as error:
+                            logger.warning(
+                                f"[ModelServerHandler] not promoting '{dep_id}': the "
+                                f"Platform refused ({error})"
+                            )
+                            continue
+                    monitoring_enabled = self._read_monitoring_enabled(
+                        dep.get("satellite_parameters")
+                    )
                     await self.add_single_deployment(
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
@@ -359,14 +401,6 @@ class ModelServerHandler:
                             )
                         ),
                     )
-                    # It answers, so whatever demoted it earlier is over — including the
-                    # error message, which must be cleared explicitly now that the
-                    # Platform honours only the fields actually sent.
-                    if dep.get("status", "") != DeploymentStatus.ACTIVE:
-                        await platform_client.update_deployment(
-                            dep_id,
-                            DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
-                        )
                 elif self._recovery_marked(dep):
                     # A recovery some earlier Agent began and did not live to see through:
                     # the container it relaunched runs, but is still booting. Wait for it
@@ -382,28 +416,41 @@ class ModelServerHandler:
                             stdout=True, stderr=True, follow=False, tail=100
                         )
                         logs = "".join(logs_list) if isinstance(logs_list, list) else str(logs_list)
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Health check failed",
-                                error=(
-                                    f"Health check failed for deployment '{dep_id}'."
-                                    + (f"\n\nContainer logs:\n{str(logs)[-3000:]}" if logs else "")
-                                ),
+                    with suppress(Exception):  # refused mid-deletion — nothing to report
+                        await platform_client.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(
+                                status=DeploymentStatus.NOT_RESPONDING,
+                                error_message={
+                                    "reason": "Health check failed",
+                                    "error": (
+                                        f"Health check failed for deployment '{dep_id}'."
+                                        + (
+                                            f"\n\nContainer logs:\n{str(logs)[-3000:]}"
+                                            if logs
+                                            else ""
+                                        )
+                                    ),
+                                },
                             ),
-                        ),
-                    )
+                        )
 
             # Relaunched containers download and build their environment before they answer,
             # which takes minutes. They are waited on together rather than one after another:
             # a Satellite with several stopped deployments would otherwise take the sum of
             # their start-up times to reconcile.
             if recovering:
-                await asyncio.gather(
-                    *(self._settle_recovered(docker, platform_client, dep) for dep in recovering)
+                # One deployment's settling must not cancel another's: exceptions are
+                # collected, logged, and the rest keep waiting.
+                results = await asyncio.gather(
+                    *(self._settle_recovered(docker, platform_client, dep) for dep in recovering),
+                    return_exceptions=True,
                 )
+                for settled_dep, result in zip(recovering, results, strict=True):
+                    if isinstance(result, BaseException):
+                        logger.warning(
+                            f"[ModelServerHandler] settling '{settled_dep['id']}' failed: {result}"
+                        )
 
             # Staging directories abandoned by hard-killed containers are reclaimed here
             # because nothing else ever will — each unpack uses a path of its own and only

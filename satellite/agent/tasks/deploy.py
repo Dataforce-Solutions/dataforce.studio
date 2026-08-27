@@ -128,8 +128,6 @@ class DeployTask(Task):
         )
 
         try:
-            # Minting the artifact URL is part of launching: it is presigned and cannot be
-            # refreshed once the container carries it, so it is signed here and nowhere else.
             container = await launch_model_container(self.platform, self.docker, dep)
         except Exception as e:
             await self._handle_container_creation_error(task.id, dep_id, str(e))
@@ -138,14 +136,21 @@ class DeployTask(Task):
         inference_url = f"/deployments/{dep_id}"
 
         health_ok = False
+        # A wall-clock deadline, not an attempt count: a hanging health endpoint spends
+        # seconds inside every attempt, and counting attempts would quietly stretch the
+        # configured timeout into a multiple of itself.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + int(health_check_timeout)
+        next_container_check = loop.time()
         async with ModelServerClient() as client:
-            for i in range(int(health_check_timeout)):
-                if i % 5 == 0:
+            while loop.time() < deadline:
+                if loop.time() >= next_container_check:
                     try:
                         await self.docker.check_container_running(dep_id)
                     except (ContainerNotFoundError, ContainerNotRunningError) as e:
                         await self._handle_deploying_error(container, task.id, dep_id, str(e))
                         return
+                    next_container_check = loop.time() + 5
 
                 if await client.check_health_once(dep_id):
                     health_ok = True

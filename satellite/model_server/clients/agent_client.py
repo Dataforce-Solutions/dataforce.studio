@@ -53,7 +53,15 @@ class AgentClient:
         url = f"{self._base_url}/satellites/deployments/{self._deployment_id}/artifact"
         logger.info("Asking the Agent for a download URL...")
         try:
-            response = httpx.get(url, headers={"X-Artifact-Token": self._token}, timeout=_TIMEOUT)
+            # trust_env=False: this is an internal call carrying the artifact token, and
+            # deployment environment variables can set HTTP_PROXY/ALL_PROXY — a proxy
+            # must neither see the token nor stand between the container and its Agent.
+            response = httpx.get(
+                url,
+                headers={"X-Artifact-Token": self._token},
+                timeout=_TIMEOUT,
+                trust_env=False,
+            )
         except httpx.HTTPError as error:
             raise ArtifactResolutionError(
                 f"Agent unreachable at {self._base_url}: {error}"
