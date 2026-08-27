@@ -69,9 +69,19 @@ class UndeployTask(Task):
 
         # Best effort: the deployment is already gone, so a failed cleanup must not fail
         # the task — it only leaves the cache entry for the next undeploy or sweep.
+        # The records are asked before the containers: replacement is delete-then-create,
+        # and mid-gap a live deployment of the same artifact briefly holds no container —
+        # a reference count alone would call its warm cache unused and delete it.
         if model_id:
             try:
-                await self.docker.cleanup_model_cache(model_id)
+                records = await self.platform.list_deployments()
+                if any(str(dep.get("artifact_id", "")) == model_id for dep in records):
+                    logger.info(
+                        f"[UndeployTask] Model '{model_id}' is still referenced by a "
+                        f"deployment; keeping its cache."
+                    )
+                else:
+                    await self.docker.cleanup_model_cache(model_id)
             except Exception as error:
                 logger.error(
                     f"[UndeployTask] Failed to clean model '{model_id}' cache.\n{str(error)}"

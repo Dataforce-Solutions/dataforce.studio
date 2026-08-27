@@ -42,6 +42,12 @@ logger = logging.getLogger(__name__)
 # finish it, and this marker is all that survives.
 RECOVERING_REASON = "Recovering"
 
+# 4xx answers that actually speak about the deployment: gone (404, 410), held by the
+# deletion guard (400, 409). Auth failures (401, 403) speak about this Agent, and
+# 408/429 speak about the moment — neither is a verdict on the deployment.
+REFUSAL_CODES = frozenset({400, 404, 409, 410})
+AUTH_CODES = frozenset({401, 403})
+
 
 class ModelServerHandler:
     # How long a relaunched container may take to download its model, build its environment
@@ -238,18 +244,24 @@ class ModelServerHandler:
                             DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
                         )
                     except httpx.HTTPStatusError as error:
-                        if error.response.status_code < 500:
+                        code = error.response.status_code
+                        if code in REFUSAL_CODES:
                             logger.warning(
                                 f"[ModelServerHandler] not promoting '{dep_id}': the "
                                 f"Platform refused ({error})"
                             )
-                            if error.response.status_code == 404:
-                                # The record is gone: deletion won while this wait was
-                                # running, after the undeploy task had already removed
-                                # the old container — so the one recovery created is
-                                # nobody's, and nothing record-driven will ever stop
-                                # it. Remove it.
-                                await self._remove_orphan(docker, dep_id)
+                            # The record refuses to serve, and the container recovery
+                            # created must not outlive the refusal. On a 404 nothing
+                            # record-driven would ever stop it; on a deletion refusal
+                            # the undeploy task may already be past its own removal
+                            # step, with this replacement created just after it.
+                            await self._remove_orphan(docker, dep_id)
+                            return
+                        if code in AUTH_CODES:
+                            logger.warning(
+                                f"[ModelServerHandler] not promoting '{dep_id}': this "
+                                f"Agent is not authorized ({error})"
+                            )
                             return
                         logger.warning(
                             f"[ModelServerHandler] promoting '{dep_id}' failed on the "
@@ -288,8 +300,9 @@ class ModelServerHandler:
             )
         except httpx.HTTPStatusError as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
-            if error.response.status_code == 404:
-                # deleted while the wait ran; the container recovery created is nobody's
+            if error.response.status_code in REFUSAL_CODES:
+                # gone or being deleted while the wait ran — the container recovery
+                # created is nobody's either way
                 await self._remove_orphan(docker, dep_id)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
@@ -303,7 +316,7 @@ class ModelServerHandler:
             await docker.remove_model_container(deployment_id=deployment_id)
 
     async def _remove_orphan_containers(
-        self, docker: DockerService, platform: PlatformClient, known_ids: set[str]
+        self, docker: DockerService, platform: PlatformClient
     ) -> None:
         """Remove model containers whose deployment no longer exists anywhere.
 
@@ -312,26 +325,28 @@ class ModelServerHandler:
         Such a container appears in no reconciliation — sync walks Platform records,
         and the record is gone — so nothing record-driven would ever stop it.
 
-        Every candidate is confirmed against a fresh listing before removal: a record
-        always exists before its container does, so a deployment created after the
-        first snapshot has its record in the second look and cannot be mistaken for
-        an orphan.
+        Every labeled container is checked against a listing fetched right here, never
+        against the reconciliation's opening snapshot: a deployment deleted after that
+        snapshot was taken would hide behind it until the next Agent restart. The
+        fresh listing also protects the other direction — a record always exists
+        before its container does, so a deployment created moments ago is in it and
+        cannot be mistaken for an orphan.
         """
         try:
-            candidates: list[str] = []
+            owned: list[str] = []
             for container in await docker.client.containers.list(all=True):
                 info = await container.show()
                 labels = info.get("Config", {}).get("Labels") or {}
                 dep_id = labels.get("df.deployment_id")
                 name = (info.get("Name") or "").lstrip("/")
-                if dep_id and name.startswith("sat-") and dep_id not in known_ids:
-                    candidates.append(dep_id)
+                if dep_id and name.startswith("sat-"):
+                    owned.append(dep_id)
 
-            if not candidates:
+            if not owned:
                 return
 
             fresh_ids = {dep.get("id", "") for dep in await platform.list_deployments()}
-            for dep_id in candidates:
+            for dep_id in owned:
                 if dep_id not in fresh_ids:
                     await self._remove_orphan(docker, dep_id)
         except Exception as error:
@@ -447,13 +462,24 @@ class ModelServerHandler:
                                 ),
                             )
                         except httpx.HTTPStatusError as error:
-                            if error.response.status_code < 500:
+                            code = error.response.status_code
+                            if code in REFUSAL_CODES:
                                 logger.warning(
                                     f"[ModelServerHandler] not promoting '{dep_id}': "
                                     f"the Platform refused ({error})"
                                 )
-                                if error.response.status_code == 404:
+                                # A running container mid-deletion is the undeploy
+                                # task's to remove — it predates this sync, so that
+                                # removal is still ahead. Only a gone record leaves
+                                # nobody else to do it.
+                                if code in (404, 410):
                                     await self._remove_orphan(docker, dep_id)
+                                continue
+                            if code in AUTH_CODES:
+                                logger.warning(
+                                    f"[ModelServerHandler] not promoting '{dep_id}': "
+                                    f"this Agent is not authorized ({error})"
+                                )
                                 continue
                             logger.warning(
                                 f"[ModelServerHandler] promoting '{dep_id}' failed on "
@@ -534,9 +560,7 @@ class ModelServerHandler:
 
             # Containers orphaned by a lost race with deletion go first, so the volumes
             # they were pinning are free by the time the cache cleanup below runs.
-            await self._remove_orphan_containers(
-                docker, platform_client, {dep.get("id", "") for dep in deployments_db}
-            )
+            await self._remove_orphan_containers(docker, platform_client)
 
             # Staging directories abandoned by hard-killed containers are reclaimed here
             # because nothing else ever will — each unpack uses a path of its own and only

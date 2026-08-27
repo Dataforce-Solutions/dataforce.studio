@@ -13,7 +13,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+# The read budget must exceed the Agent resolver's own worst case: answering means two
+# sequential Platform calls, each with a 30-second budget of its own. A tighter limit
+# here would turn two individually healthy slow calls into "Agent unreachable" and
+# crash-loop a container that only had to wait a little longer.
+_TIMEOUT = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=10.0)
 
 
 class ArtifactResolutionError(RuntimeError):

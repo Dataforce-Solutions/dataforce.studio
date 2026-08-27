@@ -358,8 +358,10 @@ class TestContainerRelaunch:
         Recovery can wait half an hour between relaunching a container and seeing it
         answer; a deletion requested during that wait makes the Platform refuse the
         stale promotion to active. The refusal must be final: no local registration —
-        serving a deployment the user is deleting — and no crash that would cancel the
-        settling of every other recovered deployment.
+        serving a deployment the user is deleting — no crash that would cancel the
+        settling of every other recovered deployment, and no replacement container
+        left behind: the undeploy task may already be past its own removal step, with
+        recovery's replacement created just after it.
         """
         handler = ModelServerHandler()
         _mock_platform()
@@ -376,9 +378,10 @@ class TestContainerRelaunch:
             await handler.sync_deployments()  # must not raise
 
         docker.run_model_container.assert_awaited_once()
-        # promoted nowhere: not on the Platform, not locally
+        # promoted nowhere: not on the Platform, not locally — and the replacement is gone
         assert len(patch_route.calls) == 2
         assert DEPLOYMENT_ID not in handler.deployments
+        docker.remove_model_container.assert_awaited_once_with(deployment_id=DEPLOYMENT_ID)
 
     @respx.mock
     async def test_a_deployment_deleted_mid_recovery_takes_its_orphan_container_with_it(
@@ -433,6 +436,24 @@ class TestContainerRelaunch:
         docker.remove_model_container.assert_not_awaited()
 
     @respx.mock
+    async def test_a_rate_limited_promotion_is_a_blip_not_a_refusal(self) -> None:
+        """408 and 429 speak about the moment, not about the deployment."""
+        handler = ModelServerHandler()
+        record = _platform_record() | {"status": "not_responding"}
+        _mock_platform(record=record)
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(429)
+        )
+        docker = _running_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert DEPLOYMENT_ID in handler.deployments
+        docker.remove_model_container.assert_not_awaited()
+
+    @respx.mock
     async def test_a_platform_blip_while_settling_does_not_unserve_the_recovered_container(
         self,
     ) -> None:
@@ -459,12 +480,15 @@ class TestContainerRelaunch:
         """A container whose deployment no longer exists is invisible to reconciliation.
 
         Sync walks Platform records; a container left behind by a lost race with
-        deletion has none, so only a container-side check can find it. A container
-        whose record appeared after the first snapshot is spared: the second, fresh
+        deletion has none, so only a container-side check can find it. The check runs
+        against a listing fetched at that moment, not the opening snapshot — a
+        deployment deleted mid-sync would hide behind the snapshot until the next
+        restart. A container whose record appeared moments ago is spared: the fresh
         listing knows it.
         """
         orphan_id = str(uuid.uuid4())
         fresh_id = str(uuid.uuid4())
+        deleted_mid_sync_id = str(uuid.uuid4())
 
         def _container(name: str, dep_id: str | None) -> AsyncMock:
             fake = AsyncMock()
@@ -474,10 +498,13 @@ class TestContainerRelaunch:
 
         handler = ModelServerHandler()
         record = _platform_record()
+        # in the opening snapshot, deleted before the orphan check ran ("failed" keeps
+        # the serving loop away from it; what matters is that the fresh listing lacks it)
+        deleted_record = _platform_record() | {"id": deleted_mid_sync_id, "status": "failed"}
         fresh_record = _platform_record() | {"id": fresh_id}
         respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
             side_effect=[
-                httpx.Response(200, json=[record]),  # the snapshot sync works from
+                httpx.Response(200, json=[record, deleted_record]),  # the opening snapshot
                 httpx.Response(200, json=[record, fresh_record]),  # the confirming look
             ]
         )
@@ -486,6 +513,7 @@ class TestContainerRelaunch:
         docker.client.containers.list = AsyncMock(
             return_value=[
                 _container(f"sat-{orphan_id}", orphan_id),
+                _container(f"sat-{deleted_mid_sync_id}", deleted_mid_sync_id),
                 _container(f"sat-{fresh_id}", fresh_id),  # deploying right now — spared
                 _container("df-studio-postgres", None),  # not ours — never touched
             ]
@@ -494,7 +522,10 @@ class TestContainerRelaunch:
         with _patched(docker):
             await handler.sync_deployments()
 
-        docker.remove_model_container.assert_awaited_once_with(deployment_id=orphan_id)
+        removed = {
+            call.kwargs["deployment_id"] for call in docker.remove_model_container.await_args_list
+        }
+        assert removed == {orphan_id, deleted_mid_sync_id}
 
     @respx.mock
     async def test_the_recovery_wait_is_bounded_by_wall_clock_not_attempts(self) -> None:

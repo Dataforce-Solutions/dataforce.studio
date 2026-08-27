@@ -45,6 +45,28 @@ class TestUndeployCacheCleanup:
 
         task.docker.cleanup_model_cache.assert_not_awaited()
 
+    async def test_a_model_still_referenced_by_a_record_keeps_its_cache(self) -> None:
+        """Records outrank container reference counts.
+
+        Replacement is delete-then-create: mid-gap a live deployment of the same
+        artifact holds no container, and a reference count alone would call its warm
+        cache unused.
+        """
+        task = _undeploy_task()
+        task.platform.list_deployments = AsyncMock(return_value=[{"artifact_id": MODEL_ID}])
+
+        await task.run(_task())
+
+        task.docker.cleanup_model_cache.assert_not_awaited()
+
+    async def test_a_model_no_record_references_is_cleaned(self) -> None:
+        task = _undeploy_task()
+        task.platform.list_deployments = AsyncMock(return_value=[{"artifact_id": "other-artifact"}])
+
+        await task.run(_task())
+
+        task.docker.cleanup_model_cache.assert_awaited_once_with(MODEL_ID)
+
     async def test_a_failed_cleanup_does_not_fail_the_undeploy(self) -> None:
         """The deployment is already gone; a lingering cache entry is the lesser evil."""
         task = _undeploy_task()
