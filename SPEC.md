@@ -784,13 +784,13 @@ in the second
   - [x] Bearer requirement on the satellite's own OpenAPI and docs routes
   - [x] Tests for facet tags, security per operation, descriptions and docs auth
 
-- [ ] Advertise honest capabilities and push the static OpenAPI
-  - [ ] `SatelliteManager.get_capabilities` in `satellite/agent/agent_manager.py` derived from
+- [x] Advertise honest capabilities and push the static OpenAPI
+  - [x] `SatelliteManager.get_capabilities` in `satellite/agent/agent_manager.py` derived from
         configuration and registered metrics, with `api_versions`, `facets` and `features`
-  - [ ] Static base spec without merged deployment schemas, filtered to operations whose facet
+  - [x] Static base spec without merged deployment schemas, filtered to operations whose facet
         belongs to an advertised capability, sent in `pair_satellite`
         (`satellite/agent/clients/platform_client.py`)
-  - [ ] Update `satellite/tests/test_capabilities.py`; tests for the pushed document with
+  - [x] Update `satellite/tests/test_capabilities.py`; tests for the pushed document with
         monitoring enabled and disabled
 
 - [ ] Report monitoring_url on the deployment record

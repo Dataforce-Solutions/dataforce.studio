@@ -85,12 +85,23 @@ class PlatformClient:
         r.raise_for_status()
 
     async def pair_satellite(
-        self, base_url: str, capabilities: dict[str, Any], slug: str | None = None
+        self,
+        base_url: str,
+        capabilities: dict[str, Any],
+        slug: str | None = None,
+        openapi: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         assert self._session is not None
+        body: dict[str, Any] = {
+            "base_url": base_url,
+            "capabilities": capabilities,
+            "slug": slug,
+        }
+        if openapi is not None:
+            body["openapi"] = openapi
         r = await self._session.post(
             self._url("/satellites/v1/pair"),
-            json={"base_url": base_url, "capabilities": capabilities, "slug": slug},
+            json=body,
         )
         r.raise_for_status()
         return r.json()

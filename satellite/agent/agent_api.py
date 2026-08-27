@@ -34,6 +34,7 @@ openapi_handler = OpenAPIHandler(ms_handler)
 SATELLITE_FACET = "satellite"
 DEPLOYMENT_FACET = "deployment"
 INFERENCE_ACCESS_PATH = "/satellites/deployments/inference-access"
+_HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "options", "head", "trace"})
 
 
 class OpenAPISchemaBuilder:
@@ -73,6 +74,46 @@ class OpenAPISchemaBuilder:
         components = openapi_schema.setdefault("components", {})
         security_schemes = components.setdefault("securitySchemes", {})
         security_schemes["HTTPBearer"] = {"type": "http", "scheme": "bearer"}
+
+    @classmethod
+    def generate_static_schema(cls, app: FastAPI, facets: set[str]) -> dict[str, Any]:
+        openapi_schema = cls.generate_base_schema(app)
+        cls.add_security_to_schema(openapi_schema)
+
+        paths = openapi_schema.get("paths", {})
+        filtered_paths: dict[str, Any] = {}
+        if isinstance(paths, dict):
+            for path, path_data in paths.items():
+                if not isinstance(path_data, dict):
+                    continue
+                operations = {
+                    method: operation
+                    for method, operation in path_data.items()
+                    if method in _HTTP_METHODS
+                    and isinstance(operation, dict)
+                    and isinstance(operation.get("tags"), list)
+                    and len(operation["tags"]) == 1
+                    and operation["tags"][0] in facets
+                }
+                if operations:
+                    filtered_paths[path] = {
+                        **{
+                            key: value
+                            for key, value in path_data.items()
+                            if key not in _HTTP_METHODS
+                        },
+                        **operations,
+                    }
+        openapi_schema["paths"] = filtered_paths
+
+        tag_definitions = openapi_schema.get("tags")
+        if isinstance(tag_definitions, list):
+            openapi_schema["tags"] = [
+                tag
+                for tag in tag_definitions
+                if isinstance(tag, dict) and tag.get("name") in facets
+            ]
+        return openapi_schema
 
 
 def _deployment_reference_profile(deployment_id: UUID) -> dict[str, Any] | None:
