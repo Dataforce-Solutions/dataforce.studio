@@ -255,6 +255,10 @@ class DeploymentHandler:
         deployment_id: UUID,
         data: DeploymentUpdateIn,
     ) -> Deployment:
+        # Only the fields the Satellite actually sent may reach the repository. Spelling
+        # the rest out explicitly would mark them as set, and the repository's
+        # exclude_unset dump would then turn every status-only PATCH into an eraser
+        # for inference_url, schemas and tags.
         update_data = DeploymentUpdate.model_validate(
             {"id": deployment_id, **data.model_dump(exclude_unset=True)}
         )
