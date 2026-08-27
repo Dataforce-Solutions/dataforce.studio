@@ -658,8 +658,12 @@ class TestContainerRelaunch:
         volumes[LEGACY_MODEL_CACHE_VOLUME].delete.assert_awaited_once()
         assert "unrelated-volume" not in volumes
 
-        # only the volume that refused deletion is swept, and only for old staging directories
+        # only the volume that refused deletion is swept, and only for staging directories
+        # whose whole tree has gone quiet — the root's own mtime freezes early in a live
+        # unpack, so the age test must look inside, at the newest path
         assert config_arg["HostConfig"]["Binds"] == [f"{alive}:/sweep/{alive}"]
-        cmd = config_arg["Cmd"]
-        assert ".*.partial" in cmd
-        assert f"+{STALE_STAGING_MINUTES}" in cmd
+        script = config_arg["Cmd"][2]
+        assert config_arg["Cmd"][:2] == ["sh", "-c"]
+        assert ".partial" in script
+        assert f'find "$d" -mmin -{STALE_STAGING_MINUTES}' in script
+        assert "rm -rf" in script

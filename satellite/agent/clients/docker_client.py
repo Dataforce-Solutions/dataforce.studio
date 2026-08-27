@@ -33,9 +33,12 @@ def model_cache_volume(model_id: str) -> str:
 # "agent", and neither is stable enough to hard-code here.
 AGENT_HOST = "satellite-agent"
 
-# How old a `.partial` staging directory must be before the sweep may assume the unpack
-# that created it is dead rather than slow. Unpacking takes minutes; an hour is margin.
-STALE_STAGING_MINUTES = 60
+# How long a `.partial` staging directory must sit with nothing inside it changing before
+# the sweep may assume the unpack that created it is dead rather than slow. What counts is
+# the newest path anywhere in the tree, never the staging root's own mtime: that freezes
+# the moment tar creates its single top-level entry, while a live unpack keeps touching
+# whatever it is writing right now. Unpacking takes minutes; hours are margin.
+STALE_STAGING_MINUTES = 180
 
 
 class DockerService:
@@ -176,8 +179,11 @@ class DockerService:
         attempt doubles as the in-use check. The volumes that refuse are alive, and inside
         them only `.partial` staging directories abandoned by a hard-killed unpack are
         swept — no later start removes those either, staging paths being unique per
-        attempt. Only age tells such an orphan apart from an unpack still in flight, so
-        only directories old enough that no live unpack can still own them are removed.
+        attempt. Only age tells such an orphan apart from an unpack still in flight —
+        the age of the newest path anywhere inside the tree: a live unpack keeps
+        touching whatever it writes right now, while the staging root's own mtime
+        freezes the moment tar creates its single top-level entry and would read as
+        "abandoned" minutes into a multi-hour extraction.
         """
         try:
             listed = await self.client.volumes.list()
@@ -207,25 +213,22 @@ class DockerService:
         if not still_in_use:
             return
 
+        # A staging directory is removed only when nothing anywhere inside it has been
+        # touched for STALE_STAGING_MINUTES. Testing the directory's own mtime would be
+        # wrong: it freezes as soon as tar creates its top-level entry, and a sweep
+        # keyed on it would rm -rf a live multi-hour unpack — whose tar would then
+        # quietly rebuild the missing paths and publish a truncated model as a
+        # permanent cache hit.
+        sweep_script = (
+            "for d in /sweep/*/.*.partial; do "
+            '[ -d "$d" ] || continue; '
+            f'if [ -z "$(find "$d" -mmin -{STALE_STAGING_MINUTES} -print -quit)" ]; '
+            'then rm -rf "$d"; fi; '
+            "done"
+        )
         try:
             container = await self._run_cache_container(
-                cmd=[
-                    "find",
-                    "/sweep",
-                    "-mindepth",
-                    "2",
-                    "-maxdepth",
-                    "2",
-                    "-name",
-                    ".*.partial",
-                    "-mmin",
-                    f"+{STALE_STAGING_MINUTES}",
-                    "-exec",
-                    "rm",
-                    "-rf",
-                    "{}",
-                    "+",
-                ],
+                cmd=["sh", "-c", sweep_script],
                 binds=[f"{name}:/sweep/{name}" for name in still_in_use],
             )
 
