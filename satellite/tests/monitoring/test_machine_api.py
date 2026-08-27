@@ -118,6 +118,51 @@ async def test_a_deployment_this_satellite_does_not_host_is_not_found(app) -> No
         resp = await client.get(_url(deployment=OTHER_DEPLOYMENT_ID), headers=_bearer())
 
     assert resp.status_code == 404
+    assert resp.json() == {
+        "detail": "Deployment not found on this Satellite",
+        "code": "deployment_not_hosted",
+    }
+
+
+async def test_compute_for_a_deployment_this_satellite_does_not_host_is_coded(
+    app,  # noqa: ANN001
+) -> None:
+    async with _client(app) as client:
+        resp = await client.post(
+            f"/deployments/{OTHER_DEPLOYMENT_ID}/compute",
+            headers=_bearer(),
+            json={},
+        )
+
+    assert resp.status_code == 404
+    assert resp.json() == {
+        "detail": "Deployment not found on this Satellite",
+        "code": "deployment_not_hosted",
+    }
+
+
+async def test_an_unmatched_route_has_a_machine_readable_code(app) -> None:  # noqa: ANN001
+    async with _client(app) as client:
+        resp = await client.get("/not-a-satellite-route")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Not Found", "code": "unknown_route"}
+
+
+async def test_a_missing_dashboard_static_file_keeps_its_plain_404(app) -> None:  # noqa: ANN001
+    async with _client(app) as client:
+        resp = await client.get("/monitoring/app/missing.js")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Not Found"}
+
+
+async def test_a_missing_trace_keeps_its_plain_404(app) -> None:  # noqa: ANN001
+    async with _client(app) as client:
+        resp = await client.get(_url("traces/missing"), headers=_bearer())
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "trace not found in this window"}
 
 
 async def test_a_dashboard_cookie_does_not_open_the_machine_surface(app) -> None:  # noqa: ANN001

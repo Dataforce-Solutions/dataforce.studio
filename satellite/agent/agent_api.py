@@ -4,17 +4,21 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from agent._exceptions import DeploymentNotHostedError
 from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
 from agent.monitoring.api import MONITORING_FACET, build_machine_router
+from agent.monitoring.app import MONITORING_APP_PATH
 from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.monitoring.health import HealthSnapshot, worker_health
 from agent.schemas import (
@@ -168,6 +172,28 @@ def create_agent_app(
     app = FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
     security = HTTPBearer()
 
+    @app.exception_handler(DeploymentNotHostedError)
+    async def deployment_not_hosted(
+        request: Request, error: DeploymentNotHostedError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": error.detail, "code": error.code},
+        )
+
+    @app.exception_handler(404)
+    async def unknown_route(request: Request, error: StarletteHTTPException) -> Response:
+        if (
+            request.url.path.startswith(MONITORING_APP_PATH)
+            or request.scope.get("route") is not None
+        ):
+            return await http_exception_handler(request, error)
+        return JSONResponse(
+            status_code=404,
+            content={"detail": error.detail, "code": "unknown_route"},
+            headers=error.headers,
+        )
+
     # In full mode the dashboard Query API reads live telemetry from GreptimeDB; otherwise
     # register_monitoring falls back to an empty in-memory store. The reference profile is
     # the exception: it ships in the artifact, so it comes from the deployment state the
@@ -286,6 +312,8 @@ def create_agent_app(
             return result
         except ModelServerError as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+        except DeploymentNotHostedError:
+            raise
         except Exception as error:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(error)}") from error
 

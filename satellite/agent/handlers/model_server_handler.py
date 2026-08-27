@@ -4,7 +4,11 @@ from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
-from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
+from agent._exceptions import (
+    ContainerNotFoundError,
+    ContainerNotRunningError,
+    DeploymentNotHostedError,
+)
 from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
 from agent.monitoring.instrumentation import InferenceInstrumentation
@@ -234,7 +238,7 @@ class ModelServerHandler:
     ) -> tuple[dict[str, Any], str | None]:
         deployment = await self.get_deployment(deployment_id)
         if not deployment:
-            raise ValueError(f"Deployment {deployment_id} not found")
+            raise DeploymentNotHostedError()
 
         safe_inputs: dict[str, Any] | None = None
         should_instrument = deployment.monitoring_enabled and self._instrumentation is not None

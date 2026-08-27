@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.routing import APIRouter
 
+from agent._exceptions import DeploymentNotHostedError
 from agent.monitoring.query import (
     TRACES_DEFAULT_LIMIT,
     TRACES_MAX_LIMIT,
@@ -306,7 +307,7 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
 
     def _hosted_deployment(deployment_id: UUID) -> UUID:
         if not hosted(deployment_id):
-            raise HTTPException(status_code=404, detail="Deployment not found on this Satellite")
+            raise DeploymentNotHostedError()
         return deployment_id
 
     @router.get(

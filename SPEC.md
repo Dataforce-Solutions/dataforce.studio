@@ -807,10 +807,10 @@ in the second
   - [x] Add it to the SDK `Deployment` type (`sdk/python/api/luml_api/_types.py`)
   - [x] Backend, satellite and SDK type tests
 
-- [ ] Return structured 404 codes from the satellite API
-  - [ ] `deployment_not_hosted` on the machine surface and an app-wide `unknown_route` for any
+- [x] Return structured 404 codes from the satellite API
+  - [x] `deployment_not_hosted` on the machine surface and an app-wide `unknown_route` for any
         unmatched path outside the dashboard's static mount; other 404s unchanged
-  - [ ] Tests in `satellite/tests/monitoring/test_machine_api.py`
+  - [x] Tests in `satellite/tests/monitoring/test_machine_api.py`
 
 - [ ] Gate the deployment forms on present capabilities and show the monitoring hint
   - [ ] Mirror the capability interfaces and `present_capabilities` in
