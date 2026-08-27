@@ -1,7 +1,11 @@
 import io
 import json
+import os
+import stat
 import tarfile
+import tempfile
 from collections.abc import Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -232,6 +236,7 @@ def add_reference_profile(
     output_names: list[str] | None = None,
     class_names: list[str] | None = None,
     horizons: list[str] | None = None,
+    additional_producer_tags: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compute the monitoring reference profile and embed it in a saved artifact.
 
@@ -240,8 +245,8 @@ def add_reference_profile(
     ``reference_profile.json``. Call it *after* ``builder.save(path)``: the profile has
     to sit at the root of the archive, next to ``manifest.json``, because that is where
     the model server reads it from — the builder's file API would nest it under
-    ``variant_artifacts/extra_files/``, where the profile is never found. The caller is
-    responsible for adding ``TABULAR_MONITORING_TAG`` to the producer tags.
+    ``variant_artifacts/extra_files/``, where the profile is never found. Producer tags
+    supplied through ``additional_producer_tags`` are stamped in the same rewrite.
 
     The pandas-dependent canonical module is imported lazily so importing this module
     (and packaging without ``reference_data``) stays pandas-optional.
@@ -257,15 +262,26 @@ def add_reference_profile(
         class_names=class_names,
         horizons=horizons,
     )
-    embed_reference_profile(artifact_path, profile)
+    embed_reference_profile(
+        artifact_path,
+        profile,
+        additional_producer_tags=additional_producer_tags,
+    )
     return profile
 
 
-def embed_reference_profile(artifact_path: str, profile: dict[str, Any]) -> None:
+def embed_reference_profile(
+    artifact_path: str,
+    profile: dict[str, Any],
+    *,
+    additional_producer_tags: list[str] | None = None,
+) -> None:
     """Write ``reference_profile.json`` into the root of an fnnx tar artifact.
 
     Every existing member (manifest, estimator, variant artifacts, …) is copied through
     unchanged and any previous profile member is replaced, so the call is idempotent.
+    Requested producer tags are added to the bundled manifest in the same atomic
+    rewrite.
     """
     payload = json.dumps(profile).encode("utf-8")
 
@@ -274,19 +290,57 @@ def embed_reference_profile(artifact_path: str, profile: dict[str, Any]) -> None
 
     output = io.BytesIO()
     with (
-        tarfile.open(fileobj=source, mode="r") as src,
+        tarfile.open(fileobj=source, mode="r:*") as src,
         tarfile.open(fileobj=output, mode="w") as dst,
     ):
+        manifest_found = False
         for member in src.getmembers():
             if member.name == REFERENCE_PROFILE_FILENAME:
                 continue
             content = src.extractfile(member) if member.isreg() else None
+            if member.name == "manifest.json":
+                manifest_found = True
+                if additional_producer_tags:
+                    if content is None:
+                        raise ValueError("Artifact manifest cannot be read")
+                    manifest = json.loads(content.read())
+                    producer_tags = manifest.get("producer_tags")
+                    if not isinstance(producer_tags, list) or not all(
+                        isinstance(tag, str) for tag in producer_tags
+                    ):
+                        raise ValueError("Artifact manifest has invalid producer_tags")
+                    manifest["producer_tags"] = list(
+                        dict.fromkeys(producer_tags + additional_producer_tags)
+                    )
+                    manifest_payload = json.dumps(manifest).encode("utf-8")
+                    member.size = len(manifest_payload)
+                    content = io.BytesIO(manifest_payload)
             dst.addfile(member, content)
+
+        if additional_producer_tags and not manifest_found:
+            raise ValueError("Artifact manifest is missing")
 
         info = tarfile.TarInfo(name=REFERENCE_PROFILE_FILENAME)
         info.size = len(payload)
         info.mode = 0o644
         dst.addfile(info, io.BytesIO(payload))
 
-    with open(artifact_path, "wb") as handle:
-        handle.write(output.getvalue())
+    artifact_mode = stat.S_IMODE(os.stat(artifact_path).st_mode)
+    artifact_dir = os.path.dirname(os.path.abspath(artifact_path))
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=artifact_dir,
+            prefix=".luml-profile-",
+            delete=False,
+        ) as handle:
+            temporary_path = handle.name
+            handle.write(output.getvalue())
+        os.chmod(temporary_path, artifact_mode)
+        os.replace(temporary_path, artifact_path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            with suppress(FileNotFoundError):
+                os.unlink(temporary_path)

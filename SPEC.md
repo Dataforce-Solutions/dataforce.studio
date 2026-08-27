@@ -715,11 +715,11 @@ in the second
   - [x] Tests in `sdk/python/sdk/tests/` for every packager's tags and for the with/without
         reference-data cases
 
-- [ ] Expose post-hoc reference profile embedding on ModelReference
-  - [ ] Public operation on `ModelReference` (`sdk/python/sdk/luml/artifacts/model.py`) that
+- [x] Expose post-hoc reference profile embedding on ModelReference
+  - [x] Public operation on `ModelReference` (`sdk/python/sdk/luml/artifacts/model.py`) that
         builds and embeds the profile into the local bundle and stamps the tags in the bundled
         manifest, refusing `luml.ai::kind_llm:v1`
-  - [ ] Tests: embed, re-embed idempotency, llm refusal, artifact still validates
+  - [x] Tests: embed, re-embed idempotency, llm refusal, artifact still validates
 
 - [ ] Derive model kind and metric gating from manifest tags on the satellite
   - [ ] Replace `detect_model_kind` in `satellite/agent/schemas/deployments.py` with tag-based
