@@ -756,14 +756,14 @@ in the second
         envelope and counts as absent
   - [x] Backend tests for pairing, eligibility, normalization and version handling
 
-- [ ] Enforce satellite capabilities on deployment create and update
-  - [ ] Checks in `backend/luml/handlers/deployments.py`: on create, a present `deploy`
+- [x] Enforce satellite capabilities on deployment create and update
+  - [x] Checks in `backend/luml/handlers/deployments.py`: on create, a present `deploy`
         capability on the target satellite, `monitoring_mode` versus the present `monitoring`
         capability, manifest variant versus the `deploy` declaration's `supported_variants`
         and producer tags versus its `supported_tags_combinations`; on update, a
         `monitoring_mode` change versus the deployment's current satellite; every refusal
         answers 409 naming the reason
-  - [ ] Backend tests for each refusal and the passing case
+  - [x] Backend tests for each refusal and the passing case
 
 - [ ] Store and serve the satellite OpenAPI document on the platform
   - [ ] Optional `openapi` field on the pair schema (validated only as a JSON object of at

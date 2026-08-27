@@ -1,4 +1,5 @@
 import datetime
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid7
 
@@ -19,15 +20,69 @@ from luml.schemas.deployment import (
     DeploymentStatus,
     DeploymentUpdate,
     DeploymentUpdateIn,
+    MonitoringMode,
 )
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.satellite import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
+    get_present_capabilities,
+    normalize_capabilities,
 )
 
 handler = DeploymentHandler()
+
+
+def _capabilities(
+    *,
+    deploy: bool = True,
+    monitoring: bool = True,
+    deploy_api_versions: list[int] | None = None,
+    monitoring_api_versions: list[int] | None = None,
+    supported_variants: list[str] | None = None,
+    supported_tags_combinations: list[list[str]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    capabilities: dict[str, dict[str, Any]] = {}
+    if deploy:
+        capabilities["deploy"] = {
+            "version": 1,
+            "supported_variants": (
+                ["pyfunc"] if supported_variants is None else supported_variants
+            ),
+            "supported_tags_combinations": supported_tags_combinations,
+        }
+        if deploy_api_versions is not None:
+            capabilities["deploy"]["api_versions"] = deploy_api_versions
+    if monitoring:
+        capabilities["monitoring"] = {"version": 1}
+        if monitoring_api_versions is not None:
+            capabilities["monitoring"]["api_versions"] = monitoring_api_versions
+    return capabilities
+
+
+def _satellite(orbit_id: UUID, capabilities: dict[str, dict[str, Any]]) -> Mock:
+    normalized = normalize_capabilities(capabilities)
+    return Mock(
+        orbit_id=orbit_id,
+        capabilities=normalized,
+        present_capabilities=get_present_capabilities(normalized),
+    )
+
+
+def _artifact(
+    collection_id: UUID,
+    *,
+    variant: str = "pyfunc",
+    producer_tags: list[str] | None = None,
+) -> Mock:
+    return Mock(
+        collection_id=collection_id,
+        manifest=Mock(
+            variant=variant,
+            producer_tags=producer_tags or [],
+        ),
+    )
 
 
 @patch(
@@ -82,6 +137,7 @@ async def test_create_deployment(
         name="my-deployment",
         satellite_id=satellite_id,
         artifact_id=artifact_id,
+        monitoring_mode=MonitoringMode.FULL,
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
@@ -89,6 +145,7 @@ async def test_create_deployment(
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         artifact_id=artifact_id,
+        monitoring_mode=MonitoringMode.FULL,
         tags=deployment_create_data_in.tags,
         created_by_user=user_name,
     )
@@ -103,6 +160,7 @@ async def test_create_deployment(
         collection_id=collection_id,
         inference_url=None,
         status=DeploymentStatus.PENDING,
+        monitoring_mode=MonitoringMode.FULL,
         created_by_user=user_name,
         tags=deployment_create_data_in.tags,
         created_at=datetime.datetime.now(),
@@ -110,8 +168,18 @@ async def test_create_deployment(
     )
 
     mock_get_orbit_simple.return_value = Mock()
-    mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
-    mock_get_artifact.return_value = Mock(collection_id=collection_id)
+    mock_get_satellite.return_value = _satellite(
+        orbit_id,
+        _capabilities(
+            supported_tags_combinations=[
+                ["luml.ai::sklearn:v1", "luml.ai::kind_tabular:v1"]
+            ]
+        ),
+    )
+    mock_get_artifact.return_value = _artifact(
+        collection_id,
+        producer_tags=["luml.ai::sklearn:v1", "luml.ai::kind_tabular:v1"],
+    )
     mock_get_collection.return_value = Mock(orbit_id=orbit_id)
     mock_get_public_user_by_id.return_value = Mock(full_name=user_name)
     mock_create_deployment.return_value = expected, None
@@ -135,6 +203,137 @@ async def test_create_deployment(
         Action.CREATE,
         orbit_id,
     )
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "monitoring_mode", "variant", "producer_tags", "reason"),
+    [
+        pytest.param(
+            _capabilities(deploy=False),
+            MonitoringMode.OFF,
+            "pyfunc",
+            [],
+            "present 'deploy' capability",
+            id="deploy-missing",
+        ),
+        pytest.param(
+            _capabilities(deploy_api_versions=[2]),
+            MonitoringMode.OFF,
+            "pyfunc",
+            [],
+            "present 'deploy' capability",
+            id="deploy-version-unsupported",
+        ),
+        pytest.param(
+            _capabilities(monitoring=False),
+            MonitoringMode.FULL,
+            "pyfunc",
+            [],
+            "present 'monitoring' capability",
+            id="monitoring-missing",
+        ),
+        pytest.param(
+            _capabilities(monitoring_api_versions=[2]),
+            MonitoringMode.FULL,
+            "pyfunc",
+            [],
+            "present 'monitoring' capability",
+            id="monitoring-version-unsupported",
+        ),
+        pytest.param(
+            _capabilities(supported_variants=["onnx"]),
+            MonitoringMode.OFF,
+            "pyfunc",
+            [],
+            "supported_variants",
+            id="variant-unsupported",
+        ),
+        pytest.param(
+            _capabilities(supported_tags_combinations=[["required-tag"]]),
+            MonitoringMode.OFF,
+            "pyfunc",
+            ["other-tag"],
+            "supported_tags_combinations",
+            id="tags-unsupported",
+        ),
+    ],
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_deployment_rejects_unsupported_satellite_or_artifact(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    mock_create_deployment: AsyncMock,
+    capabilities: dict[str, dict[str, Any]],
+    monitoring_mode: MonitoringMode,
+    variant: str,
+    producer_tags: list[str],
+    reason: str,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    data = DeploymentCreateIn(
+        name="my-deployment",
+        satellite_id=satellite_id,
+        artifact_id=artifact_id,
+        monitoring_mode=monitoring_mode,
+    )
+
+    mock_get_orbit_simple.return_value = Mock()
+    mock_get_satellite.return_value = _satellite(orbit_id, capabilities)
+    mock_get_artifact.return_value = _artifact(
+        collection_id,
+        variant=variant,
+        producer_tags=producer_tags,
+    )
+    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
+    mock_get_public_user_by_id.return_value = Mock(full_name="User Full Name")
+
+    with pytest.raises(ApplicationError, match=reason) as error:
+        await handler.create_deployment(
+            user_id,
+            organization_id,
+            orbit_id,
+            data,
+        )
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    mock_create_deployment.assert_not_awaited()
 
 
 @patch(
@@ -911,6 +1110,172 @@ async def test_update_deployment_details(
     mock_update_deployment_details.assert_awaited_once_with(
         orbit_id, deployment_id, details_converted
     )
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        pytest.param(_capabilities(monitoring=False), id="missing"),
+        pytest.param(
+            _capabilities(monitoring_api_versions=[2]),
+            id="version-unsupported",
+        ),
+    ],
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_rejects_enabling_monitoring_without_capability(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+    capabilities: dict[str, dict[str, Any]],
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    details = DeploymentDetailsUpdateIn(monitoring_mode=MonitoringMode.FULL)
+    mock_get_deployment.return_value = Mock(
+        monitoring_mode=MonitoringMode.OFF,
+        satellite_id=satellite_id,
+    )
+    mock_get_satellite.return_value = _satellite(orbit_id, capabilities)
+
+    with pytest.raises(
+        ApplicationError,
+        match="present 'monitoring' capability",
+    ) as error:
+        await handler.update_deployment_details(
+            user_id,
+            organization_id,
+            orbit_id,
+            deployment_id,
+            details,
+        )
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    mock_update_deployment_details.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_enables_monitoring_with_capability(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    details = DeploymentDetailsUpdateIn(monitoring_mode=MonitoringMode.FULL)
+    expected = Mock()
+    mock_get_deployment.return_value = Mock(
+        monitoring_mode=MonitoringMode.OFF,
+        satellite_id=satellite_id,
+    )
+    mock_get_satellite.return_value = _satellite(orbit_id, _capabilities())
+    mock_update_deployment_details.return_value = expected
+
+    result = await handler.update_deployment_details(
+        user_id,
+        organization_id,
+        orbit_id,
+        deployment_id,
+        details,
+    )
+
+    assert result is expected
+    mock_get_deployment.assert_awaited_once_with(deployment_id, orbit_id)
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_update_deployment_details.assert_awaited_once_with(
+        orbit_id,
+        deployment_id,
+        DeploymentDetailsUpdate(monitoring_mode=MonitoringMode.FULL),
+    )
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_keeps_monitoring_on_after_capability_loss(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    details = DeploymentDetailsUpdateIn(monitoring_mode=MonitoringMode.FULL)
+    expected = Mock()
+    mock_get_deployment.return_value = Mock(
+        monitoring_mode=MonitoringMode.FULL,
+        satellite_id=satellite_id,
+    )
+    mock_update_deployment_details.return_value = expected
+
+    result = await handler.update_deployment_details(
+        user_id,
+        organization_id,
+        orbit_id,
+        deployment_id,
+        details,
+    )
+
+    assert result is expected
+    mock_get_satellite.assert_not_awaited()
+    mock_update_deployment_details.assert_awaited_once()
 
 
 @patch(
