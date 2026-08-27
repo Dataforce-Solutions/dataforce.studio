@@ -12,6 +12,8 @@ from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untype
     NDJSON,
 )
 
+from luml._constants import FNNX_PRODUCER_NAME
+
 try:
     import pandas as pd
 except ImportError:  # pragma: no cover - optional dependency
@@ -27,7 +29,7 @@ from luml.utils.imports import (
 if TYPE_CHECKING:
     from luml.utils.reference_profile import TaskType
 
-REFERENCE_PROFILE_TAG = "reference_profile:v1"
+TABULAR_MONITORING_TAG = FNNX_PRODUCER_NAME + "::tabular_monitoring:v1"
 REFERENCE_PROFILE_FILENAME = "reference_profile.json"
 
 
@@ -239,7 +241,7 @@ def add_reference_profile(
     to sit at the root of the archive, next to ``manifest.json``, because that is where
     the model server reads it from — the builder's file API would nest it under
     ``variant_artifacts/extra_files/``, where the profile is never found. The caller is
-    responsible for adding ``REFERENCE_PROFILE_TAG`` to the producer tags.
+    responsible for adding ``TABULAR_MONITORING_TAG`` to the producer tags.
 
     The pandas-dependent canonical module is imported lazily so importing this module
     (and packaging without ``reference_data``) stays pandas-optional.

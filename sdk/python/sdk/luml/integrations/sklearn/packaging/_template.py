@@ -1,7 +1,15 @@
+from __future__ import annotations
+
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
+
 from fnnx.utils import to_thread  # type: ignore[import-not-found, import-untyped]
 from fnnx.variants.pyfunc import (  # type: ignore[import-not-found, import-untyped]
     PyFunc,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class SKlearnPyFunc(PyFunc):
@@ -19,17 +27,16 @@ class SKlearnPyFunc(PyFunc):
         with open(pickled_estimator_path, "rb") as f:
             self.estimator = load(f)
 
-        # An estimator fitted on a DataFrame gets one back (see compute), so its recorded
-        # column names still match. Only the positional path needs them gone: there the
-        # inputs arrive as one array and the names would trip sklearn's column check. On a
-        # Pipeline the attribute is a read-only property forwarded from the first step and
-        # cannot be dropped — sklearn then merely warns, which is harmless here.
+        # An estimator fitted on a DataFrame gets one back (see compute), so its
+        # recorded column names still match. Only the positional path needs them gone:
+        # there the inputs arrive as one array and the names would trip sklearn's
+        # column check. On a Pipeline the attribute is a read-only property forwarded
+        # from the first step and cannot be dropped — sklearn then merely warns, which
+        # is harmless here.
         self.input_dtypes = self.fnnx_context.get_value("input_dtypes")
         if not self.input_dtypes and hasattr(self.estimator, "feature_names_in_"):
-            try:
+            with suppress(AttributeError):
                 del self.estimator.feature_names_in_
-            except AttributeError:
-                pass
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:
         if not hasattr(self, "estimator"):
@@ -43,6 +50,7 @@ class SKlearnPyFunc(PyFunc):
                 "Input order not found. Make sure to have "
                 "'input_order' in the fnnx context."
             )
+        x: Any
         if self.input_dtypes:
             x = self._frame(inputs, input_order)
         else:
@@ -61,15 +69,19 @@ class SKlearnPyFunc(PyFunc):
                 pass
         return outputs
 
-    def _frame(self, inputs: dict, input_order: list):
-        """Rebuild the training frame: named columns, each with the dtype it was fitted on.
+    def _frame(self, inputs: dict, input_order: list) -> pd.DataFrame:
+        """Rebuild the training frame with the dtypes it was fitted on.
 
         Stacking mixed columns into one array upcasts everything to strings, and a
         ColumnTransformer selecting columns by name cannot work on an array at all.
         """
         import pandas as pd  # type: ignore[import-not-found]
 
-        dtypes = {"float": "float64", "int": "int64", "str": "object"}
+        dtypes: dict[str, type[float] | type[int] | type[object]] = {
+            "float": float,
+            "int": int,
+            "str": object,
+        }
         data = {}
         for col in input_order:
             # Batched requests arrive as one value per row, each value possibly wrapped
@@ -78,12 +90,12 @@ class SKlearnPyFunc(PyFunc):
             # coped with either shape — this path must too.
             raw = self.np.asarray(inputs[col], dtype=object).ravel()
             series = pd.Series(raw)
-            target = dtypes.get(self.input_dtypes.get(col, "str"), "object")
+            target = dtypes.get(self.input_dtypes.get(col, "str"), object)
             try:
                 data[col] = series.astype(target)
             except (TypeError, ValueError):
-                # a column that cannot be cast (nulls in an int column, say) is passed on
-                # as it arrived — sklearn will raise with a message about that column
+                # A column that cannot be cast is passed on as it arrived — sklearn
+                # will raise with a message about that column.
                 data[col] = series
         return pd.DataFrame(data, columns=list(input_order))
 

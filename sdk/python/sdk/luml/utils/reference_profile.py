@@ -131,10 +131,11 @@ def compute_pca_profile(
     are dropped before fitting. Returns an empty dict when there are no numerical
     features (or too few rows to fit), which the worker reads defensively.
 
-    Components are truncated at the smallest count reaching ``explained_variance`` of the
-    training variance: directions carrying almost nothing add noise to the distance and,
-    being nearly flat, make the covariance hard to invert. A model with two numerical
-    features therefore keeps both — the plane the dashboard draws needs two.
+    Components are truncated at the smallest count reaching ``explained_variance``
+    of the training variance: directions carrying almost nothing add noise to the
+    distance and, being nearly flat, make the covariance hard to invert. A model with
+    two numerical features therefore keeps both — the plane the dashboard draws needs
+    two.
     """
     frame = _as_frame(features, feature_names)
     numerical_names = _numerical_feature_names(
@@ -171,7 +172,9 @@ def compute_pca_profile(
             "components": _to_matrix(components),
             "mean_": _to_vector(pca.mean_),
             "feature_names": numerical_names,
-            "explained_variance_ratio": _to_vector(pca.explained_variance_ratio_[:keep]),
+            "explained_variance_ratio": _to_vector(
+                pca.explained_variance_ratio_[:keep]
+            ),
         },
         # A thinned sample of the training cloud in the PC1 × PC2 plane. Mean and
         # covariance describe that cloud but cannot be drawn; the dashboard plots live
@@ -199,10 +202,10 @@ def _thin(points: np.ndarray, limit: int) -> list[list[float]]:
 
 
 def _components_for_variance(ratios: np.ndarray, target: float) -> int:
-    """Smallest component count whose cumulative explained variance reaches ``target``."""
+    """Return the component count needed to reach the target variance."""
     cumulative = np.cumsum(ratios)
-    reached = np.searchsorted(cumulative, min(target, float(cumulative[-1])))
-    return int(min(len(ratios), reached + 1))
+    reached = int(np.searchsorted(cumulative, min(target, float(cumulative[-1]))))
+    return min(len(ratios), reached + 1)
 
 
 def build_reference_profile(
@@ -279,11 +282,11 @@ def _primary_output_summary(
 ) -> dict[str, Any]:
     """The monitored prediction, flattened out of the per-group ``output_summaries``.
 
-    Output drift scores one prediction against one reference distribution, so the profile
-    names it explicitly instead of leaving the runtime to guess a group and a key. A
-    regression profile points at the first numerical output (score columns are appended
-    after the predictions, so the prediction stays first); a classification profile points
-    at the first categorical output — its predicted-class proportions.
+    Output drift scores one prediction against one reference distribution, so the
+    profile names it explicitly instead of leaving the runtime to guess a group and a
+    key. A regression profile points at the first numerical output (score columns are
+    appended after the predictions, so the prediction stays first); a classification
+    profile points at the first categorical output — its predicted-class proportions.
     """
     numeric = task_type in ("regression", "forecasting")
     group = "numerical_outputs" if numeric else "categorical_outputs"
@@ -456,7 +459,7 @@ def _to_matrix(array: np.ndarray) -> list[list[float]]:
 
 # Decision boundary of a binary sklearn classifier's ``predict``: argmax over two
 # classes is exactly p > 0.5. The band is a presentation width for "near the boundary";
-# the live rate is always compared against the reference rate computed with the same band.
+# the live rate is compared against the reference rate computed with the same band.
 BINARY_DECISION_THRESHOLD = 0.5
 THRESHOLD_BAND = 0.05
 

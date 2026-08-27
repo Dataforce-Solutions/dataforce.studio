@@ -335,8 +335,7 @@ def test_build_profile_includes_pca_over_numerical_features() -> None:
 
 
 def test_uncorrelated_features_keep_every_component() -> None:
-    """Nothing to compress: each direction carries a quarter of the variance, so all four
-    are needed to reach the 90% the profile stores."""
+    """Keep every component when every direction carries equal variance."""
     rng = np.random.default_rng(0)
     frame = pd.DataFrame(rng.normal(size=(200, 4)), columns=["a", "b", "c", "d"])
 
@@ -347,10 +346,11 @@ def test_uncorrelated_features_keep_every_component() -> None:
 
 
 def test_two_numerical_features_keep_both_components() -> None:
-    """The dashboard draws a PC1 × PC2 plane; a model with two numerical inputs must still
-    produce two components, or there is no plane to draw."""
+    """Keep the PC1 × PC2 plane for a model with two numerical inputs."""
     rng = np.random.default_rng(3)
-    frame = pd.DataFrame({"age": rng.normal(40, 12, 300), "bmi": rng.normal(30, 6, 300)})
+    frame = pd.DataFrame(
+        {"age": rng.normal(40, 12, 300), "bmi": rng.normal(30, 6, 300)}
+    )
 
     profile = compute_pca_profile(frame)
 
@@ -391,7 +391,9 @@ def test_regression_profile_declares_task_type_and_monitored_output() -> None:
     output = profile["output_summary"]
     assert output["name"] == "y_pred"
     assert output["type"] == "numerical"
-    assert output["summary"] == profile["output_summaries"]["numerical_outputs"]["y_pred"]
+    assert (
+        output["summary"] == profile["output_summaries"]["numerical_outputs"]["y_pred"]
+    )
 
 
 def test_classification_monitored_output_is_the_predicted_class_not_the_score() -> None:
@@ -412,8 +414,7 @@ def test_classification_monitored_output_is_the_predicted_class_not_the_score() 
 
 
 def test_pca_profile_carries_a_drawable_sample_of_the_training_cloud() -> None:
-    """Mean and covariance describe the reference cloud but cannot be plotted; the
-    dashboard scatters live traffic against these points, so they ship with the profile."""
+    """Store sample points because mean and covariance cannot be plotted."""
     rng = np.random.default_rng(0)
     frame = pd.DataFrame(rng.normal(size=(1000, 3)), columns=["a", "b", "c"])
 

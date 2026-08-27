@@ -12,7 +12,7 @@ from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
-from luml.utils.packaging import REFERENCE_PROFILE_TAG, add_reference_profile
+from luml.utils.packaging import TABULAR_MONITORING_TAG, add_reference_profile
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
@@ -44,7 +44,10 @@ def _get_default_deps() -> list[str]:
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::sklearn:v1"]
+    return [
+        FNNX_PRODUCER_NAME + "::sklearn:v1",
+        FNNX_PRODUCER_NAME + "::kind_tabular:v1",
+    ]
 
 
 def _add_io(
@@ -101,9 +104,9 @@ def _add_io(
             input_order = ["input"]
         x = example
 
-    # A frame-trained estimator is handed a frame back at inference. Stacking the columns
-    # into one array instead upcasts mixed dtypes to strings, and a ColumnTransformer that
-    # selects columns by name has nothing to select from.
+    # A frame-trained estimator is handed a frame back at inference. Stacking the
+    # columns into one array instead upcasts mixed dtypes to strings, and a
+    # ColumnTransformer that selects columns by name has nothing to select from.
     frame_inputs = bool(input_dtypes)
     extra_values: dict[str, Any] = {"input_order": input_order}
     if frame_inputs:
@@ -150,7 +153,7 @@ def _add_io(
     return frame_inputs
 
 
-def _add_dependencies(
+def _add_dependencies(  # noqa: C901
     builder: PyfuncBuilder,
     dependencies: Literal["default"] | Literal["all"] | list[str],
     extra_dependencies: list[str] | None,
@@ -224,8 +227,8 @@ def save_sklearn(  # noqa: C901
         manifest_extra_producer_tags: Additional tags for model metadata.
         reference_data: Training features used to compute the monitoring reference
             profile. When provided, a `reference_profile.json` is embedded and the
-            `reference_profile:v1` producer tag is stamped on the manifest. When
-            omitted, packaging succeeds with no profile and no tag.
+            `luml.ai::tabular_monitoring:v1` producer tag is stamped on the manifest.
+            When omitted, packaging succeeds with no profile and no monitoring tag.
 
     Returns:
         ModelReference: Reference to the saved model package.
@@ -289,7 +292,7 @@ def save_sklearn(  # noqa: C901
 
     tags = _get_default_tags() + (manifest_extra_producer_tags or [])
     if reference_data is not None:
-        tags = tags + [REFERENCE_PROFILE_TAG]
+        tags = tags + [TABULAR_MONITORING_TAG]
 
     builder.set_producer_info(
         name=FNNX_PRODUCER_NAME,

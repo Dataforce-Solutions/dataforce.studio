@@ -16,11 +16,13 @@ from sklearn.preprocessing import OneHotEncoder
 
 from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn import save_sklearn
-from luml.utils.packaging import REFERENCE_PROFILE_FILENAME, REFERENCE_PROFILE_TAG
+from luml.utils.packaging import REFERENCE_PROFILE_FILENAME, TABULAR_MONITORING_TAG
 
 NUMERIC = ["age", "bmi"]
 CATEGORICAL = ["sex", "region"]
 REGIONS = ["northeast", "northwest", "southeast", "southwest"]
+TABULAR_KIND_TAG = "luml.ai::kind_tabular:v1"
+LEGACY_REFERENCE_PROFILE_TAG = "reference_profile:v1"
 
 
 def _frame(n: int = 200, seed: int = 0) -> pd.DataFrame:
@@ -142,7 +144,10 @@ def test_embedded_profile_declares_task_type_and_monitored_output(
 
 
 def test_regression_artifact_has_profile_and_tag(regression_artifact: str) -> None:
-    assert REFERENCE_PROFILE_TAG in _producer_tags(regression_artifact)
+    tags = _producer_tags(regression_artifact)
+    assert TABULAR_KIND_TAG in tags
+    assert TABULAR_MONITORING_TAG in tags
+    assert LEGACY_REFERENCE_PROFILE_TAG not in tags
 
     profile = _read_profile(regression_artifact)
     assert profile is not None
@@ -162,7 +167,7 @@ def test_regression_artifact_has_profile_and_tag(regression_artifact: str) -> No
 def test_classification_output_is_categorical_with_score(
     classification_artifact: str,
 ) -> None:
-    assert REFERENCE_PROFILE_TAG in _producer_tags(classification_artifact)
+    assert TABULAR_MONITORING_TAG in _producer_tags(classification_artifact)
 
     profile = _read_profile(classification_artifact)
     assert profile is not None
@@ -177,7 +182,13 @@ def test_classification_output_is_categorical_with_score(
 
 
 def test_no_reference_data_means_no_profile_no_tag(no_reference_artifact: str) -> None:
-    assert REFERENCE_PROFILE_TAG not in _producer_tags(no_reference_artifact)
+    tags = _producer_tags(no_reference_artifact)
+    assert TABULAR_KIND_TAG in tags
+    assert not any(
+        tag.startswith(("luml.ai::tabular_monitoring:", "luml.ai::llm_monitoring:"))
+        for tag in tags
+    )
+    assert LEGACY_REFERENCE_PROFILE_TAG not in tags
     assert _read_profile(no_reference_artifact) is None
     assert ModelReference(no_reference_artifact).validate()
 
@@ -186,8 +197,8 @@ def test_presence_detected_by_tag_alone(
     regression_artifact: str,
     no_reference_artifact: str,
 ) -> None:
-    assert REFERENCE_PROFILE_TAG in _producer_tags(regression_artifact)
-    assert REFERENCE_PROFILE_TAG not in _producer_tags(no_reference_artifact)
+    assert TABULAR_MONITORING_TAG in _producer_tags(regression_artifact)
+    assert TABULAR_MONITORING_TAG not in _producer_tags(no_reference_artifact)
 
 
 def test_embedded_profile_parses_as_plain_json(classification_artifact: str) -> None:
@@ -245,10 +256,12 @@ def test_sklearn_integration_stays_pandas_optional() -> None:
 
 
 def test_pipeline_artifact_loads_and_predicts(tmp_path: pathlib.Path) -> None:
-    """A Pipeline exposes ``feature_names_in_`` as a read-only property forwarded from its
-    first step, and the template deletes that attribute so the estimator accepts the
-    positional array the pyfunc builds. Deleting it raised AttributeError, and every
-    pipeline-backed deployment died on warmup."""
+    """A Pipeline exposes read-only ``feature_names_in_`` from its first step.
+
+    The template deletes that attribute so the estimator accepts the positional array
+    the pyfunc builds. Deleting it raised AttributeError, and every pipeline-backed
+    deployment died on warmup.
+    """
     from fnnx.runtime import Runtime
     from sklearn.preprocessing import StandardScaler
 
@@ -292,8 +305,9 @@ def _runtime_predict(path: str, tmp_path: pathlib.Path, frame: pd.DataFrame) -> 
 
 def test_mixed_dtype_frame_survives_the_round_trip(tmp_path: pathlib.Path) -> None:
     """Numbers and strings in one frame used to be stacked into a single array, which
-    upcast everything to strings; a ColumnTransformer selecting columns by name then died
-    with "Specifying the columns using strings is only supported for dataframes"."""
+    upcast everything to strings; a ColumnTransformer selecting columns by name then
+    died with "Specifying the columns using strings is only supported for dataframes".
+    """
     frame = _frame(n=120)
     target = (frame["age"] * 10.0 + frame["bmi"]).to_numpy()
     model = _pipeline(LinearRegression(), frame, target)
@@ -306,7 +320,9 @@ def test_mixed_dtype_frame_survives_the_round_trip(tmp_path: pathlib.Path) -> No
     assert np.allclose(np.asarray(result["y"]), model.predict(frame))
 
 
-def test_frame_inputs_declare_their_dtypes_and_bring_pandas(tmp_path: pathlib.Path) -> None:
+def test_frame_inputs_declare_dtypes_and_bring_pandas(
+    tmp_path: pathlib.Path,
+) -> None:
     frame = _frame(n=60)
     model = _pipeline(LinearRegression(), frame, (frame["age"] * 10.0).to_numpy())
 
@@ -323,7 +339,9 @@ def test_frame_inputs_declare_their_dtypes_and_bring_pandas(tmp_path: pathlib.Pa
     assert dtypes["bmi"] == "float"
     assert dtypes["sex"] == "str"
     # the runtime rebuilds the frame, so it needs pandas wherever it runs
-    dependencies = _runtime_dependencies(json.loads((extracted / "env.json").read_text()))
+    dependencies = _runtime_dependencies(
+        json.loads((extracted / "env.json").read_text())
+    )
     assert any(dep.startswith("pandas==") for dep in dependencies)
 
 
@@ -342,7 +360,9 @@ def test_array_inputs_keep_the_positional_path(tmp_path: pathlib.Path) -> None:
         archive.extractall(extracted)
     variant = json.loads((extracted / "variant_config.json").read_text())
     assert "input_dtypes" not in variant["extra_values"]
-    dependencies = _runtime_dependencies(json.loads((extracted / "env.json").read_text()))
+    dependencies = _runtime_dependencies(
+        json.loads((extracted / "env.json").read_text())
+    )
     assert not any(dep.startswith("pandas==") for dep in dependencies)
 
     from fnnx.runtime import Runtime
