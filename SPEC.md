@@ -765,12 +765,12 @@ in the second
         answers 409 naming the reason
   - [x] Backend tests for each refusal and the passing case
 
-- [ ] Store and serve the satellite OpenAPI document on the platform
-  - [ ] Optional `openapi` field on the pair schema (validated only as a JSON object of at
+- [x] Store and serve the satellite OpenAPI document on the platform
+  - [x] Optional `openapi` field on the pair schema (validated only as a JSON object of at
         most 2 MB, stored opaquely, cleared when a re-pair omits it), JSONB column on the
         satellite model with a migration, and a read endpoint in
         `backend/luml/api/orbits/orbit_satellites.py`
-  - [ ] Tests: pair with and without the document, re-pair clearing it, the size cap, read
+  - [x] Tests: pair with and without the document, re-pair clearing it, the size cap, read
         endpoint, list/read payloads unchanged
 
 - [ ] Tag, secure and describe the satellite OpenAPI

@@ -1,4 +1,5 @@
 import datetime
+import json
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
@@ -13,6 +14,7 @@ from luml.infra.exceptions import (
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.satellite import (
     DEPLOY_FACETS,
+    MAX_OPENAPI_DOCUMENT_SIZE_BYTES,
     MONITORING_FACETS,
     MONITORING_FEATURES,
     Satellite,
@@ -27,7 +29,7 @@ from luml.schemas.satellite import (
     get_present_capabilities,
     normalize_capabilities,
 )
-from pydantic import HttpUrl
+from pydantic import HttpUrl, ValidationError
 
 handler = SatelliteHandler()
 
@@ -118,6 +120,53 @@ async def test_get_satellite(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.SATELLITE, Action.READ, orbit_id
     )
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite_openapi",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_openapi(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_satellite_openapi: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    document = {
+        "openapi": "3.1.0",
+        "paths": {"/health": {"get": {"summary": "Health"}}},
+    }
+    mock_get_satellite.return_value = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        paired=True,
+        capabilities={"deploy": {"version": 1}},
+        created_at=datetime.datetime.now(),
+    )
+    mock_get_satellite_openapi.return_value = document
+
+    result = await handler.get_satellite_openapi(
+        user_id, organization_id, orbit_id, satellite_id
+    )
+
+    assert result == document
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.READ, orbit_id
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_get_satellite_openapi.assert_awaited_once_with(satellite_id)
 
 
 @patch(
@@ -320,6 +369,10 @@ async def test_pair_satellite(
 
     base_url = "https://satellite.example.com"
     capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
+    openapi = {
+        "openapi": "3.1.0",
+        "paths": {"/health": {"get": {"summary": "Health"}}},
+    }
 
     unpaired_satellite = Satellite(
         id=satellite_id,
@@ -352,12 +405,86 @@ async def test_pair_satellite(
     satellite_pair_in = SatellitePairIn(
         base_url=HttpUrl(base_url),
         capabilities=capabilities,
+        openapi=openapi,
     )
     satellite = await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert satellite == expected
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_pair_satellite.assert_awaited_once()
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    assert pair_call.args[0].openapi == openapi
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_without_openapi_clears_document(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            base_url=HttpUrl("https://satellite.example.com"),
+            capabilities={"deploy": {"version": 1}},
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.openapi is None
+    assert "openapi" in paired.model_fields_set
+
+
+@pytest.mark.parametrize("openapi", [[], "not-an-object", 1, True])
+def test_pair_satellite_rejects_non_object_openapi(openapi: object) -> None:
+    with pytest.raises(ValidationError, match="openapi"):
+        SatellitePairIn.model_validate(
+            {
+                "base_url": "https://satellite.example.com",
+                "capabilities": {"deploy": {"version": 1}},
+                "openapi": openapi,
+            }
+        )
+
+
+def test_pair_satellite_accepts_openapi_at_size_cap() -> None:
+    empty_document_size = len(
+        json.dumps({"value": ""}, ensure_ascii=False, separators=(",", ":")).encode()
+    )
+    document = {"value": "x" * (MAX_OPENAPI_DOCUMENT_SIZE_BYTES - empty_document_size)}
+
+    satellite = SatellitePairIn(
+        base_url=HttpUrl("https://satellite.example.com"),
+        capabilities={"deploy": {"version": 1}},
+        openapi=document,
+    )
+
+    assert satellite.openapi == document
+
+
+def test_pair_satellite_rejects_openapi_over_size_cap() -> None:
+    document = {"value": "x" * MAX_OPENAPI_DOCUMENT_SIZE_BYTES}
+
+    with pytest.raises(ValidationError, match="2 MB"):
+        SatellitePairIn(
+            base_url=HttpUrl("https://satellite.example.com"),
+            capabilities={"deploy": {"version": 1}},
+            openapi=document,
+        )
 
 
 @patch(
@@ -440,6 +567,21 @@ def test_bare_monitoring_declaration_is_complete_in_satellite_payload() -> None:
     }
     assert satellite.present_capabilities == ["deploy", "monitoring"]
     assert satellite.model_dump()["capabilities"] == capabilities
+
+
+def test_satellite_payload_does_not_include_openapi() -> None:
+    satellite = Satellite.model_validate(
+        {
+            "id": UUID("0199c418-8be4-737c-a5e4-997685950d42"),
+            "orbit_id": UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+            "paired": True,
+            "capabilities": {"deploy": {"version": 1}},
+            "openapi": {"openapi": "3.1.0", "paths": {}},
+            "created_at": datetime.datetime.now(),
+        }
+    )
+
+    assert "openapi" not in satellite.model_dump()
 
 
 @patch(

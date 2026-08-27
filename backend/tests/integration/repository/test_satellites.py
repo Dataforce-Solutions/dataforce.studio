@@ -134,11 +134,16 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
     capabilities: dict[str, dict[str, Any]] = {
         "deploy": {"version": 1, "config": "value"}
     }
+    openapi = {
+        "openapi": "3.1.0",
+        "paths": {"/health": {"get": {"summary": "Health"}}},
+    }
 
     satellite_pair = SatellitePair(
         id=satellite.id,
         base_url=str(base_url),
         capabilities=capabilities,
+        openapi=openapi,
         paired=True,
         last_seen_at=datetime.now(UTC),
     )
@@ -151,6 +156,28 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
     assert paired_satellite.base_url == base_url
     assert paired_satellite.capabilities == capabilities
     assert paired_satellite.last_seen_at is not None
+    assert await repo.get_satellite_openapi(satellite.id) == openapi
+    assert "openapi" not in paired_satellite.model_dump()
+
+    listed_satellites = await repo.list_satellites(orbit.id)
+    fetched_satellite = await repo.get_satellite(satellite.id)
+
+    assert "openapi" not in listed_satellites[0].model_dump()
+    assert fetched_satellite is not None
+    assert "openapi" not in fetched_satellite.model_dump()
+
+    await repo.pair_satellite(
+        SatellitePair(
+            id=satellite.id,
+            base_url=str(base_url),
+            capabilities=capabilities,
+            openapi=None,
+            paired=True,
+            last_seen_at=datetime.now(UTC),
+        )
+    )
+
+    assert await repo.get_satellite_openapi(satellite.id) is None
 
 
 @pytest.mark.asyncio

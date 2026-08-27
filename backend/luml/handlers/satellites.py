@@ -108,6 +108,16 @@ class SatelliteHandler:
             raise NotFoundError("Satellite not found")
         return satellite
 
+    async def get_satellite_openapi(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        satellite_id: UUID,
+    ) -> dict[str, Any] | None:
+        await self.get_satellite(user_id, organization_id, orbit_id, satellite_id)
+        return await self.__sat_repo.get_satellite_openapi(satellite_id)
+
     async def regenerate_satellite_api_key(
         self,
         user_id: UUID,
@@ -225,6 +235,7 @@ class SatelliteHandler:
             base_url=str(satellite_in.base_url),
             capabilities=capabilities,
             slug=satellite_in.slug,
+            openapi=satellite_in.openapi,
             paired=True,
             last_seen_at=datetime.now(UTC),
         )

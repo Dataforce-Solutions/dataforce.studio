@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -11,12 +12,14 @@ from pydantic import (
     HttpUrl,
     ValidationError,
     computed_field,
+    field_validator,
 )
 
 from luml.schemas.base import BaseOrmConfig
 
 DEPLOY_CAPABILITY = "deploy"
 MONITORING_CAPABILITY = "monitoring"
+MAX_OPENAPI_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024
 RESERVED_CAPABILITIES = frozenset({DEPLOY_CAPABILITY, MONITORING_CAPABILITY})
 SUPPORTED_CAPABILITY_DECLARATION_VERSIONS: dict[str, frozenset[int]] = {
     DEPLOY_CAPABILITY: frozenset({1}),
@@ -268,6 +271,29 @@ class SatellitePairIn(BaseModel):
     base_url: HttpUrl
     capabilities: dict[str, dict[str, Any]]
     slug: str | None = None
+    openapi: dict[str, Any] | None = None
+
+    @field_validator("openapi")
+    @classmethod
+    def validate_openapi_size(
+        cls, openapi: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if openapi is None:
+            return None
+
+        try:
+            encoded = json.dumps(
+                openapi,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode()
+        except (TypeError, ValueError) as error:
+            raise ValueError("OpenAPI document must be a JSON object") from error
+
+        if len(encoded) > MAX_OPENAPI_DOCUMENT_SIZE_BYTES:
+            raise ValueError("OpenAPI document must not exceed 2 MB")
+        return openapi
 
 
 class SatellitePair(BaseModel, BaseOrmConfig):
@@ -275,6 +301,7 @@ class SatellitePair(BaseModel, BaseOrmConfig):
     base_url: str
     capabilities: dict[str, dict[str, Any]]
     slug: str | None = None
+    openapi: dict[str, Any] | None = None
     paired: bool = True
     last_seen_at: datetime
 
