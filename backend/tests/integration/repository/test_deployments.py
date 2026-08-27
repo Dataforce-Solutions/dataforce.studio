@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
@@ -329,6 +330,56 @@ async def test_update_deployment_with_only_status_set_keeps_the_rest(
     assert updated.inference_url == inference_url
     assert updated.schemas == {"openapi": "3.0.0"}
     assert updated.tags == ["routed"]
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_cannot_pull_a_deployment_out_of_deletion(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """A stale worker write must not cancel a deletion in progress.
+
+    Satellite recovery can wait half an hour before promoting a deployment to active;
+    a deletion requested during that wait must win, or the undeploy task removes the
+    container and then finds a status it refuses to delete.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, status=DeploymentStatus.DELETION_PENDING),
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=DeploymentStatus.ACTIVE),
+        )
+
+    # writes within the deletion family still land: the undeploy task reports
+    # its failure
+    updated = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            status=DeploymentStatus.DELETION_FAILED,
+            error_message={"reason": "x", "error": "y"},
+        ),
+    )
+    assert updated
+    assert updated.status == DeploymentStatus.DELETION_FAILED
 
 
 @pytest.mark.asyncio
