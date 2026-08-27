@@ -738,8 +738,8 @@ in the second
   - [x] Update `satellite/tests/monitoring/test_model_kind.py`, worker/metric tests and
         dashboard tests
 
-- [ ] Type and version satellite capability declarations on the platform
-  - [ ] Replace the closed enum in `backend/luml/schemas/satellite.py` with reserved names,
+- [x] Type and version satellite capability declarations on the platform
+  - [x] Replace the closed enum in `backend/luml/schemas/satellite.py` with reserved names,
         `custom.*` and facet-id validation (levels limited to `satellite` and `deployment`),
         per-version typed models for `deploy` and `monitoring`, normalization of reserved
         declarations at pair (defaults for `api_versions`, `facets` and `monitoring`
@@ -747,14 +747,14 @@ in the second
         envelope, and the computed `present_capabilities` list on the satellite read/list
         schema; the column annotation in `backend/luml/models/satellite.py` references the
         removed enum
-  - [ ] Supported declaration/API version sets for `deploy` and `monitoring` and the
+  - [x] Supported declaration/API version sets for `deploy` and `monitoring` and the
         `capability_version_unsupported` eligibility reason in
         `backend/luml/handlers/monitoring.py` and `backend/luml/schemas/monitoring.py`
-  - [ ] Pairing handler (`backend/luml/handlers/satellites.py`) rejects unknown unprefixed
+  - [x] Pairing handler (`backend/luml/handlers/satellites.py`) rejects unknown unprefixed
         names, malformed reserved declarations and invalid facet ids with 422 naming the
         offender; a reserved declaration at an unvalidatable `version` passes the generic
         envelope and counts as absent
-  - [ ] Backend tests for pairing, eligibility, normalization and version handling
+  - [x] Backend tests for pairing, eligibility, normalization and version handling
 
 - [ ] Enforce satellite capabilities on deployment create and update
   - [ ] Checks in `backend/luml/handlers/deployments.py`: on create, a present `deploy`

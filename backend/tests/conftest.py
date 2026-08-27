@@ -439,6 +439,7 @@ async def create_organization_with_user(
     assert secret is not None, (
         "BucketSecret should not be None in create_organization_with_user fixture"
     )
+    assert isinstance(secret, S3BucketSecret)
 
     return OrganizationFixtureData(
         engine=engine,
@@ -531,6 +532,7 @@ async def create_orbit(
     assert bucket_secret is not None, (
         "BucketSecret should not be None in create_orbit fixture"
     )
+    assert isinstance(bucket_secret, S3BucketSecret)
 
     orbit = await repo.create_orbit(
         organization.id,

@@ -607,16 +607,15 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         return ArtifactResource(self)
 
     @cached_property
-<<<<<<< HEAD
     def tracks(self) -> "TrackResource":
         """Tracks interface."""
         from luml_api.resources.tracks import TrackResource
 
         return TrackResource(self)
-=======
+
+    @cached_property
     def deployments(self) -> "DeploymentResource":
         """Deployments and their monitoring."""
         from luml_api.resources.deployments import DeploymentResource
 
         return DeploymentResource(self)
->>>>>>> a6b87dfe (fix: TTL on every table, and retire the metrics export nothing reads)

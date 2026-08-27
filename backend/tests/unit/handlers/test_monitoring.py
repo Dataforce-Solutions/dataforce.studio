@@ -1,4 +1,5 @@
 import time
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid7
 
@@ -12,7 +13,7 @@ from luml.schemas.monitoring import (
     MonitoringIneligibilityReason,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.schemas.satellite import SatelliteCapability
+from luml.schemas.satellite import get_present_capabilities
 
 SECRET = "unit-test-secret"
 ALGORITHM = "HS256"
@@ -33,12 +34,18 @@ def _deployment(mode: MonitoringMode = MonitoringMode.FULL) -> Mock:
 
 def _satellite(
     *,
-    capabilities: dict[SatelliteCapability, None] | None = None,
+    capabilities: dict[str, dict[str, Any]] | None = None,
     base_url: str | None = BASE_URL,
 ) -> Mock:
     if capabilities is None:
-        capabilities = {SatelliteCapability.MONITORING: None}
-    return Mock(capabilities=capabilities, base_url=base_url)
+        capabilities = {
+            "monitoring": {"version": 1, "api_versions": [1]},
+        }
+    return Mock(
+        capabilities=capabilities,
+        present_capabilities=get_present_capabilities(capabilities),
+        base_url=base_url,
+    )
 
 
 def _make_token(
@@ -139,6 +146,38 @@ async def test_eligibility_off_mode(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
+async def test_eligibility_future_non_off_mode_inherits_capability_rules(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    mock_get_deployment.return_value = Mock(
+        monitoring_mode="sampled",
+        satellite_id=SATELLITE_ID,
+    )
+    mock_get_satellite.return_value = _satellite()
+
+    result = await handler.get_eligibility(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+
+    assert result.eligible is True
+    assert result.reason is None
+
+
+@patch(
+    "luml.handlers.monitoring.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
 async def test_eligibility_missing_capability(
     mock_check_permissions: AsyncMock,
     mock_get_deployment: AsyncMock,
@@ -146,7 +185,7 @@ async def test_eligibility_missing_capability(
 ) -> None:
     mock_get_deployment.return_value = _deployment(MonitoringMode.FULL)
     mock_get_satellite.return_value = _satellite(
-        capabilities={SatelliteCapability.DEPLOY: None}
+        capabilities={"deploy": {"version": 1, "api_versions": [1]}}
     )
 
     result = await handler.get_eligibility(
@@ -155,6 +194,45 @@ async def test_eligibility_missing_capability(
 
     assert result.eligible is False
     assert result.reason == MonitoringIneligibilityReason.CAPABILITY_MISSING
+
+
+@patch(
+    "luml.handlers.monitoring.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        {"version": 7},
+        {"version": 1, "api_versions": [3]},
+    ],
+)
+@pytest.mark.asyncio
+async def test_eligibility_unsupported_capability_version(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    declaration: dict[str, Any],
+) -> None:
+    mock_get_deployment.return_value = _deployment(MonitoringMode.FULL)
+    mock_get_satellite.return_value = _satellite(
+        capabilities={"monitoring": declaration}
+    )
+
+    result = await handler.get_eligibility(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+
+    assert result.eligible is False
+    assert result.reason == MonitoringIneligibilityReason.CAPABILITY_VERSION_UNSUPPORTED
 
 
 # --- Mint ---------------------------------------------------------------------

@@ -5,7 +5,6 @@ from typing import Any
 import pytest
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.satellite import (
-    SatelliteCapability,
     SatelliteCreate,
     SatellitePair,
     SatelliteRegenerateApiKey,
@@ -132,8 +131,8 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
     satellite = await repo.create_satellite(satellite_data)
 
     base_url = "https://test-satellite.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"config": "value"}
+    capabilities: dict[str, dict[str, Any]] = {
+        "deploy": {"version": 1, "config": "value"}
     }
 
     satellite_pair = SatellitePair(

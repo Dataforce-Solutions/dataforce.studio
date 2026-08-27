@@ -24,7 +24,7 @@ from luml.schemas.monitoring import (
     MonitoringTokenIntrospectOut,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.schemas.satellite import Satellite, SatelliteCapability
+from luml.schemas.satellite import MONITORING_CAPABILITY, Satellite
 
 LAUNCH_TOKEN_EXPIRE_SECONDS = 300  # 5 minutes, short-lived launch credential
 
@@ -49,11 +49,13 @@ class MonitoringHandler:
     def _eligibility(
         deployment: Deployment, satellite: Satellite
     ) -> MonitoringIneligibilityReason | None:
-        if deployment.monitoring_mode != MonitoringMode.FULL:
+        if deployment.monitoring_mode == MonitoringMode.OFF:
             return MonitoringIneligibilityReason.MONITORING_OFF
-        if SatelliteCapability.MONITORING not in satellite.capabilities:
-            return MonitoringIneligibilityReason.CAPABILITY_MISSING
-        return None
+        if MONITORING_CAPABILITY in satellite.present_capabilities:
+            return None
+        if MONITORING_CAPABILITY in satellite.capabilities:
+            return MonitoringIneligibilityReason.CAPABILITY_VERSION_UNSUPPORTED
+        return MonitoringIneligibilityReason.CAPABILITY_MISSING
 
     async def _load_deployment_and_satellite(
         self,

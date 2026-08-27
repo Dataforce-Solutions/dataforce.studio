@@ -9,6 +9,7 @@ MONITORING_READ_SCOPE = "monitoring:read"
 class MonitoringIneligibilityReason(StrEnum):
     MONITORING_OFF = "monitoring_off"
     CAPABILITY_MISSING = "capability_missing"
+    CAPABILITY_VERSION_UNSUPPORTED = "capability_version_unsupported"
 
 
 class MonitoringEligibility(BaseModel):

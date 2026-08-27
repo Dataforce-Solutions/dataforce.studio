@@ -12,8 +12,10 @@ from luml.infra.exceptions import (
 )
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.satellite import (
+    DEPLOY_FACETS,
+    MONITORING_FACETS,
+    MONITORING_FEATURES,
     Satellite,
-    SatelliteCapability,
     SatelliteCreateIn,
     SatelliteCreateOut,
     SatellitePairIn,
@@ -22,7 +24,10 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
     SatelliteUpdateIn,
+    get_present_capabilities,
+    normalize_capabilities,
 )
+from pydantic import HttpUrl
 
 handler = SatelliteHandler()
 
@@ -45,9 +50,7 @@ async def test_list_satellites(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "test"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     expected = [
         Satellite(
@@ -99,7 +102,7 @@ async def test_get_satellite(
         description=None,
         base_url="https://url.com",
         paired=False,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -191,7 +194,7 @@ async def test_create_satellite(
         name="test-satellite",
         base_url="https://url.com",
         paired=False,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -316,9 +319,7 @@ async def test_pair_satellite(
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
     base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "kdhfkgjhdkfghk"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     unpaired_satellite = Satellite(
         id=satellite_id,
@@ -349,7 +350,7 @@ async def test_pair_satellite(
     mock_pair_satellite.return_value = expected
 
     satellite_pair_in = SatellitePairIn(
-        base_url=base_url,
+        base_url=HttpUrl(base_url),
         capabilities=capabilities,
     )
     satellite = await handler.pair_satellite(satellite_id, satellite_pair_in)
@@ -359,15 +360,344 @@ async def test_pair_satellite(
     mock_pair_satellite.assert_awaited_once()
 
 
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_normalizes_reserved_capabilities(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+    satellite_pair_in = SatellitePairIn(
+        base_url=HttpUrl("https://satellite.example.com"),
+        capabilities={
+            "deploy": {
+                "version": 1,
+                "supported_variants": ["pyfunc"],
+                "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
+                "extra_fields_form_spec": [],
+            },
+            "monitoring": {"version": 1, "ignored": "value"},
+        },
+    )
+
+    await handler.pair_satellite(satellite_id, satellite_pair_in)
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.capabilities == {
+        "deploy": {
+            "version": 1,
+            "api_versions": [1],
+            "facets": DEPLOY_FACETS,
+            "supported_variants": ["pyfunc"],
+            "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
+            "extra_fields_form_spec": [],
+        },
+        "monitoring": {
+            "version": 1,
+            "api_versions": [1],
+            "facets": MONITORING_FACETS,
+            "features": MONITORING_FEATURES,
+        },
+    }
+
+
+def test_bare_monitoring_declaration_is_complete_in_satellite_payload() -> None:
+    capabilities = normalize_capabilities(
+        {
+            "deploy": {
+                "version": 1,
+                "supported_variants": ["pyfunc"],
+                "supported_tags_combinations": None,
+                "extra_fields_form_spec": [],
+            },
+            "monitoring": {"version": 1},
+        }
+    )
+    satellite = Satellite(
+        id=UUID("0199c418-8be4-737c-a5e4-997685950d42"),
+        orbit_id=UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+        paired=True,
+        capabilities=capabilities,
+        created_at=datetime.datetime.now(),
+    )
+
+    assert capabilities["monitoring"] == {
+        "version": 1,
+        "api_versions": [1],
+        "facets": MONITORING_FACETS,
+        "features": MONITORING_FEATURES,
+    }
+    assert satellite.present_capabilities == ["deploy", "monitoring"]
+    assert satellite.model_dump()["capabilities"] == capabilities
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_stores_custom_capability_verbatim(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    declaration = {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["deployment:custom.gpu_monitoring"],
+        "vendor_setting": {"sample_rate": 0.5},
+    }
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            base_url=HttpUrl("https://satellite.example.com"),
+            capabilities={"custom.gpu_monitoring": declaration},
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.capabilities == {"custom.gpu_monitoring": declaration}
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize("capability", ["monitorng", "gpu_monitoring"])
+@pytest.mark.asyncio
+async def test_pair_satellite_rejects_unknown_unprefixed_capability(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+    capability: str,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    satellite_pair_in = SatellitePairIn(
+        base_url=HttpUrl("https://satellite.example.com"),
+        capabilities={capability: {"version": 1}},
+    )
+
+    with pytest.raises(ApplicationError, match=capability) as error:
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
+
+    assert error.value.status_code == 422
+    mock_get_satellite.assert_not_awaited()
+    mock_pair_satellite.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize(
+    "facet",
+    [
+        "deployment:monitoring",
+        "deployment:gpu",
+        "cluster:custom.gpu_monitoring",
+    ],
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_rejects_invalid_custom_facet(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+    facet: str,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    satellite_pair_in = SatellitePairIn(
+        base_url=HttpUrl("https://satellite.example.com"),
+        capabilities={
+            "custom.gpu_monitoring": {
+                "version": 1,
+                "facets": [facet],
+            }
+        },
+    )
+
+    with pytest.raises(ApplicationError, match=facet) as error:
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
+
+    assert error.value.status_code == 422
+    mock_get_satellite.assert_not_awaited()
+    mock_pair_satellite.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize(
+    ("capability", "declaration"),
+    [
+        ("monitoring", {"version": 1, "features": "runtime"}),
+        ("monitoring", {"version": 1, "facets": ["satellite:future"]}),
+        ("deploy", {"version": 1, "supported_variants": "pyfunc"}),
+    ],
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_rejects_malformed_reserved_capability(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+    capability: str,
+    declaration: dict[str, Any],
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    satellite_pair_in = SatellitePairIn(
+        base_url=HttpUrl("https://satellite.example.com"),
+        capabilities={capability: declaration},
+    )
+
+    with pytest.raises(ApplicationError, match=capability) as error:
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
+
+    assert error.value.status_code == 422
+    mock_get_satellite.assert_not_awaited()
+    mock_pair_satellite.assert_not_awaited()
+
+
+def test_present_capabilities_respects_reserved_versions() -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    capabilities: dict[str, dict[str, Any]] = {
+        "deploy": {"version": 1, "api_versions": [1]},
+        "monitoring": {"version": 1, "api_versions": [3]},
+        "custom.gpu_monitoring": {"version": 7},
+    }
+    satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        paired=True,
+        capabilities=capabilities,
+        created_at=datetime.datetime.now(),
+    )
+
+    expected = [
+        "deploy",
+        "custom.gpu_monitoring",
+    ]
+    assert get_present_capabilities(capabilities) == expected
+    assert satellite.present_capabilities == expected
+    assert satellite.model_dump()["present_capabilities"] == expected
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_stores_unsupported_reserved_version(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    declaration = {
+        "version": 7,
+        "facets": ["satellite:future"],
+        "future_field": {"value": True},
+    }
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            base_url=HttpUrl("https://satellite.example.com"),
+            capabilities={"monitoring": declaration},
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.capabilities == {"monitoring": declaration}
+    assert get_present_capabilities(paired.capabilities) == []
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_stores_unsupported_api_version(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            base_url=HttpUrl("https://satellite.example.com"),
+            capabilities={
+                "monitoring": {"version": 1, "api_versions": [3]},
+            },
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.capabilities == {
+        "monitoring": {
+            "version": 1,
+            "api_versions": [3],
+            "facets": MONITORING_FACETS,
+            "features": MONITORING_FEATURES,
+        }
+    }
+    assert get_present_capabilities(paired.capabilities) == []
+
+
 @pytest.mark.asyncio
 async def test_pair_satellite_empty_capabilities() -> None:
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
     base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {}
+    capabilities: dict[str, dict[str, Any]] = {}
 
     satellite_pair_in = SatellitePairIn(
-        base_url=base_url,
+        base_url=HttpUrl(base_url),
         capabilities=capabilities,
     )
 
@@ -388,14 +718,12 @@ async def test_pair_satellite_satellite_not_found(
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
     base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "kdhfkgjhdkfghk"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     mock_get_satellite.return_value = None
 
     satellite_pair_in = SatellitePairIn(
-        base_url=base_url,
+        base_url=HttpUrl(base_url),
         capabilities=capabilities,
     )
 
@@ -423,9 +751,7 @@ async def test_pair_satellite_update_error(
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
     base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "kdhfkgjhdkfghk"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     unpaired_satellite = Satellite(
         id=satellite_id,
@@ -444,7 +770,7 @@ async def test_pair_satellite_update_error(
     mock_pair_satellite.return_value = None
 
     satellite_pair_in = SatellitePairIn(
-        base_url=base_url,
+        base_url=HttpUrl(base_url),
         capabilities=capabilities,
     )
 
@@ -621,7 +947,7 @@ async def test_regenerate_satellite_api_key(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -761,7 +1087,7 @@ async def test_update_satellite(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -773,7 +1099,7 @@ async def test_update_satellite(
         name="updated-name",
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=datetime.datetime.now(),
         last_seen_at=None,
@@ -914,7 +1240,7 @@ async def test_update_satellite_update_failed(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -961,7 +1287,7 @@ async def test_delete_satellite(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -1009,7 +1335,7 @@ async def test_delete_satellite_with_deployments(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,
@@ -1137,9 +1463,7 @@ async def test_list_satellites_orbit_member_permissions(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "test"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     expected = [
         Satellite(
@@ -1196,9 +1520,7 @@ async def test_list_satellites_organization_admin_permissions(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "test"}
-    }
+    capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
 
     expected = [
         Satellite(
@@ -1244,7 +1566,7 @@ async def test_authenticate_api_key(
         description=None,
         base_url="https://url.com",
         paired=True,
-        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
         updated_at=None,
         last_seen_at=None,

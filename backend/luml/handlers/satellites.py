@@ -20,6 +20,7 @@ from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.satellite import (
+    CapabilityValidationError,
     Satellite,
     SatelliteCreate,
     SatelliteCreateIn,
@@ -31,6 +32,7 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteUpdate,
     SatelliteUpdateIn,
+    normalize_capabilities,
 )
 from luml.settings import config
 
@@ -211,10 +213,17 @@ class SatelliteHandler:
         if not satellite_in.capabilities:
             raise ApplicationError("Invalid capabilities", status.HTTP_400_BAD_REQUEST)
 
+        try:
+            capabilities = normalize_capabilities(satellite_in.capabilities)
+        except CapabilityValidationError as error:
+            raise ApplicationError(
+                str(error), status.HTTP_422_UNPROCESSABLE_CONTENT
+            ) from error
+
         satellite_pair = SatellitePair(
             id=satellite_id,
             base_url=str(satellite_in.base_url),
-            capabilities=satellite_in.capabilities,
+            capabilities=capabilities,
             slug=satellite_in.slug,
             paired=True,
             last_seen_at=datetime.now(UTC),
