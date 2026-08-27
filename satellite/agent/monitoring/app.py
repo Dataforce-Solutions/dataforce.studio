@@ -84,9 +84,13 @@ def _unavailable_response() -> HTMLResponse:
 
 
 def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
-    router = APIRouter(prefix=MONITORING_PATH_PREFIX, tags=["Monitoring Dashboard"])
+    router = APIRouter(prefix=MONITORING_PATH_PREFIX)
 
-    @router.get("/launch")
+    @router.get(
+        "/launch",
+        summary="Launch the monitoring dashboard",
+        description="Exchange a single-use token for a deployment-scoped dashboard session.",
+    )
     async def launch(
         request: Request, token: str | None = None, theme: str | None = None
     ) -> Response:
@@ -121,7 +125,12 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
         )
         return response
 
-    @router.get("/api/session", response_model=MonitoringSessionInfo)
+    @router.get(
+        "/api/session",
+        response_model=MonitoringSessionInfo,
+        summary="Get the dashboard session",
+        description="Return the deployment and scope associated with the dashboard session.",
+    )
     async def session_info(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
     ) -> MonitoringSessionInfo:

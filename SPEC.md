@@ -773,16 +773,16 @@ in the second
   - [x] Tests: pair with and without the document, re-pair clearing it, the size cap, read
         endpoint, list/read payloads unchanged
 
-- [ ] Tag, secure and describe the satellite OpenAPI
-  - [ ] Tag every machine route with its facet id (`satellite/agent/agent_api.py`,
+- [x] Tag, secure and describe the satellite OpenAPI
+  - [x] Tag every machine route with its facet id (`satellite/agent/agent_api.py`,
         `satellite/agent/monitoring/api.py`); the inference-access check under `satellite`;
         dashboard routes (`satellite/agent/monitoring/app.py`, the query router) stay untagged
         and are excluded from the pushed document
-  - [ ] Per-operation security in the schema builder (`satellite/agent/agent_api.py`): bearer,
+  - [x] Per-operation security in the schema builder (`satellite/agent/agent_api.py`): bearer,
         or none for the inference-access check
-  - [ ] Summary and description on every operation
-  - [ ] Bearer requirement on the satellite's own OpenAPI and docs routes
-  - [ ] Tests for facet tags, security per operation, descriptions and docs auth
+  - [x] Summary and description on every operation
+  - [x] Bearer requirement on the satellite's own OpenAPI and docs routes
+  - [x] Tests for facet tags, security per operation, descriptions and docs auth
 
 - [ ] Advertise honest capabilities and push the static OpenAPI
   - [ ] `SatelliteManager.get_capabilities` in `satellite/agent/agent_manager.py` derived from

@@ -39,6 +39,7 @@ from agent.schemas.monitoring_query import (
 )
 
 MONITORING_API_PREFIX = "/monitoring/api"
+MONITORING_FACET = "deployment:monitoring"
 
 
 def get_query_service(request: Request) -> MonitoringQueryService:
@@ -115,16 +116,26 @@ def _dimensions(
 
 
 def build_query_router() -> APIRouter:
-    router = APIRouter(prefix=MONITORING_API_PREFIX, tags=["Monitoring Dashboard"])
+    router = APIRouter(prefix=MONITORING_API_PREFIX)
 
-    @router.get("/header", response_model=HeaderResponse)
+    @router.get(
+        "/header",
+        response_model=HeaderResponse,
+        summary="Get the dashboard header",
+        description="Return deployment identity, model kind, and reference-profile state.",
+    )
     async def header(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> HeaderResponse:
         return await service.header(session.deployment_id)
 
-    @router.get("/overview", response_model=OverviewResponse)
+    @router.get(
+        "/overview",
+        response_model=OverviewResponse,
+        summary="Get the dashboard overview",
+        description="Return a summary of monitoring results for the requested window.",
+    )
     async def overview(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -132,7 +143,12 @@ def build_query_router() -> APIRouter:
     ) -> OverviewResponse:
         return await service.overview(session.deployment_id, dims)
 
-    @router.get("/runtime", response_model=RuntimeResponse)
+    @router.get(
+        "/runtime",
+        response_model=RuntimeResponse,
+        summary="Get dashboard runtime metrics",
+        description="Return request volume, latency, and error metrics for the requested window.",
+    )
     async def runtime(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -140,7 +156,12 @@ def build_query_router() -> APIRouter:
     ) -> RuntimeResponse:
         return await service.runtime(session.deployment_id, dims)
 
-    @router.get("/data-quality", response_model=DataQualityResponse)
+    @router.get(
+        "/data-quality",
+        response_model=DataQualityResponse,
+        summary="Get dashboard data-quality metrics",
+        description="Return input data-quality checks for the requested window.",
+    )
     async def data_quality(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -148,7 +169,12 @@ def build_query_router() -> APIRouter:
     ) -> DataQualityResponse:
         return await service.data_quality(session.deployment_id, dims)
 
-    @router.get("/feature-drift", response_model=FeatureDriftResponse)
+    @router.get(
+        "/feature-drift",
+        response_model=FeatureDriftResponse,
+        summary="Get dashboard feature-drift metrics",
+        description="Return feature and multivariate drift results for the requested window.",
+    )
     async def feature_drift(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -156,7 +182,12 @@ def build_query_router() -> APIRouter:
     ) -> FeatureDriftResponse:
         return await service.feature_drift(session.deployment_id, dims)
 
-    @router.get("/output-drift", response_model=OutputDriftResponse)
+    @router.get(
+        "/output-drift",
+        response_model=OutputDriftResponse,
+        summary="Get dashboard output-drift metrics",
+        description="Return model-output drift results for the requested window.",
+    )
     async def output_drift(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -164,7 +195,12 @@ def build_query_router() -> APIRouter:
     ) -> OutputDriftResponse:
         return await service.output_drift(session.deployment_id, dims)
 
-    @router.get("/reference-profile", response_model=ReferenceProfileResponse)
+    @router.get(
+        "/reference-profile",
+        response_model=ReferenceProfileResponse,
+        summary="Get the dashboard reference profile",
+        description="Return the reference-profile summary used by monitoring metrics.",
+    )
     async def reference_profile(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -172,7 +208,12 @@ def build_query_router() -> APIRouter:
     ) -> ReferenceProfileResponse:
         return await service.reference_profile(session.deployment_id, dims)
 
-    @router.get("/alerts", response_model=AlertsResponse)
+    @router.get(
+        "/alerts",
+        response_model=AlertsResponse,
+        summary="List dashboard monitoring alerts",
+        description="Return monitoring alerts for the requested window.",
+    )
     async def alerts(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -180,25 +221,38 @@ def build_query_router() -> APIRouter:
     ) -> AlertsResponse:
         return await service.alerts(session.deployment_id, dims)
 
-    @router.post("/alerts/acknowledge", response_model=AlertsResponse)
+    @router.post(
+        "/alerts/acknowledge",
+        response_model=AlertsResponse,
+        summary="Acknowledge a monitoring alert",
+        description="Mark an alert as seen and return the updated alerts for the requested window.",
+    )
     async def acknowledge_alert(
         body: AcknowledgeAlertRequest,
         session: MonitoringSession = Depends(require_monitoring_write),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> AlertsResponse:
-        """Mark an alert as seen. The metric comes from the body: its key contains ':'."""
         return await service.acknowledge_alert(session.deployment_id, body.metric, dims)
 
-    @router.get("/worker", response_model=WorkerHealthResponse)
+    @router.get(
+        "/worker",
+        response_model=WorkerHealthResponse,
+        summary="Get dashboard monitoring worker health",
+        description="Report whether monitoring is processing this deployment on schedule.",
+    )
     async def worker_health(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> WorkerHealthResponse:
-        """Whether monitoring itself is keeping up — not a metric about the model."""
         return await service.worker_health(session.deployment_id)
 
-    @router.get("/traces", response_model=TracesResponse)
+    @router.get(
+        "/traces",
+        response_model=TracesResponse,
+        summary="List dashboard inference traces",
+        description="Return a page of inference traces for the requested window.",
+    )
     async def traces(
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -212,7 +266,12 @@ def build_query_router() -> APIRouter:
             session.deployment_id, dims, limit=limit, offset=offset, sort=sort, order=order
         )
 
-    @router.get("/traces/{event_id}", response_model=TraceDetailResponse)
+    @router.get(
+        "/traces/{event_id}",
+        response_model=TraceDetailResponse,
+        summary="Get a dashboard inference trace",
+        description="Return one inference trace from the requested window.",
+    )
     async def trace_detail(
         event_id: str,
         session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
@@ -243,21 +302,31 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     Read-only by construction: acknowledging alerts stays on the session surface — the
     machines watch, a person decides.
     """
-    router = APIRouter(prefix="/deployments/{deployment_id}/monitoring", tags=["API"])
+    router = APIRouter(prefix="/deployments/{deployment_id}/monitoring", tags=[MONITORING_FACET])
 
     def _hosted_deployment(deployment_id: UUID) -> UUID:
         if not hosted(deployment_id):
             raise HTTPException(status_code=404, detail="Deployment not found on this Satellite")
         return deployment_id
 
-    @router.get("/header", response_model=HeaderResponse)
+    @router.get(
+        "/header",
+        response_model=HeaderResponse,
+        summary="Get the monitoring header",
+        description="Return deployment identity, model kind, and reference-profile state.",
+    )
     async def header(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> HeaderResponse:
         return await service.header(deployment_id)
 
-    @router.get("/overview", response_model=OverviewResponse)
+    @router.get(
+        "/overview",
+        response_model=OverviewResponse,
+        summary="Get the monitoring overview",
+        description="Return a summary of monitoring results for the requested window.",
+    )
     async def overview(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -265,7 +334,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> OverviewResponse:
         return await service.overview(deployment_id, dims)
 
-    @router.get("/runtime", response_model=RuntimeResponse)
+    @router.get(
+        "/runtime",
+        response_model=RuntimeResponse,
+        summary="Get runtime metrics",
+        description="Return request volume, latency, and error metrics for the requested window.",
+    )
     async def runtime(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -273,7 +347,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> RuntimeResponse:
         return await service.runtime(deployment_id, dims)
 
-    @router.get("/data-quality", response_model=DataQualityResponse)
+    @router.get(
+        "/data-quality",
+        response_model=DataQualityResponse,
+        summary="Get data-quality metrics",
+        description="Return input data-quality checks for the requested window.",
+    )
     async def data_quality(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -281,7 +360,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> DataQualityResponse:
         return await service.data_quality(deployment_id, dims)
 
-    @router.get("/feature-drift", response_model=FeatureDriftResponse)
+    @router.get(
+        "/feature-drift",
+        response_model=FeatureDriftResponse,
+        summary="Get feature-drift metrics",
+        description="Return feature and multivariate drift results for the requested window.",
+    )
     async def feature_drift(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -289,7 +373,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> FeatureDriftResponse:
         return await service.feature_drift(deployment_id, dims)
 
-    @router.get("/output-drift", response_model=OutputDriftResponse)
+    @router.get(
+        "/output-drift",
+        response_model=OutputDriftResponse,
+        summary="Get output-drift metrics",
+        description="Return model-output drift results for the requested window.",
+    )
     async def output_drift(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -297,7 +386,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> OutputDriftResponse:
         return await service.output_drift(deployment_id, dims)
 
-    @router.get("/reference-profile", response_model=ReferenceProfileResponse)
+    @router.get(
+        "/reference-profile",
+        response_model=ReferenceProfileResponse,
+        summary="Get the reference profile",
+        description="Return the reference-profile summary used by monitoring metrics.",
+    )
     async def reference_profile(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -305,7 +399,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> ReferenceProfileResponse:
         return await service.reference_profile(deployment_id, dims)
 
-    @router.get("/alerts", response_model=AlertsResponse)
+    @router.get(
+        "/alerts",
+        response_model=AlertsResponse,
+        summary="List monitoring alerts",
+        description="Return monitoring alerts for the requested window.",
+    )
     async def alerts(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -313,7 +412,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     ) -> AlertsResponse:
         return await service.alerts(deployment_id, dims)
 
-    @router.get("/traces", response_model=TracesResponse)
+    @router.get(
+        "/traces",
+        response_model=TracesResponse,
+        summary="List inference traces",
+        description="Return a page of inference traces for the requested window.",
+    )
     async def traces(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
@@ -327,7 +431,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
             deployment_id, dims, limit=limit, offset=offset, sort=sort, order=order
         )
 
-    @router.get("/traces/{event_id}", response_model=TraceDetailResponse)
+    @router.get(
+        "/traces/{event_id}",
+        response_model=TraceDetailResponse,
+        summary="Get an inference trace",
+        description="Return one inference trace from the requested window.",
+    )
     async def trace_detail(
         event_id: str,
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
@@ -339,7 +448,12 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
             raise HTTPException(status_code=404, detail="trace not found in this window")
         return detail
 
-    @router.get("/worker", response_model=WorkerHealthResponse)
+    @router.get(
+        "/worker",
+        response_model=WorkerHealthResponse,
+        summary="Get monitoring worker health",
+        description="Report whether monitoring is processing this deployment on schedule.",
+    )
     async def worker(
         deployment_id: UUID = Depends(_hosted_deployment),  # noqa: B008
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008

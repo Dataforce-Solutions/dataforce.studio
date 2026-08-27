@@ -5,14 +5,16 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
-from agent.monitoring.api import build_machine_router
+from agent.monitoring.api import MONITORING_FACET, build_machine_router
 from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.monitoring.health import HealthSnapshot, worker_health
 from agent.schemas import (
@@ -29,6 +31,10 @@ openapi_handler = OpenAPIHandler(ms_handler)
 
 # TODO fix frontend env
 
+SATELLITE_FACET = "satellite"
+DEPLOYMENT_FACET = "deployment"
+INFERENCE_ACCESS_PATH = "/satellites/deployments/inference-access"
+
 
 class OpenAPISchemaBuilder:
     @staticmethod
@@ -38,38 +44,35 @@ class OpenAPISchemaBuilder:
             version="1.0.0",
             description="API for managing model deployments and inference",
             routes=app.routes,
-            # The two surfaces of the Agent, one credential each.
             tags=[
                 {
-                    "name": "API",
-                    "description": (
-                        "The machine surface: deployments, inference, and monitoring as "
-                        "a facet of the deployment — bearer LUML API key on every call."
-                    ),
+                    "name": SATELLITE_FACET,
+                    "description": "Operations about the Satellite itself.",
                 },
                 {
-                    "name": "Monitoring Dashboard",
-                    "description": (
-                        "The browser surface serving the embedded dashboard: single-use "
-                        "launch tokens exchanged for per-deployment cookie sessions."
-                    ),
+                    "name": DEPLOYMENT_FACET,
+                    "description": "Operations for deployments hosted by the Satellite.",
+                },
+                {
+                    "name": MONITORING_FACET,
+                    "description": "Monitoring operations for one hosted deployment.",
                 },
             ],
         )
 
     @staticmethod
     def add_security_to_schema(openapi_schema: dict[str, Any]) -> None:
-        for path_data in openapi_schema.get("paths", {}).values():
+        for path, path_data in openapi_schema.get("paths", {}).items():
             for method_data in path_data.values():
-                if isinstance(method_data, dict):
-                    method_data["security"] = [{"HTTPBearer": []}]
+                if not isinstance(method_data, dict) or not method_data.get("tags"):
+                    continue
+                method_data["security"] = (
+                    [] if path == INFERENCE_ACCESS_PATH else [{"HTTPBearer": []}]
+                )
 
-        if "components" not in openapi_schema:
-            openapi_schema["components"] = {}
-
-        openapi_schema["components"]["securitySchemes"] = {
-            "HTTPBearer": {"type": "http", "scheme": "bearer"}
-        }
+        components = openapi_schema.setdefault("components", {})
+        security_schemes = components.setdefault("securitySchemes", {})
+        security_schemes["HTTPBearer"] = {"type": "http", "scheme": "bearer"}
 
 
 def _deployment_reference_profile(deployment_id: UUID) -> dict[str, Any] | None:
@@ -121,7 +124,7 @@ def create_agent_app(
     authorize_access: Callable[[str], Awaitable[bool]],
     introspect_monitoring_token: IntrospectFn,
 ) -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
     security = HTTPBearer()
 
     # In full mode the dashboard Query API reads live telemetry from GreptimeDB; otherwise
@@ -165,9 +168,11 @@ def create_agent_app(
             raise HTTPException(status_code=502, detail="Authorization failed") from error
 
     @app.post(
-        "/satellites/deployments/inference-access",
+        INFERENCE_ACCESS_PATH,
         response_model=InferenceAccessOut,
-        tags=["API"],
+        tags=[SATELLITE_FACET],
+        summary="Check inference access",
+        description="Check whether the supplied API key may call inference on this Satellite.",
     )
     async def authorize_inference_access(body: InferenceAccessIn) -> InferenceAccessOut:  # noqa: D401
         try:
@@ -178,11 +183,24 @@ def create_agent_app(
                 status_code=502, detail=f"Authorization check failed: {str(err)}"
             ) from err
 
-    @app.get("/healthz", response_model=Healthz, tags=["API"])
-    def healthz() -> dict:
+    @app.get(
+        "/healthz",
+        response_model=Healthz,
+        tags=[SATELLITE_FACET],
+        summary="Check Satellite health",
+        description="Report whether the Satellite Agent is running.",
+        dependencies=[Depends(verify_token)],
+    )
+    def healthz() -> dict[str, str]:
         return {"status": "healthy"}
 
-    @app.get("/deployments", response_model=list[DeploymentInfo], tags=["API"])
+    @app.get(
+        "/deployments",
+        response_model=list[DeploymentInfo],
+        tags=[DEPLOYMENT_FACET],
+        summary="List hosted deployments",
+        description="List active deployments hosted by this Satellite and their monitoring state.",
+    )
     async def deployments(authorized: bool = Depends(verify_token)) -> list[dict]:  # noqa: B008
         local_deployments = await ms_handler.list_active_deployments()
         return [
@@ -207,7 +225,13 @@ def create_agent_app(
         dependencies=[Depends(verify_token)],
     )
 
-    @app.post("/deployments/{deployment_id}/compute", response_model=dict, tags=["API"])
+    @app.post(
+        "/deployments/{deployment_id}/compute",
+        response_model=dict,
+        tags=[DEPLOYMENT_FACET],
+        summary="Run deployment inference",
+        description="Run inference using the model served by the selected deployment.",
+    )
     async def compute(
         deployment_id: str,
         body: dict,
@@ -223,6 +247,28 @@ def create_agent_app(
             raise HTTPException(status_code=error.status_code, detail=error.detail) from error
         except Exception as error:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(error)}") from error
+
+    @app.get(
+        "/openapi.json",
+        include_in_schema=False,
+        dependencies=[Depends(verify_token)],
+    )
+    async def openapi_json() -> JSONResponse:
+        return JSONResponse(app.openapi())
+
+    @app.get("/docs", include_in_schema=False, dependencies=[Depends(verify_token)])
+    async def swagger_ui() -> HTMLResponse:
+        return get_swagger_ui_html(
+            openapi_url="/openapi.json",
+            title="Satellite Agent API - Swagger UI",
+        )
+
+    @app.get("/redoc", include_in_schema=False, dependencies=[Depends(verify_token)])
+    async def redoc() -> HTMLResponse:
+        return get_redoc_html(
+            openapi_url="/openapi.json",
+            title="Satellite Agent API - ReDoc",
+        )
 
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema:
