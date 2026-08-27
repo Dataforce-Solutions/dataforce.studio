@@ -812,19 +812,19 @@ in the second
         unmatched path outside the dashboard's static mount; other 404s unchanged
   - [x] Tests in `satellite/tests/monitoring/test_machine_api.py`
 
-- [ ] Gate the deployment forms on present capabilities and show the monitoring hint
-  - [ ] Mirror the capability interfaces and `present_capabilities` in
+- [x] Gate the deployment forms on present capabilities and show the monitoring hint
+  - [x] Mirror the capability interfaces and `present_capabilities` in
         `frontend/src/lib/api/satellites/interfaces.ts` by hand from the backend models
-  - [ ] In `frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.vue`
+  - [x] In `frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.vue`
         and `frontend/src/components/deployments/edit/DeploymentsEditor.vue`: offer only
         satellites whose `present_capabilities` includes `deploy`, and gate the monitoring
         toggle on `monitoring` in that list — never on raw `capabilities`
-  - [ ] Hint next to the toggle in both components, listing the universal sections plus the
+  - [x] Hint next to the toggle in both components, listing the universal sections plus the
         satellite's `features` when the artifact carries a supported `luml.ai::tabular_monitoring`
         tag, derived from artifact producer tags
-  - [ ] Add `capability_version_unsupported` to `frontend/src/lib/api/monitoring/interfaces.ts`
+  - [x] Add `capability_version_unsupported` to `frontend/src/lib/api/monitoring/interfaces.ts`
         and render it in `frontend/src/pages/DeploymentMonitoringPage.vue`
-  - [ ] Component tests for satellite filtering, toggle gating, the four tag cases plus the
+  - [x] Component tests for satellite filtering, toggle gating, the four tag cases plus the
         reduced-`features` case, and the new reason
 
 - [ ] Add the SDK satellite handle with the generic operations layer

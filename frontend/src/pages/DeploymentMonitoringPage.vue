@@ -56,7 +56,7 @@
     <iframe
       v-else-if="store.status === 'active' && store.launchUrl"
       ref="frameRef"
-      :src="themedLaunchUrl"
+      :src="themedLaunchUrl ?? undefined"
       credentialless
       class="monitoring-frame"
       title="Deployment monitoring dashboard"
@@ -110,6 +110,9 @@ const breadcrumbs = computed(() => [
 const disabledDescription = computed(() => {
   if (store.reason === MonitoringIneligibilityReason.capability_missing) {
     return 'The Satellite hosting this deployment does not advertise the monitoring capability.'
+  }
+  if (store.reason === MonitoringIneligibilityReason.capability_version_unsupported) {
+    return 'The Satellite monitoring capability version is not supported by this Platform.'
   }
   return 'Monitoring is turned off for this deployment. Enable monitoring to view the dashboard.'
 })

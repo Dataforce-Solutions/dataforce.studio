@@ -1,6 +1,7 @@
 export enum MonitoringIneligibilityReason {
   monitoring_off = 'monitoring_off',
   capability_missing = 'capability_missing',
+  capability_version_unsupported = 'capability_version_unsupported',
 }
 
 export interface MonitoringEligibility {

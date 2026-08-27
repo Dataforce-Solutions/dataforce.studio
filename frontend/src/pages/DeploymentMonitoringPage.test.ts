@@ -106,6 +106,17 @@ describe('DeploymentMonitoringPage', () => {
     expect(wrapper.find('[data-testid="monitoring-iframe"]').exists()).toBe(false)
   })
 
+  it('explains when the Satellite capability version is unsupported', async () => {
+    store.status = 'disabled'
+    store.reason = MonitoringIneligibilityReason.capability_version_unsupported
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="monitoring-disabled"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('capability version is not supported')
+    expect(wrapper.find('[data-testid="monitoring-iframe"]').exists()).toBe(false)
+  })
+
   it('shows the unavailable state with a retry that re-launches, and no iframe', async () => {
     store.status = 'unavailable'
     const wrapper = mountPage()

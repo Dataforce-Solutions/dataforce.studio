@@ -1,22 +1,79 @@
 import { mount } from '@vue/test-utils'
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
+import { MonitoringFeature } from '@/lib/api/satellites/interfaces'
 import DeploymentsFormSatelliteSettings from './DeploymentsFormSatelliteSettings.vue'
+
+const TABULAR_KIND_TAG = 'luml.ai::kind_tabular:v1'
+const LLM_KIND_TAG = 'luml.ai::kind_llm:v1'
+const TABULAR_MONITORING_TAG = 'luml.ai::tabular_monitoring:v1'
+
+const DEPLOY_CAPABILITY = {
+  version: 1,
+  api_versions: [1],
+  facets: ['satellite', 'deployment'],
+  supported_variants: ['pyfunc'],
+  supported_tags_combinations: null,
+  extra_fields_form_spec: [],
+}
+
+const ALL_MONITORING_FEATURES = Object.values(MonitoringFeature)
+
+function monitoringCapability(features = ALL_MONITORING_FEATURES) {
+  return {
+    version: 1,
+    api_versions: [1],
+    facets: ['deployment:monitoring'],
+    features,
+  }
+}
 
 const MONITORED = {
   id: 'sat-monitored',
   name: 'Monitored satellite',
-  capabilities: { deploy: { supported_variants: ['pyfunc'] }, monitoring: { version: 1 } },
+  present_capabilities: ['deploy', 'monitoring'],
+  capabilities: {
+    deploy: DEPLOY_CAPABILITY,
+    monitoring: monitoringCapability(),
+  },
 }
+
 const PLAIN = {
   id: 'sat-plain',
   name: 'Plain satellite',
-  capabilities: { deploy: { supported_variants: ['pyfunc'] } },
+  present_capabilities: ['deploy'],
+  capabilities: {
+    deploy: DEPLOY_CAPABILITY,
+    monitoring: { ...monitoringCapability(), api_versions: [9] },
+  },
+}
+
+const RAW_DEPLOY_ONLY = {
+  id: 'sat-raw-deploy',
+  name: 'Unsupported deploy satellite',
+  present_capabilities: ['monitoring'],
+  capabilities: {
+    deploy: { ...DEPLOY_CAPABILITY, api_versions: [9] },
+    monitoring: monitoringCapability(),
+  },
+}
+
+const REDUCED_MONITORING = {
+  id: 'sat-reduced',
+  name: 'Reduced monitoring satellite',
+  present_capabilities: ['deploy', 'monitoring'],
+  capabilities: {
+    deploy: DEPLOY_CAPABILITY,
+    monitoring: monitoringCapability(
+      ALL_MONITORING_FEATURES.filter((feature) => feature !== MonitoringFeature.output_drift),
+    ),
+  },
 }
 
 const satellitesStore = reactive({
-  satellitesList: [MONITORED, PLAIN],
-  getSatellites: vi.fn(),
+  satellitesList: [MONITORED, PLAIN, RAW_DEPLOY_ONLY],
+  loadSatellites: vi.fn(async () => [MONITORED, PLAIN, RAW_DEPLOY_ONLY]),
+  setList: vi.fn(),
 })
 
 vi.mock('vue-router', () => ({
@@ -32,9 +89,13 @@ vi.mock('primevue', async (importOriginal) => {
   return { ...actual, useToast: () => ({ add: vi.fn() }) }
 })
 
-const SELECTED_MODEL = {
-  manifest: { variant: 'pyfunc', producer_tags: [] },
-} as never
+const SELECTED_MODEL = modelWithTags([])
+
+function modelWithTags(producerTags: string[]) {
+  return {
+    manifest: { variant: 'pyfunc', producer_tags: producerTags },
+  } as never
+}
 
 function mountForm(props: Record<string, unknown> = {}) {
   return mount(DeploymentsFormSatelliteSettings, {
@@ -47,7 +108,19 @@ function mountForm(props: Record<string, unknown> = {}) {
     },
     global: {
       stubs: {
-        Select: { template: '<div />' },
+        Select: {
+          name: 'Select',
+          props: ['options'],
+          template: `
+            <div data-testid="satellite-select">
+              <template v-for="group in options" :key="group.label">
+                <span v-for="option in group.items" :key="option.id" class="satellite-option">
+                  {{ option.name }}
+                </span>
+              </template>
+            </div>
+          `,
+        },
         FormField: { template: '<div><slot /></div>' },
         InputText: { template: '<input />' },
         InputNumber: { template: '<input />' },
@@ -62,20 +135,36 @@ function mountForm(props: Record<string, unknown> = {}) {
   })
 }
 
-describe('DeploymentsFormSatelliteSettings — monitoring', () => {
+function monitoringSections(wrapper: ReturnType<typeof mountForm>): string {
+  return wrapper.get('[data-testid="monitoring-sections-hint"]').text()
+}
+
+describe('DeploymentsFormSatelliteSettings', () => {
+  beforeEach(() => {
+    satellitesStore.satellitesList = [MONITORED, PLAIN, RAW_DEPLOY_ONLY]
+  })
+
+  it('offers only satellites with a present deploy capability', () => {
+    const wrapper = mountForm()
+    const options = wrapper.findAll('.satellite-option').map((option) => option.text())
+
+    expect(options).toEqual([MONITORED.name, PLAIN.name])
+    expect(options).not.toContain(RAW_DEPLOY_ONLY.name)
+  })
+
   it('hides the monitoring block until a satellite is picked', () => {
     const wrapper = mountForm()
 
     expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(false)
   })
 
-  it('offers the toggle once the picked satellite advertises monitoring', () => {
+  it('offers the toggle when monitoring is present', () => {
     const wrapper = mountForm({ satelliteId: MONITORED.id })
 
     expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(true)
   })
 
-  it('never offers the toggle for a satellite without the capability', () => {
+  it('does not trust a raw monitoring declaration that is not present', () => {
     const wrapper = mountForm({ satelliteId: PLAIN.id })
 
     expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(false)
@@ -89,7 +178,7 @@ describe('DeploymentsFormSatelliteSettings — monitoring', () => {
     expect(wrapper.emitted('update:monitoringEnabled')).toEqual([[true]])
   })
 
-  it('switching to a non-monitoring satellite drops the toggle instead of smuggling it on', async () => {
+  it('switching to a non-monitoring satellite drops the enabled value', async () => {
     const wrapper = mountForm({ satelliteId: MONITORED.id, monitoringEnabled: true })
 
     await wrapper.setProps({ satelliteId: PLAIN.id })
@@ -97,16 +186,66 @@ describe('DeploymentsFormSatelliteSettings — monitoring', () => {
     expect(wrapper.emitted('update:monitoringEnabled')?.at(-1)).toEqual([false])
   })
 
-  it('an edit opened with monitoring on under a capability-less satellite still shows it, with the warning', () => {
+  it('keeps an enabled field visible when the capability was lost and shows a warning', () => {
     const wrapper = mountForm({ monitoringEnabled: true, satelliteId: PLAIN.id })
 
     expect(wrapper.find('[data-testid="create-monitoring-toggle"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('does not report the monitoring capability')
   })
 
-  it('stays quiet when the chosen satellite supports monitoring', () => {
-    const wrapper = mountForm({ monitoringEnabled: true, satelliteId: MONITORED.id })
+  it('lists every advertised section for a tagged tabular profile', () => {
+    const wrapper = mountForm({
+      satelliteId: MONITORED.id,
+      selectedModel: modelWithTags([TABULAR_KIND_TAG, TABULAR_MONITORING_TAG]),
+    })
 
-    expect(wrapper.text()).not.toContain('does not report the monitoring capability')
+    expect(monitoringSections(wrapper)).toContain('Runtime')
+    expect(monitoringSections(wrapper)).toContain('Traces')
+    expect(monitoringSections(wrapper)).toContain('Alerts')
+    expect(monitoringSections(wrapper)).toContain('Data quality')
+    expect(monitoringSections(wrapper)).toContain('Feature drift')
+    expect(monitoringSections(wrapper)).toContain('Output drift')
+    expect(monitoringSections(wrapper)).toContain('Multivariate drift')
+    expect(wrapper.find('[data-testid="monitoring-repack-hint"]').exists()).toBe(false)
+  })
+
+  it('lists universal sections and recommends repacking for a tabular model without a profile tag', () => {
+    const wrapper = mountForm({
+      satelliteId: MONITORED.id,
+      selectedModel: modelWithTags([TABULAR_KIND_TAG]),
+    })
+
+    expect(monitoringSections(wrapper)).toContain('Runtime, Traces, Alerts')
+    expect(monitoringSections(wrapper)).not.toContain('drift')
+    expect(wrapper.get('[data-testid="monitoring-repack-hint"]').text()).toContain(
+      'Repack this model with reference data',
+    )
+  })
+
+  it.each([
+    ['an LLM model', [LLM_KIND_TAG]],
+    ['an untagged model', []],
+  ])('lists only universal sections without a repack recommendation for %s', (_, tags) => {
+    const wrapper = mountForm({
+      satelliteId: MONITORED.id,
+      selectedModel: modelWithTags(tags),
+    })
+
+    expect(monitoringSections(wrapper)).toContain('Runtime, Traces, Alerts')
+    expect(monitoringSections(wrapper)).not.toContain('drift')
+    expect(wrapper.find('[data-testid="monitoring-repack-hint"]').exists()).toBe(false)
+  })
+
+  it('omits a profile-dependent section the satellite does not advertise', () => {
+    satellitesStore.satellitesList = [REDUCED_MONITORING]
+    const wrapper = mountForm({
+      satelliteId: REDUCED_MONITORING.id,
+      selectedModel: modelWithTags([TABULAR_KIND_TAG, TABULAR_MONITORING_TAG]),
+    })
+
+    expect(monitoringSections(wrapper)).toContain('Data quality')
+    expect(monitoringSections(wrapper)).toContain('Feature drift')
+    expect(monitoringSections(wrapper)).toContain('Multivariate drift')
+    expect(monitoringSections(wrapper)).not.toContain('Output drift')
   })
 })

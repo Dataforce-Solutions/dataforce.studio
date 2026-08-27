@@ -25,7 +25,7 @@
               </div>
               <div class="option-icons">
                 <Rocket
-                  v-if="option.capabilities.deploy"
+                  v-if="option.present_capabilities.includes('deploy')"
                   :size="16"
                   color="var(--p-icon-muted-color)"
                 ></Rocket>
@@ -37,11 +37,6 @@
           </template>
         </Select>
       </div>
-      <!-- Monitoring is offered only once a satellite is picked and that satellite
-           advertises the capability; a satellite without it never shows the toggle.
-           The block also stays visible while the switch is on (an edit form can open
-           with monitoring on under a satellite that lost the capability), so it can
-           always be turned off. -->
       <div v-if="showMonitoringField" class="monitoring-field">
         <div class="monitoring-header">
           <label for="monitoringEnabled" class="label">Live monitoring</label>
@@ -52,9 +47,19 @@
             data-testid="create-monitoring-toggle"
           />
         </div>
-        <p class="monitoring-hint">
-          Record inference telemetry and serve the monitoring dashboard for this deployment. Can be
-          switched later from the deployment settings.
+        <p
+          v-if="satelliteSupportsMonitoring"
+          class="monitoring-hint"
+          data-testid="monitoring-sections-hint"
+        >
+          Monitoring sections: {{ monitoringHint.sectionLabels.join(', ') }}.
+        </p>
+        <p
+          v-if="satelliteSupportsMonitoring && monitoringHint.recommendRepack"
+          class="monitoring-hint"
+          data-testid="monitoring-repack-hint"
+        >
+          Repack this model with reference data to enable data quality and drift monitoring.
         </p>
         <p v-if="monitoringEnabled && !satelliteSupportsMonitoring" class="monitoring-warning">
           <Info :size="12" class="option-message-icon" />
@@ -118,7 +123,11 @@
 <script setup lang="ts">
 import type { FieldInfo } from '../deployments.interfaces'
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
-import { SatelliteFieldTypeEnum, type SatelliteField } from '@/lib/api/satellites/interfaces'
+import {
+  SatelliteFieldTypeEnum,
+  type MonitoringFeature,
+  type SatelliteField,
+} from '@/lib/api/satellites/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
@@ -129,6 +138,7 @@ import { FormField } from '@primevue/forms'
 import { Rocket, Info } from 'lucide-vue-next'
 import { useSatelliteFields } from '@/hooks/satellites/useSatelliteFields'
 import { watch } from 'vue'
+import { getMonitoringHint } from '../monitoring-hint'
 
 type Props = {
   selectedModel: ModelArtifact | null
@@ -147,18 +157,30 @@ const monitoringEnabled = defineModel<boolean>('monitoringEnabled')
 
 const ignoreWatch = ref(false)
 
+const selectedSatellite = computed(() => {
+  if (!satelliteId.value) return null
+  return satellitesStore.satellitesList.find(({ id }) => id === satelliteId.value) ?? null
+})
+
 const satelliteSupportsMonitoring = computed(() => {
-  if (!satelliteId.value) return false
-  const satellite = satellitesStore.satellitesList.find(({ id }) => id === satelliteId.value)
-  return !!satellite?.capabilities.monitoring
+  return selectedSatellite.value?.present_capabilities.includes('monitoring') ?? false
 })
 
 const showMonitoringField = computed(
-  () => Boolean(satelliteId.value) && (satelliteSupportsMonitoring.value || !!monitoringEnabled.value),
+  () =>
+    Boolean(satelliteId.value) && (satelliteSupportsMonitoring.value || !!monitoringEnabled.value),
 )
 
-// Switching to a satellite that cannot monitor drops the toggle rather than
-// letting a hidden "on" ride into the submit.
+const monitoringHint = computed(() => {
+  const features = satelliteSupportsMonitoring.value
+    ? (selectedSatellite.value?.capabilities.monitoring?.features ?? [])
+    : []
+  return getMonitoringHint(
+    props.selectedModel?.manifest.producer_tags ?? [],
+    features as MonitoringFeature[],
+  )
+})
+
 watch(satelliteId, () => {
   if (!satelliteSupportsMonitoring.value) monitoringEnabled.value = false
 })
@@ -166,7 +188,9 @@ watch(satelliteId, () => {
 const filteredSatellites = computed(() => {
   const model = props.selectedModel
   if (!model) return []
-  return satellitesStore.satellitesList.filter((satellite) => !!satellite.capabilities.deploy)
+  return satellitesStore.satellitesList.filter((satellite) =>
+    satellite.present_capabilities.includes('deploy'),
+  )
 })
 
 const satellitesOptions = computed(() => {
