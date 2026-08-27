@@ -37,6 +37,10 @@ if TYPE_CHECKING:
         AsyncOrganizationResource,
         OrganizationResource,
     )
+    from luml_api.resources.satellites import (
+        AsyncSatelliteResource,
+        SatelliteResource,
+    )
     from luml_api.resources.tracks import AsyncTrackResource, TrackResource
 
 
@@ -168,6 +172,11 @@ class LumlClientBase(ABC):
     @cached_property
     @abstractmethod
     def deployments(self) -> "DeploymentResource | AsyncDeploymentResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def satellites(self) -> "SatelliteResource | AsyncSatelliteResource":
         raise NotImplementedError()
 
 
@@ -402,6 +411,13 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncDeploymentResource(self)
 
+    @cached_property
+    def satellites(self) -> "AsyncSatelliteResource":
+        """Satellites and their advertised operations."""
+        from luml_api.resources.satellites import AsyncSatelliteResource
+
+        return AsyncSatelliteResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -619,3 +635,10 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         from luml_api.resources.deployments import DeploymentResource
 
         return DeploymentResource(self)
+
+    @cached_property
+    def satellites(self) -> "SatelliteResource":
+        """Satellites and their advertised operations."""
+        from luml_api.resources.satellites import SatelliteResource
+
+        return SatelliteResource(self)

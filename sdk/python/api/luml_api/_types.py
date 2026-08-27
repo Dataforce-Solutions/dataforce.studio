@@ -1,10 +1,20 @@
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from httpx import URL, InvalidURL
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 
+from luml_api._exceptions import LumlAPIError
 from luml_api.resources._listed_resource import PaginatedList
+
+if TYPE_CHECKING:
+    from luml_api._client import AsyncLumlClient, LumlClient
+
+
+_OPENAPI_HTTP_METHODS = frozenset(
+    {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+)
 
 
 class BaseOrmConfig:
@@ -362,3 +372,136 @@ class Deployment(BaseModel):
     tags: list[str] | None = None
     created_at: str
     updated_at: str | None = None
+
+
+def _satellite_origin(url: URL) -> tuple[str, str, int | None]:
+    return (url.scheme, url.host, url.port)
+
+
+def _resolve_satellite_url(base_url: str | None, path: str, satellite_id: str) -> str:
+    if not base_url:
+        raise LumlAPIError(
+            f"Satellite {satellite_id} has no reachable base URL configured"
+        )
+
+    try:
+        base = URL(base_url)
+        target = base.join(path)
+    except InvalidURL as error:
+        raise LumlAPIError(f"Invalid Satellite request URL: {path!r}") from error
+
+    if not base.is_absolute_url or _satellite_origin(target) != _satellite_origin(base):
+        raise LumlAPIError(
+            "Satellite requests must use the same origin as its base URL "
+            f"{base_url!r}; got {path!r}"
+        )
+    return str(target)
+
+
+def _as_openapi_list(value: object) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _openapi_operations(
+    document: object,
+    satellite_id: str,
+    facet: str | None,
+) -> list[dict[str, Any]]:
+    if document is None:
+        raise LumlAPIError(
+            f"Satellite {satellite_id} has no description available because it did "
+            "not provide an OpenAPI document when pairing"
+        )
+    if not isinstance(document, dict):
+        raise LumlAPIError(
+            f"Satellite {satellite_id} has an invalid OpenAPI description"
+        )
+
+    paths = document.get("paths")
+    if not isinstance(paths, dict):
+        return []
+
+    default_security = document.get("security", [])
+    operations: list[dict[str, Any]] = []
+    for path, path_item in paths.items():
+        if not isinstance(path, str) or not isinstance(path_item, dict):
+            continue
+        path_parameters = _as_openapi_list(path_item.get("parameters"))
+
+        for method, operation in path_item.items():
+            if method not in _OPENAPI_HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            tags = operation.get("tags", [])
+            if facet is not None and (not isinstance(tags, list) or facet not in tags):
+                continue
+            operation_parameters = _as_openapi_list(operation.get("parameters"))
+            operations.append(
+                {
+                    "method": method.upper(),
+                    "path": path,
+                    "summary": operation.get("summary"),
+                    "description": operation.get("description"),
+                    "parameters": [*path_parameters, *operation_parameters],
+                    "security": operation.get("security", default_security),
+                }
+            )
+    return operations
+
+
+class _SatelliteRecord(BaseModel):
+    id: str
+    orbit_id: str
+    name: str | None = None
+    description: str | None = None
+    base_url: str | None = None
+    paired: bool
+    capabilities: dict[str, dict[str, Any]]
+    present_capabilities: list[str]
+    slug: str | None = None
+    status: str
+    created_at: str
+    updated_at: str | None = None
+    last_seen_at: str | None = None
+
+
+class Satellite(_SatelliteRecord):
+    """A Satellite record bound to its Platform and machine APIs."""
+
+    _client: "LumlClient" = PrivateAttr()
+    _openapi_path: str = PrivateAttr()
+
+    def _bind(self, client: "LumlClient", openapi_path: str) -> None:
+        self._client = client
+        self._openapi_path = openapi_path
+
+    def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
+        document = self._client.get(self._openapi_path)
+        return _openapi_operations(document, self.id, facet)
+
+    def request(self, method: str, path: str, **kwargs: Any) -> Any:  # noqa: ANN401
+        url = _resolve_satellite_url(self.base_url, path, self.id)
+        return self._client.request(method, url, **kwargs)
+
+
+class AsyncSatellite(_SatelliteRecord):
+    """Async Satellite record bound to its Platform and machine APIs."""
+
+    _client: "AsyncLumlClient" = PrivateAttr()
+    _openapi_path: str = PrivateAttr()
+
+    def _bind(self, client: "AsyncLumlClient", openapi_path: str) -> None:
+        self._client = client
+        self._openapi_path = openapi_path
+
+    async def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
+        document = await self._client.get(self._openapi_path)
+        return _openapi_operations(document, self.id, facet)
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
+        url = _resolve_satellite_url(self.base_url, path, self.id)
+        return await self._client.request(method, url, **kwargs)

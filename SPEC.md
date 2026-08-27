@@ -827,11 +827,11 @@ in the second
   - [x] Component tests for satellite filtering, toggle gating, the four tag cases plus the
         reduced-`features` case, and the new reason
 
-- [ ] Add the SDK satellite handle with the generic operations layer
-  - [ ] `satellites` resource in `sdk/python/api/luml_api/resources/` (sync and async) reading
+- [x] Add the SDK satellite handle with the generic operations layer
+  - [x] `satellites` resource in `sdk/python/api/luml_api/resources/` (sync and async) reading
         the platform record and the stored OpenAPI, with `operations(facet=…)` and
         `request(...)`; a `Satellite` type in `sdk/python/api/luml_api/_types.py`
-  - [ ] Unit tests in `sdk/python/api/tests/unit/` for listing by facet, the no-document
+  - [x] Unit tests in `sdk/python/api/tests/unit/` for listing by facet, the no-document
         error, relative/absolute URL resolution, the foreign-origin refusal and bearer
         forwarding
 
