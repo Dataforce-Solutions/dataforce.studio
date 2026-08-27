@@ -2,7 +2,8 @@ from agent.monitoring import InferenceEvent, create_telemetry
 from agent.monitoring.testing import FakeTelemetry
 
 
-class TestTelemetryNoOp:
+class TestTelemetrySetup:
+    # --- telemetry no op ---
     def test_noop_when_endpoint_missing(self) -> None:
         setup = create_telemetry(endpoint=None, enabled=True)
         assert not setup.active
@@ -46,8 +47,7 @@ class TestTelemetryNoOp:
         m.error_counter.add(1, {"deployment_id": "d", "status_code": "500"})
         m.latency_histogram.record(42.0, {"deployment_id": "d", "status": "success"})
 
-
-class TestTelemetryActive:
+    # --- telemetry active ---
     def test_active_with_fake_telemetry(self, fake_telemetry: FakeTelemetry) -> None:
         assert fake_telemetry.setup.active
 
@@ -100,8 +100,7 @@ class TestTelemetryActive:
             fake_telemetry.setup.emit_event(event)
         assert len(fake_telemetry.events) == 3
 
-
-class TestTelemetrySetupRepr:
+    # --- telemetry setup repr ---
     def test_repr_active(self, fake_telemetry: FakeTelemetry) -> None:
         assert "active=True" in repr(fake_telemetry.setup)
 
@@ -109,8 +108,7 @@ class TestTelemetrySetupRepr:
         setup = create_telemetry(endpoint=None)
         assert "active=False" in repr(setup)
 
-
-class TestInferenceEvent:
+    # --- inference event ---
     def test_to_dict_success(self) -> None:
         event = InferenceEvent(
             event_id="evt-1",

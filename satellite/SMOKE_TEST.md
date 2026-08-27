@@ -88,7 +88,7 @@ Model containers are created by the Agent, not by Compose, and call back to the
 by an automated smoke test (it skips itself when Docker or the stack is down):
 
 ```bash
-.venv/bin/python -m pytest tests/test_smoke_agent_alias.py -v
+.venv/bin/python -m pytest tests/integration/test_smoke_agent_alias.py -v
 ```
 
 Expected: `PASSED` while the Agent container is running, `SKIPPED` otherwise.

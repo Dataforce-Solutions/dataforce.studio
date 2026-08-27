@@ -30,7 +30,8 @@ def _local_deployment(
     )
 
 
-class TestDisabledRecordsNothing:
+class TestInferenceInstrumentation:
+    # --- disabled records nothing ---
     @respx.mock
     async def test_no_telemetry_when_monitoring_disabled(
         self,
@@ -60,8 +61,7 @@ class TestDisabledRecordsNothing:
         assert result == {"prediction": 42}
         assert event_id is None
 
-
-class TestHappyPath:
+    # --- happy path ---
     @respx.mock
     async def test_records_event_metrics_span(
         self,
@@ -117,8 +117,7 @@ class TestHappyPath:
         parsed = uuid.UUID(event_id)
         assert parsed.version == 7
 
-
-class TestModelErrorRecordedAndReraised:
+    # --- model error recorded and reraised ---
     @respx.mock
     async def test_model_error_records_event_and_raises(
         self,
@@ -178,8 +177,7 @@ class TestModelErrorRecordedAndReraised:
         assert evt.status == "error"
         assert evt.status_code is None
 
-
-class TestTelemetryFailureDoesNotBreakInference:
+    # --- telemetry failure does not break inference ---
     @respx.mock
     async def test_broken_event_exporter_still_returns_result(
         self,
@@ -197,8 +195,7 @@ class TestTelemetryFailureDoesNotBreakInference:
         assert result == {"prediction": 42}
         assert event_id is not None
 
-
-class TestSecretsAbsentFromEvent:
+    # --- secrets absent from event ---
     @respx.mock
     async def test_secret_backed_attrs_excluded_from_inputs(
         self,
@@ -251,8 +248,7 @@ class TestSecretsAbsentFromEvent:
             "dynamic_attributes": {"a": 1, "b": 2},
         }
 
-
-class TestExtractSafeInputs:
+    # --- extract safe inputs ---
     def test_captures_model_input_payload(self) -> None:
         body = {"inputs": {"payload": {"age": 30, "bmi": 22.5}}}
         dep = _local_deployment()
@@ -290,8 +286,7 @@ class TestExtractSafeInputs:
         result = _extract_safe_inputs(body, dep)
         assert result == {"dynamic_attributes": {}}
 
-
-class TestTraceContextPropagation:
+    # --- trace context propagation ---
     @respx.mock
     async def test_traceparent_header_sent(
         self,
@@ -317,8 +312,7 @@ class TestTraceContextPropagation:
         assert len(parts) == 4
         assert parts[0] == "00"
 
-
-class TestInferenceInstrumentationUnit:
+    # --- inference instrumentation unit ---
     async def test_instrumented_compute_success(
         self,
         fake_telemetry: FakeTelemetry,

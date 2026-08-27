@@ -11,7 +11,7 @@ from agent.monitoring.testing import InMemorySpanExporter
 
 # model_server code imports via bare module names (e.g. `from telemetry import ...`)
 # because conda_worker.py runs with model_server/ on sys.path.
-_model_server_dir = str(Path(__file__).resolve().parent.parent / "model_server")
+_model_server_dir = str(Path(__file__).resolve().parent.parent.parent / "model_server")
 if _model_server_dir not in sys.path:
     sys.path.insert(0, _model_server_dir)
 
@@ -37,7 +37,8 @@ def _make_tracer(exporter: InMemorySpanExporter) -> object:
     return provider.get_tracer("test")
 
 
-class TestModelSpanCreated:
+class TestModelServerTelemetry:
+    # --- model span created ---
     async def test_span_created_with_traceparent(self) -> None:
         exporter = InMemorySpanExporter()
         tracer = _make_tracer(exporter)
@@ -87,8 +88,7 @@ class TestModelSpanCreated:
         assert len(spans) == 1
         assert spans[0].parent is None
 
-
-class TestNoTelemetry:
+    # --- no telemetry ---
     async def test_no_span_when_tracer_is_none(self) -> None:
         init_tracer(None)
 
@@ -105,8 +105,7 @@ class TestNoTelemetry:
 
         assert result == 42
 
-
-class TestBestEffort:
+    # --- best effort ---
     async def test_model_error_still_raised(self) -> None:
         exporter = InMemorySpanExporter()
         tracer = _make_tracer(exporter)
@@ -127,8 +126,7 @@ class TestBestEffort:
             async with model_span({}):
                 raise RuntimeError("boom")
 
-
-class TestExtractContext:
+    # --- extract context ---
     def test_extracts_valid_traceparent(self) -> None:
         headers = {"traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}
         ctx = extract_context(headers)
@@ -138,8 +136,7 @@ class TestExtractContext:
         ctx = extract_context({})
         assert ctx is not None
 
-
-class TestBaseServiceHeaders:
+    # --- base service headers ---
     async def test_post_handler_receives_headers(self) -> None:
         from services.base_service import UvicornBaseService  # type: ignore[import-not-found]
 

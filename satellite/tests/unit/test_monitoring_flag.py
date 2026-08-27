@@ -31,7 +31,8 @@ def _make_deployment(
     )
 
 
-class TestReadMonitoringEnabled:
+class TestMonitoringFlag:
+    # --- read monitoring enabled ---
     def test_true_when_full(self) -> None:
         assert ModelServerHandler._read_monitoring_enabled("full") is True
 
@@ -47,8 +48,7 @@ class TestReadMonitoringEnabled:
     def test_false_when_unknown(self) -> None:
         assert ModelServerHandler._read_monitoring_enabled("garbage") is False
 
-
-class TestLocalDeploymentMonitoringDefault:
+    # --- local deployment monitoring default ---
     def test_defaults_to_false(self) -> None:
         ld = LocalDeployment(deployment_id="dep-1")
         assert ld.monitoring_enabled is False
@@ -57,8 +57,7 @@ class TestLocalDeploymentMonitoringDefault:
         ld = LocalDeployment(deployment_id="dep-1", monitoring_enabled=True)
         assert ld.monitoring_enabled is True
 
-
-class TestAddDeploymentCarriesFlag:
+    # --- add deployment carries flag ---
     @respx.mock
     async def test_monitoring_enabled_propagated(self, mock_model_server: None) -> None:
         handler = ModelServerHandler()
@@ -77,8 +76,7 @@ class TestAddDeploymentCarriesFlag:
         local = handler.deployments[dep.id]
         assert local.monitoring_enabled is False
 
-
-class TestSyncDeploymentsCarriesFlag:
+    # --- sync deployments carries flag ---
     @pytest.mark.parametrize(
         ("monitoring_capability_present", "expected_monitoring_url"),
         [
