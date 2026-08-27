@@ -111,6 +111,11 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
 
             update_fields = update.model_dump(exclude_unset=True, exclude={"id"})
             new_status = update_fields.get("status")
+            if "status" in update_fields and new_status is None:
+                # An explicit null is not "leave it alone" — it would land in a
+                # NOT NULL column and blow up as a 500 inside the locked transaction,
+                # sailing past the deletion guard below on the way.
+                raise InvalidStatusTransitionError("Deployment status cannot be null")
             if (
                 dep.status in self._DELETION_STATUSES
                 and new_status is not None

@@ -383,6 +383,41 @@ async def test_update_deployment_cannot_pull_a_deployment_out_of_deletion(
 
 
 @pytest.mark.asyncio
+async def test_update_deployment_rejects_an_explicit_null_status(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """An explicit null is not "leave it alone" — and must not become a 500.
+
+    The status column is NOT NULL; without the guard an explicit null sailed past
+    the deletion check and blew up as an IntegrityError inside the locked
+    transaction.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=None),
+        )
+
+    unchanged = await repo.get_deployment(created.id)
+    assert unchanged
+    assert unchanged.status == DeploymentStatus.PENDING
+
+
+@pytest.mark.asyncio
 async def test_update_deployment_details(
     create_satellite: SatelliteFixtureData,
 ) -> None:
