@@ -143,8 +143,7 @@ class DeploymentResource(DeploymentResourceBase):
             dashboard section.
 
         Raises:
-            LumlAPIError: If the deployment is not found, or its Satellite has no
-                reachable base URL configured.
+            LumlAPIError: If the deployment is not found.
             MultipleResourcesFoundError: If several deployments share that name.
 
         Example:
@@ -162,17 +161,8 @@ class DeploymentResource(DeploymentResourceBase):
         deployment = self.get(deployment_value)
         if deployment is None:
             raise LumlAPIError(f"Deployment {deployment_value!r} not found")
-        satellite = self._client.get(
-            f"/v1/organizations/{self._client.organization}"
-            f"/orbits/{self._client.orbit}/satellites/{deployment.satellite_id}"
-        )
-        base_url = (satellite or {}).get("base_url")
-        if not base_url:
-            raise LumlAPIError(
-                f"Satellite {deployment.satellite_id} has no reachable base URL "
-                "configured, so its monitoring API cannot be addressed"
-            )
-        return DeploymentMonitoring(self._client, base_url, deployment.id)
+        satellite = self._client.satellites.get(deployment.satellite_id)
+        return DeploymentMonitoring(self._client, satellite, deployment)
 
 
 class AsyncDeploymentResource(DeploymentResourceBase):
@@ -292,8 +282,7 @@ class AsyncDeploymentResource(DeploymentResourceBase):
             dashboard section.
 
         Raises:
-            LumlAPIError: If the deployment is not found, or its Satellite has no
-                reachable base URL configured.
+            LumlAPIError: If the deployment is not found.
             MultipleResourcesFoundError: If several deployments share that name.
 
         Example:
@@ -315,14 +304,5 @@ class AsyncDeploymentResource(DeploymentResourceBase):
         deployment = await self.get(deployment_value)
         if deployment is None:
             raise LumlAPIError(f"Deployment {deployment_value!r} not found")
-        satellite = await self._client.get(
-            f"/v1/organizations/{self._client.organization}"
-            f"/orbits/{self._client.orbit}/satellites/{deployment.satellite_id}"
-        )
-        base_url = (satellite or {}).get("base_url")
-        if not base_url:
-            raise LumlAPIError(
-                f"Satellite {deployment.satellite_id} has no reachable base URL "
-                "configured, so its monitoring API cannot be addressed"
-            )
-        return AsyncDeploymentMonitoring(self._client, base_url, deployment.id)
+        satellite = await self._client.satellites.get(deployment.satellite_id)
+        return AsyncDeploymentMonitoring(self._client, satellite, deployment)

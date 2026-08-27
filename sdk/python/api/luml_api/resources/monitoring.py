@@ -1,18 +1,123 @@
-from typing import Any
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, Generic, Protocol, TypeVar, cast
 
-from luml_api._exceptions import LumlAPIError
+from httpx import URL, InvalidURL
 
-_WINDOWS = ("24h", "7d", "30d")
-_TRACE_SORTS = ("ts", "latency", "status")
-_SORT_ORDERS = ("asc", "desc")
+from luml_api._exceptions import (
+    CapabilityNotSupportedError,
+    ContractViolationError,
+    LumlAPIError,
+    NotAvailableInVersionError,
+    NotFoundError,
+    SatelliteOutOfSyncError,
+    UnsupportedCapabilityVersionError,
+)
+from luml_api._types import Deployment
 
 
-def _trace_page(limit: int, offset: int, sort: str, order: str) -> dict[str, str]:
-    if sort not in _TRACE_SORTS:
-        raise LumlAPIError(f"sort must be one of {_TRACE_SORTS}, got {sort!r}")
-    if order not in _SORT_ORDERS:
-        raise LumlAPIError(f"order must be one of {_SORT_ORDERS}, got {order!r}")
-    return {"limit": str(limit), "offset": str(offset), "sort": sort, "order": order}
+@dataclass(frozen=True)
+class MonitoringOperation:
+    path: str
+    query_parameters: frozenset[str]
+    required_fields: frozenset[str]
+
+
+@dataclass(frozen=True)
+class MonitoringApiImplementation:
+    version: int
+    operations: Mapping[str, MonitoringOperation]
+
+
+_DIMENSION_PARAMETERS = frozenset(
+    {
+        "window",
+        "compare",
+        "severity",
+        "granularity",
+        "feature",
+        "start",
+        "end",
+        "compare_start",
+        "compare_end",
+    }
+)
+_STATE = frozenset({"state"})
+_MONITORING_API_V1 = MonitoringApiImplementation(
+    version=1,
+    operations={
+        "header": MonitoringOperation(
+            path="header",
+            query_parameters=frozenset(),
+            required_fields=frozenset({"state", "deployment_id"}),
+        ),
+        "overview": MonitoringOperation("overview", _DIMENSION_PARAMETERS, _STATE),
+        "runtime": MonitoringOperation("runtime", _DIMENSION_PARAMETERS, _STATE),
+        "data_quality": MonitoringOperation(
+            "data-quality", _DIMENSION_PARAMETERS, _STATE
+        ),
+        "feature_drift": MonitoringOperation(
+            "feature-drift", _DIMENSION_PARAMETERS, _STATE
+        ),
+        "output_drift": MonitoringOperation(
+            "output-drift", _DIMENSION_PARAMETERS, _STATE
+        ),
+        "reference_profile": MonitoringOperation(
+            "reference-profile", _DIMENSION_PARAMETERS, _STATE
+        ),
+        "alerts": MonitoringOperation("alerts", _DIMENSION_PARAMETERS, _STATE),
+        "traces": MonitoringOperation(
+            "traces",
+            _DIMENSION_PARAMETERS | {"limit", "offset", "sort", "order"},
+            _STATE,
+        ),
+        "trace": MonitoringOperation(
+            "traces/{event_id}", _DIMENSION_PARAMETERS, _STATE
+        ),
+        "worker": MonitoringOperation("worker", frozenset(), _STATE),
+    },
+)
+
+MONITORING_API_IMPLEMENTATIONS: dict[int, MonitoringApiImplementation] = {
+    _MONITORING_API_V1.version: _MONITORING_API_V1
+}
+
+
+class _SatelliteRecord(Protocol):
+    id: str
+    base_url: str | None
+    capabilities: dict[str, dict[str, Any]]
+    present_capabilities: list[str]
+
+
+class _SyncMonitoringClient(Protocol):
+    def get(self, url: str, **kwargs: Any) -> object:  # noqa: ANN401
+        ...
+
+
+class _AsyncMonitoringClient(Protocol):
+    async def get(self, url: str, **kwargs: Any) -> object:  # noqa: ANN401
+        ...
+
+
+_ClientT = TypeVar("_ClientT", _SyncMonitoringClient, _AsyncMonitoringClient)
+
+
+def _trace_page(
+    limit: int,
+    offset: int,
+    sort: str,
+    order: str,
+    query: dict[str, Any],
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "limit": limit,
+        "offset": offset,
+        "sort": sort,
+        "order": order,
+    }
+    params.update(query)
+    return params
 
 
 def _dims(
@@ -21,10 +126,9 @@ def _dims(
     severity: str,
     granularity: str,
     feature: str | None,
-) -> dict[str, str]:
-    if window not in _WINDOWS:
-        raise LumlAPIError(f"window must be one of {_WINDOWS}, got {window!r}")
-    params = {
+    query: dict[str, Any],
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
         "window": window,
         "compare": compare,
         "severity": severity,
@@ -32,10 +136,11 @@ def _dims(
     }
     if feature is not None:
         params["feature"] = feature
+    params.update(query)
     return params
 
 
-class _MonitoringBase:
+class _MonitoringBase(Generic[_ClientT]):
     """Monitoring sections of one deployment, read from its Satellite.
 
     Requests go straight to the Satellite that hosts the deployment — monitoring data
@@ -44,17 +149,171 @@ class _MonitoringBase:
     exactly as the Satellite's OpenAPI schema describes it.
     """
 
-    def __init__(self, client: Any, satellite_url: str, deployment_id: str) -> None:  # noqa: ANN401
-        self._client = client
-        self._base = satellite_url.rstrip("/")
-        self.deployment_id = deployment_id
+    def __init__(
+        self,
+        client: _ClientT,
+        satellite: _SatelliteRecord,
+        deployment: Deployment,
+    ) -> None:
+        self._client: _ClientT = client
+        self._satellite: _SatelliteRecord = satellite
+        self._deployment: Deployment = deployment
+        self._implementation: MonitoringApiImplementation | None = None
+        self.deployment_id: str = deployment.id
 
-    def _url(self, section: str) -> str:
-        return f"{self._base}/deployments/{self.deployment_id}/monitoring/{section}"
+    def _select_implementation(self) -> MonitoringApiImplementation:
+        if "monitoring" not in self._satellite.present_capabilities:
+            raise CapabilityNotSupportedError(
+                "monitoring",
+                self._satellite.id,
+                message=(
+                    f"Satellite {self._satellite.id} does not have a supported "
+                    "monitoring capability according to the Platform"
+                ),
+            )
+        if self._implementation is not None:
+            return self._implementation
+
+        declaration = self._satellite.capabilities.get("monitoring", {})
+        raw_versions = declaration.get("api_versions", [])
+        satellite_versions = (
+            tuple(
+                version
+                for version in raw_versions
+                if isinstance(version, int) and not isinstance(version, bool)
+            )
+            if isinstance(raw_versions, list)
+            else ()
+        )
+        common_versions = set(satellite_versions).intersection(
+            MONITORING_API_IMPLEMENTATIONS
+        )
+        if not common_versions:
+            raise UnsupportedCapabilityVersionError(
+                "monitoring",
+                self._satellite.id,
+                MONITORING_API_IMPLEMENTATIONS,
+                satellite_versions,
+            )
+        self._implementation = MONITORING_API_IMPLEMENTATIONS[max(common_versions)]
+        return self._implementation
+
+    def _monitoring_root(self) -> str:
+        monitoring_url = self._deployment.monitoring_url
+        if not monitoring_url:
+            raise CapabilityNotSupportedError(
+                "monitoring",
+                self._satellite.id,
+                deployment_id=self._deployment.id,
+                message=(
+                    f"Deployment {self._deployment.id} has no monitoring URL; "
+                    "monitoring is off or not yet reported by its Satellite"
+                ),
+            )
+
+        try:
+            target = URL(monitoring_url)
+            if target.is_absolute_url:
+                return str(target).rstrip("/")
+            if not self._satellite.base_url:
+                raise LumlAPIError(
+                    f"Satellite {self._satellite.id} has no reachable base URL "
+                    "configured, so its relative monitoring URL cannot be addressed"
+                )
+            base = URL(f"{self._satellite.base_url.rstrip('/')}/")
+            if not base.is_absolute_url:
+                raise InvalidURL("Satellite base URL must be absolute")
+            return str(base.join(monitoring_url)).rstrip("/")
+        except InvalidURL as error:
+            raise LumlAPIError(
+                f"Deployment {self._deployment.id} has an invalid monitoring URL "
+                f"{monitoring_url!r}"
+            ) from error
+
+    def _request_details(
+        self,
+        operation_name: str,
+        path_values: Mapping[str, str] | None = None,
+    ) -> tuple[str, MonitoringOperation, MonitoringApiImplementation]:
+        implementation = self._select_implementation()
+        root = self._monitoring_root()
+        operation = implementation.operations.get(operation_name)
+        if operation is None:
+            raise NotAvailableInVersionError(
+                "monitoring", operation_name, implementation.version
+            )
+        path = operation.path.format(**(path_values or {}))
+        return f"{root}/{path}", operation, implementation
+
+    def _validate_response(
+        self,
+        operation_name: str,
+        operation: MonitoringOperation,
+        implementation: MonitoringApiImplementation,
+        response: object,
+    ) -> dict[str, Any]:
+        if not isinstance(response, dict):
+            raise ContractViolationError(
+                self._satellite.id,
+                operation_name,
+                implementation.version,
+                response,
+                (),
+            )
+        missing_fields = operation.required_fields.difference(response)
+        if missing_fields:
+            raise ContractViolationError(
+                self._satellite.id,
+                operation_name,
+                implementation.version,
+                response,
+                missing_fields,
+            )
+        return cast(dict[str, Any], response)
+
+    def _out_of_sync_error(
+        self,
+        error: NotFoundError,
+        operation_name: str,
+        implementation: MonitoringApiImplementation,
+    ) -> SatelliteOutOfSyncError | None:
+        if isinstance(error.body, dict) and error.body.get("code") == "unknown_route":
+            return SatelliteOutOfSyncError(
+                self._satellite.id,
+                operation_name,
+                implementation.version,
+                response=error.response,
+                body=error.body,
+            )
+        return None
 
 
-class DeploymentMonitoring(_MonitoringBase):
-    def header(self) -> dict:
+class DeploymentMonitoring(_MonitoringBase[_SyncMonitoringClient]):
+    def _get(
+        self,
+        operation_name: str,
+        params: dict[str, Any] | None = None,
+        path_values: Mapping[str, str] | None = None,
+    ) -> dict[str, Any]:
+        url, operation, implementation = self._request_details(
+            operation_name, path_values
+        )
+        try:
+            response = (
+                self._client.get(url, params=params)
+                if params
+                else self._client.get(url)
+            )
+        except NotFoundError as error:
+            mapped = self._out_of_sync_error(error, operation_name, implementation)
+            if mapped is not None:
+                raise mapped from error
+            raise
+        return self._validate_response(
+            operation_name, operation, implementation, response
+        )
+
+    def header(self, **query: Any) -> dict[str, Any]:  # noqa: ANN401
         """
         Identity of the deployment as the dashboard header shows it.
 
@@ -93,7 +352,7 @@ class DeploymentMonitoring(_MonitoringBase):
         }
         ```
         """
-        return self._client.get(self._url("header"))
+        return self._get("header", query)
 
     def overview(
         self,
@@ -102,7 +361,8 @@ class DeploymentMonitoring(_MonitoringBase):
         severity: str = "all",
         granularity: str = "auto",
         feature: str | None = None,
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Status summary of the deployment: what changed and where to look first.
 
@@ -119,7 +379,7 @@ class DeploymentMonitoring(_MonitoringBase):
             features — the chart-ready payload the dashboard's Overview tab renders.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -133,9 +393,9 @@ class DeploymentMonitoring(_MonitoringBase):
         overview = monitoring.overview(window="7d", severity="critical")
         ```
         """
-        return self._client.get(
-            self._url("overview"),
-            params=_dims(window, compare, severity, granularity, feature),
+        return self._get(
+            "overview",
+            _dims(window, compare, severity, granularity, feature, query),
         )
 
     def runtime(
@@ -144,7 +404,8 @@ class DeploymentMonitoring(_MonitoringBase):
         compare: str = "reference",
         severity: str = "all",
         granularity: str = "auto",
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Whether the deployed endpoint is technically healthy.
 
@@ -161,7 +422,7 @@ class DeploymentMonitoring(_MonitoringBase):
             time series, and the runtime alerts.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -175,9 +436,9 @@ class DeploymentMonitoring(_MonitoringBase):
         runtime = monitoring.runtime(window="24h")
         ```
         """
-        return self._client.get(
-            self._url("runtime"),
-            params=_dims(window, compare, severity, granularity, None),
+        return self._get(
+            "runtime",
+            _dims(window, compare, severity, granularity, None, query),
         )
 
     def data_quality(
@@ -185,7 +446,8 @@ class DeploymentMonitoring(_MonitoringBase):
         window: str = "24h",
         severity: str = "all",
         feature: str | None = None,
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Whether live inputs still conform to the model contract.
 
@@ -202,7 +464,7 @@ class DeploymentMonitoring(_MonitoringBase):
             violations and unseen categories, plus summaries of the invalid values seen.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -216,9 +478,9 @@ class DeploymentMonitoring(_MonitoringBase):
         data_quality = monitoring.data_quality(feature="age")
         ```
         """
-        return self._client.get(
-            self._url("data-quality"),
-            params=_dims(window, "reference", severity, "auto", feature),
+        return self._get(
+            "data_quality",
+            _dims(window, "reference", severity, "auto", feature, query),
         )
 
     def feature_drift(
@@ -226,7 +488,8 @@ class DeploymentMonitoring(_MonitoringBase):
         window: str = "24h",
         severity: str = "all",
         feature: str | None = None,
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Which inputs changed compared with the training reference.
 
@@ -240,7 +503,7 @@ class DeploymentMonitoring(_MonitoringBase):
             distributions and PSI history, and the multivariate (PCA) panel.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -254,12 +517,17 @@ class DeploymentMonitoring(_MonitoringBase):
         feature_drift = monitoring.feature_drift(severity="critical")
         ```
         """
-        return self._client.get(
-            self._url("feature-drift"),
-            params=_dims(window, "reference", severity, "auto", feature),
+        return self._get(
+            "feature_drift",
+            _dims(window, "reference", severity, "auto", feature, query),
         )
 
-    def output_drift(self, window: str = "24h", severity: str = "all") -> dict:
+    def output_drift(
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Did the model's outputs shift against the training reference.
 
@@ -279,7 +547,7 @@ class DeploymentMonitoring(_MonitoringBase):
             worst horizon.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -293,12 +561,16 @@ class DeploymentMonitoring(_MonitoringBase):
         output_drift = monitoring.output_drift(window="7d")
         ```
         """
-        return self._client.get(
-            self._url("output-drift"),
-            params=_dims(window, "reference", severity, "auto", None),
+        return self._get(
+            "output_drift",
+            _dims(window, "reference", severity, "auto", None, query),
         )
 
-    def reference_profile(self, feature: str | None = None) -> dict:
+    def reference_profile(
+        self,
+        feature: str | None = None,
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         The profile the deployment is compared against.
 
@@ -326,12 +598,17 @@ class DeploymentMonitoring(_MonitoringBase):
         reference_profile = monitoring.reference_profile()
         ```
         """
-        return self._client.get(
-            self._url("reference-profile"),
-            params=_dims("24h", "reference", "all", "auto", feature),
+        return self._get(
+            "reference_profile",
+            _dims("24h", "reference", "all", "auto", feature, query),
         )
 
-    def alerts(self, window: str = "24h", severity: str = "all") -> dict:
+    def alerts(
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Open and acknowledged alerts, grouped by metric family.
 
@@ -345,7 +622,7 @@ class DeploymentMonitoring(_MonitoringBase):
             metric history.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -359,9 +636,9 @@ class DeploymentMonitoring(_MonitoringBase):
         alerts = monitoring.alerts(window="7d", severity="critical")
         ```
         """
-        return self._client.get(
-            self._url("alerts"),
-            params=_dims(window, "reference", severity, "auto", None),
+        return self._get(
+            "alerts",
+            _dims(window, "reference", severity, "auto", None, query),
         )
 
     def traces(
@@ -371,7 +648,8 @@ class DeploymentMonitoring(_MonitoringBase):
         offset: int = 0,
         sort: str = "ts",
         order: str = "desc",
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         The local request log: one row per inference call.
 
@@ -391,8 +669,7 @@ class DeploymentMonitoring(_MonitoringBase):
             latency, status) and the total count.
 
         Raises:
-            LumlAPIError: If ``window``, ``sort`` or ``order`` is not one the
-                dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -407,11 +684,16 @@ class DeploymentMonitoring(_MonitoringBase):
         slowest = monitoring.traces(sort="latency", order="desc", limit=10)
         ```
         """
-        params = _dims(window, "reference", "all", "auto", None)
-        params.update(_trace_page(limit, offset, sort, order))
-        return self._client.get(self._url("traces"), params=params)
+        params = _dims(window, "reference", "all", "auto", None, {})
+        params.update(_trace_page(limit, offset, sort, order, query))
+        return self._get("traces", params)
 
-    def trace(self, event_id: str, window: str = "24h") -> dict:
+    def trace(
+        self,
+        event_id: str,
+        window: str = "24h",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         One call with its full payloads and span tree.
 
@@ -440,12 +722,13 @@ class DeploymentMonitoring(_MonitoringBase):
         trace = monitoring.trace("01a03491-e699-7244-ba1f-84ddc4cde2a1")
         ```
         """
-        return self._client.get(
-            self._url(f"traces/{event_id}"),
-            params=_dims(window, "reference", "all", "auto", None),
+        return self._get(
+            "trace",
+            _dims(window, "reference", "all", "auto", None, query),
+            {"event_id": event_id},
         )
 
-    def worker(self) -> dict:
+    def worker(self, **query: Any) -> dict[str, Any]:  # noqa: ANN401
         """
         Whether monitoring itself is keeping up — not a metric about the model.
 
@@ -467,11 +750,35 @@ class DeploymentMonitoring(_MonitoringBase):
         worker = monitoring.worker()
         ```
         """
-        return self._client.get(self._url("worker"))
+        return self._get("worker", query)
 
 
-class AsyncDeploymentMonitoring(_MonitoringBase):
-    async def header(self) -> dict:
+class AsyncDeploymentMonitoring(_MonitoringBase[_AsyncMonitoringClient]):
+    async def _get(
+        self,
+        operation_name: str,
+        params: dict[str, Any] | None = None,
+        path_values: Mapping[str, str] | None = None,
+    ) -> dict[str, Any]:
+        url, operation, implementation = self._request_details(
+            operation_name, path_values
+        )
+        try:
+            response = (
+                await self._client.get(url, params=params)
+                if params
+                else await self._client.get(url)
+            )
+        except NotFoundError as error:
+            mapped = self._out_of_sync_error(error, operation_name, implementation)
+            if mapped is not None:
+                raise mapped from error
+            raise
+        return self._validate_response(
+            operation_name, operation, implementation, response
+        )
+
+    async def header(self, **query: Any) -> dict[str, Any]:  # noqa: ANN401
         """
         Identity of the deployment as the dashboard header shows it.
 
@@ -516,7 +823,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         }
         ```
         """
-        return await self._client.get(self._url("header"))
+        return await self._get("header", query)
 
     async def overview(
         self,
@@ -525,7 +832,8 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         severity: str = "all",
         granularity: str = "auto",
         feature: str | None = None,
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Status summary of the deployment: what changed and where to look first.
 
@@ -542,7 +850,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             features — the chart-ready payload the dashboard's Overview tab renders.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -562,9 +870,9 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             overview = await monitoring.overview(window="7d", severity="critical")
         ```
         """
-        return await self._client.get(
-            self._url("overview"),
-            params=_dims(window, compare, severity, granularity, feature),
+        return await self._get(
+            "overview",
+            _dims(window, compare, severity, granularity, feature, query),
         )
 
     async def runtime(
@@ -573,7 +881,8 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         compare: str = "reference",
         severity: str = "all",
         granularity: str = "auto",
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Whether the deployed endpoint is technically healthy.
 
@@ -590,7 +899,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             time series, and the runtime alerts.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -610,14 +919,18 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             runtime = await monitoring.runtime(window="24h")
         ```
         """
-        return await self._client.get(
-            self._url("runtime"),
-            params=_dims(window, compare, severity, granularity, None),
+        return await self._get(
+            "runtime",
+            _dims(window, compare, severity, granularity, None, query),
         )
 
     async def data_quality(
-        self, window: str = "24h", severity: str = "all", feature: str | None = None
-    ) -> dict:
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        feature: str | None = None,
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Whether live inputs still conform to the model contract.
 
@@ -634,7 +947,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             violations and unseen categories, plus summaries of the invalid values seen.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -654,14 +967,18 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             data_quality = await monitoring.data_quality(feature="age")
         ```
         """
-        return await self._client.get(
-            self._url("data-quality"),
-            params=_dims(window, "reference", severity, "auto", feature),
+        return await self._get(
+            "data_quality",
+            _dims(window, "reference", severity, "auto", feature, query),
         )
 
     async def feature_drift(
-        self, window: str = "24h", severity: str = "all", feature: str | None = None
-    ) -> dict:
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        feature: str | None = None,
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Which inputs changed compared with the training reference.
 
@@ -675,7 +992,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             distributions and PSI history, and the multivariate (PCA) panel.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -695,12 +1012,17 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             feature_drift = await monitoring.feature_drift(severity="critical")
         ```
         """
-        return await self._client.get(
-            self._url("feature-drift"),
-            params=_dims(window, "reference", severity, "auto", feature),
+        return await self._get(
+            "feature_drift",
+            _dims(window, "reference", severity, "auto", feature, query),
         )
 
-    async def output_drift(self, window: str = "24h", severity: str = "all") -> dict:
+    async def output_drift(
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Did the model's outputs shift against the training reference.
 
@@ -720,7 +1042,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             worst horizon.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -740,12 +1062,16 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             output_drift = await monitoring.output_drift(window="7d")
         ```
         """
-        return await self._client.get(
-            self._url("output-drift"),
-            params=_dims(window, "reference", severity, "auto", None),
+        return await self._get(
+            "output_drift",
+            _dims(window, "reference", severity, "auto", None, query),
         )
 
-    async def reference_profile(self, feature: str | None = None) -> dict:
+    async def reference_profile(
+        self,
+        feature: str | None = None,
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         The profile the deployment is compared against.
 
@@ -779,12 +1105,17 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             reference_profile = await monitoring.reference_profile()
         ```
         """
-        return await self._client.get(
-            self._url("reference-profile"),
-            params=_dims("24h", "reference", "all", "auto", feature),
+        return await self._get(
+            "reference_profile",
+            _dims("24h", "reference", "all", "auto", feature, query),
         )
 
-    async def alerts(self, window: str = "24h", severity: str = "all") -> dict:
+    async def alerts(
+        self,
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         Open and acknowledged alerts, grouped by metric family.
 
@@ -798,7 +1129,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             metric history.
 
         Raises:
-            LumlAPIError: If ``window`` is not one the dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -818,9 +1149,9 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             alerts = await monitoring.alerts(window="7d", severity="critical")
         ```
         """
-        return await self._client.get(
-            self._url("alerts"),
-            params=_dims(window, "reference", severity, "auto", None),
+        return await self._get(
+            "alerts",
+            _dims(window, "reference", severity, "auto", None, query),
         )
 
     async def traces(
@@ -830,7 +1161,8 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
         offset: int = 0,
         sort: str = "ts",
         order: str = "desc",
-    ) -> dict:
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         The local request log: one row per inference call.
 
@@ -850,8 +1182,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             latency, status) and the total count.
 
         Raises:
-            LumlAPIError: If ``window``, ``sort`` or ``order`` is not one the
-                dashboard offers.
+            UnprocessableEntityError: If the Satellite rejects a query parameter.
             NotFoundError: If the Satellite does not host this deployment.
 
         Example:
@@ -872,11 +1203,16 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             slowest = await monitoring.traces(sort="latency", order="desc", limit=10)
         ```
         """
-        params = _dims(window, "reference", "all", "auto", None)
-        params.update(_trace_page(limit, offset, sort, order))
-        return await self._client.get(self._url("traces"), params=params)
+        params = _dims(window, "reference", "all", "auto", None, {})
+        params.update(_trace_page(limit, offset, sort, order, query))
+        return await self._get("traces", params)
 
-    async def trace(self, event_id: str, window: str = "24h") -> dict:
+    async def trace(
+        self,
+        event_id: str,
+        window: str = "24h",
+        **query: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """
         One call with its full payloads and span tree.
 
@@ -911,12 +1247,13 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             trace = await monitoring.trace("01a03491-e699-7244-ba1f-84ddc4cde2a1")
         ```
         """
-        return await self._client.get(
-            self._url(f"traces/{event_id}"),
-            params=_dims(window, "reference", "all", "auto", None),
+        return await self._get(
+            "trace",
+            _dims(window, "reference", "all", "auto", None, query),
+            {"event_id": event_id},
         )
 
-    async def worker(self) -> dict:
+    async def worker(self, **query: Any) -> dict[str, Any]:  # noqa: ANN401
         """
         Whether monitoring itself is keeping up — not a metric about the model.
 
@@ -944,4 +1281,4 @@ class AsyncDeploymentMonitoring(_MonitoringBase):
             worker = await monitoring.worker()
         ```
         """
-        return await self._client.get(self._url("worker"))
+        return await self._get("worker", query)

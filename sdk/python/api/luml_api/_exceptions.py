@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import Literal
 
 import httpx
@@ -32,6 +33,98 @@ class LumlAPIError(Exception):
     ) -> None:
         self.message = message
         super().__init__(self.message)
+
+
+class CapabilityNotSupportedError(LumlAPIError):
+    capability: str
+    satellite_id: str
+    deployment_id: str | None
+
+    def __init__(
+        self,
+        capability: str,
+        satellite_id: str,
+        *,
+        deployment_id: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self.capability = capability
+        self.satellite_id = satellite_id
+        self.deployment_id = deployment_id
+        super().__init__(
+            message
+            or f"Satellite {satellite_id} does not support capability {capability!r}"
+        )
+
+
+class UnsupportedCapabilityVersionError(LumlAPIError):
+    capability: str
+    satellite_id: str
+    sdk_versions: tuple[int, ...]
+    satellite_versions: tuple[int, ...]
+
+    def __init__(
+        self,
+        capability: str,
+        satellite_id: str,
+        sdk_versions: Iterable[int],
+        satellite_versions: Iterable[int],
+    ) -> None:
+        self.capability = capability
+        self.satellite_id = satellite_id
+        self.sdk_versions = tuple(sorted(set(sdk_versions)))
+        self.satellite_versions = tuple(sorted(set(satellite_versions)))
+        super().__init__(
+            f"No common {capability} API version for Satellite {satellite_id}: "
+            f"SDK supports {list(self.sdk_versions)}; Satellite advertises "
+            f"{list(self.satellite_versions)}"
+        )
+
+
+class NotAvailableInVersionError(LumlAPIError):
+    capability: str
+    operation: str
+    api_version: int
+
+    def __init__(self, capability: str, operation: str, api_version: int) -> None:
+        self.capability = capability
+        self.operation = operation
+        self.api_version = api_version
+        super().__init__(
+            f"{capability.capitalize()} operation {operation!r} is not available in "
+            f"API version {api_version}"
+        )
+
+
+class ContractViolationError(LumlAPIError):
+    satellite_id: str
+    operation: str
+    api_version: int
+    response: object
+    missing_fields: tuple[str, ...]
+
+    def __init__(
+        self,
+        satellite_id: str,
+        operation: str,
+        api_version: int,
+        response: object,
+        missing_fields: Iterable[str],
+    ) -> None:
+        self.satellite_id = satellite_id
+        self.operation = operation
+        self.api_version = api_version
+        self.response = response
+        self.missing_fields = tuple(sorted(missing_fields))
+        detail = (
+            f"missing required top-level fields {list(self.missing_fields)}"
+            if self.missing_fields
+            else "response is not a JSON object"
+        )
+        super().__init__(
+            f"Satellite {satellite_id} violated the monitoring API version "
+            f"{api_version} contract for operation {operation!r}: {detail}"
+        )
 
 
 class ConfigurationError(LumlAPIError):
@@ -175,6 +268,32 @@ class PermissionDeniedError(APIStatusError):
 
 class NotFoundError(APIStatusError):
     status_code: Literal[404] = 404
+
+
+class SatelliteOutOfSyncError(NotFoundError):
+    satellite_id: str
+    operation: str
+    api_version: int
+
+    def __init__(
+        self,
+        satellite_id: str,
+        operation: str,
+        api_version: int,
+        *,
+        response: httpx.Response,
+        body: object | None,
+    ) -> None:
+        self.satellite_id = satellite_id
+        self.operation = operation
+        self.api_version = api_version
+        super().__init__(
+            f"Satellite {satellite_id} returned unknown_route for monitoring "
+            f"operation {operation!r} at API version {api_version}; restart or "
+            "re-pair the Satellite so its capabilities match its routes",
+            response=response,
+            body=body,
+        )
 
 
 class ConflictError(APIStatusError):

@@ -835,8 +835,8 @@ in the second
         error, relative/absolute URL resolution, the foreign-origin refusal and bearer
         forwarding
 
-- [ ] Dispatch native SDK monitoring methods by API version
-  - [ ] Per-version implementations and selection in
+- [x] Dispatch native SDK monitoring methods by API version
+  - [x] Per-version implementations and selection in
         `sdk/python/api/luml_api/resources/monitoring.py`; `monitoring_url` as the request
         base; pre-flight errors; removal of client-side query validation; required-structure
         check with `ContractViolationError`; `SatelliteOutOfSyncError` mapping — new error
@@ -844,7 +844,7 @@ in the second
         `sdk/python/api/luml_api/__init__.py`; `monitoring()` in
         `sdk/python/api/luml_api/resources/deployments.py` (today built from `base_url`
         only) hands the satellite record and the deployment record to the resource
-  - [ ] Update `sdk/python/api/tests/unit/test_deployment_resources.py` and add tests for each
+  - [x] Update `sdk/python/api/tests/unit/test_deployment_resources.py` and add tests for each
         pre-flight error, pass-through, contract violation and out-of-sync mapping
 
 - [ ] Add the satellite OpenAPI contract snapshot and tests
