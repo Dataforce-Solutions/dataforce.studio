@@ -381,6 +381,75 @@ class TestContainerRelaunch:
         assert DEPLOYMENT_ID not in handler.deployments
 
     @respx.mock
+    async def test_a_deployment_deleted_mid_recovery_takes_its_orphan_container_with_it(
+        self,
+    ) -> None:
+        """A 404 on the promotion means deletion won — and the container is nobody's.
+
+        The undeploy task removed the old container and the record while recovery was
+        waiting; the container recovery created is invisible to every record-driven
+        path, so recovery itself must take it down.
+        """
+        handler = ModelServerHandler()
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            side_effect=[
+                httpx.Response(200, json=_platform_record()),  # the recovery marker lands
+                httpx.Response(404, json={"detail": "Deployment not found"}),
+            ]
+        )
+        docker = _stopped_docker()
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        docker.remove_model_container.assert_awaited_once_with(deployment_id=DEPLOYMENT_ID)
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
+    async def test_an_orphan_container_is_removed_on_the_next_start(self) -> None:
+        """A container whose deployment no longer exists is invisible to reconciliation.
+
+        Sync walks Platform records; a container left behind by a lost race with
+        deletion has none, so only a container-side check can find it. A container
+        whose record appeared after the first snapshot is spared: the second, fresh
+        listing knows it.
+        """
+        orphan_id = str(uuid.uuid4())
+        fresh_id = str(uuid.uuid4())
+
+        def _container(name: str, dep_id: str | None) -> AsyncMock:
+            fake = AsyncMock()
+            labels = {"df.deployment_id": dep_id} if dep_id else {}
+            fake.show = AsyncMock(return_value={"Name": f"/{name}", "Config": {"Labels": labels}})
+            return fake
+
+        handler = ModelServerHandler()
+        record = _platform_record()
+        fresh_record = _platform_record() | {"id": fresh_id}
+        respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
+            side_effect=[
+                httpx.Response(200, json=[record]),  # the snapshot sync works from
+                httpx.Response(200, json=[record, fresh_record]),  # the confirming look
+            ]
+        )
+        _mock_model_server()
+        docker = _running_docker()
+        docker.client.containers.list = AsyncMock(
+            return_value=[
+                _container(f"sat-{orphan_id}", orphan_id),
+                _container(f"sat-{fresh_id}", fresh_id),  # deploying right now — spared
+                _container("df-studio-postgres", None),  # not ours — never touched
+            ]
+        )
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        docker.remove_model_container.assert_awaited_once_with(deployment_id=orphan_id)
+
+    @respx.mock
     async def test_the_recovery_wait_is_bounded_by_wall_clock_not_attempts(self) -> None:
         """A hanging health endpoint spends seconds per attempt.
 

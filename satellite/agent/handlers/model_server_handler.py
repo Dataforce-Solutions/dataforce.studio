@@ -5,6 +5,8 @@ from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
+import httpx
+
 from agent._exceptions import (
     ContainerNotFoundError,
     ContainerNotRunningError,
@@ -232,15 +234,25 @@ class ModelServerHandler:
                             dep_id,
                             DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
                         )
+                    except httpx.HTTPStatusError as error:
+                        logger.warning(
+                            f"[ModelServerHandler] not promoting '{dep_id}': the Platform "
+                            f"refused ({error})"
+                        )
+                        if error.response.status_code == 404:
+                            # The record is gone: deletion won while this wait was
+                            # running, after the undeploy task had already removed the
+                            # old container — so the one recovery created is nobody's,
+                            # and nothing record-driven will ever stop it. Remove it.
+                            await self._remove_orphan(docker, dep_id)
+                        return
                     except Exception as error:
                         logger.warning(
                             f"[ModelServerHandler] not promoting '{dep_id}': the Platform "
                             f"refused ({error}) — likely deleted during the wait"
                         )
                         return
-                    monitoring_enabled = self._read_monitoring_enabled(
-                        dep.get("satellite_parameters")
-                    )
+                    monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
@@ -266,8 +278,56 @@ class ModelServerHandler:
                     },
                 ),
             )
+        except httpx.HTTPStatusError as error:
+            logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
+            if error.response.status_code == 404:
+                # deleted while the wait ran; the container recovery created is nobody's
+                await self._remove_orphan(docker, dep_id)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
+
+    @staticmethod
+    async def _remove_orphan(docker: DockerService, deployment_id: str) -> None:
+        logger.warning(
+            f"[ModelServerHandler] removing container of deleted deployment '{deployment_id}'"
+        )
+        with suppress(Exception):
+            await docker.remove_model_container(deployment_id=deployment_id)
+
+    async def _remove_orphan_containers(
+        self, docker: DockerService, platform: PlatformClient, known_ids: set[str]
+    ) -> None:
+        """Remove model containers whose deployment no longer exists anywhere.
+
+        Recovery can lose a race with deletion: it recreates a container after the
+        undeploy task has already removed both the container and the Platform record.
+        Such a container appears in no reconciliation — sync walks Platform records,
+        and the record is gone — so nothing record-driven would ever stop it.
+
+        Every candidate is confirmed against a fresh listing before removal: a record
+        always exists before its container does, so a deployment created after the
+        first snapshot has its record in the second look and cannot be mistaken for
+        an orphan.
+        """
+        try:
+            candidates: list[str] = []
+            for container in await docker.client.containers.list(all=True):
+                info = await container.show()
+                labels = info.get("Config", {}).get("Labels") or {}
+                dep_id = labels.get("df.deployment_id")
+                name = (info.get("Name") or "").lstrip("/")
+                if dep_id and name.startswith("sat-") and dep_id not in known_ids:
+                    candidates.append(dep_id)
+
+            if not candidates:
+                return
+
+            fresh_ids = {dep.get("id", "") for dep in await platform.list_deployments()}
+            for dep_id in candidates:
+                if dep_id not in fresh_ids:
+                    await self._remove_orphan(docker, dep_id)
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] orphan container check failed: {error}")
 
     @staticmethod
     async def _container_logs(docker: DockerService, deployment_id: str) -> str:
@@ -382,9 +442,7 @@ class ModelServerHandler:
                                 f"Platform refused ({error})"
                             )
                             continue
-                    monitoring_enabled = self._read_monitoring_enabled(
-                        dep.get("satellite_parameters")
-                    )
+                    monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
@@ -451,6 +509,12 @@ class ModelServerHandler:
                         logger.warning(
                             f"[ModelServerHandler] settling '{settled_dep['id']}' failed: {result}"
                         )
+
+            # Containers orphaned by a lost race with deletion go first, so the volumes
+            # they were pinning are free by the time the cache cleanup below runs.
+            await self._remove_orphan_containers(
+                docker, platform_client, {dep.get("id", "") for dep in deployments_db}
+            )
 
             # Staging directories abandoned by hard-killed containers are reclaimed here
             # because nothing else ever will — each unpack uses a path of its own and only
