@@ -80,9 +80,7 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 conditions.append(or_(*[TrackOrm.artifact_type == t for t in types]))
 
             if tags:
-                conditions.append(
-                    or_(*[TrackOrm.tags.contains([tag]) for tag in tags])
-                )
+                conditions.append(or_(*[TrackOrm.tags.contains([tag]) for tag in tags]))
 
             result = await self.get_models_with_pagination(
                 session,
