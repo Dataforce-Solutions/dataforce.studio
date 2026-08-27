@@ -1438,6 +1438,38 @@ async def test_update_worker_deployment(
     "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
+@pytest.mark.parametrize(
+    "monitoring_url",
+    ["/deployments/dep-1/monitoring", None],
+)
+@pytest.mark.asyncio
+async def test_update_worker_deployment_preserves_partial_fields(
+    mock_update_deployment: AsyncMock,
+    monitoring_url: str | None,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    expected = Mock(spec=Deployment)
+    mock_update_deployment.return_value = expected
+
+    result = await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(monitoring_url=monitoring_url),
+    )
+
+    assert result is expected
+    update = mock_update_deployment.await_args.args[2]
+    assert update.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "monitoring_url": monitoring_url,
+    }
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_update_worker_deployment_not_found(
     mock_update_deployment: AsyncMock,

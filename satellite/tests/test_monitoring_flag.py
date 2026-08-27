@@ -1,4 +1,7 @@
+import json
+
 import httpx
+import pytest
 import respx
 
 from agent.handlers.model_server_handler import ModelServerHandler
@@ -78,24 +81,45 @@ class TestAddDeploymentCarriesFlag:
 
 
 class TestSyncDeploymentsCarriesFlag:
+    @pytest.mark.parametrize(
+        ("monitoring_capability_present", "expected_monitoring_url"),
+        [
+            (True, "/deployments/dep-sync-1/monitoring"),
+            (False, None),
+        ],
+    )
     @respx.mock
-    async def test_sync_reads_monitoring_mode(self) -> None:
+    async def test_sync_reads_monitoring_mode(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        monitoring_capability_present: bool,
+        expected_monitoring_url: str | None,
+    ) -> None:
+        monkeypatch.setattr(config, "MONITORING_ENABLED", monitoring_capability_present)
         handler = ModelServerHandler()
+        deployment_record = {
+            "id": "dep-sync-1",
+            "orbit_id": "orbit-1",
+            "satellite_id": "sat-1",
+            "satellite_name": "test-sat",
+            "name": "synced deployment",
+            "artifact_id": "art-1",
+            "artifact_name": "model-a",
+            "collection_id": "col-1",
+            "inference_url": "/deployments/dep-sync-1",
+            "status": "active",
+            "monitoring_mode": "full",
+            "dynamic_attributes_secrets": {},
+            "created_at": "2026-01-01T00:00:00Z",
+        }
 
         respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
+            return_value=httpx.Response(200, json=[deployment_record])
+        )
+        update_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/dep-sync-1").mock(
             return_value=httpx.Response(
                 200,
-                json=[
-                    {
-                        "id": "dep-sync-1",
-                        "name": "synced deployment",
-                        "status": "active",
-                        "monitoring_mode": "full",
-                        "artifact_name": "model-a",
-                        "satellite_name": "test-sat",
-                        "dynamic_attributes_secrets": {},
-                    }
-                ],
+                json=deployment_record | {"monitoring_url": expected_monitoring_url},
             )
         )
 
@@ -130,21 +154,41 @@ class TestSyncDeploymentsCarriesFlag:
         assert local.metadata.status == "active"
         assert local.metadata.model_name == "model-a"
         assert local.metadata.satellite == "test-sat"
+        assert local.metadata.inference_url == "/deployments/dep-sync-1"
+        assert json.loads(update_route.calls[0].request.content) == {
+            "monitoring_url": expected_monitoring_url
+        }
 
     @respx.mock
-    async def test_sync_absent_mode_means_off(self) -> None:
+    async def test_sync_absent_mode_means_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config, "MONITORING_ENABLED", True)
         handler = ModelServerHandler()
+        deployment_record = {
+            "id": "dep-sync-2",
+            "status": "active",
+            "dynamic_attributes_secrets": {},
+        }
+        update_response = {
+            "id": "dep-sync-2",
+            "orbit_id": "orbit-1",
+            "satellite_id": "sat-1",
+            "satellite_name": "test-sat",
+            "name": "synced deployment",
+            "artifact_id": "art-1",
+            "artifact_name": "model-a",
+            "collection_id": "col-1",
+            "status": "active",
+            "dynamic_attributes_secrets": {},
+            "created_at": "2026-01-01T00:00:00Z",
+        }
 
         respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
+            return_value=httpx.Response(200, json=[deployment_record])
+        )
+        update_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/dep-sync-2").mock(
             return_value=httpx.Response(
                 200,
-                json=[
-                    {
-                        "id": "dep-sync-2",
-                        "status": "active",
-                        "dynamic_attributes_secrets": {},
-                    }
-                ],
+                json=update_response | {"monitoring_url": None},
             )
         )
 
@@ -173,3 +217,4 @@ class TestSyncDeploymentsCarriesFlag:
         assert local.monitoring_enabled is False
         # a record without those fields simply leaves the header empty
         assert local.metadata.name is None
+        assert json.loads(update_route.calls[0].request.content) == {"monitoring_url": None}

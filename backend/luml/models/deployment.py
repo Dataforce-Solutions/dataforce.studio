@@ -62,6 +62,7 @@ class DeploymentOrm(TimestampMixin, Base):
     inference_url: Mapped[str | None] = mapped_column(
         String, nullable=True, unique=True
     )
+    monitoring_url: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="pending", server_default="pending"
     )

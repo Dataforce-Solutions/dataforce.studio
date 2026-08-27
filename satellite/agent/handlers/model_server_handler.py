@@ -17,6 +17,7 @@ from agent.schemas import (
     LocalDeployment,
     Secret,
     gate_reference_profile,
+    monitoring_url_for_deployment,
 )
 from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
@@ -154,6 +155,16 @@ class ModelServerHandler:
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
                         metadata=DeploymentMetadata.from_platform(dep),
+                    )
+                    await platform_client.update_deployment(
+                        dep_id,
+                        DeploymentUpdate(
+                            monitoring_url=monitoring_url_for_deployment(
+                                dep_id,
+                                dep.get("monitoring_mode"),
+                                monitoring_capability_present=config.MONITORING_ENABLED,
+                            )
+                        ),
                     )
                 else:
                     logs = ""

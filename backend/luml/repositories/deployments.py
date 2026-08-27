@@ -98,7 +98,9 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             dep = result.scalar_one_or_none()
             if not dep:
                 return None
-            for field, value in update.model_dump(exclude_unset=True).items():
+            for field, value in update.model_dump(
+                exclude_unset=True, exclude={"id"}
+            ).items():
                 setattr(dep, field, value)
             await session.commit()
             await session.refresh(dep)

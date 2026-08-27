@@ -793,19 +793,19 @@ in the second
   - [x] Update `satellite/tests/test_capabilities.py`; tests for the pushed document with
         monitoring enabled and disabled
 
-- [ ] Report monitoring_url on the deployment record
-  - [ ] Nullable `monitoring_url` on the platform deployment model, schemas and migration;
+- [x] Report monitoring_url on the deployment record
+  - [x] Nullable `monitoring_url` on the platform deployment model, schemas and migration;
         accepted from the satellite's deployment update call, which becomes a true partial
         update in `backend/luml/handlers/deployments.py` (omitted fields untouched, explicit
         null clears)
-  - [ ] Add it to the satellite's own `DeploymentUpdate` schema
+  - [x] Add it to the satellite's own `DeploymentUpdate` schema
         (`satellite/agent/schemas/deployments.py`); report it in
         `satellite/agent/tasks/deploy.py`, on reconcile, and from the startup sync in
         `satellite/agent/handlers/model_server_handler.py` only when the agent advertises
         `monitoring` and the deployment's mode is not `off`; clear it on reconcile when
         monitoring is turned off
-  - [ ] Add it to the SDK `Deployment` type (`sdk/python/api/luml_api/_types.py`)
-  - [ ] Backend, satellite and SDK type tests
+  - [x] Add it to the SDK `Deployment` type (`sdk/python/api/luml_api/_types.py`)
+  - [x] Backend, satellite and SDK type tests
 
 - [ ] Return structured 404 codes from the satellite API
   - [ ] `deployment_not_hosted` on the machine surface and an app-wide `unknown_route` for any

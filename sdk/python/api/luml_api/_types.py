@@ -354,6 +354,7 @@ class Deployment(BaseModel):
     artifact_name: str | None = None
     collection_id: str | None = None
     inference_url: str | None = None
+    monitoring_url: str | None = None
     status: str
     monitoring_mode: str = "off"
     description: str | None = None

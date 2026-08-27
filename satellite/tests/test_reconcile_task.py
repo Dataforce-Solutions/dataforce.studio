@@ -1,9 +1,12 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from agent.handlers.tasks import TaskHandler
 from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 from agent.schemas.deployments import Deployment
+from agent.settings import config
 from agent.tasks import ReconcileTask
 
 
@@ -36,7 +39,10 @@ def _deployment(monitoring_mode: str = "full", status: str = "active") -> Deploy
     )
 
 
-async def test_reconcile_active_reapplies_monitoring() -> None:
+async def test_reconcile_active_reapplies_monitoring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MONITORING_ENABLED", True)
     platform = AsyncMock()
     platform.get_deployment.return_value = _deployment(monitoring_mode="full")
     task_handler = ReconcileTask(platform=platform, docker=AsyncMock())
@@ -50,6 +56,32 @@ async def test_reconcile_active_reapplies_monitoring() -> None:
     assert final_status.args[1] == SatelliteTaskStatus.DONE
     assert final_status.args[2]["reconciled"] is True
     assert final_status.args[2]["monitoring_enabled"] is True
+    update = platform.update_deployment.await_args.args[1]
+    assert update.model_dump(exclude_unset=True) == {
+        "monitoring_url": "/deployments/dep-1/monitoring"
+    }
+
+
+async def test_reconcile_clears_and_restores_monitoring_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MONITORING_ENABLED", True)
+    platform = AsyncMock()
+    platform.get_deployment.side_effect = [
+        _deployment(monitoring_mode="off"),
+        _deployment(monitoring_mode="full"),
+    ]
+    task_handler = ReconcileTask(platform=platform, docker=AsyncMock())
+
+    with patch("agent.tasks.reconcile.ms_handler.add_deployment", new=AsyncMock()):
+        await task_handler.run(_task())
+        await task_handler.run(_task())
+
+    updates = [call.args[1] for call in platform.update_deployment.await_args_list]
+    assert [update.model_dump(exclude_unset=True) for update in updates] == [
+        {"monitoring_url": None},
+        {"monitoring_url": "/deployments/dep-1/monitoring"},
+    ]
 
 
 async def test_reconcile_inactive_skips_add_deployment() -> None:

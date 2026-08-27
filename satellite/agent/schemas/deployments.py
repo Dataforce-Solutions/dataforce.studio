@@ -30,6 +30,7 @@ class ErrorMessage(BaseModel):
 class DeploymentUpdate(BaseModel):
     status: DeploymentStatus | None = None
     inference_url: str | None = None
+    monitoring_url: str | None = None
     schemas: dict[str, Any] | None = None
     error_message: ErrorMessage | None = None
 
@@ -160,6 +161,19 @@ def _producer_tags(manifest: Mapping[str, Any] | None) -> set[str]:
     if not isinstance(tags, list):
         return set()
     return {tag for tag in tags if isinstance(tag, str)}
+
+
+def monitoring_url_for_deployment(
+    deployment_id: str,
+    monitoring_mode: str | None,
+    *,
+    monitoring_capability_present: bool,
+) -> str | None:
+    if not monitoring_capability_present:
+        return None
+    if (monitoring_mode or "off").strip().lower() == "off":
+        return None
+    return f"/deployments/{deployment_id}/monitoring"
 
 
 class Secret(BaseModel):

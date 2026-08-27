@@ -255,13 +255,8 @@ class DeploymentHandler:
         deployment_id: UUID,
         data: DeploymentUpdateIn,
     ) -> Deployment:
-        update_data = DeploymentUpdate(
-            id=deployment_id,
-            inference_url=data.inference_url,
-            status=data.status,
-            schemas=data.schemas,
-            error_message=data.error_message,
-            tags=data.tags,
+        update_data = DeploymentUpdate.model_validate(
+            {"id": deployment_id, **data.model_dump(exclude_unset=True)}
         )
         deployment = await self.__repo.update_deployment(
             deployment_id,

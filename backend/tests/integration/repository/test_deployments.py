@@ -232,6 +232,58 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
 
 
 @pytest.mark.asyncio
+async def test_partial_deployment_update_preserves_omitted_fields_and_clears_null(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="monitored-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+    inference_url = f"https://inference-{uuid.uuid4()}.example/api"
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            inference_url=inference_url,
+            status=DeploymentStatus.ACTIVE,
+        ),
+    )
+
+    monitored = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            monitoring_url=f"/deployments/{created.id}/monitoring",
+        ),
+    )
+
+    assert monitored is not None
+    assert monitored.monitoring_url == f"/deployments/{created.id}/monitoring"
+    assert monitored.inference_url == inference_url
+    assert monitored.status == DeploymentStatus.ACTIVE
+
+    cleared = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, monitoring_url=None),
+    )
+
+    assert cleared is not None
+    assert cleared.monitoring_url is None
+    assert cleared.inference_url == inference_url
+    assert cleared.status == DeploymentStatus.ACTIVE
+
+
+@pytest.mark.asyncio
 async def test_update_deployment_details(
     create_satellite: SatelliteFixtureData,
 ) -> None:

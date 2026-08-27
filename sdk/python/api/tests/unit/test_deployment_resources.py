@@ -32,6 +32,7 @@ def _record(**overrides) -> dict:
         "artifact_id": "01a01502-ccff-720d-924b-7bbb13859f22",
         "artifact_name": "insurance_regression_v2",
         "collection_id": "0199c8cf-f4be-79ae-9251-b63108fd9009",
+        "monitoring_url": f"/deployments/{DEPLOYMENT_ID}/monitoring",
         "status": "active",
         "monitoring_mode": "full",
         "created_at": "2026-08-24T13:00:00Z",
@@ -64,6 +65,7 @@ def test_deployment_get_by_id_addresses_it_directly(mock_sync_client: Mock) -> N
     )
     assert deployment is not None
     assert deployment.satellite_id == SATELLITE_ID
+    assert deployment.monitoring_url == f"/deployments/{DEPLOYMENT_ID}/monitoring"
 
 
 def test_monitoring_resolves_the_satellite_from_the_deployment(
@@ -203,9 +205,7 @@ def test_monitoring_accepts_a_deployment_name_not_just_an_id(
         {"base_url": SATELLITE_URL},
     ]
 
-    monitoring = DeploymentResource(mock_sync_client).monitoring(
-        "insurance regression"
-    )
+    monitoring = DeploymentResource(mock_sync_client).monitoring("insurance regression")
 
     assert monitoring.deployment_id == DEPLOYMENT_ID
 

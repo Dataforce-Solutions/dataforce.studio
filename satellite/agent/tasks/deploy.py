@@ -16,6 +16,7 @@ from agent.schemas import (
     DeploymentUpdate,
     SatelliteQueueTask,
     SatelliteTaskStatus,
+    monitoring_url_for_deployment,
 )
 from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
@@ -215,7 +216,14 @@ class DeployTask(Task):
             await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
-                    inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
+                    inference_url=inference_url,
+                    monitoring_url=monitoring_url_for_deployment(
+                        dep_id,
+                        dep.monitoring_mode,
+                        monitoring_capability_present=config.MONITORING_ENABLED,
+                    ),
+                    schemas=schemas,
+                    status=DeploymentStatus.ACTIVE,
                 ),
             )
             await self.platform.update_task_status(

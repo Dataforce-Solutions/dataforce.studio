@@ -13,6 +13,7 @@ from luml_api.resources.monitoring import (
 if TYPE_CHECKING:
     from luml_api._client import AsyncLumlClient, LumlClient
 
+
 class DeploymentResourceBase(ABC):
     """Abstract resource for reading Deployments and their monitoring."""
 
