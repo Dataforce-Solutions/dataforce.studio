@@ -1,12 +1,7 @@
 """Per-deployment tokens that let a model container ask the Agent for its artifact.
 
-The token is derived from the Satellite's own credential rather than stored, which is what
-makes it survive both restarts: the Agent keeps no state to lose, and a container that has
-been sitting stopped for weeks still presents a token the Agent recognises.
-
-It is not a Platform credential and grants nothing on its own — the Agent checks that the
-token belongs to the deployment being asked about, so a container can only ever fetch its
-own artifact, and only through the Agent.
+Derived from the Satellite credential rather than stored, so it survives restarts on
+both sides; it is bound to one deployment and grants nothing beyond its own artifact.
 """
 
 import hashlib

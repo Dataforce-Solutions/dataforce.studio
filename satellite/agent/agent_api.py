@@ -41,8 +41,6 @@ SATELLITE_FACET = "satellite"
 DEPLOYMENT_FACET = "deployment"
 INFERENCE_ACCESS_PATH = "/satellites/deployments/inference-access"
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "options", "head", "trace"})
-# Resolves a deployment's artifact to a freshly signed download URL. Raises KeyError when
-# the Satellite does not host that deployment.
 ResolveArtifactFn = Callable[[UUID], Awaitable[ArtifactDownload]]
 
 
@@ -166,9 +164,6 @@ def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
-    # The loop holds only a weak reference to a bare task; kept on app.state so a
-    # reconciliation that now waits on container recoveries for up to half an hour
-    # cannot be garbage-collected mid-flight.
     app.state.sync_task = asyncio.create_task(ms_handler.sync_deployments())
 
     yield
@@ -269,13 +264,7 @@ def create_agent_app(
         deployment_id: UUID,
         x_artifact_token: str | None = Header(default=None),
     ) -> ArtifactDownload:
-        """Where this deployment's model container downloads its artifact from, right now.
-
-        The container holds no download link of its own: a presigned URL expires in hours
-        while the container lives for weeks, so the link is minted per request and dies with
-        it. The caller proves it is that deployment's container with a token the Agent
-        derives rather than stores, so this keeps working across restarts of both.
-        """
+        """A download URL for this deployment's artifact, signed for this request."""
         if not artifact_tokens.verify(str(deployment_id), x_artifact_token):
             raise HTTPException(status_code=403, detail="Invalid artifact token")
         if resolve_artifact is None:

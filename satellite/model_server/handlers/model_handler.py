@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 
 class ModelHandler:
     def __init__(self, url: str | None = None, agent: AgentClient | None = None) -> None:
-        # A URL passed in directly is a caller that already has one (tests, local runs);
-        # otherwise the Agent is asked for one at the moment it is needed.
         self._model_url = url
         self._agent = agent or AgentClient()
         self._models_cache_dir = self._get_model_cache_dir()
@@ -110,31 +108,20 @@ class ModelHandler:
     def _caller_supplied_url(self) -> str | None:
         """A download URL the container was handed instead of a token, if any.
 
-        Tests and local runs pass one directly; an Agent from before the token contract
-        passes one through MODEL_ARTIFACT_URL. Both must be honoured — a new image
-        launched by an old Agent holds a perfectly valid link and nothing else, and
-        ignoring it would crash-loop a container that has everything it needs.
+        Tests and local runs pass one directly; an Agent from before the token
+        contract passes one through MODEL_ARTIFACT_URL.
         """
         return self._model_url or os.getenv("MODEL_ARTIFACT_URL") or None
 
     def _known_model_id(self) -> str | None:
-        """The cache key, if it can be known without asking anyone.
-
-        The Agent pins it in the environment when it creates the container, so a model that
-        is already unpacked can be found with no network at all. A caller that supplied its
-        own URL keys on that instead.
-        """
+        """The cache key, if it can be known without asking anyone."""
         url = self._caller_supplied_url()
         if url:
             return self._generate_model_id(url)
         return os.getenv("MODEL_ARTIFACT_ID") or None
 
     def _resolve_artifact(self) -> tuple[str, str]:
-        """The download URL and the cache key, asking the Agent for a link signed just now.
-
-        A presigned URL expires in hours while this container lives for weeks, so the only
-        link that can be trusted is one minted for this request.
-        """
+        """The download URL and the cache key, asking the Agent for a link signed just now."""
         url = self._caller_supplied_url()
         if url:
             return url, self._generate_model_id(url)
@@ -166,23 +153,15 @@ class ModelHandler:
         logger.info("Model not in cache, downloading...")
         model_archive_path = self._download_with_retry(url)
 
-        # Unpacked beside the target and moved into place only once complete. Extracting
-        # straight into the cache would leave a half-unpacked model behind on a crash, and
-        # the next start would read it as a hit — a poisoned cache that survives restarts
-        # and needs the volume cleaned by hand.
-        #
-        # The staging directory is unique per attempt because the cache is shared by every
-        # model container on this Satellite: two deployments of the same artifact can be
-        # unpacking it at the same moment, and a shared staging path would have them
-        # overwriting each other's half-written files.
+        # staged beside the target, moved in only once complete — a crash mid-unpack must
+        # not read as a cache hit; unique per attempt because the cache is shared
         staging_dir = self._models_cache_dir / f".{model_id}.{os.getpid()}.{uuid4().hex}.partial"
         try:
             self._unpack_model_archive(model_archive_path, staging_dir)
             try:
                 os.replace(staging_dir, extraction_dir)
             except OSError:
-                # Someone else finished first. Their copy is as good as ours — the archive
-                # is immutable — so keep theirs and drop ours.
+                # someone else finished first — the archive is immutable, keep theirs
                 if not self._file_handler.dir_exist(extraction_dir):
                     raise
                 logger.info(f"Model {model_id} was cached by another container; using it.")

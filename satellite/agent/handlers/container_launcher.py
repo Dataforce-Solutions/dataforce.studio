@@ -2,11 +2,6 @@
 
 Shared by the deploy task and by startup reconciliation, so both build the container the
 same way.
-
-The container is given no download link. A presigned URL expires in hours while a container
-lives for weeks, and Docker will not let an environment change afterwards — so a container
-holding one is dead the moment it outlives it. Instead it carries a token and asks the Agent
-for a URL when it downloads.
 """
 
 import logging
@@ -21,14 +16,9 @@ from agent.settings import config
 
 logger = logging.getLogger(__name__)
 
-# The contract between the Agent and the containers it launches, stamped on every container
-# so reconciliation can tell the ones built under an older contract apart from its own — a
-# running container cannot be asked, only inspected. Bump it whenever a container built the
-# old way must be replaced rather than kept:
-#
-#   (no label) — a presigned MODEL_ARTIFACT_URL baked into the environment, one shared
-#                read-write cache volume for every container
-#   "2"        — an artifact token instead of a URL, a cache volume private to the artifact
+# Bump whenever containers built the old way must be replaced rather than kept.
+#   (no label) — presigned MODEL_ARTIFACT_URL in the environment, one shared cache volume
+#   "2"        — artifact token instead of a URL, cache volume private to the artifact
 LAUNCHER_PROTOCOL_LABEL = "df.launcher_protocol"
 LAUNCHER_PROTOCOL = "2"
 
@@ -54,15 +44,9 @@ async def container_env(platform: PlatformClient, deployment: Deployment) -> dic
     env.update(await secrets_env(platform, deployment.env_variables_secrets))
     env.update(deployment.env_variables or {})
 
-    # The runtime contract goes on top of deployment-supplied variables, never under
-    # them: a deployment that could redefine its own token, identity or cache key
-    # would be redefining the boundary that isolates it.
+    # applied on top of deployment-supplied variables, never under them
     internal: dict[str, str] = {
-        # not a URL: what the container proves itself with when it asks for one
         "MODEL_ARTIFACT_TOKEN": artifact_tokens.mint(str(deployment.id)),
-        # the cache key, so a container with the model already unpacked can start without
-        # asking anyone. Safe to pin here because a deployment pointing at a different
-        # artifact gets a new container, and with it a new value.
         "MODEL_ARTIFACT_ID": str(deployment.artifact_id),
         "DEPLOYMENT_ID": str(deployment.id),
         "MODEL_NAME": deployment.artifact_name,
@@ -92,7 +76,6 @@ async def launch_model_container(
         container_port=config.MODEL_SERVER_PORT,
         labels={
             "df.deployment_id": str(deployment.id),
-            # the cache key the container will use, so undeploy can clean the same entry
             "df.model_id": str(deployment.artifact_id),
             LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL,
         },

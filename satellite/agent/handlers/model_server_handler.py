@@ -36,22 +36,17 @@ from agent.settings import config
 
 logger = logging.getLogger(__name__)
 
-# What a recovery writes into the deployment's error message while the relaunched container
-# boots. The next reconciliation reads it back to tell a container that is still warming up
-# from one that is genuinely wedged — the Agent that started the wait may not live to
-# finish it, and this marker is all that survives.
+# written into the deployment's error message while a relaunched container boots;
+# the next reconciliation reads it back to resume the wait
 RECOVERING_REASON = "Recovering"
 
-# 4xx answers that actually speak about the deployment: gone (404, 410), held by the
-# deletion guard (400, 409). Auth failures (401, 403) speak about this Agent, and
-# 408/429 speak about the moment — neither is a verdict on the deployment.
+# 4xx that are a verdict on the deployment; 401/403 speak about this Agent,
+# 408/429 about the moment
 REFUSAL_CODES = frozenset({400, 404, 409, 410})
 AUTH_CODES = frozenset({401, 403})
 
 
 class ModelServerHandler:
-    # How long a relaunched container may take to download its model, build its environment
-    # and answer, when the deployment does not state its own timeout.
     recovery_health_check_timeout = 1800
 
     def __init__(self, telemetry: TelemetrySetup | None = None) -> None:
@@ -139,19 +134,9 @@ class ModelServerHandler:
     ) -> bool:
         """Recreate a deployment's model container under the current launch contract.
 
-        Two kinds of container end up here: stopped ones, which can never simply be started
-        again — a legacy container would try to download its model from a presigned link
-        that expired hours ago and die — and running legacy ones, which are one restart away
-        from the same death. Recreating is the only way forward, and the Platform record
-        says this deployment is supposed to be serving.
-
-        The marker goes down before the container is touched. Replacement deletes the old
-        container before it creates the new one, and if the Agent dies — or creation fails —
-        between the two, the persisted marker is the only proof that the missing container
-        is recovery's own doing and may be recreated. It also keeps recovery in
-        `not_responding` rather than `pending`: `pending` belongs to deploy tasks, and
-        reconciliation skips it on that assumption, so a deployment parked there by a
-        recovery nobody finished would be skipped forever.
+        The recovery marker is persisted before the old container is touched:
+        replacement is delete-then-create, and the marker is the only proof that a
+        missing container is recovery's own doing and may be recreated.
         """
         logger.info(f"[ModelServerHandler] relaunching '{deployment_id}': {reason}")
         try:
@@ -166,8 +151,7 @@ class ModelServerHandler:
                 ),
             )
         except Exception as error:
-            # No persisted ownership means no destructive replacement: dying between the
-            # delete and the create would leave a container nothing may recreate.
+            # no persisted marker — no destructive replacement
             logger.warning(
                 f"[ModelServerHandler] could not mark '{deployment_id}' as recovering, "
                 f"leaving its container alone: {error}"
@@ -181,8 +165,7 @@ class ModelServerHandler:
             await launch_model_container(platform, docker, deployment)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] relaunch of '{deployment_id}' failed: {error}")
-            # The marker stays: the old container may already be gone, and only records
-            # carrying it are allowed a container-less retry on the next start.
+            # the marker stays: only records carrying it get a container-less retry
             with suppress(Exception):
                 await platform.update_deployment(
                     deployment_id,
@@ -220,24 +203,12 @@ class ModelServerHandler:
             )
         )
 
-        # A wall-clock deadline, not an attempt count: a hanging health endpoint spends
-        # seconds inside every attempt, and counting attempts would quietly stretch a
-        # "1800-second" timeout into hours.
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
 
         async with ModelServerClient() as client:
             while loop.time() < deadline:
                 if await client.check_health_once(dep_id):
-                    # The Platform speaks before the local registry, and may refuse:
-                    # the user can request deletion during this wait, and a deployment
-                    # being deleted must be neither promoted nor served. Only a 4xx is
-                    # that refusal, though — a network blip or a 5xx says nothing about
-                    # the deployment, and writing off a healthy container over one
-                    # would leave it unserved until the next Agent restart.
-                    # error_message=None is deliberate — the Platform honours only the
-                    # fields actually sent, so the recovery marker must be cleared
-                    # explicitly or it would outlive the recovery it belongs to.
                     try:
                         await platform.update_deployment(
                             dep_id,
@@ -250,11 +221,6 @@ class ModelServerHandler:
                                 f"[ModelServerHandler] not promoting '{dep_id}': the "
                                 f"Platform refused ({error})"
                             )
-                            # The record refuses to serve, and the container recovery
-                            # created must not outlive the refusal. On a 404 nothing
-                            # record-driven would ever stop it; on a deletion refusal
-                            # the undeploy task may already be past its own removal
-                            # step, with this replacement created just after it.
                             await self._remove_orphan(docker, dep_id)
                             return
                         if code in AUTH_CODES:
@@ -301,8 +267,6 @@ class ModelServerHandler:
         except httpx.HTTPStatusError as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
             if error.response.status_code in REFUSAL_CODES:
-                # gone or being deleted while the wait ran — the container recovery
-                # created is nobody's either way
                 await self._remove_orphan(docker, dep_id)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
@@ -320,17 +284,10 @@ class ModelServerHandler:
     ) -> None:
         """Remove model containers whose deployment no longer exists anywhere.
 
-        Recovery can lose a race with deletion: it recreates a container after the
-        undeploy task has already removed both the container and the Platform record.
-        Such a container appears in no reconciliation — sync walks Platform records,
-        and the record is gone — so nothing record-driven would ever stop it.
-
-        Every labeled container is checked against a listing fetched right here, never
-        against the reconciliation's opening snapshot: a deployment deleted after that
-        snapshot was taken would hide behind it until the next Agent restart. The
-        fresh listing also protects the other direction — a record always exists
-        before its container does, so a deployment created moments ago is in it and
-        cannot be mistaken for an orphan.
+        Checked against a listing fetched right here, not the reconciliation's opening
+        snapshot: a deployment deleted after that snapshot would hide behind it, and a
+        record always exists before its container does, so a deployment created
+        moments ago is in the fresh listing and cannot be mistaken for an orphan.
         """
         try:
             owned: list[str] = []
@@ -367,13 +324,7 @@ class ModelServerHandler:
             DockerService() as docker,
         ):
             deployments_db = await platform_client.list_deployments()
-            # `not_responding` is in scope on purpose: it is where an earlier reconciliation
-            # parks a deployment it could not revive, and where a recovery it started but did
-            # not live to finish still sits. Leaving it out would make the first failure
-            # permanent — the deployment stops being `active`, and nothing ever looks at it
-            # again. `failed` and `pending` stay out: the first needs a real redeploy, the
-            # second has a deploy task in flight that this must not race — which is why
-            # recovery itself never writes `pending`.
+
             serving_deployments_db = [
                 dep
                 for dep in deployments_db
@@ -393,11 +344,6 @@ class ModelServerHandler:
                     labels = await docker.check_container_running(dep_id)
                 except ContainerNotFoundError:
                     if self._recovery_marked(dep):
-                        # The container is missing by recovery's own hand: replacement
-                        # deletes before it creates, and the creation failed or the Agent
-                        # died between the two. The marker is written by nothing but
-                        # recovery itself, so recreating here is a retry, not a
-                        # resurrection.
                         if await self._relaunch(
                             docker,
                             platform_client,
@@ -406,10 +352,7 @@ class ModelServerHandler:
                         ):
                             recovering.append(dep)
                         continue
-                    # No container at all: this Satellite holds nothing to restart. Creating
-                    # one here would resurrect every deployment that ever failed on any
-                    # Satellite, including ones abandoned months ago. Bringing a deployment
-                    # back from nothing is a redeploy, and the Platform owns that decision.
+
                     with suppress(Exception):  # refused mid-deletion — nothing to report
                         await platform_client.update_deployment(
                             dep_id,
@@ -423,16 +366,11 @@ class ModelServerHandler:
                         )
                     continue
                 except ContainerNotRunningError as e:
-                    # The container exists but is stopped — the case this recovery is for.
                     if await self._relaunch(docker, platform_client, dep_id, str(e)):
                         recovering.append(dep)
                     continue
 
                 if labels.get(LAUNCHER_PROTOCOL_LABEL) != LAUNCHER_PROTOCOL:
-                    # A container launched under an older contract still carries what made
-                    # the old world break — a presigned URL that expired long ago. It serves
-                    # fine until its first restart, and that restart happens when nothing is
-                    # watching. Replaced now instead, while the replacement can be watched.
                     if await self._relaunch(
                         docker,
                         platform_client,
@@ -446,13 +384,6 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
-                    # It answers, so whatever demoted it earlier is over — including the
-                    # error message, which must be cleared explicitly now that the
-                    # Platform honours only the fields actually sent. The Platform speaks
-                    # before the local registry, and may refuse — a deletion requested
-                    # since the snapshot — in which case the deployment is not served.
-                    # Only a 4xx is that refusal; a network blip or a 5xx says nothing
-                    # about the deployment, and a healthy container is served anyway.
                     if dep.get("status", "") != DeploymentStatus.ACTIVE:
                         try:
                             await platform_client.update_deployment(
@@ -468,10 +399,7 @@ class ModelServerHandler:
                                     f"[ModelServerHandler] not promoting '{dep_id}': "
                                     f"the Platform refused ({error})"
                                 )
-                                # A running container mid-deletion is the undeploy
-                                # task's to remove — it predates this sync, so that
-                                # removal is still ahead. Only a gone record leaves
-                                # nobody else to do it.
+
                                 if code in (404, 410):
                                     await self._remove_orphan(docker, dep_id)
                                 continue
@@ -508,11 +436,6 @@ class ModelServerHandler:
                         ),
                     )
                 elif self._recovery_marked(dep):
-                    # A recovery some earlier Agent began and did not live to see through:
-                    # the container it relaunched runs, but is still booting. Wait for it
-                    # the way that Agent would have — writing it off after one failed check
-                    # would leave a container that answers minutes later serving nothing
-                    # until the next restart.
                     recovering.append(dep)
                 else:
                     logs = ""
@@ -541,13 +464,7 @@ class ModelServerHandler:
                             ),
                         )
 
-            # Relaunched containers download and build their environment before they answer,
-            # which takes minutes. They are waited on together rather than one after another:
-            # a Satellite with several stopped deployments would otherwise take the sum of
-            # their start-up times to reconcile.
             if recovering:
-                # One deployment's settling must not cancel another's: exceptions are
-                # collected, logged, and the rest keep waiting.
                 results = await asyncio.gather(
                     *(self._settle_recovered(docker, platform_client, dep) for dep in recovering),
                     return_exceptions=True,
@@ -558,16 +475,8 @@ class ModelServerHandler:
                             f"[ModelServerHandler] settling '{settled_dep['id']}' failed: {result}"
                         )
 
-            # Containers orphaned by a lost race with deletion go first, so the volumes
-            # they were pinning are free by the time the cache cleanup below runs.
             await self._remove_orphan_containers(docker, platform_client)
 
-            # Staging directories abandoned by hard-killed containers are reclaimed here
-            # because nothing else ever will — each unpack uses a path of its own and only
-            # cleans that. The sweep's age threshold keeps it away from unpacks still in
-            # flight, including the ones this reconciliation just started; the artifacts
-            # named by live records are off limits entirely, so a redeploy caught in its
-            # own delete-then-create gap cannot lose a warm cache to this pass.
             await docker.cleanup_stale_staging(
                 keep_artifacts={str(dep.get("artifact_id", "")) for dep in deployments_db}
             )

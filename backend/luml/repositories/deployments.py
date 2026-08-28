@@ -94,9 +94,6 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         update: DeploymentUpdate,
     ) -> Deployment | None:
         async with self._get_session() as session:
-            # Locked for the check below: Satellite reconciliation writes race the
-            # user's deletion request, and the row must not change between reading
-            # its status and overwriting it.
             result = await session.execute(
                 select(DeploymentOrm)
                 .where(
@@ -112,18 +109,12 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             update_fields = update.model_dump(exclude_unset=True, exclude={"id"})
             new_status = update_fields.get("status")
             if "status" in update_fields and new_status is None:
-                # An explicit null is not "leave it alone" — it would land in a
-                # NOT NULL column and blow up as a 500 inside the locked transaction,
-                # sailing past the deletion guard below on the way.
                 raise InvalidStatusTransitionError("Deployment status cannot be null")
             if (
                 dep.status in self._DELETION_STATUSES
                 and new_status is not None
                 and new_status not in self._DELETION_STATUSES
             ):
-                # A worker status write arriving mid-deletion is a stale snapshot — a
-                # recovery promoting to `active` a deployment the user is deleting.
-                # Honouring it would cancel the deletion and strand the record.
                 raise InvalidStatusTransitionError(
                     f"Deployment is being deleted; refusing status '{new_status}'"
                 )

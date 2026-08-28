@@ -67,11 +67,6 @@ class UndeployTask(Task):
 
         await ms_handler.remove_deployment(deployment_id)
 
-        # Best effort: the deployment is already gone, so a failed cleanup must not fail
-        # the task — it only leaves the cache entry for the next undeploy or sweep.
-        # The records are asked before the containers: replacement is delete-then-create,
-        # and mid-gap a live deployment of the same artifact briefly holds no container —
-        # a reference count alone would call its warm cache unused and delete it.
         if model_id:
             try:
                 records = await self.platform.list_deployments()

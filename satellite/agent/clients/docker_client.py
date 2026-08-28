@@ -13,15 +13,10 @@ from agent.settings import config as config_settings
 
 logger = logging.getLogger(__name__)
 
-# Where a model container finds its extracted model. What is mounted there is a volume
-# private to the artifact: deployments of the same artifact share one copy, and no
-# deployment can see — or poison — the cache of any other. The volume is the isolation
-# boundary; one shared read-write volume for everyone was the old design's mistake.
 MODEL_CACHE_MOUNT = "/app/models"
 MODEL_CACHE_VOLUME_PREFIX = "satellite-model-cache-"
 
-# The single shared volume of the pre-per-artifact design. Nothing mounts it any more; the
-# stale-cache sweep deletes it as soon as the last legacy container referencing it is gone.
+# shared volume of the pre-per-artifact design; nothing mounts it any more
 LEGACY_MODEL_CACHE_VOLUME = "satellite-models-cache"
 
 
@@ -29,16 +24,11 @@ def model_cache_volume(model_id: str) -> str:
     return f"{MODEL_CACHE_VOLUME_PREFIX}{model_id}"
 
 
-# The hostname model containers reach the Agent by. It is a network alias declared in
-# docker-compose, not the container or service name: those are "satellite-agent-1" and
-# "agent", and neither is stable enough to hard-code here.
+# network alias declared in docker-compose, not the container or service name
 AGENT_HOST = "satellite-agent"
 
-# How long a `.partial` staging directory must sit with nothing inside it changing before
-# the sweep may assume the unpack that created it is dead rather than slow. What counts is
-# the newest path anywhere in the tree, never the staging root's own mtime: that freezes
-# the moment tar creates its single top-level entry, while a live unpack keeps touching
-# whatever it is writing right now. Unpacking takes minutes; hours are margin.
+# aged by the newest path in the tree — the staging root's own mtime freezes
+# once tar creates its top-level entry
 STALE_STAGING_MINUTES = 180
 
 
@@ -65,9 +55,6 @@ class DockerService:
         restart: str = "on-failure",
     ) -> DockerContainer:
         base_env = dict(env or {})
-        # the Agent's port, not the model server's — this address is where the container
-        # calls back to, not where it listens. Applied last on purpose: a container that
-        # could point it elsewhere would send its artifact token to that elsewhere.
         agent_url = f"http://{AGENT_HOST}:{config_settings.AGENT_PORT}"
         if base_env.get("SATELLITE_AGENT_URL") not in (None, agent_url):
             logger.warning(
@@ -83,10 +70,6 @@ class DockerService:
             "HostConfig": {
                 "RestartPolicy": {"Name": restart, "MaximumRetryCount": 3},
                 "NetworkMode": self.network_name,
-                # The extracted model lives on a volume, not in the container's own layer:
-                # the artifact URL is presigned and expires long before the container does,
-                # so a restart that had to re-download would never come back up. The volume
-                # is named after the artifact, so this container sees no other's cache.
                 "Binds": [f"{model_cache_volume(model_id)}:{MODEL_CACHE_MOUNT}"],
             },
         }
@@ -152,12 +135,7 @@ class DockerService:
         return container
 
     async def check_container_running(self, deployment_id: str) -> dict[str, str]:
-        """Raise unless the deployment's container is running; return its labels.
-
-        The labels ride along because the caller that cares whether a container runs is
-        the same one that must judge which Agent launched it, and the inspection already
-        happened here.
-        """
+        """Raise unless the deployment's container is running; return its labels."""
         try:
             container = await self.client.containers.get(f"sat-{deployment_id}")
         except DockerError as e:
@@ -172,23 +150,11 @@ class DockerService:
         return container_info.get("Config", {}).get("Labels") or {}
 
     async def cleanup_stale_staging(self, keep_artifacts: Iterable[str] = ()) -> None:
-        """Reclaim cache volumes and staging directories nothing will ever use again.
+        """Reclaim unused cache volumes and abandoned `.partial` staging directories.
 
-        Whole volumes go first: an undeploy that died before its own cleanup leaves the
-        artifact's volume behind, and no later task will ask about that artifact again.
-        Docker refuses to delete a volume any container still references, so the deletion
-        attempt doubles as the in-use check — except for ``keep_artifacts``, the
-        artifacts some deployment still points at. Those volumes are never deleted, no
-        matter what the reference count says this instant: container replacement is
-        delete-then-create, and inside that gap a warm cache is momentarily referenced
-        by nobody. The volumes that refuse (or are kept) are alive, and inside
-        them only `.partial` staging directories abandoned by a hard-killed unpack are
-        swept — no later start removes those either, staging paths being unique per
-        attempt. Only age tells such an orphan apart from an unpack still in flight —
-        the age of the newest path anywhere inside the tree: a live unpack keeps
-        touching whatever it writes right now, while the staging root's own mtime
-        freezes the moment tar creates its single top-level entry and would read as
-        "abandoned" minutes into a multi-hour extraction.
+        Volumes of ``keep_artifacts`` are never deleted, whatever their reference
+        count says this instant: container replacement is delete-then-create, and
+        inside that gap a warm cache is momentarily referenced by nobody.
         """
         try:
             listed = await self.client.volumes.list()
@@ -222,12 +188,8 @@ class DockerService:
         if not still_in_use:
             return
 
-        # A staging directory is removed only when nothing anywhere inside it has been
-        # touched for STALE_STAGING_MINUTES. Testing the directory's own mtime would be
-        # wrong: it freezes as soon as tar creates its top-level entry, and a sweep
-        # keyed on it would rm -rf a live multi-hour unpack — whose tar would then
-        # quietly rebuild the missing paths and publish a truncated model as a
-        # permanent cache hit.
+        # removed only when nothing inside was touched for STALE_STAGING_MINUTES —
+        # the root's own mtime would read a live unpack as abandoned
         sweep_script = (
             "for d in /sweep/*/.*.partial; do "
             '[ -d "$d" ] || continue; '

@@ -52,11 +52,9 @@ def _build_monitoring_worker(
 def _artifact_resolver(platform: PlatformClient) -> ResolveArtifactFn:
     """Answer a model container's request for its artifact with a URL signed right now.
 
-    Scoping comes from the Platform: /satellites/v1/deployments/{id} answers only for
-    deployments belonging to the calling Satellite, so a valid token cannot be pointed at
-    another Satellite's model. It is deliberately not checked against the Agent's local
-    registry — a deployment is registered there only once its model server answers a health
-    check, and the container asks for its artifact well before that.
+    Deliberately not checked against the Agent's local registry: a deployment is
+    registered there only after its health check, and the container asks well before
+    that. Scoping comes from the Platform's satellite-scoped endpoint.
     """
 
     async def resolve(deployment_id: UUID) -> ArtifactDownload:

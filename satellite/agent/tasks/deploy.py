@@ -136,9 +136,6 @@ class DeployTask(Task):
         inference_url = f"/deployments/{dep_id}"
 
         health_ok = False
-        # A wall-clock deadline, not an attempt count: a hanging health endpoint spends
-        # seconds inside every attempt, and counting attempts would quietly stretch the
-        # configured timeout into a multiple of itself.
         loop = asyncio.get_running_loop()
         deadline = loop.time() + int(health_check_timeout)
         next_container_check = loop.time()
@@ -166,9 +163,6 @@ class DeployTask(Task):
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
-            # error_message=None clears whatever a failed earlier attempt left behind;
-            # the Platform honours only the fields actually sent, so an omitted field
-            # would keep its stale value.
             await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
