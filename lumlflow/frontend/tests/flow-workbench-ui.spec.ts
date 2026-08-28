@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
@@ -39,9 +39,9 @@ import SessionSection from '@/flow/workbench/gallery/sections/SessionSection.vue
 import ComparePage from '@/flow/workbench/pages/ComparePage.vue'
 import WorkbenchPage from '@/flow/workbench/pages/WorkbenchPage.vue'
 import FlowShell from '@/flow/FlowShell.vue'
-import { settle } from './fakes'
+import { FakeSocket, fakeDaemon, flowStatus, settle } from './fakes'
 
-/** The fixture document every workbench route in this suite is addressed by. */
+/** The flow document every workbench route in this suite is addressed by. */
 const FLOW = 'churn.flow'
 
 /**
@@ -65,12 +65,6 @@ const GIT_WORDS =
  * path is scrubbed before the sentence around it is read.
  */
 const spoken = (text: string): string => text.replace(/CHECKOUT\.md/g, 'the sidecar')
-
-/**
- * These mounts hold no token, so the fixture is asked for outright — the same
- * way the gallery links to them. Without it the pages are unconnected tabs.
- */
-const AS_FIXTURE = 'source=fixture'
 
 const IGNORED_WARNINGS = [
   /Vue Flow parent container needs a width and a height/,
@@ -116,6 +110,13 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 
+afterEach(() => {
+  window.localStorage.clear()
+  window.sessionStorage.clear()
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
 function testRouter(): Router {
   return createRouter({
     history: createMemoryHistory(),
@@ -123,7 +124,6 @@ function testRouter(): Router {
       { path: '/', component: Empty },
       { path: '/flow', component: Empty },
       { path: '/flow/design/:section?', component: Empty },
-      { path: '/flow/railroad', component: Empty },
       { path: '/flow/:flowId', component: Empty },
       { path: '/flow/:flowId/notebook', component: Empty },
       { path: '/flow/:flowId/compare', component: Empty },
@@ -240,52 +240,27 @@ describe('design system gallery', () => {
 })
 
 describe('workbench pages', () => {
-  it('compare page mounts with the sweep fixture', async () => {
-    const text = await mountClean(ComparePage, `/flow/${FLOW}/compare?${AS_FIXTURE}`)
-    expect(text).toContain('exp/lr-1e3')
-    expect(text).toContain('train_model')
-  })
+  it('ignores the retired fixture query keys and opens the live workbench', async () => {
+    const daemon = fakeDaemon({ 'flow.open': () => flowStatus() })
+    vi.stubGlobal('fetch', daemon.transport)
+    vi.stubGlobal('WebSocket', class extends FakeSocket {})
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, 'the-token')
 
-  const states = [
-    'running',
-    'idle',
-    'unpaired',
-    'empty',
-    'kernel-not-started',
-    'not-running',
-    'locked',
-  ]
-  for (const state of states) {
-    it(`workbench mounts in state=${state}`, async () => {
-      const text = await mountClean(WorkbenchPage, `/flow/${FLOW}?state=${state}`)
-      expect(text).not.toMatch(/daemon/i)
-      expect(spoken(text)).not.toMatch(GIT_WORDS)
+    const router = testRouter()
+    await router.push(`/flow/${FLOW}?state=running&source=fixture`)
+    await router.isReady()
+    const wrapper = mount(WorkbenchPage, {
+      global: {
+        plugins: [router, ToastService],
+        stubs: { LiveWorkbench: { template: '<p>live workbench</p>' } },
+      },
     })
-  }
+    await settle()
 
-  /**
-   * The same sweep over the surfaces the state loop does not reach: the second
-   * view of the workbench, the comparison, and the shell's own chrome.
-   */
-  const surfaces = [
-    ['canvas', WorkbenchPage, `/flow/${FLOW}?${AS_FIXTURE}`],
-    ['notebook', WorkbenchPage, `/flow/${FLOW}/notebook?${AS_FIXTURE}`],
-    ['compare', ComparePage, `/flow/${FLOW}/compare?${AS_FIXTURE}`],
-  ] as const
-  for (const [name, component, path] of surfaces) {
-    it(`${name} speaks none of the vocabulary git owns`, async () => {
-      const text = await mountClean(component, path)
-      expect(spoken(text)).not.toMatch(GIT_WORDS)
-      expect(text).not.toMatch(/daemon/i)
-    })
-  }
-
-  it('workbench mounts the notebook view with an asset selected', async () => {
-    const text = await mountClean(
-      WorkbenchPage,
-      `/flow/${FLOW}/notebook?asset=train_model&${AS_FIXTURE}`,
-    )
-    expect(text).toContain('train_model')
+    expect(wrapper.text()).toContain('live workbench')
+    expect(wrapper.text()).not.toContain('this tab is not connected')
+    expect(daemon.calls).toContainEqual({ method: 'flow.open', params: { flow: FLOW } })
+    wrapper.unmount()
   })
 
   /**
@@ -295,8 +270,8 @@ describe('workbench pages', () => {
    */
   it('gives a tab with no token its own surface, claiming nothing about the server', async () => {
     for (const [component, path] of [
-      [WorkbenchPage, `/flow/${FLOW}`],
-      [ComparePage, `/flow/${FLOW}/compare`],
+      [WorkbenchPage, `/flow/${FLOW}?state=running`],
+      [ComparePage, `/flow/${FLOW}/compare?source=fixture`],
     ] as const) {
       const text = await mountClean(component, path)
       expect(text).toContain('this tab is not connected')
@@ -348,8 +323,8 @@ describe('workbench pages', () => {
 })
 
 /**
- * The shell ships as the product: no draft label, no tab standing on a fixture
- * document, and no development surface in a released nav.
+ * The shell ships as the product: no draft label and no development surface
+ * in a released nav.
  */
 describe('the flow shell', () => {
   async function shell(path: string) {
@@ -393,7 +368,7 @@ describe('the flow shell', () => {
     wrapper.unmount()
   })
 
-  it('keeps the gallery and the superseded prototype out of a released nav', async () => {
+  it('keeps the gallery out of a released nav', async () => {
     vi.stubEnv('DEV', false)
     const wrapper = await shell('/flow/other.flow/compare')
 
@@ -403,13 +378,24 @@ describe('the flow shell', () => {
     expect(wrapper.text()).toContain('Workbench')
 
     wrapper.unmount()
-    vi.unstubAllEnvs()
   })
 
-  it('offers both while developing', async () => {
+  it('does not register the design or railroad routes in production', async () => {
+    vi.stubEnv('DEV', false)
+    vi.resetModules()
+
+    const { default: router } = await import('@/router')
+
+    expect(router.hasRoute('flow-design')).toBe(false)
+    expect(router.hasRoute('flow-railroad')).toBe(false)
+    expect(router.resolve('/flow/design').name).toBe('flow-work')
+    expect(router.resolve('/flow/railroad').name).toBe('flow-work')
+  })
+
+  it('offers the gallery while developing', async () => {
     const wrapper = await shell('/flow')
     expect(wrapper.text()).toContain('Design system')
-    expect(wrapper.text()).toContain('Railroad')
+    expect(wrapper.text()).not.toMatch(/railroad/i)
     wrapper.unmount()
   })
 
@@ -517,8 +503,8 @@ describe('pairing hands over a prompt, not a command', () => {
   })
 
   it('falls back to the flow’s own prompt where nothing has answered', async () => {
-    // The fixture routes and the gallery mount it with no answer in hand, and a
-    // popover that is dead there is the bug §3 records — not an empty state.
+    // The gallery mounts it with no answer in hand, and a popover that is dead
+    // there is the bug §3 records — not an empty state.
     const wrapper = await openPairing()
 
     await copyAffordances()[0].click()

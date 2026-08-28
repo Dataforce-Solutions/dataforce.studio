@@ -16,17 +16,6 @@
             <ArrowRight :size="14" />
           </RouterLink>
         </div>
-
-        <div v-if="page.stateChips" class="flex flex-wrap gap-1.5">
-          <RouterLink
-            v-for="state in workbenchStates"
-            :key="state"
-            :to="`/flow/${FIXTURE_FLOW}?state=${state}`"
-            class="rounded-lg border border-surface-200 px-1.5 py-0.5 font-mono text-sm text-muted-color transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-surface-700 dark:hover:border-primary-500 dark:hover:text-primary-400"
-          >
-            {{ state }}
-          </RouterLink>
-        </div>
       </div>
     </div>
   </div>
@@ -39,30 +28,14 @@ import { ArrowRight } from 'lucide-vue-next'
 interface PageCard {
   title: string
   to: string
-  stateChips?: boolean
 }
 
-/** The gallery's stand-in document, so the fixture pages have an address. */
-const FIXTURE_FLOW = 'churn.flow'
-
-/** Explicit, so these specimens keep showing the fixture whether or not the tab is connected. */
-const AS_FIXTURE = '?source=fixture'
+const EXAMPLE_FLOW = 'churn.flow'
 
 const pages: PageCard[] = [
   { title: 'Workspace', to: '/flow' },
-  { title: 'Workbench · canvas', to: `/flow/${FIXTURE_FLOW}${AS_FIXTURE}`, stateChips: true },
-  { title: 'Workbench · notebook', to: `/flow/${FIXTURE_FLOW}/notebook${AS_FIXTURE}` },
-  { title: 'Compare', to: `/flow/${FIXTURE_FLOW}/compare${AS_FIXTURE}` },
-  { title: 'Reference · railroad', to: '/flow/railroad' },
-]
-
-const workbenchStates = [
-  'running',
-  'idle',
-  'unpaired',
-  'empty',
-  'kernel-not-started',
-  'not-running',
-  'locked',
+  { title: 'Workbench · canvas', to: `/flow/${EXAMPLE_FLOW}` },
+  { title: 'Workbench · notebook', to: `/flow/${EXAMPLE_FLOW}/notebook` },
+  { title: 'Compare', to: `/flow/${EXAMPLE_FLOW}/compare` },
 ]
 </script>

@@ -135,9 +135,7 @@ def select_flow(
     if not flows:
         raise FlowNotFound(f"no flow in {root}. create one with `lumlflow init`")
     if len(flows) > 1:
-        raise FlowAmbiguous(
-            f"which flow? {_candidates(flows)}. name one with `--flow`"
-        )
+        raise FlowAmbiguous(f"which flow? {_candidates(flows)}. name one with `--flow`")
     return flows[0]
 
 

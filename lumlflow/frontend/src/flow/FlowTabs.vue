@@ -21,13 +21,9 @@ export function flowNavEntries(route: RouteLocationNormalizedLoaded): FlowNavEnt
       { path: flowPath(openFlow, '/compare'), label: 'Compare' },
     )
   }
-  // The gallery and the superseded concept prototype are development surfaces:
-  // the routes stay (tests mount them), the tabs do not ship.
+  // The gallery is a development surface and does not ship.
   if (import.meta.env.DEV) {
-    entries.push(
-      { path: '/flow/design', label: 'Design system' },
-      { path: '/flow/railroad', label: 'Railroad' },
-    )
+    entries.push({ path: '/flow/design', label: 'Design system' })
   }
   return entries
 }

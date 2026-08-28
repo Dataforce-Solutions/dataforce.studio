@@ -72,9 +72,7 @@ async def test_an_edit_refreshes_the_cheap_closure_without_being_asked(
         await api.settings_set(
             {"flow": "churn", "reactivity": "auto", "eager_cost_threshold_s": 60}
         )
-        await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": EDITED_SCORE}
-        )
+        await api.cells_edit({"flow": "churn", "slug": "score", "source": EDITED_SCORE})
         await settle(api)
         listed = await api.cells_list({"flow": "churn"})
 
@@ -114,9 +112,7 @@ async def test_a_closure_over_the_threshold_waits_and_says_why(tmp_path: Path):
         await api.settings_set(
             {"flow": "churn", "reactivity": "auto", "eager_cost_threshold_s": 0.0}
         )
-        await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": EDITED_SCORE}
-        )
+        await api.cells_edit({"flow": "churn", "slug": "score", "source": EDITED_SCORE})
         await settle(api)
         listed = await api.cells_list({"flow": "churn"})
 
@@ -174,9 +170,7 @@ async def test_lazy_refreshes_nothing_and_claims_nothing(tmp_path: Path):
     async with daemon_api(root) as api:
         await timed(api)
         await api.settings_set({"flow": "churn", "reactivity": "lazy"})
-        await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": EDITED_SCORE}
-        )
+        await api.cells_edit({"flow": "churn", "slug": "score", "source": EDITED_SCORE})
         await settle(api)
         listed = await api.cells_list({"flow": "churn"})
 
@@ -195,9 +189,7 @@ async def test_turning_reactivity_on_takes_up_what_lazy_left_behind(tmp_path: Pa
     async with daemon_api(root) as api:
         await timed(api)
         await api.settings_set({"flow": "churn", "reactivity": "lazy"})
-        await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": EDITED_SCORE}
-        )
+        await api.cells_edit({"flow": "churn", "slug": "score", "source": EDITED_SCORE})
         await settle(api)
         stale = await api.cells_list({"flow": "churn"})
 
@@ -219,9 +211,7 @@ async def test_the_eager_opt_in_takes_a_cell_the_threshold_refused(tmp_path: Pat
         await api.settings_set(
             {"flow": "churn", "reactivity": "auto", "eager_cost_threshold_s": 0.0}
         )
-        await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": EDITED_SCORE}
-        )
+        await api.cells_edit({"flow": "churn", "slug": "score", "source": EDITED_SCORE})
         await settle(api)
         refused = await api.cells_list({"flow": "churn"})
 

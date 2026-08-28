@@ -5,25 +5,12 @@
       workbench the tabs ride in `WorkbenchTopBar`, which already names the open
       flow — a second chrome bar there was 60 px of nothing on every screen.
     -->
-    <header
-      v-if="showTabs"
-      class="flex items-center gap-4 border-b border-surface-200 dark:border-surface-700"
-    >
+    <header v-if="showTabs" class="border-b border-surface-200 dark:border-surface-700">
       <FlowTabs class="min-w-0 flex-1" />
-
-      <Select
-        v-if="onRailroad"
-        v-model="fixtureId"
-        :options="fixtures"
-        option-label="label"
-        option-value="id"
-        size="small"
-        aria-label="fixture"
-      />
     </header>
 
     <div class="min-h-0 flex-1 overflow-auto" :class="showTabs ? 'pt-3' : ''">
-      <RouterView :key="onRailroad ? fixtureId : route.fullPath" />
+      <RouterView :key="route.fullPath" />
     </div>
   </div>
 </template>
@@ -31,8 +18,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
-import { Select } from 'primevue'
-import { useWorkspace } from './composables/useWorkspace'
 import FlowTabs, { flowNavEntries } from './FlowTabs.vue'
 
 /**
@@ -42,9 +27,6 @@ import FlowTabs, { flowNavEntries } from './FlowTabs.vue'
  */
 
 const route = useRoute()
-const { fixtureId, fixtures } = useWorkspace()
-
-const onRailroad = computed(() => route.path.startsWith('/flow/railroad'))
 
 /**
  * The workbench carries the tabs itself, in the bar that names the flow. Read

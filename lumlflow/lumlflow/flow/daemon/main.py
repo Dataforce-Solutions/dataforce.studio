@@ -469,9 +469,7 @@ def _install_signals(stop: Any) -> None:
             signal.signal(received, lambda *_: loop.call_soon_threadsafe(stop))
 
 
-def _leased(
-    leased: Leases, method: str, params: dict[str, Any], result: Any
-) -> None:
+def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) -> None:
     """Which agent sessions this connection has taken responsibility for.
 
     Read off the answer rather than off the request: the actor a registration

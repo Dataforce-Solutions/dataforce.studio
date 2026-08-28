@@ -2,9 +2,8 @@
  * The chrome around the two views: the branch tree, the intent timeline, the
  * workspace env, the flow's settings and the line that says who is working.
  *
- * This is the live counterpart of `pages/useWorkbenchState.ts` — same shapes,
- * read off the daemon instead of a fixture — so the left panel and the top bar
- * cannot tell which arm they are mounted over. Nothing here decides anything:
+ * The left panel and top bar receive one stable vocabulary while the source
+ * underneath them is live daemon state. Nothing here decides anything:
  * `settled` is the daemon's badge, the branch states are its verdicts, and a
  * kernel behind the env is a fact it reports rather than one this file infers
  * from a version string.

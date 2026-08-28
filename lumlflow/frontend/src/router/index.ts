@@ -90,11 +90,15 @@ const router = createRouter({
               path: '',
               component: () => import('@/flow/workbench/pages/WorkspacePage.vue'),
             },
-            {
-              name: 'flow-design',
-              path: 'design/:section?',
-              component: () => import('@/flow/workbench/gallery/DesignSystemPage.vue'),
-            },
+            ...(import.meta.env.DEV
+              ? [
+                  {
+                    name: 'flow-design',
+                    path: 'design/:section?',
+                    component: () => import('@/flow/workbench/gallery/DesignSystemPage.vue'),
+                  },
+                ]
+              : []),
             {
               name: 'flow-work',
               path: ':flowId',
@@ -109,13 +113,6 @@ const router = createRouter({
               name: 'flow-compare',
               path: ':flowId/compare',
               component: () => import('@/flow/workbench/pages/ComparePage.vue'),
-            },
-            // The approved concept prototype, kept as a reference only — the
-            // workbench above supersedes it.
-            {
-              name: 'flow-railroad',
-              path: 'railroad',
-              component: () => import('@/flow/concepts/RailroadConcept.vue'),
             },
           ],
         },

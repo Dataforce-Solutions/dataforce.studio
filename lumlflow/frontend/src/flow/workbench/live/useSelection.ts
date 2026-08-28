@@ -75,9 +75,7 @@ export function useSelection(
     if (selectedSlug.value) params.set('asset', selectedSlug.value)
     if (viewedBranch.value !== options.defaultBranch.value) params.set('branch', viewedBranch.value)
     if (compared.value.length > 0) params.set('compare', compared.value.join(','))
-    // Whatever else the URL carried stays: `?state=` is what puts the workbench
-    // on fixtures, and dropping it on the first click would swap the data
-    // source out from under a gallery link.
+    // Query keys owned by another surface are not this selection's to remove.
     for (const [name, value] of Object.entries(route.query)) {
       if (OWNED.includes(name) || typeof value !== 'string') continue
       params.set(name, value)

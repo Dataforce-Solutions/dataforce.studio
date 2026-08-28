@@ -858,8 +858,8 @@ describe('selection', () => {
       await nextTick()
 
       // Branch by name and cell by slug — the addressing story, in the URL.
-      // `state=` survives: it is what keeps a gallery link on fixtures, and
-      // losing it on the first click would change the data under the reader.
+      // Query keys this selection does not own survive without influencing
+      // which data source the workbench uses.
       expect(selection.query()).toBe(
         'asset=features&branch=sweep&compare=main%2Csweep&state=running',
       )
@@ -1164,22 +1164,12 @@ describe('the reopen cursor', () => {
   })
 })
 
-describe('the fixture-vs-live switch', () => {
-  it('stays on fixtures for the gallery variants, which ask for them outright', () => {
-    expect(selectSource({ query: { state: 'running' } }, 'abc')).toBe('fixture')
-    expect(selectSource({ query: { source: 'fixture' } }, 'abc')).toBe('fixture')
-    expect(selectSource({ query: { source: 'fixture' } }, null)).toBe('fixture')
-  })
-
+describe('workbench source selection', () => {
   it('goes live when a token is in hand', () => {
-    expect(selectSource({ query: {} }, 'abc')).toBe('live')
-    expect(selectSource({ query: { source: 'live' } }, 'abc')).toBe('live')
+    expect(selectSource('abc')).toBe('live')
   })
 
-  // A tab with no token cannot have a live session, and standing it on the
-  // fixture would put another flow's cells on screen under this one's name.
-  it('is unconnected without a token, rather than quietly showing the fixture', () => {
-    expect(selectSource({ query: {} }, null)).toBe('unconnected')
-    expect(selectSource({ query: { source: 'live' } }, null)).toBe('unconnected')
+  it('is unconnected without a token', () => {
+    expect(selectSource(null)).toBe('unconnected')
   })
 })

@@ -186,9 +186,7 @@ class Planner:
         branch_id = self._store.branches.get(branch).branch_id
         over = self._read(branch_id)
         if len(targets) == 1:
-            plan = self._plan(
-                targets[0], branch=branch, branch_id=branch_id, over=over
-            )
+            plan = self._plan(targets[0], branch=branch, branch_id=branch_id, over=over)
         else:
             plan = self._merged(targets, branch=branch, branch_id=branch_id, over=over)
         return self._preflight(plan, over.here)
@@ -200,9 +198,7 @@ class Planner:
         needs: dict[str, frozenset[str]] = {}
         steps: dict[str, Step] = {}
         for target in targets:
-            planned = self._plan(
-                target, branch=branch, branch_id=branch_id, over=over
-            )
+            planned = self._plan(target, branch=branch, branch_id=branch_id, over=over)
             for step in planned.steps:
                 steps[step.uid] = step
                 # A cell reached from two leaves is needed for the union of
@@ -310,9 +306,7 @@ class Planner:
         over: "_Branch",
     ) -> AutoVerdict:
         settings = self._store.manifest.settings
-        plan = self._plan(
-            verdict.slug, branch=branch, branch_id=branch_id, over=over
-        )
+        plan = self._plan(verdict.slug, branch=branch, branch_id=branch_id, over=over)
         if any(_stalled(over.verdicts[step.uid]) for step in plan.steps):
             return AutoVerdict(verdict.slug, taken=False, reason="blocked")
         cost = self._preflight(plan, over.here)

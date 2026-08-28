@@ -322,9 +322,7 @@ async def test_no_gesture_hands_an_agent_the_vocabulary_git_owns(tmp_path: Path)
         await api.fork({"name": "sweep", "intent": "a lower lr"})
         handed = {
             "fix": await api.agent_payload({"gesture": "fix", "slug": "report"}),
-            "explain": await api.agent_payload(
-                {"gesture": "explain", "slug": "score"}
-            ),
+            "explain": await api.agent_payload({"gesture": "explain", "slug": "score"}),
             "diff": await api.agent_payload(
                 {"gesture": "diff", "branches": ["main", "sweep"]}
             ),

@@ -907,8 +907,7 @@ class Api:
                 for name, version in sorted(pinned.items())
             ],
             "flows": [
-                await self._env_flow(session)
-                for session in self.hub.opened(here=True)
+                await self._env_flow(session) for session in self.hub.opened(here=True)
             ],
         }
 

@@ -68,6 +68,7 @@ _FORCE = typer.Option(
     False, "--force", help="Proceed even if an agent holds the files."
 )
 
+
 def register(app: typer.Typer) -> None:
     """Mount the flow verbs on the top-level app."""
     for command in (

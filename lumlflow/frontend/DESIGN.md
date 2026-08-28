@@ -20,10 +20,6 @@ When you are unsure how something should look, open the equivalent Experiments s
 and copy its answer. When you cannot find an equivalent, you are probably inventing a
 widget that should not exist.
 
-**Fixture and live are one surface.** Every workbench page has a fixture arm
-(`?source=fixture`, `?state=`) and a live arm. They render the same components and must
-be changed together. Screenshot both.
-
 **Fixtures lie about real use — dogfood before calling UI work done.** Four rounds of
 fixture-driven screenshots missed everything the product owner hit in ten minutes of
 real use, because the fixture is a flow somebody *finished*: it has no cell called
@@ -43,9 +39,9 @@ through the affordance you shipped, run a cell, edit the file, and only then scr
 Anything the CLI can do to the same store the UI sees live, so `lumlflow run` and an
 editor are fair game for reaching a state — creating the flow is not.
 
-Two traps in that setup: the DEV-only tabs (`Design system`, `Railroad`) widen
-`WorkbenchTopBar` by ~140 px, so a bar that wraps in dev may not wrap in the shipped
-build — measure with them removed before redesigning around it. And the daemon serves
+Two traps in that setup: the DEV-only `Design system` tab widens `WorkbenchTopBar`, so a
+bar that wraps in dev may not wrap in the shipped build — measure with it removed before
+redesigning around it. And the daemon serves
 `lumlflow/static`, which is a *build*: a second browser pointed at the daemon's own port
 is the before-shot of your change, over the same live data.
 
@@ -371,12 +367,8 @@ on-disk file names (`.lumlflow/CHECKOUT.md`), Python and TypeScript identifiers,
 component and file names (`BranchSwitcher.vue`, `BranchTag`, `branchColor`), CSS classes,
 and `data-testid` values.
 
-Identifiers that spell `variant` are covered by that same rule, and two of them are
-worth naming because they read as leftovers and are not: `MetaBadge`'s `:variant` prop
-is PrimeVue's own sense of the word (which style this badge is), and
-`WORKBENCH_VARIANTS` names the gallery's `?state=` fixtures, not anything a lane is.
-Both were ambiguous while `variant` meant a lane too. Now that it does not, they are
-unambiguous again and they stay.
+Identifiers that spell `variant` are covered by that same rule. `MetaBadge`'s `:variant`
+prop is PrimeVue's own sense of the word (which style this badge is), not a lane.
 
 The consequence to hold in your head while sweeping: `:branch="branch"` in a template is
 code and stays; `label="new branch"` two lines below it is copy and becomes
@@ -411,11 +403,6 @@ that *is* a CLI, and that is a fallback sentence in the guide, not a screen.
   defensible on its own. A whole de-clutter pass was spent removing captions, and the
   result was still judged cluttered — because the captions were a symptom and the
   widgets underneath were the disease.
-- **Fixture pages fixed, live twins left behind.** `FixtureWorkbench` and
-  `LiveWorkbench` render the same components through different call sites. The fixture
-  arm wired `EmptyFlowState` without its `@create` handler while the live arm wired it —
-  so "or add one here →" was dead on every fixture route, *including the design gallery
-  that documents it*. Change both arms in the same commit; screenshot both.
 - **Custom widgets drift.** `MetaBadge` and `StatusChip` sat in the same folder doing
   the same job — one hand-coloured across four palettes, one built on `Tag :severity`.
   Collapsing `MetaBadge` onto `Tag` deleted 40 lines and the whole raw-palette surface

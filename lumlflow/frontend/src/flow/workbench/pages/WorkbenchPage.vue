@@ -8,19 +8,12 @@
 
   <LiveWorkbench v-else-if="live" :session="live.session" :stream="live.stream" />
 
-  <!--
-    A live source that has not opened yet is not a flow with nothing in it. It
-    is a wait, a server that is gone, or a refusal it named — each says which,
-    because rendering the fixture here would put another flow's cells on screen
-    under this one's name.
-  -->
-  <div v-else-if="source === 'live'" class="flex flex-col gap-3">
+  <!-- An unopened source is a wait, a server that is gone, or a refusal it named. -->
+  <div v-else class="flex flex-col gap-3">
     <DaemonDownBanner v-if="unreachable" />
     <p v-else-if="refusal" class="text-base text-(--p-message-error-color)">{{ refusal }}</p>
     <p v-else class="text-base text-muted-color">opening {{ flowId }}…</p>
   </div>
-
-  <FixtureWorkbench v-else />
 </template>
 
 <script setup lang="ts">
@@ -36,22 +29,19 @@ import { browserCursorStorage, readCursor, writeCursor } from '../live/cursor'
 import { selectSource } from '../live/source'
 import { useFlowSession } from '../live/useFlowSession'
 import type { FlowSessionHandle } from '../live/useFlowSession'
-import FixtureWorkbench from './FixtureWorkbench.vue'
 import LiveWorkbench from './LiveWorkbench.vue'
 
 /**
- * Which workbench this is: a live one, the fixture, or none at all.
+ * Which workbench this is: a live one or an unconnected tab.
  *
  * Opening the flow is what attaches the session — there is no connect verb and
  * no kernel picker anywhere, and the kernel still waits for the first gesture
- * that needs one. The switch is decided once, here, so nothing below it has to
- * ask where its data came from.
+ * that needs one.
  */
 const route = useRoute()
 const token = browserToken()
-// A token the daemon refused counts as none: same surface, and still never over
-// a fixture that was asked for outright, which the switch decides first.
-const source = computed(() => selectSource(route, tokenRejected.value ? null : token))
+// A token the daemon refused counts as none: it needs the same reconnect surface.
+const source = computed(() => selectSource(tokenRejected.value ? null : token))
 const flowId = typeof route.params.flowId === 'string' ? route.params.flowId : undefined
 
 const live = shallowRef<{ session: FlowSessionHandle; stream: FlowStream } | null>(null)

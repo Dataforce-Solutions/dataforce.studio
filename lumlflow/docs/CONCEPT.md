@@ -1,6 +1,6 @@
 # Concept 1 — Canvas + drawn rail
 
-Route: `/flow/railroad`
+Former route: `/flow/railroad`
 
 ## The mental model
 

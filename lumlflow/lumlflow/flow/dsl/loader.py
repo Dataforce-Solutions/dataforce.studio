@@ -65,11 +65,7 @@ def parse(source: str) -> ParsedFile:
     except SyntaxError as error:
         return ParsedFile(
             None,
-            [
-                _invalid(
-                    f"this file does not parse. {error.msg} on line {error.lineno}"
-                )
-            ],
+            [_invalid(f"this file does not parse. {error.msg} on line {error.lineno}")],
         )
     flags: list[VersionFlag] = []
     candidates = [node for node in _classes(module) if _declares_a_cell(node)]

@@ -112,7 +112,7 @@ def _snippet(root: str) -> list[str]:
         '  "mcpServers": {',
         f'    "{SERVER_NAME}": {{',
         f'      "command": {command},',
-        f"      \"args\": [{args}]",
+        f'      "args": [{args}]',
         "    }",
         "  }",
         "}",
@@ -157,8 +157,7 @@ def _reading(session: "FlowSession", workspace_dir: Path) -> list[str]:
     reading = [
         "- Call `context`. It names the lane you are on, what is stale and "
         "why, and what failed.",
-        f"- Read `{workspace_dir / AGENTS_NAME}`. It holds the cell DSL and "
-        "the verbs.",
+        f"- Read `{workspace_dir / AGENTS_NAME}`. It holds the cell DSL and the verbs.",
     ]
     if session.worktree.bound() is not None:
         reading.append(f"- Read `{checkout}`. It says what the files hold.")
