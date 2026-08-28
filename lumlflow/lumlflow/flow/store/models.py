@@ -161,6 +161,7 @@ class Rewound(_Frozen):
     branch_id: str
     to_step: int
     selections: dict[str, str] = Field(default_factory=dict)
+    slugs: dict[str, str] = Field(default_factory=dict)
     baselines: dict[str, str] = Field(default_factory=dict)
 
 
@@ -241,14 +242,9 @@ class FlagSet(_Frozen):
 
 
 class AgentBegin(_Frozen):
-    """`worktree` separates a session that edits files from one that only calls
-    the API: only the first holds the worktree lock and collects file-edit
-    attribution — an MCP session's attribution rides on the ops it invokes."""
-
     op: Literal["agent_begin"] = "agent_begin"
     actor: str
     label: str
-    worktree: bool = False
 
 
 class AgentEnd(_Frozen):

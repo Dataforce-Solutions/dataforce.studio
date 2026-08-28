@@ -45,7 +45,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 7
+INDEX_SCHEMA_VERSION = 8
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -83,6 +83,7 @@ CREATE TABLE selections (
     branch_id TEXT NOT NULL,
     uid TEXT NOT NULL,
     version_id TEXT NOT NULL,
+    slug TEXT NOT NULL,
     pinned INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (branch_id, uid)
 );
@@ -159,7 +160,6 @@ CREATE TABLE workspace_tree (
 CREATE TABLE agent_sessions (
     actor TEXT PRIMARY KEY,
     label TEXT NOT NULL,
-    worktree INTEGER NOT NULL,
     begun_step INTEGER NOT NULL
 );
 
@@ -211,11 +211,8 @@ class EnvRow:
 
 @dataclass(frozen=True)
 class AgentSessionRow:
-    """A registered agent session. `worktree` ones hold the flow's files."""
-
     actor: str
     label: str
-    worktree: bool
     begun_step: int
 
 
@@ -381,7 +378,8 @@ class Index:
         return {
             row["uid"]: _version(row)
             for row in self._conn.execute(
-                "SELECT asset_versions.* FROM selections "
+                "SELECT asset_versions.*, selections.slug AS selected_slug "
+                "FROM selections "
                 "JOIN asset_versions USING (version_id) "
                 "WHERE selections.branch_id = ? ORDER BY asset_versions.uid",
                 (branch_id,),
@@ -461,19 +459,12 @@ class Index:
             AgentSessionRow(
                 actor=row["actor"],
                 label=row["label"],
-                worktree=bool(row["worktree"]),
                 begun_step=int(row["begun_step"]),
             )
             for row in self._conn.execute(
                 "SELECT * FROM agent_sessions ORDER BY begun_step DESC"
             )
         ]
-
-    def worktree_holder(self) -> AgentSessionRow | None:
-        """The agent session the flow's files belong to while it lasts."""
-        return next(
-            (session for session in self.agent_sessions() if session.worktree), None
-        )
 
     def history(
         self, *, limit: int = 20, branch_id: str | None = None, shared: bool = False
@@ -731,7 +722,17 @@ class Index:
             case SelectionSet():
                 self._select(op.branch_id, op.uid, op.version_id, op.pinned)
             case Adopted():
-                self._select(op.branch_id, op.uid, op.version_id, pinned=False)
+                incoming = self._conn.execute(
+                    "SELECT slug FROM selections WHERE branch_id = ? AND uid = ?",
+                    (op.from_branch_id, op.uid),
+                ).fetchone()
+                self._select(
+                    op.branch_id,
+                    op.uid,
+                    op.version_id,
+                    pinned=False,
+                    slug=str(incoming["slug"]) if incoming is not None else None,
+                )
             case BranchCreated():
                 self._conn.execute(
                     "INSERT OR REPLACE INTO branches "
@@ -778,8 +779,8 @@ class Index:
             case AgentBegin():
                 self._conn.execute(
                     "INSERT OR REPLACE INTO agent_sessions "
-                    "(actor, label, worktree, begun_step) VALUES (?, ?, ?, ?)",
-                    (op.actor, op.label, int(op.worktree), step),
+                    "(actor, label, begun_step) VALUES (?, ?, ?)",
+                    (op.actor, op.label, step),
                 )
             case AgentEnd():
                 self._conn.execute(
@@ -787,7 +788,12 @@ class Index:
                 )
             # The marker rides the transaction row itself — there is no state
             # for it to fold into, which is the whole point of a marker.
-            case Renamed() | Checkpointed():
+            case Renamed():
+                self._conn.execute(
+                    "UPDATE selections SET slug = ? WHERE branch_id = ? AND uid = ?",
+                    (op.new_slug, op.branch_id, op.uid),
+                )
+            case Checkpointed():
                 pass
 
     def _accept_cell(self, op: CellAccepted, step: int) -> None:
@@ -825,8 +831,9 @@ class Index:
         pin-at-fork is the only v1 mode, so a sweep stays comparable.
         """
         self._conn.execute(
-            "INSERT OR REPLACE INTO selections (branch_id, uid, version_id, pinned) "
-            "SELECT ?, uid, version_id, 1 FROM selections WHERE branch_id = ?",
+            "INSERT OR REPLACE INTO selections "
+            "(branch_id, uid, version_id, slug, pinned) "
+            "SELECT ?, uid, version_id, slug, 1 FROM selections WHERE branch_id = ?",
             (branch_id, parent_branch_id),
         )
         self._conn.execute(
@@ -835,11 +842,26 @@ class Index:
             (branch_id, parent_branch_id),
         )
 
-    def _select(self, branch_id: str, uid: str, version_id: str, pinned: bool) -> None:
+    def _select(
+        self,
+        branch_id: str,
+        uid: str,
+        version_id: str,
+        pinned: bool,
+        *,
+        slug: str | None = None,
+    ) -> None:
+        if slug is None:
+            row = self._conn.execute(
+                "SELECT slug FROM asset_versions WHERE version_id = ?", (version_id,)
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"unknown version `{version_id}`")
+            slug = str(row["slug"])
         self._conn.execute(
-            "INSERT OR REPLACE INTO selections (branch_id, uid, version_id, pinned) "
-            "VALUES (?, ?, ?, ?)",
-            (branch_id, uid, version_id, int(pinned)),
+            "INSERT OR REPLACE INTO selections "
+            "(branch_id, uid, version_id, slug, pinned) VALUES (?, ?, ?, ?, ?)",
+            (branch_id, uid, version_id, slug, int(pinned)),
         )
 
     def _set_baseline(
@@ -857,7 +879,13 @@ class Index:
         )
         self._conn.execute("DELETE FROM baselines WHERE branch_id = ?", (op.branch_id,))
         for uid, version_id in op.selections.items():
-            self._select(op.branch_id, uid, version_id, pinned=False)
+            self._select(
+                op.branch_id,
+                uid,
+                version_id,
+                pinned=False,
+                slug=op.slugs.get(uid),
+            )
         for uid, mat_id in op.baselines.items():
             # The journal carries which materialization the branch held, not how
             # it came by it; saying "rewind" is the honest end of that.
@@ -939,7 +967,7 @@ def _version(row: sqlite3.Row) -> VersionRow:
     return VersionRow(
         version_id=row["version_id"],
         uid=row["uid"],
-        slug=row["slug"],
+        slug=(row["selected_slug"] if "selected_slug" in row.keys() else row["slug"]),
         definition_hash=row["definition_hash"],
         raw_source_ref=row["raw_source_ref"],
         bound_source_ref=row["bound_source_ref"],

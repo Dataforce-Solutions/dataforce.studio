@@ -377,22 +377,23 @@ def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(
     cli("status")
     cli("lane", "use", "main")
     refused = cli("adopt", "score", "--from", "sweep", stdin="")
+    forced = cli("adopt", "score", "--from", "sweep", "--force")
 
     assert adopted.exit_code == 0
     assert "0.95" in took
     assert refused.exit_code == 1
     assert "pick a side" in refused.output
-    # Refused means refused: main keeps the version it had.
-    assert "0.42" in source_of(flow, "score")
+    assert forced.exit_code == 0
+    assert "0.96" in source_of(flow, "score")
     _no_internals(adopted)
     _no_internals(refused)
+    _no_internals(forced)
 
 
 def test_a_brief_on_another_branch_does_not_claim_the_agents_files(
     cli: Invoke, workspace: Path
 ):
-    """Viewing a branch is a store read: the worktree, and whoever holds it,
-    belong to the branch that is checked out and to no other."""
+    """A registration is shown only on the lane whose files are checked out."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("lane", "new", "alpha")
@@ -484,25 +485,37 @@ def test_an_edit_that_started_from_a_moved_head_is_a_question(
     _no_internals(refused)
 
 
-def test_a_working_agent_holds_the_files_until_it_is_forced_off(
-    cli: Invoke, workspace: Path
-):
+def test_lumlflow_actor_owns_a_reconcile_triggered_by_a_verb(
+    cli: Invoke,
+    workspace: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
+    cli("cells", "list")
+    monkeypatch.setenv("LUMLFLOW_ACTOR", "codex-2")
+    write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
+
+    shown = cli("cells", "show", "score", "--json")
+
+    assert json.loads(shown.output)["provenance"]["last_edited_by"] == "codex-2"
+
+
+def test_a_working_agent_does_not_block_switching_the_files(
+    cli: Invoke, workspace: Path
+):
+    cli("init", "churn")
+    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("lane", "new", "sweep")
     cli("agent", "begin", "--label", "claude-1")
 
-    blocked = cli("lane", "use", "sweep")
+    switched = cli("lane", "use", "sweep")
     seen = cli("lane", "list")
-    forced = cli("lane", "use", "sweep", "--force")
 
-    assert blocked.exit_code == 1
-    assert "claude-1 holds these files" in blocked.output
-    assert "force this through" in blocked.output
+    assert switched.exit_code == 0
     assert "claude-1 is working here" in seen.output
-    assert forced.exit_code == 0
-    _no_internals(blocked)
+    _no_internals(switched)
 
 
 def test_an_output_with_no_bytes_says_what_to_do_about_it(cli: Invoke, workspace: Path):
@@ -557,8 +570,20 @@ def test_an_agent_session_brackets_the_command_it_runs(cli: Invoke, workspace: P
     tree = cli("lane", "list")
 
     assert session.exit_code == 0
-    # The session ended, so nobody holds the files any more.
+    # The session ended, so no agent remains registered.
     assert "is working here" not in tree.output
+
+
+def test_agent_session_help_describes_attribution_not_file_ownership(
+    cli: Invoke,
+) -> None:
+    begun = cli("agent", "begin", "--help")
+    ended = cli("agent", "end", "--help")
+
+    assert "session for attribution" in begun.output
+    assert "agent attribution session" in ended.output
+    assert "owns the flow's files" not in begun.output
+    assert "releasing the files" not in ended.output
 
 
 def test_root_and_daemon_status_answer_without_a_flow(cli: Invoke, workspace: Path):
@@ -624,18 +649,21 @@ def test_status_carries_the_did_you_mean_a_broken_reference_earns(
     _no_internals(listed)
 
 
-def test_status_names_an_edit_the_files_have_not_been_told_about(
+def test_an_edit_reaches_the_files_while_an_agent_is_registered(
     cli: Invoke, workspace: Path
-):
+) -> None:
+    flow = workspace / "churn.flow"
     cli("init", "churn")
-    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
+    write_cell(flow, "score", SCORE_CELL)
     cli("agent", "begin", "--label", "claude-1")
 
-    cli("cells", "edit", "score", stdin=SCORE_CELL.replace("0.91", "0.77"))
-    held = cli("status")
+    edited = cli("cells", "edit", "score", stdin=SCORE_CELL.replace("0.91", "0.77"))
+    status = cli("status")
 
-    assert "saved, not yet written to files: `score`" in held.output
-    _no_internals(held)
+    assert edited.exit_code == 0
+    assert "0.77" in source_of(flow, "score")
+    assert "not yet written" not in status.output
+    _no_internals(status)
 
 
 def test_an_intent_typed_at_a_verb_is_what_the_history_reads_back(

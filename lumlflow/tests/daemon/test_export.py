@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 from lumlflow.flow.dsl import portable
-from lumlflow.flow.errors import FlowError, WorktreeLocked
-from lumlflow.flow.store.models import CellAccepted, Transaction
+from lumlflow.flow.errors import FlowError
+from lumlflow.flow.store.models import CellAccepted, CellRemoved, Transaction
 
 from tests.daemon.helpers import (
     REPORT_CELL,
@@ -183,7 +183,9 @@ async def test_a_name_that_is_a_path_is_refused_and_nothing_lands(tmp_path: Path
     assert cell_files(root / "churn.flow") == []
 
 
-async def test_an_import_waits_for_the_agent_holding_the_files(tmp_path: Path):
+async def test_an_import_under_an_agent_is_written_and_not_reconciled_away(
+    tmp_path: Path,
+) -> None:
     root = make_workspace(tmp_path / "project", flows=("churn", "copy"))
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -191,16 +193,22 @@ async def test_an_import_waits_for_the_agent_holding_the_files(tmp_path: Path):
         exported = await api.export({"flow": "churn"})
         await api.flow_checkout({"flow": "copy", "branch": "main"})
         await api.agent_begin({"flow": "copy", "label": "claude-1"})
-        with pytest.raises(WorktreeLocked, match="claude-1"):
-            await api.import_cells({"flow": "copy", "source": exported["source"]})
-        withheld = slice_of(api.hub.session("copy"), "main")
-        forced = await api.import_cells(
-            {"flow": "copy", "source": exported["source"], "force": True}
+        imported = await api.import_cells(
+            {"flow": "copy", "source": exported["source"]}
         )
+        listed = await api.cells_list({"flow": "copy", "actor": "user"})
+        landed = transactions(api.hub.session("copy"))
 
-    assert withheld == {}
-    assert [cell["slug"] for cell in forced["cells"]] == ["score"]
+    assert [cell["slug"] for cell in imported["cells"]] == ["score"]
+    assert [cell["slug"] for cell in listed["cells"]] == ["score"]
     assert cell_files(root / "copy.flow") == ["score"]
+    assert not any(isinstance(op, CellRemoved) for entry in landed for op in entry.ops)
+    imported_entry = next(
+        entry
+        for entry in landed
+        if any(isinstance(op, CellAccepted) for op in entry.ops)
+    )
+    assert imported_entry.actor == "user"
 
 
 async def test_a_block_duplicated_under_a_new_name_is_refused_not_collapsed(

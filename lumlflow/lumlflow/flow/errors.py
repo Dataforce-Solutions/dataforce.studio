@@ -72,20 +72,6 @@ class RewindTargetNotFound(FlowError):
     """No transaction to rewind to, or none this branch existed at."""
 
 
-class WorktreeLocked(FlowError):
-    """An agent session holds the flow's files, and this op would rewrite them.
-
-    Never a failure of the store — the version is written either way. It is the
-    projection that waits, so the surface can offer the force escape instead of
-    pulling files out from under a working agent.
-    """
-
-    def __init__(self, message: str, *, holder: str, branch: str | None = None) -> None:
-        super().__init__(message)
-        self.holder = holder
-        self.branch = branch
-
-
 class EditConflict(FlowError):
     """A daemon-originated edit started from a version the head has moved past.
 

@@ -317,26 +317,72 @@ async def test_shared_code_marks_every_cell_and_empties_the_module_cache(
     assert values_in(root / "churn.flow") == [{"auc": 0.91}, {"auc": 0.99}]
 
 
-async def test_an_agent_session_owns_the_edits_it_cannot_be_told_apart_from(
+async def test_a_user_verb_attributes_a_file_edit_to_the_one_registered_agent(
     tmp_path: Path,
-):
-    """One shared worktree means an edit during an agent session attributes to
-    the agent — and that the human at the keyboard cannot be ruled out. The
-    window is flagged rather than claimed."""
+) -> None:
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
-        write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
-        session = api.hub.session("churn")
-        session.reconcile(tier="live")
-        landed = transactions(session)[-1]
-        version = slice_of(session, "main")["score"]
+        path = root / "churn.flow" / "cells" / "score.py"
+        watcher = Watcher(api.hub, debounce_s=600)
+        watcher.start()
+        try:
+            write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
+            watcher.notice(path)
+            session = api.hub.session("churn")
+            await api.cells_list({"flow": "churn", "actor": "user"})
+            landed = transactions(session)[-1]
+            version = slice_of(session, "main")["score"]
+        finally:
+            await watcher.stop()
 
     assert (landed.actor, version.author) == ("claude-1", "claude-1")
     assert [op.flag for op in landed.ops if isinstance(op, FlagSet)] == [MIXED_EDITING]
+
+
+async def test_a_user_verb_attributes_a_file_edit_to_user_with_two_agents(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.agent_begin({"flow": "churn", "label": "claude-1"})
+        await api.agent_begin({"flow": "churn", "label": "codex-2"})
+        write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
+
+        await api.cells_list({"flow": "churn", "actor": "user"})
+        session = api.hub.session("churn")
+        landed = transactions(session)[-1]
+        version = slice_of(session, "main")["score"]
+
+    assert (landed.actor, version.author) == ("user", "user")
+
+
+async def test_an_explicit_agent_caller_owns_the_reconcile_it_triggers(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.agent_begin({"flow": "churn", "label": "claude-1"})
+        await api.agent_begin({"flow": "churn", "label": "codex-2"})
+        write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
+
+        await api.cells_list({"flow": "churn", "actor": "shell-agent"})
+        session = api.hub.session("churn")
+        landed = transactions(session)[-1]
+        version = slice_of(session, "main")["score"]
+
+    assert (landed.actor, version.author) == ("shell-agent", "shell-agent")
 
 
 async def test_the_agent_bracket_bounds_which_edits_carry_its_name(tmp_path: Path):

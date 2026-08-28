@@ -49,6 +49,7 @@ class RewindResult:
     branch: str
     to_step: int
     selections: dict[str, str]
+    slugs: dict[str, str]
     baselines: dict[str, str]
 
 
@@ -202,6 +203,10 @@ class Branches:
             if state.branch_by_id(branch.branch_id) is None:
                 raise RewindTargetNotFound(f"{name} did not exist at step {to_step}")
             selections = state.selections(branch.branch_id)
+            slugs = {
+                uid: version.slug
+                for uid, version in state.slice_versions(branch.branch_id).items()
+            }
             baselines = state.baselines(branch.branch_id)
         self._store.commit(
             [
@@ -209,6 +214,7 @@ class Branches:
                     branch_id=branch.branch_id,
                     to_step=to_step,
                     selections=selections,
+                    slugs=slugs,
                     baselines=baselines,
                 )
             ],
@@ -217,7 +223,11 @@ class Branches:
             branch=branch.branch_id,
         )
         return RewindResult(
-            branch=name, to_step=to_step, selections=selections, baselines=baselines
+            branch=name,
+            to_step=to_step,
+            selections=selections,
+            slugs=slugs,
+            baselines=baselines,
         )
 
     def adopt(

@@ -11,16 +11,10 @@ is paired by connecting and by nothing else, and no harness has to be launched
 through a wrapper to be attributed.
 
 The session never materializes a worktree: no projection, no file plane. Cells
-live in the store, and attribution rides on the ops the session invokes rather
-than on who happened to be editing files at the time. `use-lane` follows from
-that — it moves this session's active lane and nothing else, because putting
-a lane's cells on disk is a gesture only somebody with files performs.
-
-It does take the files' *ownership*, once, when it first changes something in a
-flow somebody has checked out — because from that moment the agent on the other
-end is working here, and a flow whose files are rewritten under a working agent
-is the one thing the worktree lock exists to prevent. Reading takes nothing:
-orientation must never be the reason a human cannot check a branch out.
+live in the store, and the session registration attributes file edits while
+exactly one agent is registered. `use-lane` follows from that — it moves this
+session's active lane and nothing else, because putting a lane's cells on disk
+is a gesture only somebody with files performs.
 
 The transport is MCP's: JSON-RPC 2.0, one message per line, stdin to stdout.
 Nothing else may be written to stdout — it is the protocol.
@@ -314,16 +308,10 @@ class _Refused(Exception):
 
 @dataclass
 class _Flow:
-    """A flow this session addresses, and the branch it is working on.
-
-    `checked_out` is whether it has files at all, which decides whether there
-    is anything for this session to own; `owns` is whether it has taken them.
-    """
+    """A flow this session addresses, and the branch it is working on."""
 
     name: str
     branch: str
-    checked_out: bool = False
-    owns: bool = False
 
 
 class Server:
@@ -461,7 +449,7 @@ class Server:
         }
         if tool.scope == "workspace":
             return self._call(tool.method, _as_wire(params))
-        flow = self._touch(params.get("flow"), writes=tool.writes)
+        flow = self._touch(params.get("flow"))
         params["flow"] = flow.name
         if tool.name == "use-lane":
             return self._use(flow, str(params["lane"]))
@@ -562,7 +550,7 @@ class Server:
             self._flow(str(flow["flow"])) for flow in self._call("status", {})["flows"]
         ]
 
-    def _touch(self, named: Any, *, writes: bool = False) -> _Flow:
+    def _touch(self, named: Any) -> _Flow:
         """The flow a tool means, registered with the first time one addresses it.
 
         Registration is what the pair panel detects, so it is driving that opens
@@ -570,11 +558,8 @@ class Server:
         here and is not announced as though it had. Driving also resolves and
         remembers the flow spelling, so an unnamed later call stays on it.
 
-        The first tool that *changes* something takes the flow's files with it,
-        where there are files: from then on the agent's own edits to `cells/`
-        are attributed to this session rather than to the human sitting in the
-        same directory, and nothing rewrites those files under it. A session
-        that only reads owns nothing, so orientation never blocks a checkout.
+        The registration attributes direct file edits while this is the only
+        agent session on the flow. It never takes or blocks the files.
         """
         flow = self._flow(named)
         if flow.name not in self._registered:
@@ -582,19 +567,16 @@ class Server:
             # land leaves nothing named after this session, and the end it
             # would be owed resolves to whoever *is* registered — the agent
             # working in the files, told to stop by a session it never knew.
-            self._register(flow, worktree=False)
+            self._register(flow)
             self._registered.add(flow.name)
-        if writes and flow.checked_out and not flow.owns:
-            self._register(flow, worktree=True)
-            flow.owns = True
         return flow
 
-    def _register(self, flow: _Flow, *, worktree: bool) -> None:
-        """Open — or widen — this session's registration on a flow.
+    def _register(self, flow: _Flow) -> None:
+        """Open this session's registration on a flow.
 
         Leased: the daemon ends what this connection opened when the connection
         goes, so a client that is killed rather than closed leaves no session
-        standing and no files held by nobody.
+        standing.
         """
         self._call(
             "agent.begin",
@@ -602,7 +584,6 @@ class Server:
                 "flow": flow.name,
                 "actor": self.actor,
                 "label": self.label,
-                "worktree": worktree,
                 "lease": True,
             },
         )
@@ -630,7 +611,6 @@ class Server:
                 _Flow(
                     name=name,
                     branch=str(opened["branch"]),
-                    checked_out=bool(opened.get("checked_out")),
                 ),
             )
         return self._flows[name]
@@ -655,8 +635,6 @@ class Server:
         except ServerError:
             self._daemon = None
             self._registered.clear()
-            for flow in self._flows.values():
-                flow.owns = False
             raise
 
 

@@ -387,6 +387,31 @@ async def test_a_watched_edit_during_an_agent_session_is_flagged_uncertain(
     assert [op.flag for op in landed.ops if isinstance(op, FlagSet)] == [MIXED_EDITING]
 
 
+async def test_a_watched_edit_with_two_registered_agents_belongs_to_user(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.agent_begin({"flow": "churn", "label": "claude-1"})
+        await api.agent_begin({"flow": "churn", "label": "codex-2"})
+        session = api.hub.session("churn")
+        before = len(transactions(session))
+        watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
+        watcher.start()
+        try:
+            write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
+            await _until(lambda: len(transactions(session)) > before)
+        finally:
+            await watcher.stop()
+        landed = transactions(session)[-1]
+
+    assert landed.actor == "user"
+
+
 FLOWS = ("churn", "sales")
 
 

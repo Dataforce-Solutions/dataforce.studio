@@ -292,7 +292,7 @@ class Daemon:
 
         The connection is the session for a client that connected to be paired,
         so one that was killed rather than closed must leave no flow registered
-        to nobody — and, where it had taken the files, none held by nobody.
+        to nobody.
 
         A daemon on its way out is the other case entirely: the client is still
         there and will register again with whoever serves the workspace next,

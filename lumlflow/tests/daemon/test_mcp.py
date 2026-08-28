@@ -6,7 +6,7 @@ agent takes: the protocol, the tool, the daemon, the store, and a real kernel.
 
 The point of most of them is what the session does *not* do. An MCP client has
 no files: nothing here may check a branch out, project a cell, take the
-worktree lock, or attribute an op to anyone but the session that invoked it.
+file plane, or attribute an op to anyone but the session that invoked it.
 """
 
 import asyncio
@@ -150,7 +150,7 @@ def test_the_mcp_only_loop_never_materializes_a_worktree(talk: Talk, workspace: 
     assert outcome["executed"] == ["score"] and not outcome["failed"]
     assert preview["state"] == "synced"
     assert cell_files(workspace / "churn.flow") == []
-    assert live.worktree.bound() is None and live.worktree.holder() is None
+    assert live.worktree.bound() is None
     assert authors == {begun.actor} and ran == [begun.actor]
     assert answered(answers, 2)["written_to_files"] is False
 
@@ -169,48 +169,39 @@ def test_the_session_is_named_after_the_client_and_ends_when_it_hangs_up(talk: T
     ended = ops_of(live, AgentEnd)
 
     assert [op.label for op in begun] == ["claude"]
-    assert begun[0].worktree is False
+    assert "worktree" not in begun[0].model_dump()
     assert [op.actor for op in ended] == [begun[0].actor]
 
 
-def test_a_session_takes_the_files_when_it_first_changes_something(
+def test_a_session_registers_once_and_never_takes_the_files(
     talk: Talk, workspace: Path
 ):
-    """Connecting is not working. The session is registered from its first
-    tool, so the pair panel says who is here — but the flow's files stay the
-    human's until the agent changes something, because orientation is never a
-    reason somebody cannot check a branch out.
-
-    Once it has taken them, its own edits still reach the files: the lock is
-    there so nothing is rewritten *under* the agent, and an edit that agent
-    asked for is not something happening under it.
-    """
+    """Reading and writing share one registration; neither owns the files."""
     live = checked_out(talk, "churn", branch="sweep")
     session = talk.held()
 
     session(hello(name="claude"), tool(1, "context", {}))
-    reading = live.worktree.holder()
+    reading = live.store.index.agent_sessions()
     answers = session(
         tool(2, "edit-cell", {"slug": "score", "source": SWEEP_CELL, "intent": "sweep"})
     )
-    working = live.worktree.holder()
+    working = live.store.index.agent_sessions()
+    actor = working[0].actor
     session.close()
-    afterwards = live.worktree.holder()
+    afterwards = live.store.index.agent_sessions()
 
-    assert reading is None
-    assert working is not None and working.label == "claude"
+    assert [registered.label for registered in reading] == ["claude"]
+    assert [registered.label for registered in working] == ["claude"]
+    assert len(ops_of(live, AgentBegin)) == 1
     assert answered(answers, 2)["written_to_files"] is True
     assert "0.94" in source_of(workspace / "churn.flow", "score")
-    assert afterwards is None
-    assert [op.actor for op in ops_of(live, AgentEnd)] == [working.actor]
+    assert afterwards == []
+    assert [op.actor for op in ops_of(live, AgentEnd)] == [actor]
 
 
-def test_a_flow_with_no_files_is_owned_by_nobody_however_much_it_is_written(
+def test_a_flow_with_no_files_still_has_one_plain_registration(
     talk: Talk,
 ):
-    """There is nothing to own. A store-only flow has no file plane to be
-    rewritten under anyone, and a lock over it would refuse the human a
-    checkout to protect files that do not exist."""
     session = talk.held()
 
     session(
@@ -220,11 +211,11 @@ def test_a_flow_with_no_files_is_owned_by_nobody_however_much_it_is_written(
         tool(3, "run", {"target": "score"}),
     )
     live = talk.flow("churn")
-    working = live.worktree.holder()
+    registered = live.store.index.agent_sessions()
     session.close()
 
-    assert working is None
-    assert [op.worktree for op in ops_of(live, AgentBegin)] == [False]
+    assert len(registered) == 1
+    assert all("worktree" not in op.model_dump() for op in ops_of(live, AgentBegin))
 
 
 def test_the_label_a_configuration_gave_wins_over_the_clients_own_name(talk: Talk):
@@ -323,14 +314,10 @@ def test_a_session_starts_where_the_files_are_and_use_lane_leaves_them_there(
 def test_a_registration_that_never_landed_ends_nobody(
     talk: Talk, monkeypatch: pytest.MonkeyPatch
 ):
-    """`agent_end` names a session, and a session this one never opened is not
-    its to close. A begin the daemon refused must leave nothing owed — else the
-    hang-up ends the agent working in the files, and takes the worktree lock
-    that keeps everyone else's projections off their directory with it.
-    """
+    """A refused registration leaves no session for this client to end."""
     live = checked_out(talk, "churn", branch="sweep")
     live.store.commit(
-        [AgentBegin(actor="claude-code", label="claude", worktree=True)],
+        [AgentBegin(actor="claude-code", label="claude")],
         intent="claude started working",
         actor="claude-code",
     )
@@ -341,10 +328,10 @@ def test_a_registration_that_never_landed_ends_nobody(
     monkeypatch.setitem(talk.api.methods, "agent.begin", refused)
     answers = talk(hello(), tool(1, "context", {}))
 
-    holder = live.worktree.holder()
+    registered = live.store.index.agent_sessions()
 
     assert "agent.begin" in failed(answers, 1)
-    assert holder is not None and holder.actor == "claude-code"
+    assert [session.actor for session in registered] == ["claude-code"]
     assert ops_of(live, AgentEnd) == []
 
 
@@ -456,12 +443,12 @@ def checked_out(talk: Talk, name: str, *, branch: str) -> FlowSession:
     both at once.
     """
     live = talk.hub.init_flow(name)
-    live.worktree.checkout(actor="user", force=True)
+    live.worktree.checkout(actor="user")
     live.acceptance.accept_source(
         "score", SCORE_CELL, branch="main", actor="user", intent="scored", fresh=True
     )
     live.store.branches.fork(branch, from_branch="main", actor="user", intent="swept")
-    live.worktree.checkout(branch, actor="user", force=True)
+    live.worktree.checkout(branch, actor="user")
     return live
 
 

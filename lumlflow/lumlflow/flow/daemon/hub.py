@@ -147,10 +147,12 @@ class Hub:
     def select(self, name: str | None = None) -> FlowRef:
         return workspace.select_flow(self.root, name=name)
 
-    def session(self, name: str | None = None) -> FlowSession:
-        return self.open(self.select(name))
+    def session(
+        self, name: str | None = None, *, actor: str | None = None
+    ) -> FlowSession:
+        return self.open(self.select(name), actor=actor)
 
-    def open(self, ref: FlowRef) -> FlowSession:
+    def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         """Attach to a flow. A clone carries `flow.yaml` but no store; opening
         it roots a fresh history under the identity git carried.
 
@@ -169,7 +171,7 @@ class Hub:
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])
-        session.reconcile(tier="cold")
+        session.reconcile(tier="cold", actor=actor)
         self.document()
         # Opening is where reactivity catches up on a workspace nobody was
         # watching: the offline edits have just landed, and cells left unsynced
@@ -214,7 +216,13 @@ class Hub:
             for session in self._sessions.values()
         )
 
-    async def quiesce(self, session: FlowSession, *, tier: Tier = "quiesce") -> None:
+    async def quiesce(
+        self,
+        session: FlowSession,
+        *,
+        tier: Tier = "quiesce",
+        actor: str | None = None,
+    ) -> None:
         """The pre-op contract: no version resolves against a stale file plane.
 
         Shared code first — a helper edit changes every cell's behaviour hash,
@@ -228,7 +236,7 @@ class Hub:
         # install records the pins it ran under, and the kernel keeps the
         # modules it already imported until somebody restarts it.
         envs.sync(session.workspace_dir, [session])
-        moved = session.reconcile(tier=tier).moved
+        moved = session.reconcile(tier=tier, actor=actor).moved
         if moved:
             # An edit landed — by verb, by agent, or by the watcher noticing a
             # file. Whichever door it came through, reactivity's question has a

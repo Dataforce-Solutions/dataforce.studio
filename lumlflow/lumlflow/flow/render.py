@@ -343,8 +343,6 @@ def _flow_heading(flow: dict[str, Any]) -> list[str]:
     lines += _indent(_restart(kernel))
     if flow.get("disk_bytes") is not None:
         lines.append(f"  {_size(flow['disk_bytes'])} on disk")
-    if flow.get("unwritten"):
-        lines.append(f"  saved, not yet written to files: {_names(flow['unwritten'])}")
     lines += _indent(flow.get("hygiene") or [])
     return lines
 

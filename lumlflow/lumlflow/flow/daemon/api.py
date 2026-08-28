@@ -121,7 +121,9 @@ class Api:
                 "path": str(interpreter.python),
                 "source": interpreter.source,
             },
-            "flows": [await self._flow_status(ref) for ref in refs],
+            "flows": [
+                await self._flow_status(ref, actor=_actor(params)) for ref in refs
+            ],
         }
 
     async def context(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -170,21 +172,21 @@ class Api:
         """
         ref = self.hub.select(_flow_name(params))
         if params.get("worktree", True):
-            session = self.hub.open(ref)
-            await self.hub.quiesce(session)
+            session = self.hub.open(ref, actor=_actor(params))
+            await self.hub.quiesce(session, actor=_actor(params))
             if session.worktree.bound() is None:
-                session.worktree.checkout(actor=_actor(params), force=True)
-        return await self._flow_status(ref)
+                session.worktree.checkout(actor=_actor(params))
+        return await self._flow_status(ref, actor=_actor(params))
 
     async def flow_checkout(self, params: dict[str, Any]) -> dict[str, Any]:
         """Bind the flow root to a branch and project it — what `init` adds."""
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
+        actor = _actor(params)
+        session = self.hub.session(_flow_name(params), actor=actor)
+        await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             params.get("branch"),
-            actor=_actor(params),
+            actor=actor,
             intent=params.get("intent"),
-            force=bool(params.get("force")),
         )
         self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
@@ -215,9 +217,7 @@ class Api:
     async def cells_delete(self, params: dict[str, Any]) -> dict[str, Any]:
         """Drop the cell from this branch. Every other branch keeps its own."""
         session, branch = await self._read(params)
-        actor, force = _actor(params), bool(params.get("force"))
-        if branch == session.branch:
-            session.worktree.guard(actor=actor, force=force)
+        actor = _actor(params)
         result = session.store.branches.delete(
             str(params.get("slug") or ""),
             branch=branch,
@@ -228,7 +228,7 @@ class Api:
             "slug": result.slug,
             "branch": branch,
             "dangling": result.dangling,
-        } | _projection(self._reproject(session, branch, actor=actor, force=force))
+        } | _projection(self._reproject(session, branch))
 
     async def cells_eager(self, params: dict[str, Any]) -> dict[str, Any]:
         """Opt one cell in or out of eager materialization.
@@ -279,7 +279,7 @@ class Api:
             intent=params.get("intent") or f"added {slug}",
             fresh=True,
         )
-        return self._edited(session, accepted, branch=branch, actor=_actor(params))
+        return self._edited(session, accepted, branch=branch)
 
     async def cells_edit(self, params: dict[str, Any]) -> dict[str, Any]:
         """Write an edit the daemon was handed, under per-cell optimistic locking.
@@ -289,8 +289,8 @@ class Api:
         versions and picks: overwrite, or fork the edit onto a branch of its
         own.
         """
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
+        await self.hub.quiesce(session, actor=_actor(params))
         branch = _branch(session, params)
         slug = str(params.get("slug") or "")
         head = queries.head(session, branch, slug)
@@ -317,8 +317,6 @@ class Api:
             session,
             accepted,
             branch=branch,
-            actor=_actor(params),
-            held=head.version_id,
         )
 
     async def asset_preview(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -373,11 +371,7 @@ class Api:
         an export and its import name the same cells afterwards.
         """
         session, branch = await self._read(params)
-        actor, force = _actor(params), bool(params.get("force"))
-        if branch == session.branch:
-            # Import rewrites `cells/` wholesale, which is the one thing the
-            # lock is for: an agent working in there is not interrupted.
-            session.worktree.guard(actor=actor, force=force)
+        actor = _actor(params)
         carried = portable.read(str(params.get("source") or ""))
         _one_cell_per_identity(carried)
         batch = Batch()
@@ -395,7 +389,7 @@ class Api:
             "flow": session.ref.name,
             "branch": branch,
             "cells": [{"slug": cell.slug, "flags": _flags(cell)} for cell in accepted],
-        } | _projection(self._reproject(session, branch, actor=actor, force=force))
+        } | _projection(self._reproject(session, branch))
 
     async def fork(self, params: dict[str, Any]) -> dict[str, Any]:
         """A new branch off this one: one row, and no value is copied."""
@@ -432,9 +426,7 @@ class Api:
         files still spell the old one are rewritten to match.
         """
         session, branch = await self._read(params)
-        actor, force = _actor(params), bool(params.get("force"))
-        if branch == session.branch:
-            session.worktree.guard(actor=actor, force=force)
+        actor = _actor(params)
         old, new = str(params.get("slug") or ""), str(params.get("to") or "")
         head = queries.head(session, branch, old)
         accepted = session.acceptance.accept_source(
@@ -454,7 +446,7 @@ class Api:
             "renamed_from": old,
             "branch": branch,
             "rewired": rewired,
-        } | _projection(self._reproject(session, branch, actor=actor, force=force))
+        } | _projection(self._reproject(session, branch))
 
     async def env_status(self, params: dict[str, Any]) -> dict[str, Any]:
         """What the workspace pins, and which kernels are running behind it."""
@@ -462,26 +454,23 @@ class Api:
 
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
         """Check a branch out: rebind the worktree and project its slice."""
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
+        actor = _actor(params)
+        session = self.hub.session(_flow_name(params), actor=actor)
+        await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             str(params.get("branch") or ""),
-            actor=_actor(params),
+            actor=actor,
             intent=params.get("intent"),
-            force=bool(params.get("force")),
         )
         self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
         """Restore a branch to a step. Instant, and the files follow."""
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
-        branch = _branch(session, params)
         actor = _actor(params)
-        force = bool(params.get("force"))
-        if branch == session.branch:
-            session.worktree.guard(actor=actor, force=force)
+        session = self.hub.session(_flow_name(params), actor=actor)
+        await self.hub.quiesce(session, actor=actor)
+        branch = _branch(session, params)
         result = session.store.branches.rewind(
             branch,
             to_step=int(params.get("to_step") or 0),
@@ -492,7 +481,7 @@ class Api:
             "branch": result.branch,
             "to_step": result.to_step,
             "cells": len(result.selections),
-        } | _projection(self._reproject(session, branch, actor=actor, force=force))
+        } | _projection(self._reproject(session, branch))
 
     async def checkpoint(self, params: dict[str, Any]) -> dict[str, Any]:
         """Mark this point in a branch's history. Nothing is copied or frozen.
@@ -518,13 +507,11 @@ class Api:
 
     async def adopt(self, params: dict[str, Any]) -> dict[str, Any]:
         """Take one asset's version from another branch onto this one."""
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
-        branch = _branch(session, params)
         actor = _actor(params)
+        session = self.hub.session(_flow_name(params), actor=actor)
+        await self.hub.quiesce(session, actor=actor)
+        branch = _branch(session, params)
         force = bool(params.get("force"))
-        if branch == session.branch:
-            session.worktree.guard(actor=actor, force=force)
         result = session.store.branches.adopt(
             str(params.get("slug") or ""),
             from_branch=str(params.get("from_branch") or ""),
@@ -539,17 +526,13 @@ class Api:
             "slug": result.slug,
             "branch": branch,
             "rebound": list(result.reaccept),
-        } | _projection(self._reproject(session, branch, actor=actor, force=force))
+        } | _projection(self._reproject(session, branch))
 
     async def agent_begin(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Register an agent session. A worktree one owns the files while it lasts.
+        """Register an agent session for attribution until it ends.
 
         Detected, never wrapped: the journal entry is what the pair panel reads
         and what file-plane edits attribute to until it ends.
-
-        Registering twice under one actor is how a session that started reading
-        takes the files when it first changes something — the row is replaced,
-        so the upgrade costs one entry and no second session.
 
         `lease` says the caller's connection carries this session: it ends when
         that connection does, whether or not anybody got to say so. A caller
@@ -558,55 +541,40 @@ class Api:
         session = self.hub.session(_flow_name(params))
         label = str(params.get("label") or params.get("actor") or "agent")
         actor = str(params.get("actor") or label)
-        worktree = bool(params.get("worktree", True))
         # Open the bracket over a settled file plane: edits made before the
         # session began belong to whoever was there before it.
         await self.hub.quiesce(session)
         session.store.commit(
-            [AgentBegin(actor=actor, label=label, worktree=worktree)],
-            intent=params.get("intent") or _begun(label, worktree),
+            [AgentBegin(actor=actor, label=label)],
+            intent=params.get("intent") or f"{label} started working",
             actor=actor,
         )
         return {
             "actor": actor,
             "label": label,
-            "worktree": worktree,
             "leased": bool(params.get("lease")),
         }
 
     async def agent_end(self, params: dict[str, Any]) -> dict[str, Any]:
         """Close the bracket — and with it the transaction its edits group into."""
-        session = self.hub.session(_flow_name(params))
         actor = str(params.get("actor") or "")
-        holder = session.store.index.worktree_holder()
+        session = self.hub.session(
+            _flow_name(params), actor=actor if actor not in {"", "user"} else None
+        )
+        sessions = session.store.index.agent_sessions()
         registered = next(
-            (
-                found
-                for found in session.store.index.agent_sessions()
-                if found.actor == actor
-            ),
-            holder,
+            (found for found in sessions if found.actor == actor),
+            sessions[0] if actor in {"", "user"} and len(sessions) == 1 else None,
         )
         if registered is None:
             raise FlowError("no agent session is registered here")
-        await self.hub.quiesce(session, tier="live")
+        await self.hub.quiesce(session, tier="live", actor=registered.actor)
         session.store.commit(
             [AgentEnd(actor=registered.actor, label=registered.label)],
             intent=params.get("intent") or f"{registered.label} finished",
             actor=registered.actor,
         )
-        # The files the session held back are owed to whoever waited on it —
-        # unless somebody else is still working in them, in which case the
-        # deferral simply stands. The session has already ended either way, and
-        # refusing to say so over files it no longer holds would be a lie.
-        projection = (
-            self._reproject(session, session.branch, actor="user", force=False)
-            if session.store.index.worktree_holder() is None
-            else None
-        )
-        return {"actor": registered.actor, "label": registered.label} | _projection(
-            projection
-        )
+        return {"actor": registered.actor, "label": registered.label}
 
     async def agent_connect(self, params: dict[str, Any]) -> dict[str, Any]:
         """The prompt that pairs an agent with this flow, whatever harness it is.
@@ -620,7 +588,7 @@ class Api:
         plane to answer "how do I connect" would make opening a popover cost
         what running a verb costs.
         """
-        session = self.hub.session(_flow_name(params))
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
         return connect.prompt(session, workspace_dir=session.workspace_dir)
 
     async def agent_payload(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -639,7 +607,7 @@ class Api:
         are journaled nowhere — the same reason `cells eager` is not a
         transaction. Anything absent from the call is left alone.
         """
-        session = self.hub.session(_flow_name(params))
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
         settings = session.store.manifest.settings
         if params.get("reactivity") is not None:
             settings.reactivity = _one_of(
@@ -714,7 +682,7 @@ class Api:
         walking away. The report says which happened rather than letting a
         surface claim the run stopped.
         """
-        session = self.hub.session(_flow_name(params))
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
         branch = _branch(session, params)
         left = session.queue.abandon(branch)
         return {
@@ -725,7 +693,7 @@ class Api:
         }
 
     async def kernel_restart(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self.hub.session(_flow_name(params))
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
         handshake = await session.kernel.restart()
         return {
             "flow": session.ref.name,
@@ -740,7 +708,7 @@ class Api:
         holds no cursor asks from 0 and gets the flow's whole history — which
         is what makes a reconnect indistinguishable from a first load.
         """
-        session = self.hub.session(_flow_name(params))
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
         entries = [
             entry.model_dump(mode="json")
             for entry in session.store.journal.since(int(params.get("cursor") or 0))
@@ -760,13 +728,13 @@ class Api:
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
         """The pre-op contract in one line: no version resolves against a stale
         file plane. Every verb that names a cell or a branch starts here."""
-        session = self.hub.session(_flow_name(params))
-        await self.hub.quiesce(session)
+        session = self.hub.session(_flow_name(params), actor=_actor(params))
+        await self.hub.quiesce(session, actor=_actor(params))
         return session, _branch(session, params)
 
-    async def _flow_status(self, ref: FlowRef) -> dict[str, Any]:
-        session = self.hub.open(ref)
-        await self.hub.quiesce(session)
+    async def _flow_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
+        session = self.hub.open(ref, actor=actor)
+        await self.hub.quiesce(session, actor=actor)
         return await self._flow_brief(session) | {
             "cells": queries.cells(session, session.branch)["cells"],
             "disk_bytes": gc.disk_bytes(session.store),
@@ -774,15 +742,14 @@ class Api:
         }
 
     async def _flow_brief(self, session: FlowSession) -> dict[str, Any]:
-        holder = session.store.index.worktree_holder()
+        sessions = session.store.index.agent_sessions()
         settings = session.store.manifest.settings
         return {
             "flow": session.ref.name,
             "path": session.ref.relpath,
             "branch": session.branch,
             "checked_out": session.worktree.bound() is not None,
-            "agent": holder.label if holder is not None else None,
-            "unwritten": session.worktree.pending(),
+            "agent": sessions[0].label if sessions else None,
             "kernel": await _kernel(session, session.kernel.handshake),
             "settings": {
                 "reactivity": settings.reactivity,
@@ -821,13 +788,9 @@ class Api:
         accepted: AcceptedCell,
         *,
         branch: str,
-        actor: str,
-        held: str | None = None,
     ) -> dict[str, Any]:
-        """What a daemon-originated edit did, and whether the files know yet."""
-        written = session.worktree.project_cell(
-            accepted.uid, branch=branch, held=held, actor=actor
-        )
+        """What a daemon-originated edit did, including its file projection."""
+        written = session.worktree.project_cell(branch=branch)
         self.hub.document()
         session.reactor.arm()
         return {
@@ -845,9 +808,7 @@ class Api:
         renamed = session.acceptance.rewire(uids, branch=branch, actor=actor)
         return [accepted.slug for accepted in renamed]
 
-    def _reproject(
-        self, session: FlowSession, branch: str, *, actor: str, force: bool
-    ) -> Projection | None:
+    def _reproject(self, session: FlowSession, branch: str) -> Projection | None:
         """Carry a slice change into the files, when it is this branch's files."""
         self.hub.document()
         # Switching, forking, rewinding, adopting and deleting all move which
@@ -856,13 +817,7 @@ class Api:
         session.reactor.arm()
         if session.worktree.bound() is None or branch != session.branch:
             return None
-        return session.worktree.project(branch, actor=actor, force=force)
-
-
-def _begun(label: str, worktree: bool) -> str:
-    """What a registration reads as. A session takes the files when it first
-    changes something, so connecting and working are two lines, not one."""
-    return f"{label} started working" if worktree else f"{label} connected"
+        return session.worktree.project(branch)
 
 
 def _flags(accepted: AcceptedCell) -> list[dict[str, str | None]]:

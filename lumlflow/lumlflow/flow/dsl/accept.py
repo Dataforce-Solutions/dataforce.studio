@@ -88,6 +88,11 @@ class Batch:
         self.removed.discard(row.uid)
         self.accepted.append(accepted)
 
+    def rename(self, op: Renamed, accepted: AcceptedCell, row: VersionRow) -> None:
+        self.ops.append(op)
+        self.overlay[row.uid] = row
+        self.accepted.append(accepted)
+
 
 @dataclass(frozen=True)
 class _Identity:
@@ -162,8 +167,7 @@ class Acceptance:
 
         The UI's editor, `cells edit` and MCP all arrive here: the version is
         written to the store with the author who sent it, whether or not the
-        branch is checked out. Projecting it into the worktree is a separate
-        question, and one the worktree lock gets to answer.
+        branch is checked out. The checked-out branch is projected immediately.
 
         `fresh` is the add-a-cell path. Nothing here goes through a directory
         that could refuse the name, so a slug another cell already answers to
@@ -312,6 +316,15 @@ class Acceptance:
                 flags=list(previous.flags),
                 unchanged=True,
             )
+        if previous is not None and _is_rename_only(previous, draft):
+            return self._rename(
+                draft,
+                here,
+                branch_id=record.branch_id,
+                actor=actor,
+                intent=intent,
+                batch=batch,
+            )
         return self._record(
             draft,
             here,
@@ -321,6 +334,49 @@ class Acceptance:
             base_version_id=base_version_id,
             batch=batch,
         )
+
+    def _rename(
+        self,
+        draft: _Draft,
+        here: dict[str, VersionRow],
+        *,
+        branch_id: str,
+        actor: str,
+        intent: str | None,
+        batch: Batch | None,
+    ) -> AcceptedCell:
+        identity = draft.identity
+        previous = identity.previous
+        if previous is None or identity.renamed_from is None:
+            raise ValueError("a rename needs a previous version and name")
+        op = Renamed(
+            uid=identity.uid,
+            branch_id=branch_id,
+            old_slug=identity.renamed_from,
+            new_slug=draft.slug,
+        )
+        summary = _auto_intent(draft.slug, identity)
+        accepted = AcceptedCell(
+            uid=identity.uid,
+            slug=draft.slug,
+            version_id=previous.version_id,
+            definition_hash=previous.definition_hash,
+            classification=previous.manifest.classification,
+            flags=list(previous.flags),
+            renamed_from=identity.renamed_from,
+            rewire=_consumers_of(here, identity.renamed_from, identity.uid),
+            summary=summary,
+        )
+        renamed = replace(previous, slug=draft.slug)
+        if batch is not None:
+            batch.rename(op, accepted, renamed)
+            self._index_in_manifest(draft.slug, identity, save=False)
+            return accepted
+        self._store.commit(
+            [op], intent=intent or summary, actor=actor, branch=branch_id
+        )
+        self._index_in_manifest(draft.slug, identity)
+        return accepted
 
     def _draft(
         self,
@@ -657,6 +713,18 @@ def _is_unchanged(previous: VersionRow, draft: _Draft) -> bool:
         and previous.slug == draft.slug
         and previous.raw_source_ref == hash_bytes(draft.source.encode("utf-8"))
         and previous.definition_hash == draft.definition_hash
+        and previous.flags == draft.flags
+    )
+
+
+def _is_rename_only(previous: VersionRow, draft: _Draft) -> bool:
+    return (
+        draft.identity.renamed_from is not None
+        and draft.identity.copied_from is None
+        and previous.raw_source_ref == hash_bytes(draft.source.encode("utf-8"))
+        and previous.bound_source_ref == hash_bytes(draft.bound.encode("utf-8"))
+        and previous.definition_hash == draft.definition_hash
+        and previous.manifest == draft.manifest
         and previous.flags == draft.flags
     )
 

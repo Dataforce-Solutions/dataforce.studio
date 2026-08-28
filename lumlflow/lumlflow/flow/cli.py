@@ -669,7 +669,7 @@ def agent_begin(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Register an agent session. It owns the flow's files until it ends."""
+    """Register an agent session for attribution until it ends."""
     params = {"label": label, "actor": actor or label, "intent": intent}
     result = _call("agent.begin", params, flow=flow, as_json=as_json)
     _emit(result, as_json, [f"`{result['label']}` is working here"])
@@ -682,7 +682,7 @@ def agent_end(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """End the session, releasing the files it held."""
+    """End an agent attribution session."""
     params = {"actor": actor or os.environ.get(ACTOR_ENV), "intent": intent}
     result = _call("agent.end", params, flow=flow, as_json=as_json)
     _emit(result, as_json, [f"`{result['label']}` finished"])

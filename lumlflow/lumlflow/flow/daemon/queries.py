@@ -283,12 +283,13 @@ def tree(session: "FlowSession") -> dict[str, Any]:
     """
     index = session.store.index
     bound = session.store.branches.bound_branch()
-    holder = index.worktree_holder()
+    sessions = index.agent_sessions()
+    agent = sessions[0] if sessions else None
     return {
         "flow": session.ref.name,
         "branch": session.branch,
         "branches": [
-            _branch(session, record, checked_out=_same(bound, record), holder=holder)
+            _branch(session, record, checked_out=_same(bound, record), agent=agent)
             for record in index.branches()
         ],
     }
@@ -522,7 +523,8 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
     index = session.store.index
     checkpoint = index.checkpoint(here.branch.branch_id)
     dirty = [uid for uid in here.ordered() if not here.verdicts[uid].synced]
-    holder = index.worktree_holder()
+    sessions = index.agent_sessions()
+    agent = sessions[0] if sessions else None
     # Both facts are about the files, and the files are one branch's: a brief on
     # a branch nobody checked out must not claim the agent working in `main` is
     # working in it.
@@ -532,7 +534,7 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
         "flow": session.ref.name,
         "branch": branch,
         "checked_out": checked_out,
-        "agent": holder.label if (checked_out and holder is not None) else None,
+        "agent": agent.label if (checked_out and agent is not None) else None,
         "checkpoint": _transaction(checkpoint) if checkpoint is not None else None,
         "cells": len(here.versions),
         "unsynced": [
@@ -655,7 +657,7 @@ def _branch(
     record: BranchRow,
     *,
     checked_out: bool,
-    holder: AgentSessionRow | None,
+    agent: AgentSessionRow | None,
 ) -> dict[str, Any]:
     index = session.store.index
     verdicts = staleness.derive_all(index, record.branch_id)
@@ -683,7 +685,7 @@ def _branch(
         "states": states,
         "checkpoint": checkpoint.step if checkpoint is not None else None,
         "last_intent": _transaction(last[0]) if last else None,
-        "agent": holder.label if (checked_out and holder is not None) else None,
+        "agent": agent.label if (checked_out and agent is not None) else None,
     }
 
 

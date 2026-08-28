@@ -8,10 +8,8 @@ optimization rather than a correctness dependency: a missed event costs
 milliseconds, never a wrong version.
 
 The three tiers differ only in the envelope they commit under. Live and
-quiesce attribute to whoever holds the worktree and land as an ordinary
-transaction; a cold start lands as one coarse `offline` transaction attributed
-to `user`, because the fine-grained sequence genuinely was not recorded and
-claiming otherwise would be a lie the UI would then render.
+quiesce land as ordinary transactions; a cold start lands as one coarse
+`offline` transaction because the fine-grained sequence was not recorded.
 """
 
 from collections.abc import Collection, Iterable, Sequence
@@ -71,19 +69,6 @@ class Reconciliation:
         return bool(self.accepted or self.removed)
 
 
-@dataclass
-class _Pending:
-    """Files the store is ahead of: written back, or left for a working agent.
-
-    `withheld` maps the slug whose file was left alone to the cell it holds —
-    the name acceptance skips, and the identity removal detection must still
-    count as present on disk.
-    """
-
-    completed: list[str] = field(default_factory=list)
-    withheld: dict[str, str] = field(default_factory=dict)
-
-
 def reconcile(
     session: "FlowSession",
     *,
@@ -97,10 +82,18 @@ def reconcile(
         return Reconciliation()
     branch = worktree.branch
     branch_id = session.store.branches.get(branch).branch_id
-    holder = None if tier == "cold" else worktree.holder()
-    author = actor or (holder.actor if holder is not None else "user")
+    registered = session.store.index.agent_sessions()
+    explicit = actor is not None and actor != "user"
+    sole_agent = registered[0] if len(registered) == 1 else None
+    author = (
+        str(actor)
+        if explicit
+        else sole_agent.actor
+        if sole_agent is not None
+        else "user"
+    )
 
-    pending = _complete_projections(session, branch_id)
+    completed = _complete_projections(session, branch_id)
     batch = Batch()
     accept = partial(
         _accept_files,
@@ -108,19 +101,18 @@ def reconcile(
         batch,
         branch=branch,
         actor=author,
-        skip=set(pending.withheld),
     )
-    seen = accept() | set(pending.withheld.values())
+    seen = accept()
     removed = _accept_removals(session, batch, branch_id=branch_id, seen=seen)
     if removed:
         # A name that left the branch is a namespace change like any other:
         # its consumers re-bind, and the ones left pointing at nothing say so.
         accept()
     if not batch.ops:
-        return Reconciliation(projected=pending.completed)
+        return Reconciliation(projected=completed)
 
     ops: list[Op] = list(batch.ops)
-    if holder is not None:
+    if not explicit and sole_agent is not None:
         ops.append(FlagSet(flag=MIXED_EDITING, detail=MIXED_EDITING_DETAIL))
     transaction = session.store.commit(
         ops,
@@ -133,7 +125,7 @@ def reconcile(
     return Reconciliation(
         accepted=list(batch.accepted),
         removed=removed,
-        projected=pending.completed,
+        projected=completed,
         step=transaction.step,
     )
 
@@ -185,7 +177,6 @@ def _accept_files(
     *,
     branch: str,
     actor: str,
-    skip: Collection[str] = (),
 ) -> set[str]:
     """Accept every cell file, until a pass finds nothing left to move.
 
@@ -199,15 +190,12 @@ def _accept_files(
     cells = session.worktree.cells_dir
     if not cells.is_dir():
         return seen
-    held = _held_versions(session, branch)
-    level = _Level(session, batch, branch=branch, usable=not held)
+    level = _Level(session, batch, branch=branch)
     for _ in range(_MAX_PASSES):
         moved = False
         deferred_rewires: list[AcceptedCell] = []
         read: list[tuple[Path, str]] = []
         for path in sorted(cells.glob(_CELL_GLOB)):
-            if path.stem in skip:
-                continue
             unmoved = level.uid_of(path)
             if unmoved is not None:
                 seen.add(unmoved)
@@ -217,19 +205,12 @@ def _accept_files(
                 branch=branch,
                 actor=actor,
                 batch=batch,
-                base_version_id=held.get(path.stem),
             )
             seen.add(accepted.uid)
             read.append((path, accepted.uid))
             moved = moved or not accepted.unchanged
-            if not accepted.unchanged:
-                # Whatever the file held before, it holds this now — from the
-                # *next* reconciliation's point of view. Within this one the
-                # parent stays put, or a second pass would supersede the
-                # version it just wrote and drop the divergence with it.
-                session.worktree.deferred.pop(accepted.uid, None)
             if accepted.renamed_from is not None and accepted.rewire:
-                unplaced = _rewire(session, accepted, batch, branch=branch, skip=skip)
+                unplaced = _rewire(session, accepted, batch, branch=branch)
                 if unplaced:
                     deferred_rewires.append(replace(accepted, rewire=unplaced))
         # A consumer that was renamed in this same burst is only reachable once
@@ -237,7 +218,7 @@ def _accept_files(
         # by the end of the pass. Without this it would keep the old spelling
         # for good: no later pass has a rename left to notice.
         for pending_rewire in deferred_rewires:
-            _rewire(session, pending_rewire, batch, branch=branch, skip=skip)
+            _rewire(session, pending_rewire, batch, branch=branch)
         if not moved:
             # Nothing in this pass wrote a file or a version, so what is on disk
             # is what the branch head holds — the one moment a stamp can be
@@ -277,22 +258,16 @@ class _Level:
       so once anything is drafted the fast path is off for the rest of the pass,
       and nothing is stamped until a whole pass has found nothing to do.
 
-    A deferred projection — the worktree lock holding an agent's edit — takes
-    the fast path off entirely: those accepts carry a base version the stamp
-    does not describe, and they are rare enough not to be worth encoding.
     """
 
-    def __init__(
-        self, session: "FlowSession", batch: Batch, *, branch: str, usable: bool
-    ) -> None:
+    def __init__(self, session: "FlowSession", batch: Batch, *, branch: str) -> None:
         self._session = session
         self._batch = batch
         self._branch = branch
-        self._usable = usable
         self._known = session.accepted_files
 
     def _settled(self) -> bool:
-        return self._usable and not self._batch.ops
+        return not self._batch.ops
 
     def uid_of(self, path: Path) -> str | None:
         """The uid this file was last accepted as, if nothing can have moved."""
@@ -327,34 +302,12 @@ def _digest(path: Path) -> str | None:
         return None
 
 
-def _held_versions(session: "FlowSession", branch: str) -> dict[str, str]:
-    """Which files are known to hold an older version than the branch head.
-
-    Only deferred projections: everywhere else the files are the head, and
-    naming a parent the acceptance would have found anyway says nothing. Here
-    it is the difference between an edit that derived from what the author saw
-    and one the daemon pretends derived from a version they never read.
-    """
-    deferred = session.worktree.deferred
-    if not deferred:
-        return {}
-    here = session.store.index.slice_versions(
-        session.store.branches.get(branch).branch_id
-    )
-    return {
-        here[uid].slug: version_id
-        for uid, version_id in deferred.items()
-        if version_id is not None and uid in here
-    }
-
-
 def _rewire(
     session: "FlowSession",
     accepted: AcceptedCell,
     batch: Batch,
     *,
     branch: str,
-    skip: Collection[str] = (),
 ) -> list[str]:
     """Rewrite the consumers that still spell a renamed cell's old name.
 
@@ -368,9 +321,6 @@ def _rewire(
     than dropped, because a consumer renamed in the same burst is between names
     until its own file has been accepted.
 
-    A file already waiting on a projection is left alone: the version that
-    outran it will be written whole when the worktree is free, spelling and
-    all.
     """
     here = batch.slice_over(
         session.store.index.slice_versions(session.store.branches.get(branch).branch_id)
@@ -378,7 +328,7 @@ def _rewire(
     unplaced = []
     for uid in accepted.rewire:
         consumer = here.get(uid)
-        if consumer is None or consumer.slug in skip:
+        if consumer is None:
             continue
         path = session.acceptance.cell_path(consumer.slug)
         if not path.exists():
@@ -436,17 +386,15 @@ def _accept_removals(
     return removed
 
 
-def _complete_projections(session: "FlowSession", branch_id: str) -> _Pending:
+def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
     """Sort out the files a store-side edit got ahead of.
 
     A file that diverged from the head but holds bytes some *known* version of
     that same cell was accepted under is not an edit — it is the projection of
     a store-side edit that has not landed yet, and accepting it would write the
     old version back over the new one. So the store wins and the file catches
-    up, except while an agent session holds the worktree: then the file is
-    neither rewritten nor accepted, and the deferral simply stands. Both
-    readings come off the files alone, which is what a daemon restarted
-    mid-deferral has to work from.
+    up. The reading comes off the files alone, which is what a daemon restarted
+    between the commit and projection has to work from.
 
     Only a version *older* than the head can be one of these: a projection is
     the store having got ahead of the files, so the bytes left behind are the
@@ -461,10 +409,8 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> _Pending:
     store, and the revert is one edit away from being made again.
     """
     store = session.store
-    worktree = session.worktree
-    locked = worktree.holder() is not None
     here = store.index.slice_versions(branch_id)
-    pending = _Pending()
+    completed: list[str] = []
     for uid, version in sorted(here.items(), key=lambda item: item[1].slug):
         path = session.acceptance.cell_path(version.slug)
         if not path.exists():
@@ -472,19 +418,13 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> _Pending:
         source = store.objects.get(version.raw_source_ref)
         held = path.read_bytes()
         if held == source:
-            worktree.deferred.pop(uid, None)
             continue
         older = store.index.version_by_source(uid, hash_bytes(held))
         if older is None or older.created_step >= version.created_step:
             continue
-        if locked:
-            worktree.deferred.setdefault(uid, older.version_id)
-            pending.withheld[version.slug] = uid
-            continue
         atomic_write_bytes(path, source)
-        worktree.deferred.pop(uid, None)
-        pending.completed.append(version.slug)
-    return pending
+        completed.append(version.slug)
+    return completed
 
 
 def _intent(

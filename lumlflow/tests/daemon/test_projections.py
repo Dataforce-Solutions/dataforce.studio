@@ -1,16 +1,10 @@
-"""Checkout, the worktree lock, and edits the daemon was handed rather than read.
-
-The through-line: the store is written either way. What the lock decides is
-only whether the files may be rewritten yet — so an edit is never lost, a
-working agent never has files pulled out from under it, and every state in
-between says which it is.
-"""
+"""Checkout, file projection, and edits the daemon was handed rather than read."""
 
 from pathlib import Path
 
 import pytest
-from lumlflow.flow.errors import EditConflict, WorktreeLocked
-from lumlflow.flow.store.models import WorktreeBound
+from lumlflow.flow.errors import EditConflict
+from lumlflow.flow.store.models import CellAccepted, CellRemoved, Renamed, WorktreeBound
 
 from tests.daemon.helpers import (
     BROKEN_CELL,
@@ -23,6 +17,7 @@ from tests.daemon.helpers import (
     slice_of,
     slugs,
     source_of,
+    transactions,
     write_cell,
 )
 
@@ -43,6 +38,7 @@ async def test_opening_a_flow_checks_it_out_rather_than_binding_it_bare(
 
     assert opened["branch"] == "main"
     assert opened["checked_out"] is True
+    assert "unwritten" not in opened
     assert bound is not None and bound.name == "main"
     assert [op.path for op in binds] == [str(root / "churn.flow")]
     # The cells were already the branch's slice, so the projection wrote nothing.
@@ -170,30 +166,28 @@ async def test_workspace_files_are_branch_invariant(tmp_path: Path):
     assert "0.91" in source_of(flow, "score")
 
 
-async def test_an_agent_session_holds_the_files_against_a_checkout(tmp_path: Path):
+async def test_an_agent_session_does_not_block_a_checkout(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
-    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         api.hub.session("churn").store.branches.fork("sweep", from_branch="main")
+        await api.cells_edit(
+            {"flow": "churn", "branch": "sweep", "slug": "score", "source": SWEEP_CELL}
+        )
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
 
-        with pytest.raises(WorktreeLocked) as locked:
-            await api.switch({"flow": "churn", "branch": "sweep"})
-        forced = await api.switch({"flow": "churn", "branch": "sweep", "force": True})
+        switched = await api.switch({"flow": "churn", "branch": "sweep"})
 
-    assert locked.value.holder == "claude-1"
-    assert "claude-1" in str(locked.value)
-    assert forced["branch"] == "sweep"
+    assert switched["branch"] == "sweep"
+    assert "0.77" in source_of(flow, "score")
 
 
-async def test_an_edit_under_an_agent_session_is_saved_before_it_is_written(
+async def test_cells_created_under_an_agent_are_written_and_not_reconciled_away(
     tmp_path: Path,
-):
-    """The store takes the edit immediately — correct attribution at the source
-    — and the files wait for the agent to finish. Nothing is lost either way;
-    the card just says which state it is in."""
+) -> None:
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -201,79 +195,98 @@ async def test_an_edit_under_an_agent_session_is_saved_before_it_is_written(
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
-        saved = await api.cells_edit(
-            {"flow": "churn", "slug": "score", "source": SWEEP_CELL}
+        original = await api.cells_show({"flow": "churn", "slug": "score"})
+        added = await api.cells_new({"flow": "churn"})
+        added_immediately = (flow / "cells" / f"{added['slug']}.py").exists()
+        duplicated = await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "score_copy",
+                "source": original["source"],
+                "intent": "duplicated score",
+            }
         )
         session = api.hub.session("churn")
-        while_held = (source_of(flow, "score"), session.worktree.pending())
-        stored = slice_of(session, "main")["score"]
+        listed = await api.cells_list({"flow": "churn", "actor": "user"})
+        landed = transactions(session)
 
-        ended = await api.agent_end({"flow": "churn", "actor": "claude-1"})
-        settled = session.worktree.pending()
+    assert added["written_to_files"] is True
+    assert added_immediately is True
+    assert duplicated["written_to_files"] is True
+    assert {cell["slug"] for cell in listed["cells"]} == {
+        "score",
+        "score_copy",
+        added["slug"],
+    }
+    assert cell_files(flow) == ["score", "score_copy", added["slug"]]
+    assert not any(isinstance(op, CellRemoved) for entry in landed for op in entry.ops)
+    created = [
+        entry
+        for entry in landed
+        if any(
+            isinstance(op, CellAccepted) and op.slug in {"score_copy", added["slug"]}
+            for op in entry.ops
+        )
+    ]
+    assert [entry.actor for entry in created] == ["user", "user"]
+    assert [
+        entry.actor
+        for entry in created
+        if any(
+            isinstance(op, CellAccepted) and op.slug == added["slug"]
+            for op in entry.ops
+        )
+    ] == ["user"]
 
-    assert saved["written_to_files"] is False
-    assert "0.91" in while_held[0] and while_held[1] == ["score"]
-    assert stored.author == "user"
-    # The session ends, the projection it held back completes.
-    assert ended["projected"]["written"] == ["score"]
-    assert "0.77" in source_of(flow, "score")
-    assert settled == []
 
-
-async def test_an_agent_editing_the_stale_file_diverges_instead_of_advancing(
-    tmp_path: Path,
-):
-    """The agent's version records the parent it actually derived from — the
-    one the files held — and says so, so the head never moves on quietly over
-    an edit the author never saw."""
+async def test_an_agent_mv_after_a_ui_edit_keeps_the_users_head(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         session = api.hub.session("churn")
-        original = slice_of(session, "main")["score"].version_id
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
         await api.cells_edit({"flow": "churn", "slug": "score", "source": SWEEP_CELL})
+        user_head = slice_of(session, "main")["score"]
+        report_before = slice_of(session, "main")["report"]
+        producer_versions_before = [
+            op for op in ops_of(session, CellAccepted) if op.uid == user_head.uid
+        ]
+        (flow / "cells" / "score.py").rename(flow / "cells" / "total.py")
 
-        write_cell(flow, "score", source_of(flow, "score").replace("0.91", "0.95"))
-        session.reconcile(tier="live")
-        head = slice_of(session, "main")["score"]
+        await api.cells_list({"flow": "churn", "actor": "user"})
+        head = slice_of(session, "main")["total"]
+        report = slice_of(session, "main")["report"]
+        renames = ops_of(session, Renamed)
+        producer_versions = [
+            op for op in ops_of(session, CellAccepted) if op.uid == head.uid
+        ]
+        rename_transaction = next(
+            entry
+            for entry in transactions(session)
+            if any(
+                isinstance(op, Renamed) and op.new_slug == "total" for op in entry.ops
+            )
+        )
 
-    assert head.parent_version_id == original
-    assert [flag.code for flag in head.flags] == ["divergent"]
-    assert "save it to a new lane" in str(head.flags[0].detail)
-    assert head.author == "claude-1"
-
-
-async def test_a_restart_reads_a_pending_projection_off_the_files(tmp_path: Path):
-    """Nothing in memory survives, so the file has to say what it is: bytes a
-    known version of that cell was accepted under are a projection that never
-    landed, not an edit to accept over the version that outran it."""
-    root = make_workspace(tmp_path / "project")
-    flow = root / "churn.flow"
-    write_cell(flow, "score", SCORE_CELL)
-
-    async with daemon_api(root) as api:
-        await api.flow_open({"flow": "churn"})
-        await api.agent_begin({"flow": "churn", "label": "claude-1"})
-        await api.cells_edit({"flow": "churn", "slug": "score", "source": SWEEP_CELL})
-        saved = slice_of(api.hub.session("churn"), "main")["score"].version_id
-
-    async with daemon_api(root) as api:
-        session = api.hub.open(api.hub.select("churn"))
-        await api.hub.quiesce(session)
-        after_restart = slice_of(session, "main")["score"].version_id
-        still_owed = session.worktree.pending()
-
-        ended = await api.agent_end({"flow": "churn", "actor": "claude-1"})
-
-    # The stale file was neither accepted nor overwritten while the session
-    # held it — and the deferral was recognised from the files alone.
-    assert (after_restart, still_owed) == (saved, ["score"])
-    assert ended["projected"]["written"] == ["score"]
-    assert "0.77" in source_of(flow, "score")
+    assert source_of(flow, "total") == session.store.objects.get(
+        user_head.raw_source_ref
+    ).decode("utf-8")
+    assert [(op.old_slug, op.new_slug) for op in renames] == [("score", "total")]
+    assert producer_versions == producer_versions_before
+    assert rename_transaction.actor == "claude-1"
+    assert head.version_id == user_head.version_id
+    assert head.author == "user"
+    assert not head.flags
+    assert "total.summary" in source_of(flow, "report")
+    assert (report.uid, report.definition_hash) == (
+        report_before.uid,
+        report_before.definition_hash,
+    )
+    assert report.manifest.consumes["summary"].uid == head.uid
 
 
 async def test_a_stale_editor_is_refused_into_the_conflict_menu(tmp_path: Path):
@@ -292,12 +305,14 @@ async def test_a_stale_editor_is_refused_into_the_conflict_menu(tmp_path: Path):
         write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.95"))
         session.reconcile(tier="live")
         moved_on = slice_of(session, "main")["score"]
+        transactions_before_refusal = len(transactions(session))
 
         with pytest.raises(EditConflict) as conflict:
             await api.cells_edit(
                 {"flow": "churn", "slug": "score", "source": SWEEP_CELL, "base": base}
             )
-        unwritten = slice_of(session, "main")["score"].version_id
+        unchanged_head = slice_of(session, "main")["score"].version_id
+        transactions_after_refusal = len(transactions(session))
 
         overwritten = await api.cells_edit(
             {
@@ -315,9 +330,11 @@ async def test_a_stale_editor_is_refused_into_the_conflict_menu(tmp_path: Path):
         moved_on.definition_hash,
     )
     assert conflict.value.head_author == "claude-1"
+    assert "`score`" in str(conflict.value)
     assert "save this edit to a new lane" in str(conflict.value)
     # Nothing was written until a side was picked.
-    assert unwritten == moved_on.version_id
+    assert transactions_after_refusal == transactions_before_refusal
+    assert unchanged_head == moved_on.version_id
     assert overwritten["definition_hash"] != moved_on.definition_hash
 
 
@@ -397,13 +414,9 @@ async def test_adding_a_cell_never_lands_on_the_one_already_named_that(
     assert cell_files(root / "churn.flow") == ["score", "score_2"]
 
 
-async def test_a_session_ending_under_another_ends_and_leaves_the_files(
+async def test_ending_one_session_leaves_the_other_registered(
     tmp_path: Path,
-):
-    """Two agents, one worktree: the second still holds the files when the
-    first finishes, so the edit stays owed. The session ended either way —
-    refusing to say so over files it no longer holds would report a failure for
-    something that already happened."""
+) -> None:
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -417,13 +430,12 @@ async def test_a_session_ending_under_another_ends_and_leaves_the_files(
         )
         ended = await api.agent_end({"flow": "churn", "actor": "claude-1"})
         session = api.hub.session("churn")
-        holder = session.worktree.holder()
-        still_owed = session.worktree.pending()
+        registered = session.store.index.agent_sessions()
 
-    assert saved["written_to_files"] is False
-    assert (ended["actor"], ended["projected"]) == ("claude-1", None)
-    assert holder is not None and holder.label == "codex-1"
-    assert still_owed == ["score"] and "0.91" in source_of(flow, "score")
+    assert saved["written_to_files"] is True
+    assert ended["actor"] == "claude-1"
+    assert [agent.label for agent in registered] == ["codex-1"]
+    assert "0.77" in source_of(flow, "score")
 
 
 async def test_an_api_only_session_never_materializes_a_worktree(tmp_path: Path):
@@ -434,9 +446,7 @@ async def test_an_api_only_session_never_materializes_a_worktree(tmp_path: Path)
 
     async with daemon_api(root) as api:
         await api.flow_init({"name": "churn"})
-        await api.agent_begin(
-            {"flow": "churn", "actor": "mcp-1", "label": "claude", "worktree": False}
-        )
+        await api.agent_begin({"flow": "churn", "actor": "mcp-1", "label": "claude"})
         await api.cells_new(
             {
                 "flow": "churn",
@@ -458,11 +468,11 @@ async def test_an_api_only_session_never_materializes_a_worktree(tmp_path: Path)
 
         session = api.hub.session("churn")
         authors = {version.author for version in slice_of(session, "main").values()}
-        worktree = (session.worktree.bound(), session.worktree.holder())
+        bound = session.worktree.bound()
 
     assert outcome["executed"] == ["score"]
     assert opened["checked_out"] is False
-    assert worktree == (None, None)
+    assert bound is None
     assert cell_files(root / "churn.flow") == []
     assert authors == {"mcp-1"}
 
