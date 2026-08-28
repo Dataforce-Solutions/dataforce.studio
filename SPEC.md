@@ -1104,9 +1104,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Delete `envs.add/remove`, `api.env_add/env_remove`, `lumlflow env add/remove`, the Packages panel add/remove rows
   - [x] Delete `env_policy` (setting, `settings.set`, `PanelSettings` control, the `auto` restart path); hard-code the banner-plus-restart behaviour
   - [x] Update tests
-- [ ] Remove retired aliases
-  - [ ] Delete CLI `fork/switch/tree/archive`, the `variant` group, `--variant/--branch/--unsynced`, `mcp._RETIRED_NAMES` and the `variant` wire aliases; the `daemon` group is untouched here (the one-daemon task unhides `stop` and `status`)
-  - [ ] Update `test_cli.py` / `test_mcp.py`
+- [x] Remove retired aliases
+  - [x] Delete CLI `fork/switch/tree/archive`, the `variant` group, `--variant/--branch/--unsynced`, `mcp._RETIRED_NAMES` and the `variant` wire aliases; the `daemon` group is untouched here (the one-daemon task unhides `stop` and `status`)
+  - [x] Update `test_cli.py` / `test_mcp.py`
 - [ ] Remove focus, asset diff, the dev shim and the sidecar
   - [ ] Delete `api.set_focus`, `session.focus` and its one reader `handoff._focus`, `session://focus`, the `useSelection` focus reporter, `api.asset_diff` and `lumlflow asset diff`, `_refresh_web_app` and helpers in `lumlflow/cli.py`, `docs.refresh_checkout` and `CHECKOUT.md`
   - [ ] Update the affected tests

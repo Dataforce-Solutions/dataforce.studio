@@ -191,7 +191,7 @@ def test_cells_new_after_prefills_the_wiring_and_the_signature(
 
 
 def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path):
-    """`--unsynced` and `--around` are what keep a big flow answerable."""
+    """`--stale` and `--around` are what keep a big flow answerable."""
     cli("init", "churn")
     flow = workspace / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -199,15 +199,15 @@ def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path)
     write_cell(flow, "fanout", FANOUT_CELL)
     cli("run", "score")
 
-    unsynced = cli("cells", "list", "--unsynced")
+    stale = cli("cells", "list", "--stale")
     near = cli("graph", "--around", "report", "--depth", "1")
 
-    assert "score" not in unsynced.output.replace("score.summary", "")
-    assert "report" in unsynced.output and "fanout" in unsynced.output
+    assert "score" not in stale.output.replace("score.summary", "")
+    assert "report" in stale.output and "fanout" in stale.output
     # One hop from `report` is `score`; `fanout` hangs off `score` two hops away.
     assert "fanout" not in near.output
     assert "report" in near.output and "score" in near.output
-    _no_internals(unsynced)
+    _no_internals(stale)
     _no_internals(near)
 
 
@@ -221,13 +221,13 @@ def test_diff_separates_an_edit_from_a_result_that_merely_moved(
     write_cell(flow, "score", SCORE_CELL)
     write_cell(flow, "report", REPORT_CELL)
     cli("run", "report")
-    cli("fork", "sweep", "-m", "try a higher score")
-    cli("switch", "sweep")
+    cli("lane", "new", "sweep", "-m", "try a higher score")
+    cli("lane", "use", "sweep")
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.95"))
     cli("run", "report")
 
     compared = cli("diff", "main", "sweep")
-    narrowed = cli("asset", "diff", "report", "--branch", "main", "--branch", "sweep")
+    narrowed = cli("asset", "diff", "report", "--lane", "main", "--lane", "sweep")
     too_many = cli("diff", "main")
 
     edited = compared.output.index("edited on one side")
@@ -307,16 +307,16 @@ def test_renaming_a_cell_that_does_not_parse_moves_it_rather_than_copying_it(
     assert (flow / "cells" / "partial.py").exists()
 
 
-def test_forking_from_another_branch_says_which_one_it_forked_from(
+def test_starting_from_another_lane_says_which_one_it_started_from(
     cli: Invoke, workspace: Path
 ):
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
-    cli("fork", "alpha")
+    cli("lane", "new", "alpha")
 
-    forked = cli("fork", "beta", "--from", "alpha", "--json")
-    printed = cli("fork", "gamma", "--from", "alpha")
-    shown = cli("tree")
+    forked = cli("lane", "new", "beta", "--from", "alpha", "--json")
+    printed = cli("lane", "new", "gamma", "--from", "alpha")
+    shown = cli("lane", "list")
 
     assert json.loads(forked.output)["from_branch"] == "alpha"
     assert "started `gamma` from `alpha`" in printed.output
@@ -357,21 +357,21 @@ def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
     cli("run", "score")
-    cli("fork", "sweep")
-    cli("switch", "sweep")
+    cli("lane", "new", "sweep")
+    cli("lane", "use", "sweep")
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.95"))
     cli("status")
-    cli("switch", "main")
+    cli("lane", "use", "main")
 
     adopted = cli("adopt", "score", "--from", "sweep", "-m", "the sweep won")
     took = source_of(flow, "score")
     # Now main moves too, so the next adopt has two sides that both edited.
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.42"))
     cli("status")
-    cli("switch", "sweep")
+    cli("lane", "use", "sweep")
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.96"))
     cli("status")
-    cli("switch", "main")
+    cli("lane", "use", "main")
     refused = cli("adopt", "score", "--from", "sweep", stdin="")
 
     assert adopted.exit_code == 0
@@ -391,12 +391,12 @@ def test_a_brief_on_another_branch_does_not_claim_the_agents_files(
     belong to the branch that is checked out and to no other."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
-    cli("fork", "alpha")
+    cli("lane", "new", "alpha")
     cli("agent", "begin", "--label", "claude-1")
 
     here = cli("context", "--json")
-    there = cli("context", "--branch", "alpha", "--json")
-    printed = cli("context", "--branch", "alpha")
+    there = cli("context", "--lane", "alpha", "--json")
+    printed = cli("context", "--lane", "alpha")
 
     assert json.loads(here.output)["checked_out"] is True
     assert json.loads(here.output)["agent"] == "claude-1"
@@ -414,11 +414,11 @@ def test_deleting_a_cell_is_per_branch_and_says_so(cli: Invoke, workspace: Path)
     write_cell(flow, "score", SCORE_CELL)
     write_cell(flow, "report", REPORT_CELL)
     cli("cells", "list")
-    cli("fork", "sweep")
+    cli("lane", "new", "sweep")
 
     deleted = cli("cells", "delete", "score", "-m", "not needed here")
     here = cli("cells", "list")
-    there = cli("cells", "list", "--branch", "sweep")
+    there = cli("cells", "list", "--lane", "sweep")
 
     assert "other lanes are untouched" in deleted.output
     assert "left pointing at nothing here: report" in deleted.output
@@ -486,12 +486,12 @@ def test_a_working_agent_holds_the_files_until_it_is_forced_off(
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
-    cli("fork", "sweep")
+    cli("lane", "new", "sweep")
     cli("agent", "begin", "--label", "claude-1")
 
-    blocked = cli("switch", "sweep")
-    seen = cli("tree")
-    forced = cli("switch", "sweep", "--force")
+    blocked = cli("lane", "use", "sweep")
+    seen = cli("lane", "list")
+    forced = cli("lane", "use", "sweep", "--force")
 
     assert blocked.exit_code == 1
     assert "claude-1 holds these files" in blocked.output
@@ -550,7 +550,7 @@ def test_an_agent_session_brackets_the_command_it_runs(cli: Invoke, workspace: P
 
     argv = ("agent", "exec", "--label", "claude-1", "--", sys.executable, "-c", "pass")
     session = cli(*argv)
-    tree = cli("tree")
+    tree = cli("lane", "list")
 
     assert session.exit_code == 0
     # The session ended, so nobody holds the files any more.
@@ -641,8 +641,8 @@ def test_an_intent_typed_at_a_verb_is_what_the_history_reads_back(
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
 
-    cli("fork", "sweep", "-m", "try it with the wider window")
-    read_back = cli("tree")
+    cli("lane", "new", "sweep", "-m", "try it with the wider window")
+    read_back = cli("lane", "list")
 
     assert "last: user · try it with the wider window" in read_back.output
     _no_internals(read_back)
@@ -787,60 +787,56 @@ def _no_internals(result: Result) -> None:
     assert not leaked, f"internals leaked: {leaked}\n{spoken}"
 
 
-def test_the_lane_group_holds_the_verbs_that_were_spelled_like_gits(cli: Invoke):
-    """One noun group, and the four spellings it replaced still answering.
-
-    The rename is a reading change, not a wire change: `lane new` is the `fork`
-    daemon method under a name that collides with neither git nor the rest of
-    this platform, and the old verb keeps working so no script breaks on it.
-    """
+def test_the_lane_group_holds_the_lane_verbs(cli: Invoke):
     cli("init", "churn")
     started = cli("lane", "new", "sweep", "-m", "a lower lr")
     listed = cli("lane", "list")
     used = cli("lane", "use", "sweep")
-    retired = cli("fork", "second", "-m", "the old spelling still answers")
+    archived = cli("lane", "archive", "sweep")
 
     assert "started `sweep` from `main`" in started.output
     assert "sweep" in listed.output and "started from main" in listed.output
     assert "on `sweep`" in used.output
-    assert retired.exit_code == 0
-    assert "started `second` from `sweep`" in retired.output
+    assert "archived `sweep`" in archived.output
 
 
-def test_the_group_the_lane_group_replaced_still_answers_unlisted(cli: Invoke):
-    """`lumlflow variant` was this word's previous spelling. It is hidden, not
-    removed: the group is mounted twice, so both names reach the same verbs."""
-    cli("init", "churn")
-    started = cli("variant", "new", "sweep", "-m", "the previous spelling")
-    listed = cli("variant", "list")
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("fork", "sweep"),
+        ("switch", "sweep"),
+        ("tree",),
+        ("archive", "sweep"),
+        ("variant", "list"),
+    ],
+)
+def test_retired_commands_are_unknown(cli: Invoke, command: tuple[str, ...]) -> None:
+    removed = cli(*command)
 
-    assert started.exit_code == 0
-    assert "started `sweep` from `main`" in started.output
-    assert "sweep" in listed.output
-    assert "variant" not in cli("--help").output
+    assert removed.exit_code == 2
+    assert f"No such command '{command[0]}'" in removed.output
 
 
-def test_the_retired_option_spellings_still_select_a_lane(cli: Invoke):
-    """`--variant`, `--branch` and `--unsynced` are hidden, not removed."""
+def test_retired_option_spellings_are_unknown(cli: Invoke):
     cli("init", "churn")
     cli("lane", "new", "sweep", "-m", "a lower lr")
 
     by_lane = cli("context", "--lane", "sweep")
     by_variant = cli("context", "--variant", "sweep")
     by_branch = cli("context", "--branch", "sweep")
-    stale = cli("cells", "list", "--unsynced")
+    stale = cli("cells", "list", "--stale")
+    unsynced = cli("cells", "list", "--unsynced")
 
-    assert [named.exit_code for named in (by_lane, by_variant, by_branch)] == [0, 0, 0]
-    assert all("sweep" in named.output for named in (by_lane, by_variant, by_branch))
+    assert by_lane.exit_code == 0
+    assert "sweep" in by_lane.output
     assert stale.exit_code == 0
+    for removed in (by_variant, by_branch, unsynced):
+        assert removed.exit_code == 2
+        assert "No such option" in removed.output
 
 
 def test_no_visible_help_speaks_the_vocabulary_git_owns():
-    """A flow lives inside a git repository, so its verbs must not sound alike.
-
-    Hidden commands are exempt by definition: each one *is* a git spelling,
-    kept reachable for scripts and shown to nobody.
-    """
+    """A flow lives inside a git repository, so its verbs must not sound alike."""
     runner = CliRunner()
     for path in _visible_paths():
         result = runner.invoke(app, [*path, "--help"])

@@ -11,13 +11,8 @@ mutation happened, and rides into the journal beside it: a history of *what*
 changed, with no *why*, is not a history anybody reads twice.
 
 A flow lives inside somebody's git repository, so no verb here may be spelled
-the way git spells one, and no verb may be spelled the way the rest of this
-platform spells one either. The four that were — `fork`, `switch`, `tree` and
-`archive` — are now `lumlflow lane new / use / list / archive`. Every earlier
-spelling still answers and none is shown: the `variant` group, those four
-top-level verbs, and the `--variant`, `--branch` and `--unsynced` options. What
-the wire calls these operations did not move; see `frontend/DESIGN.md` for the
-boundary.
+the way git spells one. Lane operations live under `lumlflow lane`, and the
+wire keeps its internal branch vocabulary at the daemon boundary.
 """
 
 import contextlib
@@ -57,11 +52,6 @@ daemon_app = typer.Typer(
 _JSON = typer.Option(False, "--json", help="Answer as JSON, verbatim.")
 _FLOW = typer.Option(None, "--flow", help="Which flow, when the workspace has several.")
 _LANE = typer.Option(None, "--lane", help="Which lane. Defaults to the one on disk.")
-# The two spellings this option had before lanes got their word. Declared
-# separately rather than as further names, because click prints every name a
-# parameter answers to and neither of these must be taught.
-_LANE_WAS = typer.Option(None, "--variant", hidden=True)
-_BRANCH_WAS = typer.Option(None, "--branch", hidden=True)
 _INTENT = typer.Option(None, "-m", "--intent", help="Why. Recorded in the journal.")
 _FORCE = typer.Option(
     False, "--force", help="Proceed even if an agent holds the files."
@@ -91,31 +81,13 @@ def register(app: typer.Typer) -> None:
     # `import` is a keyword, so the verb and the function that serves it cannot
     # share a name.
     app.command("import")(import_cells)
-    # The spellings these four had before lanes got their word. Each is a git
-    # verb, which is why it moved; each still answers, so no script and no habit
-    # breaks on the rename.
-    for spelling, retired in (
-        ("fork", lane_new),
-        ("switch", lane_use),
-        ("tree", lane_list),
-        ("archive", lane_archive),
-    ):
-        app.command(spelling, hidden=True)(retired)
     app.add_typer(cells_app, name="cells")
     app.add_typer(asset_app, name="asset")
     app.add_typer(lane_app, name="lane")
-    # The group's own earlier spelling, mounted a second time and taught to
-    # nobody. `variant` is the platform's word for something else.
-    app.add_typer(lane_app, name="variant", hidden=True)
     app.add_typer(agent_app, name="agent")
     app.add_typer(env_app, name="env")
     app.add_typer(flow_app, name="flow")
     app.add_typer(daemon_app, name="daemon", hidden=True)
-
-
-def _lane(*spellings: str | None) -> str | None:
-    """One lane name out of the three spellings this CLI accepts."""
-    return next((named for named in spellings if named is not None), None)
 
 
 def init(
@@ -157,12 +129,10 @@ def status(flow: str | None = _FLOW, as_json: bool = _JSON) -> None:
 def context(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Where you are, what is stale and why, what broke, and what it costs."""
-    params = {"branch": _lane(lane, variant, branch)}
+    params = {"branch": lane}
     result = _call("context", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.context)
 
@@ -179,12 +149,10 @@ def graph(
     depth: int = typer.Option(2, "--depth", help="How many hops from `--around`."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """The declared wiring. This is the graph the scheduler runs."""
-    params = {"branch": _lane(lane, variant, branch), "around": around, "depth": depth}
+    params = {"branch": lane, "around": around, "depth": depth}
     result = _call("graph", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.graph)
 
@@ -196,8 +164,6 @@ def run(
     ),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Run a cell, and whatever it needs, first.
@@ -209,7 +175,7 @@ def run(
     `--force` spends the closure's cost again on purpose. It drops memoization
     for this run, so the store serves nothing and every cell computes.
     """
-    params = {"target": target, "branch": _lane(lane, variant, branch), "force": force}
+    params = {"target": target, "branch": lane, "force": force}
     result = _call("run", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.outcome)
     if result.get("failed"):
@@ -220,8 +186,6 @@ def eval(
     code: str = typer.Argument(..., help="Python to run against a lane's values."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Try something against a lane's values. Nothing is written.
@@ -231,7 +195,7 @@ def eval(
     mutation here reaches no other lane, no stored value, and no cell.
     Every lane evaluates, on disk or not.
     """
-    params = {"code": code, "branch": _lane(lane, variant, branch)}
+    params = {"code": code, "branch": lane}
     result = _call("eval", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.evaluated)
     if result.get("error"):
@@ -242,12 +206,10 @@ def preflight(
     target: str = typer.Argument(..., help="A cell, as `cell` or `cell.output`."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """What running it recomputes, reuses, and costs. Read this before you run."""
-    params = {"target": target, "branch": _lane(lane, variant, branch)}
+    params = {"target": target, "branch": lane}
     result = _call("preflight", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.preflight)
 
@@ -255,12 +217,10 @@ def preflight(
 def cancel(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Stop waiting on the run this lane asked for."""
-    params = {"branch": _lane(lane, variant, branch)}
+    params = {"branch": lane}
     result = _call("cancel", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.abandoned(result))
 
@@ -307,8 +267,6 @@ def rewind(
     to_step: int = typer.Argument(..., help="The step to restore this lane to."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = _FORCE,
     as_json: bool = _JSON,
@@ -316,7 +274,7 @@ def rewind(
     """Restore a lane to a step. This is instant. Nothing recomputes."""
     params = {
         "to_step": to_step,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
         "force": force,
     }
@@ -337,8 +295,6 @@ def adopt(
     from_lane: str = typer.Option(..., "--from", help="The lane to take it from."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = typer.Option(False, "--force", help="Take the incoming side."),
     as_json: bool = _JSON,
@@ -347,7 +303,7 @@ def adopt(
     params = {
         "slug": slug,
         "from_branch": from_lane,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
         "force": force,
     }
@@ -397,8 +353,6 @@ def rename(
     to: str = typer.Argument(..., help="Its new name."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = _FORCE,
     as_json: bool = _JSON,
@@ -407,7 +361,7 @@ def rename(
     params = {
         "slug": slug,
         "to": to,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
         "force": force,
     }
@@ -427,8 +381,6 @@ def export(
     to: Path = typer.Argument(..., help="The file to write, as `flow.py`."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Write a lane's cells out as one Python file.
@@ -439,7 +391,7 @@ def export(
     the file back, and each cell keeps the identity it left with.
     """
     with _daemon(as_json, flow=flow) as daemon:
-        result = daemon.call("export", {"branch": _lane(lane, variant, branch)})
+        result = daemon.call("export", {"branch": lane})
         written = _write_export(Path(to), result["source"])
         note = _shared_code_note(written, daemon.root)
     result = result | {"path": str(written)}
@@ -459,8 +411,6 @@ def import_cells(
     source: Path = typer.Argument(..., help="A file `lumlflow export` wrote."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = _FORCE,
     as_json: bool = _JSON,
@@ -475,7 +425,7 @@ def import_cells(
             "import",
             {
                 "source": _read_export(Path(source)),
-                "branch": _lane(lane, variant, branch),
+                "branch": lane,
                 "intent": intent,
                 "force": force,
             },
@@ -542,16 +492,12 @@ def mcp(
 @cells_app.command("list")
 def cells_list(
     stale: bool = typer.Option(False, "--stale", help="Only what is stale."),
-    # The spelling this flag had before `stale` became the one word for it.
-    unsynced: bool = typer.Option(False, "--unsynced", hidden=True),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """What this lane holds."""
-    params = {"branch": _lane(lane, variant, branch), "unsynced": stale or unsynced}
+    params = {"branch": lane, "unsynced": stale}
     result = _call("cells.list", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.cells)
 
@@ -561,12 +507,10 @@ def cells_show(
     slug: str = typer.Argument(..., help="The cell to read."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """A cell in full: state, declarations, last run, source."""
-    params = {"slug": slug, "branch": _lane(lane, variant, branch)}
+    params = {"slug": slug, "branch": lane}
     result = _call("cells.show", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.cell)
 
@@ -580,8 +524,6 @@ def cells_new(
     docstring: str | None = typer.Option(None, "--doc", help="The cell's docstring."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
@@ -590,7 +532,7 @@ def cells_new(
         "slug": slug,
         "after": after,
         "docstring": docstring,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
     }
     result = _call("cells.new", params, flow=flow, as_json=as_json)
@@ -608,8 +550,6 @@ def cells_edit(
     ),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = typer.Option(False, "--force", help="Overwrite a newer version."),
     as_json: bool = _JSON,
@@ -624,7 +564,7 @@ def cells_edit(
         "slug": slug,
         "source": (source.read_text("utf-8") if source else sys.stdin.read()),
         "base": base,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
         "force": force,
     }
@@ -637,8 +577,6 @@ def cells_delete(
     slug: str = typer.Argument(..., help="The cell to drop from this lane."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     intent: str | None = _INTENT,
     force: bool = _FORCE,
     as_json: bool = _JSON,
@@ -646,7 +584,7 @@ def cells_delete(
     """Drop a cell from this lane. Every other lane keeps its own."""
     params = {
         "slug": slug,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "intent": intent,
         "force": force,
     }
@@ -672,12 +610,10 @@ def asset_preview(
     target: str = typer.Argument(..., help="`cell` or `cell.output`."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """What a cell produced, read from the stored preview. No kernel starts."""
-    params = {"target": target, "branch": _lane(lane, variant, branch)}
+    params = {"target": target, "branch": lane}
     result = _call("asset.preview", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.asset)
 
@@ -689,14 +625,12 @@ def asset_page(
     limit: int = typer.Option(20, "--limit", help="How much to read."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Read into a value. This is the gesture that starts a kernel."""
     params = {
         "target": target,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "query": {"offset": offset, "limit": limit},
     }
     result = _call("asset.page", params, flow=flow, as_json=as_json)
@@ -709,15 +643,11 @@ def asset_page(
 def asset_diff(
     target: str = typer.Argument(..., help="`cell` or `cell.output`."),
     lanes: list[str] = typer.Option([], "--lane", help="Given twice."),
-    # The spellings this option had before lanes got their word.
-    variants: list[str] = typer.Option([], "--variant", hidden=True),
-    branches: list[str] = typer.Option([], "--branch", hidden=True),
     flow: str | None = _FLOW,
     as_json: bool = _JSON,
 ) -> None:
     """One cell's code and results across two lanes."""
-    named = list(lanes) or list(variants) or list(branches)
-    params = {"target": target, "branches": named}
+    params = {"target": target, "branches": list(lanes)}
     result = _call("asset.diff", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.asset_diff)
 
@@ -728,14 +658,12 @@ def asset_download(
     to: Path | None = typer.Option(None, "--to", help="Where to write it."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
     as_json: bool = _JSON,
 ) -> None:
     """Copy a stored value out of the flow."""
     params = {
         "target": target,
-        "branch": _lane(lane, variant, branch),
+        "branch": lane,
         "to": str(Path(to).resolve()) if to else str(Path.cwd()),
     }
     result = _call("asset.download", params, flow=flow, as_json=as_json)

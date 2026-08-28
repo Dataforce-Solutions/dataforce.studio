@@ -243,22 +243,22 @@ def test_the_label_a_configuration_gave_wins_over_the_clients_own_name(talk: Tal
     }
 
 
-def test_switch_moves_this_session_and_leaves_the_files_alone(
+def test_use_lane_moves_this_session_and_leaves_the_files_alone(
     talk: Talk, workspace: Path
 ):
-    """The daemon's `switch` rebinds a worktree. This one cannot: it sets the
+    """The daemon's lane switch rebinds a worktree. This one cannot: it sets the
     branch this session works on, and every later tool follows it."""
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
         tool(2, "new-cell", {"slug": "score", "source": SCORE_CELL, "intent": "score"}),
-        tool(3, "fork", {"name": "sweep", "intent": "try a higher lr"}),
-        tool(4, "switch", {"branch": "sweep"}),
+        tool(3, "new-lane", {"name": "sweep", "intent": "try a higher lr"}),
+        tool(4, "use-lane", {"lane": "sweep"}),
         tool(
             5, "edit-cell", {"slug": "score", "source": SWEEP_CELL, "intent": "sweep"}
         ),
         tool(6, "context", {}),
-        tool(7, "context", {"branch": "main"}),
+        tool(7, "context", {"lane": "main"}),
     )
 
     live = talk.flow("churn")
@@ -280,10 +280,10 @@ def test_switch_moves_this_session_and_leaves_the_files_alone(
     assert cell_files(workspace / "churn.flow") == []
 
 
-def test_a_session_starts_where_the_files_are_and_switch_leaves_them_there(
+def test_a_session_starts_where_the_files_are_and_use_lane_leaves_them_there(
     talk: Talk, workspace: Path
 ):
-    """The other half of `switch`: a flow somebody has checked out.
+    """The other half of `use-lane`: a flow somebody has checked out.
 
     The session's branch begins as the bound one — the agent lands where the
     files are rather than on whatever `main` holds — and moving it moves
@@ -295,7 +295,7 @@ def test_a_session_starts_where_the_files_are_and_switch_leaves_them_there(
     answers = talk(
         hello(),
         tool(1, "context", {}),
-        tool(2, "switch", {"branch": "main"}),
+        tool(2, "use-lane", {"lane": "main"}),
         tool(
             3, "edit-cell", {"slug": "score", "source": SWEEP_CELL, "intent": "sweep"}
         ),
@@ -355,7 +355,7 @@ def test_a_named_branch_that_is_not_there_fails_the_tool_not_the_session(
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
-        tool(2, "switch", {"branch": "sweep"}),
+        tool(2, "use-lane", {"lane": "sweep"}),
         tool(3, "run", {"target": "nowhere"}),
         tool(4, "status", {}),
     )
@@ -533,36 +533,49 @@ def test_no_listed_tool_teaches_the_vocabulary_git_owns():
     no_git_words(mcp.INSTRUCTIONS, "the server instructions")
 
 
-def test_the_retired_tool_names_still_answer_but_are_never_listed(
+def test_retired_tool_names_are_unknown_and_current_names_work(
     talk: Talk, workspace: Path
 ):
-    """An agent mid-session holds the old list. A fresh one never sees it.
-
-    There have been two renames, so there are two tails. `fork` and `switch`
-    are git's spellings; `new-variant` and `use-variant` are the pass between
-    them. All four leave `tools/list` and all four keep answering. A rename
-    that broke a running session would be a worse failure than the collision it
-    fixes. Every argument spelling answers too, because a cached schema names
-    one of them.
-    """
     make_workspace(workspace, flows=("churn",))
     answers = talk(
         hello(request_id=1),
         request(2, "tools/list"),
-        tool(3, "fork", {"name": "sweep", "intent": "the oldest spelling"}),
-        tool(4, "switch", {"branch": "sweep"}),
-        tool(5, "new-variant", {"name": "second", "intent": "the middle spelling"}),
-        tool(6, "use-variant", {"variant": "second"}),
-        tool(7, "new-lane", {"name": "third", "intent": "the word"}),
-        tool(8, "use-lane", {"lane": "third"}),
+        tool(3, "fork", {"name": "sweep", "intent": "removed"}),
+        tool(4, "switch", {"lane": "sweep"}),
+        tool(5, "new-variant", {"name": "second", "intent": "removed"}),
+        tool(6, "use-variant", {"lane": "second"}),
+        tool(7, "new-lane", {"name": "sweep", "intent": "current spelling"}),
+        tool(8, "use-lane", {"lane": "sweep"}),
     )
 
     listed = {entry["name"] for entry in answers[2]["result"]["tools"]}
     assert {"new-lane", "use-lane"} <= listed
     assert not {"fork", "switch", "new-variant", "use-variant"} & listed
-    assert answered(answers, 3)["branch"] == "sweep"
-    assert answered(answers, 4)["branch"] == "sweep"
-    assert answered(answers, 5)["branch"] == "second"
-    assert answered(answers, 6)["branch"] == "second"
-    assert answered(answers, 7)["branch"] == "third"
-    assert answered(answers, 8)["branch"] == "third"
+    for request_id in range(3, 7):
+        assert answers[request_id]["error"]["code"] == mcp.METHOD_NOT_FOUND
+        assert "no tool" in answers[request_id]["error"]["message"]
+    assert answered(answers, 7)["branch"] == "sweep"
+    assert answered(answers, 8)["branch"] == "sweep"
+
+
+def test_retired_variant_arguments_are_not_lane_aliases(
+    talk: Talk, workspace: Path
+) -> None:
+    make_workspace(workspace, flows=("churn",))
+    answers = talk(
+        hello(request_id=1),
+        tool(2, "new-lane", {"name": "sweep", "intent": "current spelling"}),
+        tool(3, "use-lane", {"variant": "sweep"}),
+        tool(4, "context", {"variant": "sweep"}),
+        tool(
+            5,
+            "new-lane",
+            {"name": "second", "from_variant": "sweep", "intent": "no alias"},
+        ),
+        tool(6, "diff", {"variants": ["main", "sweep"]}),
+    )
+
+    assert "`lane`" in failed(answers, 3)
+    assert answered(answers, 4)["branch"] == "main"
+    assert answered(answers, 5)["from_branch"] == "main"
+    assert "`lanes`" in failed(answers, 6)

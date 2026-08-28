@@ -139,16 +139,11 @@ _WIRE_NAMES = {
     "lanes": "branches",
 }
 
-#: Every spelling that still arrives, mapped onto the one a tool declares. A
-#: mid-session client holds a cached schema, and there have been two of them:
-#: the wire's own names and the `variant` pass between them. All three answer.
+#: The daemon's wire vocabulary mapped onto the lane names tools declare.
 _ALIASES = {
     "branch": "lane",
-    "variant": "lane",
     "from_branch": "from_lane",
-    "from_variant": "from_lane",
     "branches": "lanes",
-    "variants": "lanes",
 }
 
 TOOLS: tuple[_Tool, ...] = (
@@ -306,19 +301,7 @@ TOOLS: tuple[_Tool, ...] = (
     ),
 )
 
-#: The names two of these tools answered to before lanes got their word — git's
-#: spellings, then the `variant` pass. Each is kept callable so an agent holding
-#: a tool list from before either rename does not break mid-session, and left
-#: out of `tools/list` so a fresh one never learns them.
-_RETIRED_NAMES = {
-    "fork": "new-lane",
-    "switch": "use-lane",
-    "new-variant": "new-lane",
-    "use-variant": "use-lane",
-}
-
 _BY_NAME = {tool.name: tool for tool in TOOLS}
-_BY_NAME |= {was: _BY_NAME[now] for was, now in _RETIRED_NAMES.items()}
 
 
 class _Refused(Exception):
