@@ -412,7 +412,7 @@ async def test_update_deployment_rejects_an_explicit_null_status(
             DeploymentUpdate(id=created.id, status=None),
         )
 
-    unchanged = await repo.get_deployment(created.id)
+    unchanged = await repo.get_deployment(created.id, data.orbit.id)
     assert unchanged
     assert unchanged.status == DeploymentStatus.PENDING
 
