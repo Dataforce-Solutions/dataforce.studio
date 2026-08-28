@@ -11,8 +11,10 @@
       <CollectionsToolbar
         :types="typesQuery"
         :search="searchQuery"
+        :tags="tagsQuery"
         @update:search="onSearch"
         @update:types="setTypesQuery"
+        @update:tags="setTagsQuery"
       />
       <div v-if="isLoading" class="loading-container">
         <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
@@ -63,6 +65,8 @@ const {
   typesQuery,
   setTypesQuery,
   isLoading,
+  tagsQuery,
+  setTagsQuery,
 } = useCollectionsList()
 
 const initialLoading = ref(true)
@@ -100,7 +104,7 @@ async function getFirstCollectionsPage() {
 
 const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 
-watch([searchQuery, typesQuery], debouncedFirstPage)
+watch([searchQuery, typesQuery, tagsQuery], debouncedFirstPage)
 
 watch(
   () => route.params.id,

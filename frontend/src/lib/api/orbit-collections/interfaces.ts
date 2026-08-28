@@ -41,4 +41,5 @@ export interface GetCollectionsListParams {
   order?: 'asc' | 'desc'
   search?: string
   types?: OrbitCollectionTypeEnum[]
+  tags?: string[]
 }

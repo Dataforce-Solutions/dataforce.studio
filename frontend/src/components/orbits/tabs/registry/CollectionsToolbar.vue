@@ -48,6 +48,20 @@
         </template>
       </Button>
     </div>
+    <div class="rich-control tag-control">
+      <UiRichTagsSelect v-model="tags" :options="collectionsStore.collectionsTags" />
+      <Button
+        severity="secondary"
+        variant="outlined"
+        size="small"
+        class="rich-control-button"
+        @click="clearTags"
+      >
+        <template #icon>
+          <X :size="12" />
+        </template>
+      </Button>
+    </div>
   </div>
 </template>
 
@@ -56,9 +70,18 @@ import type { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interf
 import { IconField, InputText, InputIcon, MultiSelect, Button } from 'primevue'
 import { Search, X } from 'lucide-vue-next'
 import { COLLECTION_TYPE_OPTIONS, COLLECTION_TYPE_SELECT_PT } from './collection.const'
+import { useCollectionsStore } from '@/stores/collections'
+import { useToast } from 'primevue'
+import { onBeforeMount } from 'vue'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import UiRichTagsSelect from '@/components/ui/UiRichTagsSelect.vue'
+
+const collectionsStore = useCollectionsStore()
+const toast = useToast()
 
 const search = defineModel<string>('search')
 const types = defineModel<OrbitCollectionTypeEnum[]>('types', { default: [] })
+const tags = defineModel<string[]>('tags', { default: [] })
 
 function updateSearch(val: string | undefined) {
   search.value = val
@@ -73,6 +96,19 @@ function clearTypes() {
   if (types.value.length === 0) return
   types.value = []
 }
+
+function clearTags() {
+  if (tags.value.length === 0) return
+  tags.value = []
+}
+
+onBeforeMount(async () => {
+  try {
+    await collectionsStore.getCollectionsTags()
+  } catch {
+    toast.add(simpleErrorToast('Failed to load collections tags'))
+  }
+})
 </script>
 
 <style scoped>
