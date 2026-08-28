@@ -90,39 +90,37 @@
           </div>
         </template>
       </Column>
-      <Column header="Schema" field="schema">
-        <template #body="{ data }">
-          <div class="cell">
-            <router-link
-              v-if="data.schemas && !!Object.keys(data.schemas).length"
-              :to="{ name: 'deployment-schema', params: { deploymentId: data.id } }"
-              class="link"
-            >
-              View Schema
-            </router-link>
-            <span v-else>-</span>
-          </div>
-        </template>
-      </Column>
-      <Column header="Monitoring" field="monitoring">
-        <template #body="{ data }">
-          <div class="cell">
-            <router-link
-              :to="{ name: 'deployment-monitoring', params: { deploymentId: data.id } }"
-              class="link"
-            >
-              Monitoring
-            </router-link>
-          </div>
-        </template>
-      </Column>
       <Column>
         <template #body="{ data }">
-          <Button severity="secondary" variant="text" @click="onSettingsClick(data)">
-            <template #icon>
-              <Bolt :size="14"></Bolt>
-            </template>
-          </Button>
+          <div class="actions">
+            <router-link
+              v-if="data.schemas && !!Object.keys(data.schemas).length"
+              v-tooltip.top="'View schema'"
+              :to="{ name: 'deployment-schema', params: { deploymentId: data.id } }"
+              class="icon-link"
+            >
+              <Braces :size="16" />
+            </router-link>
+            <span v-else v-tooltip.top="'No schema'" class="icon-link icon-link--disabled">
+              <Braces :size="16" />
+            </span>
+            <router-link
+              v-if="data.monitoring_mode !== MonitoringMode.off"
+              v-tooltip.top="'View monitoring'"
+              :to="{ name: 'deployment-monitoring', params: { deploymentId: data.id } }"
+              class="icon-link"
+            >
+              <Activity :size="16" />
+            </router-link>
+            <span v-else v-tooltip.top="'Monitoring is off'" class="icon-link icon-link--disabled">
+              <Activity :size="16" />
+            </span>
+            <Button severity="secondary" variant="text" @click="onSettingsClick(data)">
+              <template #icon>
+                <Bolt :size="14"></Bolt>
+              </template>
+            </Button>
+          </div>
         </template>
       </Column>
     </DataTable>
@@ -145,9 +143,10 @@
 import { DataTable, Column, IconField, InputIcon, InputText, Tag, Button } from 'primevue'
 import { FilterMatchMode } from '@primevue/core/api'
 import { onBeforeMount, ref } from 'vue'
-import { Search, Bolt, TriangleAlert } from 'lucide-vue-next'
+import { Search, Bolt, TriangleAlert, Braces, Activity } from 'lucide-vue-next'
 import {
   DeploymentStatusEnum,
+  MonitoringMode,
   type Deployment,
   type DeploymentErrorMessage,
 } from '@/lib/api/deployments/interfaces'
@@ -265,6 +264,25 @@ onBeforeMount(() => {
 
 .link {
   text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.icon-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--p-primary-color);
+}
+
+.icon-link--disabled {
+  color: var(--p-text-muted-color);
+  opacity: 0.4;
+  cursor: default;
 }
 
 .id-row {
