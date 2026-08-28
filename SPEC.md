@@ -1089,9 +1089,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Delete `pages/{FixtureWorkbench,FixtureCompare}.vue`, `pages/useWorkbenchState.ts`, the `?state=`/`?source=` arms of `live/source.ts`, and the fixture branches of `WorkbenchPage.vue` / `ComparePage.vue`
   - [x] Register `flow-design` only under `import.meta.env.DEV` (its import is already dynamic); verify `vite build` output holds no fixture or gallery chunk
   - [x] Update `flow-workbench-ui.spec.ts` (its fixture-page cases go; its *pairing hands over a prompt* block stays until the task that removes the prompt) and any spec that imported removed modules; `vue-tsc`, `eslint`, `vitest`, `vite build` green
-- [ ] Add frontend CI for lumlflow-ui
-  - [ ] Add a job to `.github/workflows/[lumlflow] tests-and-linters.yml` (trigger `lumlflow/**`): `npm ci`, build `@luml/experiments` and `@luml/attachments`, then `vue-tsc --build`, `eslint` without `--fix` (the package's `lint` script fixes in place; add a CI script or call the bare command), `vitest run`, `vite build` in `lumlflow/frontend`
-  - [ ] Fix whatever `vue-tsc` and `eslint` find on the current tree — neither has ever run in CI — so the job passes; that fixing is in this task's scope
+- [x] Add frontend CI for lumlflow-ui
+  - [x] Add a job to `.github/workflows/[lumlflow] tests-and-linters.yml` (trigger `lumlflow/**`): `npm ci`, build `@luml/experiments` and `@luml/attachments`, then `vue-tsc --build`, `eslint` without `--fix` (the package's `lint` script fixes in place; add a CI script or call the bare command), `vitest run`, `vite build` in `lumlflow/frontend`
+  - [x] Fix whatever `vue-tsc` and `eslint` find on the current tree — neither has ever run in CI — so the job passes; that fixing is in this task's scope
 - [ ] Remove the sandbox and safety modes
   - [ ] Delete `daemon/sandbox.py`, the spawn wrapping in `kernel_proc.py`, the `sandbox`/`paranoid`/`strict` settings and their threading to the executor and REPL; keep `_restored`; drop the `sandboxed` line in `render.py` and the sandbox half of `_kernel()`
   - [ ] Remove `tests/daemon/test_safety.py` and other references

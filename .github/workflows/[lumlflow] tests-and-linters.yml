@@ -12,6 +12,41 @@ on:
   workflow_dispatch:
 
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend dependencies
+        run: |
+          npm run build --workspace=@luml/experiments
+          npm run build --workspace=@luml/attachments
+
+      - name: Type checking
+        working-directory: lumlflow/frontend
+        run: npx vue-tsc --build
+
+      - name: Linting
+        working-directory: lumlflow/frontend
+        run: npx eslint .
+
+      - name: Running tests
+        working-directory: lumlflow/frontend
+        run: npx vitest run --config vitest.config.ts
+
+      - name: Build frontend
+        working-directory: lumlflow/frontend
+        run: npx vite build
+
   checks:
     runs-on: ubuntu-latest
     defaults:
