@@ -36,6 +36,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       payload,
     )
     setCollectionsList([collection, ...collectionsList.value])
+    await getCollectionsTags()
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
@@ -49,6 +50,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       return collection.id === collectionId ? updatedCollection : collection
     })
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   async function deleteCollection(collectionId: string) {
@@ -61,6 +63,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       (collection) => collection.id !== collectionId,
     )
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   function setCollectionsList(collections: OrbitCollection[]) {

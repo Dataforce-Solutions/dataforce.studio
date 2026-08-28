@@ -102,6 +102,14 @@ async function getFirstCollectionsPage() {
   }
 }
 
+async function fetchCollectionsTags() {
+  try {
+    await collectionsStore.getCollectionsTags()
+  } catch {
+    toast.add(simpleErrorToast('Failed to load collections tags'))
+  }
+}
+
 const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 
 watch([searchQuery, typesQuery, tagsQuery], debouncedFirstPage)
@@ -110,7 +118,7 @@ watch(
   () => route.params.id,
   async (newId) => {
     if (!newId) return
-    await getFirstCollectionsPage()
+    await Promise.all([getFirstCollectionsPage(), fetchCollectionsTags()])
   },
   { immediate: true },
 )

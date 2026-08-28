@@ -8,7 +8,7 @@
     :type="data.type"
     :totalArtifacts="data.total_artifacts"
     :description="data.description"
-    :tags="data.tags"
+    :tags="data.tags ?? []"
     :to="to"
     @edit-click="showEditor"
   />

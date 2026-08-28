@@ -27,7 +27,6 @@
 <script setup lang="ts">
 import type { MultiSelectPassThroughOptions } from 'primevue'
 import { MultiSelect } from 'primevue'
-import { COLLECTION_TYPE_SELECT_PT } from '../orbits/tabs/registry/collection.const'
 import UiRadioSelect from '@/components/ui/UiRadioSelect.vue'
 
 type Props = {
@@ -39,7 +38,12 @@ defineProps<Props>()
 const model = defineModel<string[]>()
 
 const tagsSelectPt: MultiSelectPassThroughOptions = {
-  ...COLLECTION_TYPE_SELECT_PT,
+  root: {
+    style: 'width: 160px;',
+  },
+  header: {
+    style: 'display: none;',
+  },
   listContainer: {
     style: 'display: none;',
   },
