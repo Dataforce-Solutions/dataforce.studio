@@ -5,7 +5,12 @@ RUN apt-get update && apt-get install -y \
     bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-aarch64/latest | tar -xvj \
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        arm64) MAMBA_PLATFORM=linux-aarch64 ;; \
+        *) MAMBA_PLATFORM=linux-64 ;; \
+    esac \
+    && curl -Ls "https://micro.mamba.pm/api/micromamba/${MAMBA_PLATFORM}/2.9.0" | tar -xvj \
     -C /usr/local bin/micromamba && chmod +x /usr/local/bin/micromamba
 
 WORKDIR /app
