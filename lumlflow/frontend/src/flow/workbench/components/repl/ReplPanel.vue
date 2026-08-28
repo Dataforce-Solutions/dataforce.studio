@@ -47,11 +47,6 @@
         class="max-h-40 overflow-auto whitespace-pre rounded-lg border border-surface-200 bg-surface-50 p-2.5 font-mono text-sm leading-relaxed dark:border-surface-700 dark:bg-surface-800"
         >{{ answer.repr }}</pre
       >
-      <p v-if="answer.mutated.length" class="text-sm text-muted-color">
-        <!-- Naming it rather than hiding it: the reader's copy changed and the
-             branch's value did not, which is the whole contract of this panel. -->
-        mutated the copy of {{ named(answer.mutated) }}. the stored value is unchanged.
-      </p>
     </template>
   </section>
 </template>
@@ -105,7 +100,4 @@ watch(
   },
 )
 
-function named(names: string[]): string {
-  return names.map((name) => `\`${name}\``).join(', ')
-}
 </script>

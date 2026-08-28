@@ -181,9 +181,6 @@ async def test_opening_a_flow_reports_the_settings_a_panel_renders(tmp_path: Pat
         "env_policy": "ask",
     }
     assert relaxed["settings"]["reactivity"] == "lazy"
-    # The runtime's own settings are not a panel's to show.
-    assert "sandbox" not in opened["settings"]
-    assert "paranoid" not in opened["settings"]
 
 
 async def test_status_covers_every_flow_and_names_the_interpreter(tmp_path: Path):
@@ -546,7 +543,6 @@ def _memo_keys(session: FlowSession) -> dict[str, str]:
 
 
 def _kernel_state(payload: dict[str, Any]) -> tuple[str, bool, list[str]]:
-    """Whether a kernel is running and whether it is behind the lockfile. What
-    confines it is reported beside these and asserted in `test_safety.py`."""
+    """Whether a kernel is running and whether it is behind the lockfile."""
     kernel = payload["kernel"]
     return kernel["state"], kernel["restart_required"], kernel["behind"]

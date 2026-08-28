@@ -347,10 +347,7 @@ def evaluated(payload: dict[str, Any]) -> list[str]:
         return lines + str(error["traceback"]).rstrip().splitlines()
     if payload.get("repr") is not None:
         lines.append(str(payload["repr"]))
-    return lines + [
-        f"`{name}` moved while that ran. lumlflow dropped its cached value"
-        for name in payload.get("mutated") or []
-    ]
+    return lines
 
 
 def cell_lines(listed: Iterable[dict[str, Any]]) -> list[str]:
@@ -375,7 +372,6 @@ def _flow_heading(flow: dict[str, Any]) -> list[str]:
         heading += f" · {flow['agent']} is working here"
     heading += f" · kernel {kernel.get('state', 'stopped')}"
     lines = [heading]
-    lines += _indent(_sandbox(kernel.get("sandbox") or {}))
     lines += _indent(_restart(kernel))
     if flow.get("disk_bytes") is not None:
         lines.append(f"  {_size(flow['disk_bytes'])} on disk")
@@ -383,19 +379,6 @@ def _flow_heading(flow: dict[str, Any]) -> list[str]:
         lines.append(f"  saved, not yet written to files: {_names(flow['unwritten'])}")
     lines += _indent(flow.get("hygiene") or [])
     return lines
-
-
-def _sandbox(profile: dict[str, Any]) -> list[str]:
-    """What confines the kernel, said either way round.
-
-    An unconfined kernel is the line worth printing: a sandbox is only worth
-    anything if its absence is as visible as its presence.
-    """
-    if not profile:
-        return []
-    if not profile.get("network_denied") and not profile.get("writes_confined"):
-        return [f"not sandboxed · {profile.get('reason', 'no profile applied')}"]
-    return [f"sandboxed · {profile.get('reason', profile.get('profile'))}"]
 
 
 def _restart(kernel: dict[str, Any]) -> list[str]:

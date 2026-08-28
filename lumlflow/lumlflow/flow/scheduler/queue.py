@@ -20,7 +20,7 @@ just leaves.
 
 import asyncio
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from lumlflow.flow.errors import InputUnavailable
@@ -61,11 +61,6 @@ class RunRequest:
     produces: dict[str, OutputSpec]
     params: dict[str, Any]
     inputs: dict[str, Bound]
-    # The flow's safety modes, carried per run rather than held by the kernel:
-    # a setting the user just changed applies to the next cell, not the next
-    # restart.
-    paranoid: bool = False
-    strict: bool = False
 
 
 @dataclass(frozen=True)
@@ -373,7 +368,6 @@ class RunQueue:
     def _request(
         self, run_id: str, plan: Plan, step: Step, inputs: dict[str, Bound]
     ) -> RunRequest:
-        settings = self._store.manifest.settings
         return RunRequest(
             run_id=run_id,
             branch=plan.branch,
@@ -386,21 +380,8 @@ class RunQueue:
             ),
             produces=dict(step.version.manifest.produces),
             params=dict(step.version.manifest.params),
-            inputs=self._marked(inputs, strict=settings.strict),
-            paranoid=settings.paranoid,
-            strict=settings.strict,
+            inputs=dict(inputs),
         )
-
-    def _marked(self, inputs: dict[str, Bound], *, strict: bool) -> dict[str, Bound]:
-        """Which of these values another branch is also live on."""
-        if not strict:
-            return dict(inputs)
-        return {
-            name: replace(
-                bound, shared=self._store.index.baseline_branches(bound.mat_id) > 1
-            )
-            for name, bound in inputs.items()
-        }
 
     def _record_run(
         self,

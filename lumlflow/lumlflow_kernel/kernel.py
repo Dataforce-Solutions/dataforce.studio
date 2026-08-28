@@ -97,7 +97,6 @@ class Kernel:
             self.executor,
             refs=dict(params.get("slice") or {}),
             code=str(params.get("code", "")),
-            paranoid=bool(params.get("paranoid")),
         )
 
     def page(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -188,8 +187,8 @@ def _enable_copy_on_write() -> None:
 
     Cells share input values by reference — that is the point of the hot cache —
     so a consumer that modifies a frame in place would otherwise change what the
-    next consumer sees. This closes the cheap half of that hazard; paranoid mode
-    catches the rest.
+    next consumer sees. This closes the common frame-mutation path without
+    copying every input.
     """
     os.environ.setdefault("PANDAS_COPY_ON_WRITE", "1")
     pandas = sys.modules.get("pandas")

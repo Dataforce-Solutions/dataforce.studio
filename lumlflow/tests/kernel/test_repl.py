@@ -12,28 +12,14 @@ from __future__ import annotations
 
 import contextlib
 import os
-import pickle
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from lumlflow_kernel.cas import Cas
 from lumlflow_kernel.kernel import Kernel
 from tests.kernel.helpers import make_kernel, run, store_blobs
 
 MISSING_REF = "0" * 64
-
-
-class Leaky(list):  # type: ignore[type-arg]
-    """A value whose copy is itself — the hole the backstop is there for.
-
-    No real kind behaves like this. It stands in for whatever could one day
-    hand the REPL a live reference to a cached value, so the paranoid re-hash
-    is tested against a mutation that actually reaches the cache.
-    """
-
-    def __deepcopy__(self, memo: dict[int, Any]) -> Leaky:
-        return self
 
 
 def test_a_mutation_in_the_repl_lands_on_a_copy(tmp_path: Path):
@@ -50,6 +36,7 @@ def test_a_mutation_in_the_repl_lands_on_a_copy(tmp_path: Path):
 
     assert mutated["repr"] == "4"
     assert again["repr"] == "3"
+    assert "mutated" not in mutated
     assert store_blobs(kernel) == before
 
 
@@ -143,35 +130,6 @@ def test_the_repl_is_the_one_surface_stdin_still_reaches(tmp_path: Path):
     assert answered["repr"] == repr(b"typed")
 
 
-def test_paranoid_mode_drops_a_cached_value_that_moved_under_it(tmp_path: Path):
-    """The backstop: a value that changed while code ran is not kept.
-
-    The next reader is handed the store's bytes rather than what was left
-    behind, so a mutation that got past the copy costs one deserialization
-    instead of poisoning every run that follows.
-    """
-    kernel, _ = _kernel_with(tmp_path, rows=[1, 2, 3])
-    names = {"leaky": _stored(kernel, Leaky([1, 2, 3]))}
-
-    mutated = _eval(kernel, names, "leaky.append(4); len(leaky)", paranoid=True)
-    again = _eval(kernel, names, "len(leaky)", paranoid=True)
-
-    assert mutated["repr"] == "4"
-    assert mutated["mutated"] == ["leaky"]
-    assert again["repr"] == "3"
-    assert again["mutated"] == []
-
-
-def test_a_value_the_repl_did_not_touch_is_never_re_hashed(tmp_path: Path):
-    kernel, names = _kernel_with(tmp_path, rows=[1, 2, 3])
-    names["never"] = {"value_ref": MISSING_REF, "kind": "pickle"}
-
-    answered = _eval(kernel, names, "len(rows)", paranoid=True)
-
-    assert answered["error"] is None
-    assert answered["mutated"] == []
-
-
 def _kernel_with(
     tmp_path: Path, **values: Any
 ) -> tuple[Kernel, dict[str, dict[str, str]]]:
@@ -209,17 +167,9 @@ def _stdin_holding(data: bytes) -> Iterator[None]:
         os.close(read_fd)
 
 
-def _stored(kernel: Kernel, value: Any) -> dict[str, str]:
-    """Put a value in the store by hand, for shapes no cell would return."""
-    values = Cas(kernel.flow_dir / ".lumlflow" / "values")
-    return {"value_ref": values.put(pickle.dumps(value)), "kind": "pickle"}
-
-
 def _eval(
     kernel: Kernel,
     names: dict[str, dict[str, str]],
     code: str,
-    *,
-    paranoid: bool = False,
 ) -> dict[str, Any]:
-    return kernel.eval({"slice": names, "code": code, "paranoid": paranoid})
+    return kernel.eval({"slice": names, "code": code})

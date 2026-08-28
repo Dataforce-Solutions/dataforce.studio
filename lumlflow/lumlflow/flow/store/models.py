@@ -29,9 +29,6 @@ UploadState = Literal["queued", "uploading", "failed"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
 EnvPolicy = Literal["ask", "auto", "never"]
-# `auto` takes whatever profile the OS affords and reports what that came to;
-# there is no setting for "and be sure", because no platform offers one.
-SandboxSetting = Literal["auto", "off"]
 
 
 class _Frozen(BaseModel):
@@ -350,9 +347,6 @@ class FlowSettings(BaseModel):
     eager_cost_threshold_s: float = 5.0
     reactivity: Reactivity = "auto"
     eager: list[str] = Field(default_factory=list)
-    paranoid: bool = False
-    strict: bool = False
-    sandbox: SandboxSetting = "auto"
     # What an env change does to a kernel holding the old imports. The banner is
     # the floor under all three: `never` still says the kernel is behind, it
     # only never acts on it.

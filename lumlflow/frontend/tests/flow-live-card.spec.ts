@@ -107,7 +107,6 @@ async function card(
         state: options.kernel ?? 'running',
         restart_required: false,
         behind: [],
-        sandbox: 'none',
       },
     }),
     handlers: {

@@ -584,7 +584,6 @@ describe('the scratch REPL reads the viewed branch', () => {
           repr: '(1200, 8)',
           output: '',
           names: ['train_df'],
-          mutated: [],
           error: null,
         }),
       },
@@ -604,31 +603,6 @@ describe('the scratch REPL reads the viewed branch', () => {
     wrapper.unmount()
   })
 
-  it('says a mutation hit the copy, because the stored value did not move', async () => {
-    const { wrapper } = await workbench({
-      handlers: {
-        eval: () => ({
-          flow: 'churn',
-          branch: 'main',
-          repr: '1150',
-          output: '',
-          names: ['train_df'],
-          mutated: ['train_df'],
-          error: null,
-        }),
-      },
-    })
-
-    await clickText(wrapper, 'scratch')
-    await wrapper.find('textarea').setValue('train_df.dropna(inplace=True); len(train_df)')
-    await settle()
-    await clickText(wrapper, 'evaluate')
-
-    expect(wrapper.text()).toContain('mutated the copy of `train_df`')
-    expect(wrapper.text()).toContain('the stored value is unchanged')
-    wrapper.unmount()
-  })
-
   it('renders the traceback of an expression that failed', async () => {
     const { wrapper } = await workbench({
       handlers: {
@@ -638,7 +612,6 @@ describe('the scratch REPL reads the viewed branch', () => {
           repr: null,
           output: '',
           names: [],
-          mutated: [],
           error: {
             type: 'NameError',
             message: "name 'nope' is not defined",

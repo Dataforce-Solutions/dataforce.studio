@@ -1092,9 +1092,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Add frontend CI for lumlflow-ui
   - [x] Add a job to `.github/workflows/[lumlflow] tests-and-linters.yml` (trigger `lumlflow/**`): `npm ci`, build `@luml/experiments` and `@luml/attachments`, then `vue-tsc --build`, `eslint` without `--fix` (the package's `lint` script fixes in place; add a CI script or call the bare command), `vitest run`, `vite build` in `lumlflow/frontend`
   - [x] Fix whatever `vue-tsc` and `eslint` find on the current tree — neither has ever run in CI — so the job passes; that fixing is in this task's scope
-- [ ] Remove the sandbox and safety modes
-  - [ ] Delete `daemon/sandbox.py`, the spawn wrapping in `kernel_proc.py`, the `sandbox`/`paranoid`/`strict` settings and their threading to the executor and REPL; keep `_restored`; drop the `sandboxed` line in `render.py` and the sandbox half of `_kernel()`
-  - [ ] Remove `tests/daemon/test_safety.py` and other references
+- [x] Remove the sandbox and safety modes
+  - [x] Delete `daemon/sandbox.py`, the spawn wrapping in `kernel_proc.py`, the `sandbox`/`paranoid`/`strict` settings and their threading to the executor and REPL; keep `_restored`; drop the `sandboxed` line in `render.py` and the sandbox half of `_kernel()`
+  - [x] Remove `tests/daemon/test_safety.py` and other references
 - [ ] Remove the cloud upload queue and SDK scaffolding
   - [ ] Delete `daemon/uploads.py`, `api.promote`, `uploads.sync()` on `run`, `hub._scaffold_sdk`, `envs.ensure_sdk`, `FlowSession.declares_native`, `LumlUploader` wiring in `main.py`; delete the two upload ops, `OutputRecord.luml_ref` and the `uploaded` field `queries` derives from it
   - [ ] Remove the CLI `promote` verb, the UI *promote to LUML* item, the `uploaded` badge and its model field, and the `uploaded` chips `useCompare` feeds `ArtifactLinks.vue` (`ExpandDrawer` has no cloud link to remove); leave `ArtifactLinks.vue` in place, rendering its rows without chips, for the tracker rewrite

@@ -75,8 +75,6 @@ def run(
     params: dict[str, Any] | None = None,
     ctx_info: dict[str, Any] | None = None,
     declarations: str = "",
-    paranoid: bool = False,
-    strict: bool = False,
 ) -> dict[str, Any]:
     return kernel.run(
         {
@@ -89,8 +87,6 @@ def run(
             "inputs": inputs or {},
             "params": params or {},
             "ctx_info": ctx_info or {"branch": "main", "step": 7},
-            "paranoid": paranoid,
-            "strict": strict,
         }
     )
 

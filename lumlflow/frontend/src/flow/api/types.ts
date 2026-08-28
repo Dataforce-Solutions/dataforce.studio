@@ -643,7 +643,6 @@ export interface KernelReport {
   state: 'running' | 'stopped'
   restart_required: boolean
   behind: string[]
-  sandbox: string
   python?: string
   kinds?: string[]
 }
@@ -739,18 +738,13 @@ export interface HandoffPayload {
 
 export type HandoffGesture = 'fix' | 'explain' | 'diff' | 'summarize'
 
-/**
- * `eval`: scratch code against a branch's values. A read — the names hydrate as
- * copies, so `mutated` names what the expression changed in its own copy and
- * nothing in the store moved.
- */
+/** `eval`: scratch code against copies of a branch's values. */
 export interface EvalResult {
   flow: string
   branch: string
   repr: string | null
   output: string
   names: string[]
-  mutated: string[]
   error: { type: string; message: string; traceback: string } | null
 }
 

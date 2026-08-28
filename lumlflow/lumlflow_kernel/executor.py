@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from lumlflow_kernel.capture import Capture
-from lumlflow_kernel.cas import Cas, canonical_json, hash_bytes, hash_file
+from lumlflow_kernel.cas import Cas, canonical_json, hash_bytes
 from lumlflow_kernel.ctxobj import EXTERNAL, IDENTITY, Ctx
 from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
@@ -113,8 +113,6 @@ class Executor:
         params = dict(request.get("params") or {})
         ctx_info = dict(request.get("ctx_info") or {})
         declared = dict(request.get("inputs") or {})
-        paranoid = bool(request.get("paranoid"))
-        strict = bool(request.get("strict"))
         observed = _Observed()
         capture = Capture(
             lambda stream, seq, data: self._emit(
@@ -135,14 +133,12 @@ class Executor:
                         with capture:
                             os.chdir(scratch)
                             cell = _instantiate(version)
-                            inputs = self._load_inputs(version, declared, strict=strict)
-                            before = self._digests(declared) if paranoid else {}
+                            inputs = self._load_inputs(version, declared)
                             returned = cell.materialize(
                                 self._ctx(version, ctx_info, params, scratch, observed),
                                 **inputs,
                             )
                             cell_returned()
-                            self._assert_untouched(version, before)
                             outputs = self._store_outputs(
                                 run_id, version, returned, scratch
                             )
@@ -217,22 +213,6 @@ class Executor:
         except Exception:
             return self.fresh(value_ref, kind)
 
-    def digest(self, value_ref: str, kind: str) -> str:
-        """What the cached value hashes to now — paranoid mode's before and after."""
-        asset_type = self._registry.get(kind)
-        value = self.value(value_ref, kind)
-        custom = getattr(asset_type, "content_hash", None)
-        if custom is not None:
-            return str(custom(value))
-        serialized = asset_type.serialize(value)
-        if isinstance(serialized, Path):
-            return hash_file(serialized)
-        return hash_bytes(serialized)
-
-    def forget(self, value_ref: str, kind: str) -> None:
-        """Drop a cached value, so the next reader takes the store's bytes."""
-        self._cache.pop((value_ref, kind), None)
-
     @contextlib.contextmanager
     def _claim(self, run_id: str) -> Iterator[Callable[[], None]]:
         """Hold the kernel for one run, and hand back the end of the window a
@@ -287,12 +267,7 @@ class Executor:
             observed.external = True
             self._emit("external_access", {"slug": version.slug, "detail": detail})
 
-    def _load_inputs(
-        self, version: Version, inputs: dict[str, Any], *, strict: bool
-    ) -> dict[str, Any]:
-        """Each input's value — a copy of it where strict mode says two
-        branches are live on it and a shared object would carry a mutation
-        from one to the other."""
+    def _load_inputs(self, version: Version, inputs: dict[str, Any]) -> dict[str, Any]:
         loaded = {}
         for name, spec in inputs.items():
             value_ref = str((spec or {}).get("value_ref") or "")
@@ -302,44 +277,8 @@ class Executor:
                     f"`{version.slug}` needs `{name}`, whose value is not stored — "
                     "run the cell that produces it"
                 )
-            if strict and (spec or {}).get("shared"):
-                loaded[name] = self.copy_of(value_ref, kind)
-            else:
-                loaded[name] = self._deserialize(
-                    self._registry.get(kind), kind, value_ref
-                )
+            loaded[name] = self._deserialize(self._registry.get(kind), kind, value_ref)
         return loaded
-
-    def _digests(self, inputs: dict[str, Any]) -> dict[str, tuple[str, str, str]]:
-        """What each input hashes to before the cell touches it."""
-        measured = {}
-        for name, spec in inputs.items():
-            value_ref = str((spec or {}).get("value_ref") or "")
-            kind = str((spec or {}).get("kind") or "")
-            if value_ref and self._values.exists(value_ref):
-                measured[name] = (value_ref, kind, self.digest(value_ref, kind))
-        return measured
-
-    def _assert_untouched(
-        self, version: Version, before: dict[str, tuple[str, str, str]]
-    ) -> None:
-        """Paranoid mode: a cell that changed what it was given fails here.
-
-        Assets are immutable by contract, and in-process execution cannot
-        enforce that — so this measures it instead. The cached object is
-        dropped rather than trusted, which is what restores the value: the CAS
-        bytes were never touched, and the next reader is handed those again.
-        """
-        moved = []
-        for name, (value_ref, kind, digest) in before.items():
-            if self.digest(value_ref, kind) != digest:
-                self.forget(value_ref, kind)
-                moved.append(name)
-        if moved:
-            raise CellError(
-                f"`{version.slug}` changed {_names(moved)} while it ran — a cell's "
-                "inputs are immutable, and the stored value has been restored"
-            )
 
     def _deserialize(self, asset_type: Any, kind: str, value_ref: str) -> Any:
         key = (value_ref, kind)

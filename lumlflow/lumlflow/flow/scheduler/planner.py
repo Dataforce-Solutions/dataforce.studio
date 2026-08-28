@@ -36,12 +36,7 @@ AutoDecline = Literal["blocked", "never-timed", "too-expensive"]
 
 @dataclass(frozen=True)
 class Bound:
-    """One resolved input: where its value sits and what it hashed to.
-
-    `shared` is answered only under strict mode, where it decides whether the
-    consumer is handed a copy — everywhere else the question costs a query
-    nobody reads the answer to.
-    """
+    """One resolved input: where its value sits and what it hashed to."""
 
     uid: str
     slug: str
@@ -50,7 +45,6 @@ class Bound:
     content_hash: str
     mat_id: str
     value_ref: str | None
-    shared: bool = False
 
 
 @dataclass(frozen=True)

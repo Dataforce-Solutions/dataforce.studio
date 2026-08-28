@@ -991,7 +991,7 @@ describe('the kernel dying is a banner, not a traceback', () => {
         },
         'kernel.restart': () => ({
           flow: 'churn',
-          kernel: { state: 'running', restart_required: false, behind: [], sandbox: 'none' },
+          kernel: { state: 'running', restart_required: false, behind: [] },
         }),
       },
     })

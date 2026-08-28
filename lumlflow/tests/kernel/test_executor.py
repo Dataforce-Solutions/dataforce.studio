@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 import threading
 import time
 from pathlib import Path
@@ -309,115 +308,6 @@ def test_inputs_arrive_under_their_declared_names(tmp_path):
     )
 
     assert stored_value(kernel, record, "joined") == b"TRAIN ROWS then TEST ROWS"
-
-
-def test_paranoid_mode_fails_the_run_that_changed_its_input_in_place(tmp_path):
-    """The scenario: a cell mutates what it consumed, and the run says so.
-
-    The failure names the cell and the input in words, and the value the next
-    reader is handed is the one the producer stored — the CAS bytes were never
-    touched, so dropping the object that moved is what restores it.
-    """
-    kernel, _ = make_kernel(tmp_path)
-    rows = _produce_rows(kernel)
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx, rows):
-            rows.append(4)
-            return {"total": sum(rows)}
-        """,
-        slug="summarize",
-        run_id="consumer",
-        produces={"total": "asset"},
-        inputs={"rows": rows},
-        paranoid=True,
-    )
-
-    assert record["state"] == "failed"
-    assert "`summarize`" in record["error"]["message"]
-    assert "`rows`" in record["error"]["message"]
-    assert record["outputs"] == {}
-    assert _cached(kernel, rows) == [1, 2, 3]
-
-
-def test_a_mutation_costs_nothing_until_paranoid_mode_is_asked_for(tmp_path):
-    """The honest limit: in-process Python is not sandboxed from itself.
-
-    Off — which is the default — the mutation lands on the cached value and the
-    run succeeds. That is the hazard paranoid mode exists to measure, and the
-    price of measuring it is why it is opt-in.
-    """
-    kernel, _ = make_kernel(tmp_path)
-    rows = _produce_rows(kernel)
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx, rows):
-            rows.append(4)
-            return {"total": sum(rows)}
-        """,
-        run_id="consumer",
-        produces={"total": "asset"},
-        inputs={"rows": rows},
-    )
-
-    assert record["state"] == "succeeded"
-    assert _cached(kernel, rows) == [1, 2, 3, 4]
-
-
-def test_strict_mode_copies_the_values_another_branch_is_live_on(tmp_path):
-    """Strict mode is per value, not per run: the daemon says which values two
-    branches read, and only those cost a copy."""
-    kernel, _ = make_kernel(tmp_path)
-    shared = _produce_rows(kernel) | {"shared": True}
-    private = _produce_rows(kernel, run_id="other", value=[9, 9])
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx, shared, private):
-            shared.append(4)
-            private.append(4)
-            return {"total": sum(shared) + sum(private)}
-        """,
-        run_id="consumer",
-        produces={"total": "asset"},
-        inputs={"shared": shared, "private": private},
-        strict=True,
-    )
-
-    assert record["state"] == "succeeded"
-    assert _cached(kernel, shared) == [1, 2, 3]
-    assert _cached(kernel, private) == [9, 9, 4]
-
-
-def test_strict_and_paranoid_together_leave_a_shared_value_unremarked(tmp_path):
-    """The copy is what makes the re-hash find nothing: a run that mutated only
-    its own copy is a run that did nothing wrong."""
-    kernel, _ = make_kernel(tmp_path)
-    rows = _produce_rows(kernel) | {"shared": True}
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx, rows):
-            rows.append(4)
-            return {"total": sum(rows)}
-        """,
-        run_id="consumer",
-        produces={"total": "asset"},
-        inputs={"rows": rows},
-        paranoid=True,
-        strict=True,
-    )
-
-    assert record["state"] == "succeeded"
-    # The cell saw its own copy grow, which is the whole point of handing it one.
-    assert pickle.loads(stored_value(kernel, record, "total")) == 10
-    assert _cached(kernel, rows) == [1, 2, 3]
 
 
 def test_an_input_whose_value_is_not_stored_says_which_cell_to_run(tmp_path):

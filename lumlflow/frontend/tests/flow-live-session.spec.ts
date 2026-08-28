@@ -268,7 +268,7 @@ describe('degraded states', () => {
   it('names the kernel as not started while everything else is live', async () => {
     const { session } = await attach({
       status: flowStatus({
-        kernel: { state: 'stopped', restart_required: false, behind: [], sandbox: 'none' },
+        kernel: { state: 'stopped', restart_required: false, behind: [] },
       }),
     })
 
@@ -285,7 +285,7 @@ describe('degraded states', () => {
   it('takes the kernel starting from the daemon rather than the brief it opened with', async () => {
     const { socket, session } = await attach({
       status: flowStatus({
-        kernel: { state: 'stopped', restart_required: false, behind: [], sandbox: 'none' },
+        kernel: { state: 'stopped', restart_required: false, behind: [] },
       }),
     })
 
@@ -321,7 +321,7 @@ describe('degraded states', () => {
   it('keeps the rest of the kernel report while its state moves', async () => {
     const { socket, session } = await attach({
       status: flowStatus({
-        kernel: { state: 'stopped', restart_required: true, behind: ['numpy'], sandbox: 'none' },
+        kernel: { state: 'stopped', restart_required: true, behind: ['numpy'] },
       }),
     })
 

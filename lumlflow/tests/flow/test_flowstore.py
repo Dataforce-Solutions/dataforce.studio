@@ -50,9 +50,6 @@ class TestInit:
             "eager_cost_threshold_s": 5.0,
             "reactivity": "auto",
             "eager": [],
-            "paranoid": False,
-            "strict": False,
-            "sandbox": "auto",
             "env_policy": "ask",
         }
 

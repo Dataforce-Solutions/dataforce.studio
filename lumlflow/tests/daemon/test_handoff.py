@@ -258,18 +258,15 @@ async def test_an_unknown_gesture_and_a_nameless_one_are_refused_by_name(
     assert "name it" in str(nameless.value)
 
 
-async def test_settings_write_what_a_panel_renders_and_leave_the_rest(
+async def test_settings_write_what_a_panel_renders_without_journaling(
     tmp_path: Path,
 ):
-    """Config, not history: the panel's three settings land in `flow.yaml` and
-    the runtime's own — sandbox, the safety modes — are not this verb's."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         session = api.hub.session("churn")
-        session.store.manifest.settings.paranoid = True
         before = len(transactions(session))
 
         written = await api.settings_set({"env_policy": "auto", "reactivity": "lazy"})
@@ -284,12 +281,7 @@ async def test_settings_write_what_a_panel_renders_and_leave_the_rest(
         "env_policy": "auto",
     }
     assert threshold["settings"]["eager_cost_threshold_s"] == 30.0
-    # Untouched by an env-policy write, and still on after both.
-    assert (reread.paranoid, reread.reactivity, reread.env_policy) == (
-        True,
-        "lazy",
-        "auto",
-    )
+    assert (reread.reactivity, reread.env_policy) == ("lazy", "auto")
     assert after == before
 
 

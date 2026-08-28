@@ -789,9 +789,7 @@ class Api:
         session, branch = await self._read(params)
         here = queries.read(session, branch)
         result = await session.kernel.eval(
-            queries.repl_names(session, here),
-            str(params.get("code") or ""),
-            paranoid=session.store.manifest.settings.paranoid,
+            queries.repl_names(session, here), str(params.get("code") or "")
         )
         return {"flow": session.ref.name, "branch": branch} | result
 
@@ -884,10 +882,6 @@ class Api:
             "agent": holder.label if holder is not None else None,
             "unwritten": session.worktree.pending(),
             "kernel": await _kernel(session, session.kernel.handshake),
-            # The three settings a surface renders. The rest of `flow.yaml`'s
-            # settings block is the runtime's own (sandbox, the safety modes),
-            # and a panel that showed them would be offering toggles for
-            # decisions taken at kernel start.
             "settings": {
                 "reactivity": settings.reactivity,
                 "eager_cost_threshold_s": settings.eager_cost_threshold_s,
@@ -1061,17 +1055,14 @@ async def _kernel(
 ) -> dict[str, Any]:
     """Plumbing is invisible: the only fact a surface needs is running or not.
 
-    Plus the one kernel control that does surface — an env that moved under a
-    running process is what the restart banner is for — and what the process is
-    confined by, which is reported rather than assumed: a sandbox the platform
-    would not give us is a fact a user is entitled to read.
+    The one kernel control that does surface is an env that moved under a
+    running process, which is what the restart banner is for.
     """
     behind = await session.kernel.env_drift()
     state = {
         "state": session.kernel.state,
         "restart_required": bool(behind),
         "behind": behind,
-        "sandbox": session.kernel.sandbox_profile.report(),
     }
     if handshake is None:
         return state

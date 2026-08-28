@@ -89,7 +89,6 @@ class FlowSession:
         self.kernel = KernelProcess(
             flow_dir=ref.path,
             workspace_dir=workspace_dir,
-            sandbox_setting=store.manifest.settings.sandbox,
             on_event=self._observed if streams is not None else None,
             # `ctx.secret` reaches this flow's keychain entries and nothing
             # else: the kernel holds no secrets of its own, and the value it is

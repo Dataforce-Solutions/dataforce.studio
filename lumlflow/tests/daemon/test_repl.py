@@ -99,30 +99,6 @@ async def test_a_cell_is_in_scope_by_name_and_every_output_by_its_own(
     assert answered["names"] == ["fanout", "fanout_config", "fanout_curves"]
 
 
-async def test_the_flows_paranoid_setting_reaches_the_repl(tmp_path: Path):
-    """The backstop is the flow's mode, not the REPL's own idea of one.
-
-    A flow in paranoid mode wants what its scratch code touched re-hashed
-    afterwards; the kernel cannot know that unless the daemon says so.
-    """
-    root = make_workspace(tmp_path / "project")
-    write_cell(root / "churn.flow", "score", SCORE_CELL)
-    asked: dict[str, object] = {}
-
-    async def record(branch_slice: dict, code: str, *, paranoid: bool = False) -> dict:
-        asked.update(paranoid=paranoid, code=code)
-        return {"repr": None, "output": "", "names": [], "mutated": [], "error": None}
-
-    async with daemon_api(root) as api:
-        session = api.hub.session("churn")
-        session.store.manifest.settings.paranoid = True
-        session.kernel.eval = record  # type: ignore[method-assign]
-
-        await api.eval({"code": "score"})
-
-    assert asked == {"paranoid": True, "code": "score"}
-
-
 async def test_an_output_nothing_has_run_is_not_a_name(tmp_path: Path):
     """Unmaterialized is a state, not an empty value: the name is simply absent."""
     root = make_workspace(tmp_path / "project")

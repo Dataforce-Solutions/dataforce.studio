@@ -374,19 +374,6 @@ class Index:
             )
         }
 
-    def baseline_branches(self, mat_id: str) -> int:
-        """How many branches are live on this materialization.
-
-        More than one means two branches read the same value, which under
-        strict mode is what earns their consumers a defensive copy: the kernel
-        caches a value once, and one branch mutating it in place would
-        otherwise be handing the other a value it never produced.
-        """
-        row = self._conn.execute(
-            "SELECT COUNT(*) AS branches FROM baselines WHERE mat_id = ?", (mat_id,)
-        ).fetchone()
-        return int(row["branches"]) if row is not None else 0
-
     def slice_versions(self, branch_id: str) -> dict[str, VersionRow]:
         """The branch's resolved slice: uid → the version it selects."""
         return {

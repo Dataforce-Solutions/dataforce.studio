@@ -19,7 +19,4 @@ settings:
   eager_cost_threshold_s: 5.0
   reactivity: auto
   eager: []
-  paranoid: false
-  strict: false
-  sandbox: auto
   env_policy: ask

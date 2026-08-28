@@ -25,12 +25,12 @@ from typing import Any, Literal
 
 import lumlflow_kernel
 from lumlflow.flow.atomic import atomic_write_bytes
-from lumlflow.flow.daemon import envs, sandbox
+from lumlflow.flow.daemon import envs
 from lumlflow.flow.errors import KernelError
 from lumlflow.flow.scheduler.queue import RunRequest, RunResult
 from lumlflow.flow.store.cas import Cas
 from lumlflow.flow.store.flowstore import store_dir
-from lumlflow.flow.store.models import OutputRecord, SandboxSetting
+from lumlflow.flow.store.models import OutputRecord
 
 KERNEL_DIRNAME = "kernel"
 SOCKET_NAME = "kernel.sock"
@@ -63,7 +63,6 @@ class KernelProcess:
         *,
         flow_dir: Path,
         workspace_dir: Path,
-        sandbox_setting: SandboxSetting = "auto",
         on_event: OnEvent | None = None,
         ask_secret: AskSecret | None = None,
     ) -> None:
@@ -76,8 +75,6 @@ class KernelProcess:
         # becomes law again at the next start, so this is what a later install
         # is measured against.
         self.env: dict[str, str] = {}
-        self._sandbox_setting = sandbox_setting
-        self._profile: sandbox.Profile | None = None
         self._on_event = on_event
         self._ask_secret = ask_secret
         self._logs = Cas(store_dir(flow_dir) / "logs")
@@ -97,14 +94,6 @@ class KernelProcess:
     @property
     def state(self) -> KernelState:
         return "running" if self._writer is not None else "stopped"
-
-    @property
-    def sandbox_profile(self) -> sandbox.Profile:
-        """What this kernel runs under — resolved at the start it ran under, and
-        what the next start would resolve to before there has been one."""
-        if self._profile is None:
-            self._profile = self._resolve_sandbox(envs.describe(self.workspace_dir))
-        return self._profile
 
     @property
     def stdio_tail(self) -> str:
@@ -165,8 +154,6 @@ class KernelProcess:
         self,
         branch_slice: dict[str, dict[str, str]],
         code: str,
-        *,
-        paranoid: bool = False,
     ) -> dict[str, Any]:
         """Run scratch code against a branch's values.
 
@@ -177,7 +164,7 @@ class KernelProcess:
         await self.ensure_started()
         result = await self._call(
             "eval",
-            {"slice": branch_slice, "code": code, "paranoid": paranoid},
+            {"slice": branch_slice, "code": code},
             timeout=None,
         )
         return dict(result or {})
@@ -224,9 +211,7 @@ class KernelProcess:
         # After the sync, not before: the sync is what writes the lockfile this
         # process will import against.
         self.env = envs.packages(self.workspace_dir)
-        self._profile = self._resolve_sandbox(self.interpreter)
         self._process = await asyncio.create_subprocess_exec(
-            *self._profile.command,
             str(self.interpreter.python),
             "-m",
             lumlflow_kernel.__name__,
@@ -257,14 +242,6 @@ class KernelProcess:
         # kernel it saw when its tab opened, however long ago that was.
         self._emit(KERNEL_STATE_EVENT, {"state": "running"})
         return handshake
-
-    def _resolve_sandbox(self, interpreter: envs.Interpreter) -> sandbox.Profile:
-        return sandbox.resolve(
-            self._sandbox_setting,
-            workspace_dir=self.workspace_dir,
-            python=interpreter.python,
-            socket_path=self._unix_socket_path(),
-        )
 
     def _unix_socket_path(self) -> str | None:
         """Where the kernel would dial, when the platform has unix sockets and
@@ -601,14 +578,11 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
             name: {
                 "value_ref": bound.value_ref,
                 "kind": bound.kind,
-                "shared": bound.shared,
             }
             for name, bound in request.inputs.items()
         },
         "params": request.params,
         "ctx_info": {"branch": request.branch, "step": request.step},
-        "paranoid": request.paranoid,
-        "strict": request.strict,
     }
 
 

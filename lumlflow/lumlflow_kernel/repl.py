@@ -1,12 +1,7 @@
 """The scratch REPL: code against a branch's values, with nothing written back.
 
 Names hydrate on first mention — an expression over one asset never
-deserializes the other nineteen — and every one is handed out as a copy. The
-copy is the point: a cell's inputs are read from the store again on the next
-run, but a name someone typed `.dropna(inplace=True)` at is the process's own
-cached value, and the post-run re-hash never covers it. Paranoid mode re-hashes
-what the code touched afterwards as a backstop, and drops from the cache
-anything that moved.
+deserializes the other nineteen — and every one is handed out as a copy.
 
 Nothing here writes an asset. A trailing expression comes back as its repr,
 whatever the code printed comes back as text, and promoting scratch code to a
@@ -28,16 +23,14 @@ FILENAME = "<eval>"
 Refs = dict[str, dict[str, str]]
 
 
-def evaluate(
-    executor: Executor, *, refs: Refs, code: str, paranoid: bool = False
-) -> dict[str, Any]:
+def evaluate(executor: Executor, *, refs: Refs, code: str) -> dict[str, Any]:
     """Run `code` against the names a branch resolves.
 
     The console is captured so a `print` reaches whoever asked rather than the
     kernel's own stdout; stdin is left alone, because the REPL is the one
     interactive surface a flow has.
     """
-    namespace = _Namespace(executor, refs, paranoid=paranoid)
+    namespace = _Namespace(executor, refs)
     capture = Capture(_discard, stdin_at_eof=False)
     answer: str | None = None
     error: dict[str, Any] | None = None
@@ -50,7 +43,6 @@ def evaluate(
         "repr": answer,
         "output": capture.artifact().decode("utf-8", "backslashreplace"),
         "names": sorted(namespace.touched),
-        "mutated": namespace.mutated(),
         "error": error,
     }
 
@@ -64,42 +56,23 @@ class _Namespace(dict):  # type: ignore[type-arg]
     is.
     """
 
-    def __init__(self, executor: Executor, refs: Refs, *, paranoid: bool) -> None:
+    def __init__(self, executor: Executor, refs: Refs) -> None:
         super().__init__()
         self._executor = executor
         self._refs = refs
-        self._paranoid = paranoid
         self.touched: dict[str, tuple[str, str]] = {}
-        self._digests: dict[str, str] = {}
 
     def __missing__(self, name: str) -> Any:
         ref = self._refs.get(name)
         if ref is None:
             raise KeyError(name)
         value_ref, kind = str(ref.get("value_ref")), str(ref.get("kind"))
-        if self._paranoid:
-            self._digests[name] = self._executor.digest(value_ref, kind)
         value = self._executor.copy_of(value_ref, kind)
         # Kept, so a second mention in the same code sees the mutation the
         # first one made: `df.dropna(inplace=True); len(df)` is one thought.
         self[name] = value
         self.touched[name] = (value_ref, kind)
         return value
-
-    def mutated(self) -> list[str]:
-        """Names whose stored value moved while the code ran — the backstop.
-
-        Copies mean this should never fire. When it does, the cached value is
-        dropped rather than trusted, so the next reader is handed what the
-        store holds instead of what the REPL left behind.
-        """
-        moved = []
-        for name, before in self._digests.items():
-            value_ref, kind = self.touched[name]
-            if self._executor.digest(value_ref, kind) != before:
-                self._executor.forget(value_ref, kind)
-                moved.append(name)
-        return sorted(moved)
 
 
 def _run(code: str, namespace: _Namespace) -> str | None:
