@@ -20,6 +20,7 @@ import type {
   AssetView,
   BranchDiff,
   BranchRecord,
+  CellContextPayload,
   CellDetail,
   CellLogs,
   CellSummary,
@@ -30,8 +31,6 @@ import type {
   FlowExport,
   FlowSettingsReport,
   FlowStatus,
-  HandoffGesture,
-  HandoffPayload,
   JournalPage,
   KernelReport,
   Preflight,
@@ -271,14 +270,8 @@ export interface FlowMethods {
    * itself is the session — nothing here launches or wraps a process.
    */
   'agent.connect': Method<FlowScoped, ConnectPrompt>
-  /**
-   * The context a send-to-agent gesture hands over, built where the facts are:
-   * a *fix this* carries the traceback of a run no card opened.
-   */
-  'agent.payload': Method<
-    BranchScoped & { gesture: HandoffGesture; slug?: string; branches?: string[] },
-    HandoffPayload
-  >
+  /** Stored cell context, including a trimmed traceback when the cell failed. */
+  'agent.payload': Method<BranchScoped & { slug: string }, CellContextPayload>
   /** A read against a branch's values — never a version, never a journal line. */
   eval: Method<BranchScoped & { code: string }, EvalResult>
   /** Config, not history: the settings the panel renders, journaled nowhere. */

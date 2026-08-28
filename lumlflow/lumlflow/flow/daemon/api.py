@@ -624,21 +624,12 @@ class Api:
         return connect.prompt(session, workspace_dir=session.workspace_dir)
 
     async def agent_payload(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The context a send-to-agent gesture hands over.
-
-        Built here because the facts are here: a *fix this* carries the
-        traceback of a run no surface opened, and a *summarize this branch*
-        carries the intents the timeline is drawn from. Every surface asking
-        for the same gesture gets the same payload.
-        """
+        """The stored context copied from one cell card."""
         session, branch = await self._read(params)
-        target = params.get("slug") or params.get("target")
         return handoff.payload(
             session,
-            gesture=str(params.get("gesture") or ""),
             branch=branch,
-            slug=str(target) if target else None,
-            branches=[str(name) for name in params.get("branches") or []],
+            slug=_named(params.get("slug")),
         )
 
     async def settings_set(self, params: dict[str, Any]) -> dict[str, Any]:

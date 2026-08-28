@@ -11,17 +11,6 @@
           :name="name"
           :checked-out="name === session.brief.value?.branch"
         />
-        <Button
-          v-if="compared.length >= 2"
-          class="ml-auto"
-          size="small"
-          text
-          severity="secondary"
-          label="Explain this diff"
-          @click="onExplainDiff"
-        >
-          <template #icon><Send :size="14" /></template>
-        </Button>
         <RouterLink class="link text-sm" :to="back">back to the workbench</RouterLink>
       </div>
 
@@ -142,15 +131,6 @@
         @export="onExport"
       />
     </div>
-
-    <HandoffDialog
-      v-model:visible="handoffOpen"
-      gesture="diff"
-      :payload="handoffPayload"
-      :pending="handoffPending"
-      :refusal="handoffRefusal"
-      @hand-off="onHandOff"
-    />
   </div>
 </template>
 
@@ -167,11 +147,10 @@ import {
   Select,
 } from 'primevue'
 import { useToast } from 'primevue/usetoast'
-import { Send, TriangleAlert } from 'lucide-vue-next'
+import { TriangleAlert } from 'lucide-vue-next'
 
 import { FlowApiError } from '@/flow/api/client'
 import AdoptBar from '../components/compare/AdoptBar.vue'
-import HandoffDialog from '../components/handoff/HandoffDialog.vue'
 import ArtifactLinks from '../components/compare/ArtifactLinks.vue'
 import DivergencePointCard from '../components/compare/DivergencePointCard.vue'
 import MaterializationRows from '../components/compare/MaterializationRows.vue'
@@ -213,10 +192,6 @@ const compare = computed(() => area.compare.value)
 const open = ref<string[]>(['results', 'divergence'])
 const allDifferences = ref<string[]>([])
 const conflict = ref<string | null>(null)
-const handoffOpen = ref(false)
-const handoffPayload = ref<string | null>(null)
-const handoffPending = ref(false)
-const handoffRefusal = ref<string | null>(null)
 
 /** The branch the adopt lands on: the one this comparison was entered from. */
 const target = computed(() => selection.viewedBranch.value)
@@ -281,40 +256,6 @@ async function onAdopt(force: boolean): Promise<void> {
     }
     refused(failure)
   }
-}
-
-/**
- * The comparison's own handoff. The daemon builds it off the same `diff` the
- * columns are drawn from, so what the agent is told diverged is what is on
- * screen — a payload assembled here would be a second opinion about it.
- */
-async function onExplainDiff(): Promise<void> {
-  handoffPayload.value = null
-  handoffRefusal.value = null
-  handoffPending.value = true
-  handoffOpen.value = true
-  try {
-    const built = await ops.handoff('diff', {
-      branch: target.value,
-      branches: compared.value,
-    })
-    handoffPayload.value = built.text
-  } catch (failure) {
-    handoffRefusal.value = failure instanceof Error ? failure.message : String(failure)
-  } finally {
-    handoffPending.value = false
-  }
-}
-
-function onHandOff(payload: string): void {
-  void navigator.clipboard?.writeText?.(payload)
-  handoffOpen.value = false
-  toast.add({
-    severity: 'secondary',
-    summary: 'Copied for your agent',
-    detail: 'paste it into the session you paired',
-    life: 4000,
-  })
 }
 
 /** A file export of the chosen branch's slice — not a platform upload. */

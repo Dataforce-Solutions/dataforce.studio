@@ -66,15 +66,6 @@
               <p v-else-if="!sinceCursor.length" class="px-1.5 text-sm text-muted-color">
                 nothing yet
               </p>
-              <Button
-                class="self-start"
-                label="Summarize lane"
-                severity="secondary"
-                text
-                @click="emit('summarize-branch')"
-              >
-                <template #icon><Sparkles :size="14" /></template>
-              </Button>
             </div>
           </AccordionContent>
         </AccordionPanel>
@@ -116,8 +107,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Button } from 'primevue'
-import { Sparkles, TriangleAlert } from 'lucide-vue-next'
+import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
+import { TriangleAlert } from 'lucide-vue-next'
 import { formatMetric } from '../../model/format'
 import { primaryOutput } from '../../model/registry'
 import type {
@@ -166,7 +157,6 @@ const emit = defineEmits<{
   checkpoint: [intent: string]
   pair: []
   'select-cell': [slug: string]
-  'summarize-branch': []
   'update-settings': [settings: FlowSettings]
   'restart-kernel': []
 }>()

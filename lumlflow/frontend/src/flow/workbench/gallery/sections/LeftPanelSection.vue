@@ -15,7 +15,6 @@
           :journal="journal"
           @open-graph="onOpenGraph"
           @select-cell="onSelectCell"
-          @summarize-branch="onSummarize"
           @update-settings="onUpdateSettings"
         />
       </div>
@@ -36,7 +35,6 @@
           :journal="journal"
           @open-graph="onOpenGraph"
           @select-cell="onSelectCell"
-          @summarize-branch="onSummarize"
           @update-settings="onUpdateSettings"
         />
       </div>
@@ -57,7 +55,6 @@
           :journal="journal"
           @open-graph="onOpenGraph"
           @select-cell="onSelectCell"
-          @summarize-branch="onSummarize"
           @update-settings="onUpdateSettings"
         />
       </div>
@@ -78,7 +75,6 @@
           :journal="journal"
           @open-graph="onOpenGraph"
           @select-cell="onSelectCell"
-          @summarize-branch="onSummarize"
           @update-settings="onUpdateSettings"
         />
       </div>
@@ -130,15 +126,6 @@ function onSelectCell(slug: string): void {
     severity: 'secondary',
     summary: 'select-cell',
     detail: `would scroll the canvas to \`${slug}\` and highlight it`,
-    life: 2500,
-  })
-}
-
-function onSummarize(): void {
-  toast.add({
-    severity: 'secondary',
-    summary: 'summarize-branch',
-    detail: 'hands the lane payload to the agent. the agent writes the note cell.',
     life: 2500,
   })
 }

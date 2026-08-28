@@ -9,7 +9,7 @@
  * **before** the click and its stop states its scope after: leaving a run twenty
  * forks await is not cancelling it. And a failure's volume is **its author's**:
  * an agent iterating through a broken state is demoted to the card, a person's
- * failure is loud and comes with the handoff.
+ * failure is loud; both retain the card's one copy-context control.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -814,7 +814,7 @@ describe('a failure’s volume is its author’s', () => {
     wrapper.unmount()
   })
 
-  it('gives the user’s failed cell the fix-this handoff, and the agent’s none', async () => {
+  it('gives every failed cell the same single copy-context control', async () => {
     const broken = (author: string) =>
       cellDetail('features', {
         ...SLICE[0],
@@ -829,14 +829,14 @@ describe('a failure’s volume is its author’s', () => {
       detail: broken('user'),
     })
     expect(mine.wrapper.text()).toContain('ValueError')
-    expect(labels(mine.wrapper)).toContain('Fix this')
+    expect(mine.wrapper.findAll('button[aria-label="copy context"]')).toHaveLength(1)
     mine.wrapper.unmount()
 
     const theirs = await card({
       summary: { ...SLICE[0], state: 'failed' },
       detail: broken('claude-1'),
     })
-    expect(labels(theirs.wrapper)).not.toContain('Fix this')
+    expect(theirs.wrapper.findAll('button[aria-label="copy context"]')).toHaveLength(1)
     theirs.wrapper.unmount()
   })
 

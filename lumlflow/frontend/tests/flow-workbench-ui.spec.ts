@@ -530,8 +530,7 @@ describe('the card overflow is a menu, not a list of sentences', () => {
     const items = labels()
     // Eight is the ceiling: past it a menu is a page nobody reads.
     expect(items.length).toBeLessThanOrEqual(8)
-    // Frequency order, with the two the footer used to carry at the top.
-    expect(items.slice(0, 2)).toEqual(['expand', 'send to agent'])
+    expect(items.slice(0, 2)).toEqual(['expand', 'rename'])
     expect(items).not.toContain('promote to LUML')
     // Destructive last, alone behind its own rule, and coloured as what it is.
     expect(items.at(-1)).toBe('delete from this lane…')

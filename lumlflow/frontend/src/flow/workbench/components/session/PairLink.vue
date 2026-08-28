@@ -32,10 +32,9 @@ import { CONNECT_PROMPT } from './connectPrompt'
  * connection *is* the session — so this stays one-directional, detecting the
  * `agent_begin` transaction rather than confirming anything.
  *
- * The prompt is the daemon's, for the same reason a handoff payload is: it
- * names the workspace, the branch the files hold and the executable a config
- * can spawn. `open` is when a live surface goes and asks for it; the local one
- * behind it is what the fixtures and the gallery render.
+ * The daemon owns the prompt because it knows the workspace, checked-out lane,
+ * and executable. `open` is when a live surface asks for it; the local prompt
+ * is what the fixtures and gallery render.
  */
 withDefaults(
   defineProps<{
@@ -53,10 +52,8 @@ const open = ref(false)
 
 const LINK_PT = { root: { class: 'p-0 text-base font-normal' } }
 
-// The ask rides the gesture at the link rather than the overlay's own `show`,
-// which is the same place `SendToAgentButton` puts it: `aria-expanded` follows
-// the overlay because an outside click closes it without coming back here, and
-// a read nobody looks at costs less than a prompt that opens empty.
+// `aria-expanded` follows the overlay because an outside click closes it
+// without coming back through this handler.
 function toggle(event: Event): void {
   emit('open')
   popover.value?.toggle(event)

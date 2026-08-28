@@ -23,7 +23,6 @@
             :cell="data.cell"
             density="canvas"
             :selected="data.selected"
-            :branch="branch"
             :preflight="data.preflight"
             @expand="emit('expand', data.cell.slug)"
             @run="emit('run', data.cell.slug, $event)"
@@ -31,7 +30,7 @@
             @rename="emit('rename', data.cell.slug)"
             @delete="emit('delete', data.cell.slug)"
             @duplicate="emit('duplicate', data.cell.slug)"
-            @send-to-agent="emit('send-to-agent', data.cell.slug, $event)"
+            @copy-context="emit('copy-context', data.cell.slug)"
             @resolve-conflict="emit('resolve-conflict', data.cell.slug, $event)"
             @edit="emit('edit', data.cell.slug, $event)"
           />
@@ -90,7 +89,7 @@ const emit = defineEmits<{
   rename: [slug: string]
   delete: [slug: string]
   duplicate: [slug: string]
-  'send-to-agent': [slug: string, payload: string]
+  'copy-context': [slug: string]
   'resolve-conflict': [slug: string, choice: 'overwrite' | 'fork']
   edit: [slug: string, payload: { source: string }]
 }>()

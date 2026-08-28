@@ -686,16 +686,14 @@ export interface ConnectPrompt {
   text: string
 }
 
-/** `agent.payload`: the context one send-to-agent gesture hands over. */
-export interface HandoffPayload {
-  gesture: HandoffGesture
+/** `agent.payload`: the stored context copied from one cell card. */
+export interface CellContextPayload {
   flow: string
   branch: string
-  /** The ask in a sentence, then the facts in a fenced block. Copied as-is. */
+  slug: string
+  /** Lane, slug, step, docstring, and a trimmed failure when present. */
   text: string
 }
-
-export type HandoffGesture = 'fix' | 'explain' | 'diff' | 'summarize'
 
 /** `eval`: scratch code against copies of a branch's values. */
 export interface EvalResult {

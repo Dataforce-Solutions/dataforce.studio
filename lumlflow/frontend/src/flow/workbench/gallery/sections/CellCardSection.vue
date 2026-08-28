@@ -224,8 +224,7 @@ function cardEvents(cell: FlowCell, preflight?: Preflight) {
     rename: () => note(`would rename \`${cell.slug}\`. every reference rewires atomically.`),
     delete: () => note(`would remove \`${cell.slug}\` from this lane's selection`),
     duplicate: () => note(`would duplicate \`${cell.slug}\` · a new identity with no consumers`),
-    'send-to-agent': (payload: string) =>
-      note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`),
+    'copy-context': () => note(`would copy context for \`${cell.slug}\``),
     'resolve-conflict': (choice: 'overwrite' | 'fork') =>
       note(
         choice === 'fork'

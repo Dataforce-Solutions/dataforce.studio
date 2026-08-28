@@ -105,19 +105,7 @@
 
       <Message v-if="loudError" severity="error" size="small">
         <template #icon><CircleAlert :size="14" class="shrink-0" /></template>
-        <div class="flex w-full flex-wrap items-center gap-2">
-          <code class="min-w-40 flex-1 font-mono text-sm">{{ cell.error!.summary }}</code>
-          <SendToAgentButton
-            :cell="cell"
-            :branch="branchName"
-            gesture="fix"
-            label="Fix this"
-            severity="danger"
-            :handoff="handoffFor('fix')"
-            @open="emit('handoff', $event)"
-            @send-to-agent="emit('send-to-agent', $event)"
-          />
-        </div>
+        <code class="font-mono text-sm">{{ cell.error!.summary }}</code>
       </Message>
 
       <CellTabStrip :tabs="tabs" :selected="activeTab" @select="selectedTab = $event" />
@@ -177,14 +165,11 @@
         :density="density"
         :awaiters="awaiters"
         :preflight="preflight"
-        :branch="branchName"
-        :handoff="handoffFor('explain')"
         @run="emit('run', $event)"
         @preflight="emit('preflight')"
         @stop="emit('stop')"
         @expand="emit('expand')"
-        @handoff="emit('handoff', $event)"
-        @send-to-agent="emit('send-to-agent', $event)"
+        @copy-context="emit('copy-context')"
         @rename="emit('rename')"
         @delete="emit('delete')"
         @duplicate="emit('duplicate')"
@@ -199,7 +184,6 @@
 import { computed, ref, watch } from 'vue'
 import { Button, Message } from 'primevue'
 import { CircleAlert, Pencil, TriangleAlert, ZapOff } from 'lucide-vue-next'
-import type { HandoffGesture } from '@/flow/api/types'
 import { formatCost } from '../../model/format'
 import { primaryOutput } from '../../model/registry'
 import type { FlowCell, Preflight } from '../../model/types'
@@ -207,7 +191,6 @@ import KindBadge from '../../ui/KindBadge.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
 import StatusChip from '../../ui/StatusChip.vue'
 import RendererHost from '../../renderers/RendererHost.vue'
-import SendToAgentButton from '../handoff/SendToAgentButton.vue'
 import CellOpRow from './CellOpRow.vue'
 import CellTabStrip, { type CellTab } from './CellTabStrip.vue'
 import CodeView from './CodeView.vue'
@@ -230,13 +213,6 @@ const props = defineProps<{
   awaiters?: number
   /** The daemon-served run closure; null while it is still being asked for. */
   preflight?: Preflight | null
-  /** Branch context for handoff payloads; the design system defaults to main. */
-  branch?: string
-  /**
-   * The daemon's handoff payload and which gesture asked for it. Absent leaves
-   * both buttons on the locally built payload, which is the fixture mode.
-   */
-  handoff?: { gesture: HandoffGesture; text: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -252,21 +228,12 @@ const emit = defineEmits<{
   duplicate: []
   'add-downstream': []
   eager: [on: boolean]
-  /** A handoff popover opened — the gesture to go and build a payload for. */
-  handoff: [gesture: HandoffGesture]
-  'send-to-agent': [payload: string]
+  'copy-context': []
   'resolve-conflict': [choice: 'overwrite' | 'fork']
   edit: [payload: { source: string }]
   /** The editor opened — where the version an edit is based on gets pinned. */
   'edit-start': []
 }>()
-
-const branchName = computed(() => props.branch ?? 'main')
-
-/** One payload is in hand at a time, and it belongs to the gesture that asked. */
-function handoffFor(gesture: HandoffGesture): string | null {
-  return props.handoff?.gesture === gesture ? props.handoff.text : null
-}
 
 const titleSize = computed(() => (props.density === 'canvas' ? 'text-lg' : 'text-base'))
 

@@ -6,9 +6,7 @@
       :selected="selected"
       :preflight="preflight ?? closure"
       :awaiters="awaiters"
-      :branch="branch"
-      :handoff="handoff"
-      @handoff="onHandoff"
+      @copy-context="onCopyContext"
       @tab="live.showing.value = $event"
       @expand="onExpand"
       @preflight="onPreflight"
@@ -19,7 +17,6 @@
       @duplicate="emit('duplicate')"
       @add-downstream="emit('add-downstream')"
       @eager="onEager"
-      @send-to-agent="emit('send-to-agent', $event)"
       @resolve-conflict="onResolveConflict"
       @edit="onEdit"
       @edit-start="onEditStart"
@@ -64,7 +61,7 @@ import { Button, Dialog } from 'primevue'
 
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
-import type { CellSummary, HandoffGesture } from '@/flow/api/types'
+import type { CellSummary } from '@/flow/api/types'
 import { useCell } from '../../live/useCell'
 import type { PageMove } from '../../live/useCell'
 import type { FlowSessionHandle } from '../../live/useFlowSession'
@@ -82,9 +79,8 @@ import ExpandDrawer from './ExpandDrawer.vue'
  * instead of a fixture. It owns what is per-card rather than per-page: which
  * tab is on screen, which decides what gets fetched; the expand drawer, because
  * expand is the gesture that may start a kernel; and the ops whose whole
- * context is this cell — its edit, its closure, its own deletion. Gestures that
- * need the page (renaming, forking an edit onto a new branch, handing a payload
- * to an agent) are passed up rather than half-done here.
+ * context is this cell — its edit, its closure, deletion, and copied context.
+ * Renaming and forking an edit still pass up because they need page state.
  */
 const props = defineProps<{
   session: FlowSessionHandle
@@ -105,7 +101,6 @@ const emit = defineEmits<{
   rename: []
   duplicate: []
   'add-downstream': []
-  'send-to-agent': [payload: string]
   /** The edit stands and the head moved: forking it needs a branch, not a card. */
   'fork-edit': [payload: { source: string }]
   edit: [payload: { source: string }]
@@ -131,7 +126,6 @@ const closure = ref<Preflight | null>(null)
 /** Bumped whenever the closure in hand stops describing the branch it was for. */
 let plans = 0
 const conflict = ref(false)
-const handoff = ref<{ gesture: HandoffGesture; text: string } | null>(null)
 const draft = ref<string | null>(null)
 const pending = ref(unwritten())
 /**
@@ -303,18 +297,12 @@ async function onEager(on: boolean): Promise<void> {
   }
 }
 
-/**
- * The payload behind a handoff popover, asked for when it opens.
- *
- * The daemon builds it because the daemon has it: *fix this* carries the
- * traceback of the run this branch observed whether or not anyone opened the
- * logs tab. Asked for on open rather than per card — twenty cards each holding
- * two payloads nobody read is twenty round trips for a gesture not made.
- */
-async function onHandoff(gesture: HandoffGesture): Promise<void> {
+async function onCopyContext(): Promise<void> {
+  notice.value = 'copying context…'
   try {
-    const built = await ops.handoff(gesture, { branch: props.branch, slug: slug.value })
-    handoff.value = { gesture, text: built.text }
+    const built = await ops.copyContext(slug.value, props.branch)
+    await navigator.clipboard.writeText(built.text)
+    notice.value = 'context copied'
   } catch (refused) {
     notice.value = said(refused)
   }
@@ -332,10 +320,6 @@ function said(refused: unknown): string {
 watch([() => props.branch, () => props.session.head.value], () => {
   notice.value = null
   closure.value = null
-  // A payload quotes a traceback and a state; both are as of the step it was
-  // built at, and handing an agent the previous run's error is worse than
-  // asking for it again.
-  handoff.value = null
   plans += 1
 })
 

@@ -53,7 +53,6 @@
           @checkpoint="onCheckpoint"
           @pair="onPair"
           @select-cell="onSelect"
-          @summarize-branch="onSummarizeBranch"
           @update-settings="onUpdateSettings"
           @restart-kernel="onRestartKernel"
         />
@@ -124,13 +123,9 @@
               <AgentEndedBanner
                 v-if="endedUnder === cell.slug"
                 :cell="cell"
-                :branch="viewedBranch"
                 :failed-run="Boolean(failedCell)"
                 :unsynced-assets="unsynced.length"
-                :handoff="endedHandoff"
                 class="mt-2"
-                @handoff="onEndedHandoff"
-                @send-to-agent="onSendToAgent"
               />
             </template>
           </FlowCanvas>
@@ -151,13 +146,9 @@
               <AgentEndedBanner
                 v-if="endedUnder === cell.slug"
                 :cell="cell"
-                :branch="viewedBranch"
                 :failed-run="Boolean(failedCell)"
                 :unsynced-assets="unsynced.length"
-                :handoff="endedHandoff"
                 class="mt-2"
-                @handoff="onEndedHandoff"
-                @send-to-agent="onSendToAgent"
               />
             </template>
           </NotebookColumn>
@@ -177,15 +168,6 @@
         </Dialog>
       </main>
     </div>
-
-    <HandoffDialog
-      v-model:visible="handoffOpen"
-      :gesture="handoffGesture"
-      :payload="handoffPayload"
-      :pending="handoffPending"
-      :refusal="handoffRefusal"
-      @hand-off="onSendToAgent"
-    />
 
     <NewBranchDialog
       v-model:visible="forking"
@@ -217,14 +199,13 @@ import { Plus, Terminal } from 'lucide-vue-next'
 
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
-import type { CellSummary, HandoffGesture } from '@/flow/api/types'
+import type { CellSummary } from '@/flow/api/types'
 import NewBranchDialog from '../components/branch/NewBranchDialog.vue'
 import FlowCanvas from '../components/canvas/FlowCanvas.vue'
 import AgentEndedBanner from '../components/card/AgentEndedBanner.vue'
 import KernelDeathBanner from '../components/card/KernelDeathBanner.vue'
 import LiveCellCard from '../components/card/LiveCellCard.vue'
 import BranchGraphOverlay from '../components/graph/BranchGraphOverlay.vue'
-import HandoffDialog from '../components/handoff/HandoffDialog.vue'
 import LeftPanel from '../components/panel/LeftPanel.vue'
 import ReplPanel from '../components/repl/ReplPanel.vue'
 import SessionBanners from '../components/session/SessionBanners.vue'
@@ -378,7 +359,6 @@ function cardEvents(slug: string) {
     rename: () => onRename(slug),
     duplicate: () => void onDuplicate(slug),
     'add-downstream': () => void onAddCell(slug),
-    'send-to-agent': onSendToAgent,
     'fork-edit': (payload: { source: string }) => void onForkEdit(slug, payload.source),
   }
 }
@@ -403,11 +383,6 @@ const graphVisible = ref(false)
 /** Which panel sections are open — the catch-up marker's destination. */
 const panelOpen = ref<string[]>(['cells'])
 const scratchOpen = ref(false)
-const handoffOpen = ref(false)
-const handoffGesture = ref<HandoffGesture>('summarize')
-const handoffPayload = ref<string | null>(null)
-const handoffPending = ref(false)
-const handoffRefusal = ref<string | null>(null)
 const renaming = ref(false)
 const renameFrom = ref('')
 const renameTo = ref('')
@@ -582,38 +557,6 @@ async function onRerunBranch(payload: { force: boolean }): Promise<void> {
   for (const leaf of leaves.value) await onRun(leaf, payload)
 }
 
-function onSendToAgent(payload: string): void {
-  void navigator.clipboard?.writeText?.(payload)
-  acknowledge('Copied for your agent', 'paste it into the session you paired')
-  handoffOpen.value = false
-}
-
-// --- handoff, activity, scratch ----------------------------------------------
-
-/**
- * The branch-wide handoffs. What they carry is the daemon's to decide — the
- * intents behind a summary, the divergence structure behind a diff — so the
- * dialog opens on the ask and fills in when the payload lands.
- */
-async function openHandoff(
-  gesture: HandoffGesture,
-  options: { branches?: string[] } = {},
-): Promise<void> {
-  handoffGesture.value = gesture
-  handoffPayload.value = null
-  handoffRefusal.value = null
-  handoffPending.value = true
-  handoffOpen.value = true
-  try {
-    const built = await ops.handoff(gesture, { branch: viewedBranch.value, ...options })
-    handoffPayload.value = built.text
-  } catch (failure) {
-    handoffRefusal.value = failure instanceof Error ? failure.message : String(failure)
-  } finally {
-    handoffPending.value = false
-  }
-}
-
 /**
  * What pairing hands over. The workspace builds it — where it is, which branch
  * the files hold, which `lumlflow` a config can spawn — and the surfaces that
@@ -715,20 +658,6 @@ const endedUnder = computed(() => {
   if (failedCell.value) return failedCell.value.slug
   return unsynced.value.length ? unsynced.value[unsynced.value.length - 1].slug : null
 })
-
-/** The banner's own payload — about the cell it hangs under, not the branch. */
-const endedHandoff = ref<string | null>(null)
-
-async function onEndedHandoff(gesture: HandoffGesture): Promise<void> {
-  const slug = endedUnder.value
-  if (!slug) return
-  try {
-    const built = await ops.handoff(gesture, { branch: viewedBranch.value, slug })
-    endedHandoff.value = built.text
-  } catch (failure) {
-    refused(failure)
-  }
-}
 
 /** Viewing is free; this is the read that scopes the whole screen. */
 function onViewBranch(name: string): void {
@@ -885,12 +814,4 @@ async function onUpdateSettings(next: FlowSettings): Promise<void> {
   }
 }
 
-/**
- * The summary is a note cell the agent writes (decision 4): no store field holds
- * a branch description, and one would need an author. This hands over the
- * payload — the branch's cells, states and intents — and stops there.
- */
-function onSummarizeBranch(): void {
-  void openHandoff('summarize')
-}
 </script>

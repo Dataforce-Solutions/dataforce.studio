@@ -104,7 +104,7 @@
 
     <GallerySpecimen
       title="Copyable block"
-      caption="Its multi-line sibling, for what a reader reads before pasting: a handoff payload, the prompt that pairs an agent. The block is the preview and the copy at once, in one affordance in the corner."
+      caption="Its multi-line sibling, for what a reader reads before pasting: the prompt that pairs an agent. The block is the preview and the copy at once, in one affordance in the corner."
     >
       <div class="max-w-lg">
         <CopyBlock :value="CONNECT_PROMPT" label="copy the connect prompt" />

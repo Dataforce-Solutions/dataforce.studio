@@ -1110,9 +1110,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Remove focus, asset diff, the dev shim and the sidecar
   - [x] Delete `api.set_focus`, `session.focus` and its one reader `handoff._focus`, `session://focus`, the `useSelection` focus reporter, `api.asset_diff` and `lumlflow asset diff`, `_refresh_web_app` and helpers in `lumlflow/cli.py`, `docs.refresh_checkout` and `CHECKOUT.md`
   - [x] Update the affected tests
-- [ ] Shrink handoff to one copy-context gesture
-  - [ ] `agent.payload` without a gesture parameter, carrying the traceback's frames and the exception's final line, never its full text (D4.11); one button per card; delete `HandoffPopover`/`HandoffDialog`
-  - [ ] Update `test_handoff.py` (the payload rule included) and `flow-handoff.spec.ts`
+- [x] Shrink handoff to one copy-context gesture
+  - [x] `agent.payload` without a gesture parameter, carrying the traceback's frames and the exception's final line, never its full text (D4.11); one button per card; delete `HandoffPopover`/`HandoffDialog`
+  - [x] Update `test_handoff.py` (the payload rule included) and `flow-handoff.spec.ts`
 - [ ] Add the cell-note journal op
   - [ ] The `CellNoted` op of D2 (uid, note kind, sentence, optional version) with its index by (lane, uid, kind, step), its replay, and its exposure on `cells.show` (latest note per kind: kind, sentence, version, step, actor); the journal schema version constant raised from 1 to 2; nothing emits it yet
   - [ ] Tests in `tests/flow`: replay and index of a note, the latest note per kind per (lane, uid)

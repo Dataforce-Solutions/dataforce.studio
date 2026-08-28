@@ -438,8 +438,8 @@ describe('the header states what was recorded', () => {
       }),
     })
 
-    // The agent's broken version is what failed, so the card demotes: no red
-    // wash and no handoff, even though a person edited afterwards.
+    // The agent's broken version is what failed, so the card demotes with no
+    // red wash, even though a person edited afterwards.
     expect(wrapper.text()).toContain('failed')
     expect(wrapper.text()).not.toContain('Fix this')
 

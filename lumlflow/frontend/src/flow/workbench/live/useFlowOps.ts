@@ -14,11 +14,10 @@
 
 import type { EditedCell, FlowMethods } from '@/flow/api/client'
 import type {
+  CellContextPayload,
   ConnectPrompt,
   EvalResult,
   FlowSettingsReport,
-  HandoffGesture,
-  HandoffPayload,
   Preflight,
   RunOutcome,
 } from '@/flow/api/types'
@@ -59,11 +58,8 @@ export interface FlowOps {
     options: { branch: string; force?: boolean },
   ) => Result<'adopt'>
   archive: (branch: string) => Result<'archive'>
-  /** Reads, not mutations — they carry no intent because they journal nothing. */
-  handoff: (
-    gesture: HandoffGesture,
-    options: { branch: string; slug?: string; branches?: string[] },
-  ) => Promise<HandoffPayload>
+  /** A read copied from one card; it carries no intent because it journals nothing. */
+  copyContext: (slug: string, branch: string) => Promise<CellContextPayload>
   /** Flow-scoped: an agent connects to the workspace, not to a branch. */
   connect: () => Promise<ConnectPrompt>
   evaluate: (code: string, branch: string) => Promise<EvalResult>
@@ -187,10 +183,8 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
     archive: (branch) =>
       session.request('archive', { flow: flow(), branch, intent: `archived ${branch}` }),
 
-    // The gesture is the whole request: what a handoff carries is the daemon's
-    // to decide, so no surface gets to assemble a thinner version of it.
-    handoff: (gesture, { branch, slug, branches }) =>
-      session.request('agent.payload', { flow: flow(), branch, gesture, slug, branches }),
+    copyContext: (slug, branch) =>
+      session.request('agent.payload', { flow: flow(), branch, slug }),
 
     // The prompt names the branch the files are on, which is the workspace's
     // fact and not this screen's — so the viewed branch is deliberately absent.

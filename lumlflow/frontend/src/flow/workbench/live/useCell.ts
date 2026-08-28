@@ -498,9 +498,8 @@ function actor(label: string): ActorRef {
 }
 
 /**
- * Authorship decides the volume, so the traceback carries who wrote the version
- * that failed: an agent iterating through a broken state is demoted, a person's
- * failure is loud and comes with the handoff.
+ * Authorship decides the volume: an agent iterating through a broken state is
+ * demoted, while a person's failure is loud.
  */
 function error(detail: CellDetail | null, attempts = 0) {
   if (!detail?.error) return undefined

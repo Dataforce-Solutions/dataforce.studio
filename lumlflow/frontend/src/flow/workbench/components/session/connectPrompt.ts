@@ -5,9 +5,8 @@
  * The daemon owns the real one — it knows where the workspace is, which
  * lane the files hold, and which `lumlflow` a config can actually spawn,
  * none of which a browser can work out — and `agent.connect` is where a live
- * surface asks for it. This is the shape that answer follows, and what the
- * fixtures and the gallery render, the same way `buildHandoffPayload` stands
- * behind a handoff.
+ * surface asks for it. This is the shape that answer follows and what the
+ * fixtures and gallery render.
  *
  * It is a copy of `daemon/connect.py`'s wording, hard-wrapped at the same 72
  * columns, so the specimen and the shipped prompt read alike. When that file

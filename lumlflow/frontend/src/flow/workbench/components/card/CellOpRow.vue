@@ -20,8 +20,20 @@
       <template #icon><Square :size="14" /></template>
     </Button>
 
+    <Button
+      v-tooltip.top="'copy context'"
+      text
+      rounded
+      severity="secondary"
+      size="small"
+      aria-label="copy context"
+      @click="emit('copy-context')"
+    >
+      <template #icon><ClipboardCopy :size="14" /></template>
+    </Button>
+
     <!--
-      Two controls per row, and the rest one click away: nine cards on a canvas
+      The common controls stay visible, and the rest are one click away: nine cards on a canvas
       carried forty-five icon buttons, which is more chrome than the work.
     -->
     <span ref="moreAnchor" class="inline-flex">
@@ -44,15 +56,6 @@
       </template>
     </Menu>
 
-    <HandoffPopover
-      ref="handoffPopover"
-      :cell="cell"
-      gesture="explain"
-      :branch="branch"
-      :handoff="handoff"
-      @send-to-agent="emit('send-to-agent', $event)"
-    />
-
     <Popover ref="confirmPopover">
       <div class="flex w-72 flex-col gap-2.5">
         <p class="text-base">
@@ -73,20 +76,18 @@ import { computed, useTemplateRef } from 'vue'
 import { Button, Menu, Popover } from 'primevue'
 import type { MenuItem } from 'primevue/menuitem'
 import {
+  ClipboardCopy,
   Copy,
   EllipsisVertical,
   Maximize2,
   Plus,
-  Send,
   Square,
   TextCursorInput,
   Trash2,
   Zap,
   type LucideIcon,
 } from 'lucide-vue-next'
-import type { HandoffGesture } from '@/flow/api/types'
 import type { FlowCell, Preflight } from '../../model/types'
-import HandoffPopover from '../handoff/HandoffPopover.vue'
 import PreflightPopover from './PreflightPopover.vue'
 
 /**
@@ -102,9 +103,6 @@ const props = defineProps<{
   density: 'canvas' | 'notebook'
   awaiters?: number
   preflight?: Preflight | null
-  branch?: string
-  /** The daemon's explain payload, once it has answered the popover's open. */
-  handoff?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -113,8 +111,7 @@ const emit = defineEmits<{
   preflight: []
   stop: []
   expand: []
-  handoff: [gesture: HandoffGesture]
-  'send-to-agent': [payload: string]
+  'copy-context': []
   rename: []
   delete: []
   duplicate: []
@@ -124,7 +121,6 @@ const emit = defineEmits<{
 
 const menu = useTemplateRef<InstanceType<typeof Menu>>('menu')
 const confirmPopover = useTemplateRef<InstanceType<typeof Popover>>('confirmPopover')
-const handoffPopover = useTemplateRef<InstanceType<typeof HandoffPopover>>('handoffPopover')
 const moreAnchor = useTemplateRef<HTMLElement>('moreAnchor')
 
 const awaiters = computed(() => props.awaiters ?? 0)
@@ -146,20 +142,11 @@ const stopTooltip = computed(() => {
  * no consumers", "materialize and download · ~2.4s") were the reason this one
  * could not be. `download` is not among them: `expand` is the item above, and
  * the drawer it opens carries the download for the output on screen, with the
- * same materialize-first wording. Eight is the ceiling and a note cell sees
- * five.
+ * same materialize-first wording. Six is the ceiling and a note cell sees four.
  */
 const menuItems = computed<CellMenuItem[]>(() => {
   const items: CellMenuItem[] = [
     { label: 'expand', glyph: Maximize2, command: () => emit('expand') },
-    {
-      label: 'send to agent',
-      glyph: Send,
-      command: (event) => {
-        emit('handoff', 'explain')
-        handoffPopover.value?.show(event.originalEvent, moreAnchor.value)
-      },
-    },
     { separator: true },
     { label: 'rename', glyph: TextCursorInput, command: () => emit('rename') },
   ]

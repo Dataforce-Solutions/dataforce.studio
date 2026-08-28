@@ -1,8 +1,8 @@
 /**
  * Handing work to the agent, reading what it did, and the ops that are not runs.
  *
- * Four rules carry this suite. A handoff payload is the **daemon's**: the
- * gesture goes over the wire and what comes back is what the reader hands over,
+ * Four rules carry this suite. A copied context is the **daemon's**: the cell
+ * address goes over the wire and what comes back is what the reader copies,
  * because the traceback of a run nobody opened is a fact only the store has.
  * The activity feed is **read-only and cursor-anchored** — a marker, not an
  * inbox. The scratch REPL is a **read of any branch**, including one whose
@@ -23,15 +23,14 @@ import { FlowApiError } from '@/flow/api/client'
 import type { CellSummary, Transaction } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import PanelSettings from '@/flow/workbench/components/panel/PanelSettings.vue'
+import leftPanelGallerySource from '@/flow/workbench/gallery/sections/LeftPanelSection.vue?raw'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
 import {
   attach,
   cellDetail,
   cellSummary,
-  clickMenuItem,
   flowStatus,
   FLOW,
-  openCardMenu,
   openPanel,
   settle,
   storedPreview,
@@ -98,21 +97,30 @@ function asked(live: Attached, method: string): Record<string, unknown>[] {
   return live.daemon.calls.filter((call) => call.method === method).map((call) => call.params)
 }
 
+const copied: string[] = []
+
+Object.defineProperty(navigator, 'clipboard', {
+  configurable: true,
+  value: {
+    writeText: (value: string) => {
+      copied.push(value)
+      return Promise.resolve()
+    },
+  },
+})
+
 /** The payload the daemon would have built, named so a test can spot it. */
 function builtPayload(params: Record<string, unknown>): Record<string, unknown> {
-  const gesture = String(params.gesture)
   return {
-    gesture,
     flow: 'churn',
     branch: String(params.branch ?? 'main'),
+    slug: String(params.slug),
     text:
-      `Daemon-built ${gesture} payload.\n\n` +
+      'Daemon-built cell context.\n\n' +
       '```lumlflow-context\n' +
-      `gesture: ${gesture}\n` +
-      `branch: ${params.branch ?? 'main'}\n` +
-      (params.slug ? `cell: ${params.slug}\n` : '') +
-      (params.branches ? `comparing: ${(params.branches as string[]).join(', ')}\n` : '') +
-      'traceback: |\n  ValueError: empty frame\n' +
+      `lane: ${params.branch ?? 'main'}\n` +
+      `slug: ${params.slug}\n` +
+      'step: 8\n' +
       '```',
   }
 }
@@ -256,12 +264,18 @@ function overlays(): string {
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  copied.length = 0
 })
 
-// --- payload builders --------------------------------------------------------
+// --- copied cell context -----------------------------------------------------
 
-describe('a handoff payload is the daemon’s, per gesture', () => {
-  it('asks for the explain payload when the card’s popover opens, and shows that one', async () => {
+describe('one card gesture copies the daemon’s context', () => {
+  it('leaves no retired branch-summary handoff in the gallery', () => {
+    expect(leftPanelGallerySource).not.toContain('summarize-branch')
+    expect(leftPanelGallerySource).not.toContain('onSummarize')
+  })
+
+  it('asks for cell context without a gesture and copies the daemon response', async () => {
     const live = await attach({
       status: flowStatus({ cells: SLICE }),
       handlers: reads(),
@@ -277,18 +291,19 @@ describe('a handoff payload is the daemon’s, per gesture', () => {
     })
     await settle()
 
-    await openCardMenu(wrapper)
-    await clickMenuItem('send to agent')
+    await wrapper.get('button[aria-label="copy context"]').trigger('click')
+    await settle()
 
     expect(asked(live, 'agent.payload')).toEqual([
-      { flow: FLOW, branch: 'main', gesture: 'explain', slug: 'features', branches: undefined },
+      { flow: FLOW, branch: 'main', slug: 'features' },
     ])
-    // The daemon's payload, not the one this surface could have assembled.
-    expect(overlays()).toContain('Daemon-built explain payload.')
+    expect(copied).toEqual(['Daemon-built cell context.\n\n```lumlflow-context\nlane: main\nslug: features\nstep: 8\n```'])
+    expect(wrapper.findAll('button[aria-label="copy context"]')).toHaveLength(1)
+    expect(overlays()).not.toContain('copy the payload')
     wrapper.unmount()
   })
 
-  it('asks for the fix payload from a failure the reader authored', async () => {
+  it('uses the same single context gesture for a failed cell', async () => {
     const failing = cellSummary('features', { state: 'failed', primary: 'train_split' })
     const live = await attach({
       status: flowStatus({ cells: [failing] }),
@@ -314,26 +329,14 @@ describe('a handoff payload is the daemon’s, per gesture', () => {
     })
     await settle()
 
-    await clickText(wrapper, 'Fix this')
+    await wrapper.get('button[aria-label="copy context"]').trigger('click')
+    await settle()
 
-    expect(asked(live, 'agent.payload').map((params) => params.gesture)).toEqual(['fix'])
-    expect(overlays()).toContain('Daemon-built fix payload.')
-    wrapper.unmount()
-  })
-
-  it('summarizes a branch as a payload the agent turns into a note cell', async () => {
-    const { wrapper, live } = await workbench()
-
-    await openPanel(wrapper, 'activity')
-    await clickText(wrapper, 'Summarize lane')
-
-    // A branch-wide ask names no cell: it is about the branch, not one card.
     expect(asked(live, 'agent.payload')).toEqual([
-      { flow: FLOW, branch: 'main', gesture: 'summarize', slug: undefined, branches: undefined },
+      { flow: FLOW, branch: 'main', slug: 'features' },
     ])
-    expect(overlays()).toContain('Daemon-built summarize payload.')
-    // The UI hands it over; writing the note is the agent's.
-    expect(asked(live, 'cells.new')).toEqual([])
+    expect(copied).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('Fix this')
     wrapper.unmount()
   })
 
@@ -352,8 +355,8 @@ describe('a handoff payload is the daemon’s, per gesture', () => {
       },
     })
     await settle()
-    await openCardMenu(wrapper)
-    await clickMenuItem('send to agent')
+    await wrapper.get('button[aria-label="copy context"]').trigger('click')
+    await settle()
 
     live.socket.deliver({
       channel: 'journal',
@@ -363,8 +366,8 @@ describe('a handoff payload is the daemon’s, per gesture', () => {
       transaction: transaction(12, { ops: [] }),
     })
     await settle()
-    await openCardMenu(wrapper)
-    await clickMenuItem('send to agent')
+    await wrapper.get('button[aria-label="copy context"]').trigger('click')
+    await settle()
 
     expect(asked(live, 'agent.payload')).toHaveLength(2)
     wrapper.unmount()

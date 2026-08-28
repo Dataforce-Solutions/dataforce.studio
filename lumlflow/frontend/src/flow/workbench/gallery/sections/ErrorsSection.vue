@@ -18,7 +18,7 @@
 
     <GallerySpecimen
       title="Loud user failure"
-      caption="User-authored → loud: inline error summary on the card, the full traceback in logs, and a Fix-this handoff preloaded with the error. That is the difference between showing an error and doing something about it."
+      caption="User-authored → loud: inline error summary on the card and the full traceback in logs. The card's one copy-context control includes a trimmed failure."
     >
       <div class="max-w-2xl">
         <CellCard :cell="userFailedCell" density="canvas" v-on="cardEvents(userFailedCell)" />
@@ -45,18 +45,9 @@
 
     <GallerySpecimen
       title="Agent session ended"
-      caption="A persistent inline banner, a state rather than a toast, anchored under the last cell the agent touched. It says what is outstanding, never why the session ended, and offers the handoff payload."
+      caption="A persistent inline banner, a state rather than a toast, anchored under the last cell the agent touched. It says what is outstanding, never why the session ended."
     >
-      <AgentEndedBanner
-        :cell="agentFailedCell"
-        branch="main"
-        failed-run
-        :unsynced-assets="2"
-        @send-to-agent="
-          (payload: string) =>
-            note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`)
-        "
-      />
+      <AgentEndedBanner :cell="agentFailedCell" failed-run :unsynced-assets="2" />
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -105,8 +96,7 @@ function cardEvents(cell: FlowCell) {
     rename: () => note(`would rename \`${cell.slug}\`. every reference rewires atomically.`),
     delete: () => note(`would remove \`${cell.slug}\` from this lane's selection`),
     duplicate: () => note(`would duplicate \`${cell.slug}\` · a new identity with no consumers`),
-    'send-to-agent': (payload: string) =>
-      note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`),
+    'copy-context': () => note(`would copy context for \`${cell.slug}\``),
     'resolve-conflict': (choice: 'overwrite' | 'fork') =>
       note(
         choice === 'fork'

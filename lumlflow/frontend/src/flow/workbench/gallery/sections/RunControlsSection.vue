@@ -148,8 +148,7 @@ function opEvents(awaiters: number) {
           : `would leave the run for ${formatCount(awaiters, 'awaiting lane')} and requeue this lane`,
       ),
     expand: () => note('would expand into the drawer'),
-    'send-to-agent': (payload: string) =>
-      note(`handoff payload built · ${formatCount(payload.split('\n').length, 'line')}`),
+    'copy-context': () => note('would copy cell context'),
     rename: () => note('would rename. every reference rewires atomically.'),
     delete: () => note("would remove from this lane's selection"),
     duplicate: () => note('would duplicate · a new identity with no consumers'),
