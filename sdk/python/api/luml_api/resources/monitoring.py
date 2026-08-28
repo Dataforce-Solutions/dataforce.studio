@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Generic, Protocol, TypeVar, cast
+from typing import Any, Protocol, cast
 
 from httpx import URL, InvalidURL
 
@@ -100,9 +100,6 @@ class _AsyncMonitoringClient(Protocol):
         ...
 
 
-_ClientT = TypeVar("_ClientT", _SyncMonitoringClient, _AsyncMonitoringClient)
-
-
 def _trace_page(
     limit: int,
     offset: int,
@@ -140,7 +137,7 @@ def _dims(
     return params
 
 
-class _MonitoringBase(Generic[_ClientT]):
+class _MonitoringBase[ClientT: (_SyncMonitoringClient, _AsyncMonitoringClient)]:
     """Monitoring sections of one deployment, read from its Satellite.
 
     Requests go straight to the Satellite that hosts the deployment — monitoring data
@@ -151,11 +148,11 @@ class _MonitoringBase(Generic[_ClientT]):
 
     def __init__(
         self,
-        client: _ClientT,
+        client: ClientT,
         satellite: _SatelliteRecord,
         deployment: Deployment,
     ) -> None:
-        self._client: _ClientT = client
+        self._client: ClientT = client
         self._satellite: _SatelliteRecord = satellite
         self._deployment: Deployment = deployment
         self._implementation: MonitoringApiImplementation | None = None
