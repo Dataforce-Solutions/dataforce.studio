@@ -35,7 +35,7 @@ CellNoteKind = Literal[
 
 
 class _Frozen(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="ignore", frozen=True)
 
 
 class VersionFlag(_Frozen):
@@ -296,7 +296,7 @@ Op = Annotated[
 class Transaction(BaseModel):
     """One journal line. `branch` is the branch id the batch was scoped to."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="ignore", frozen=True)
 
     step: int
     ts: str
@@ -329,7 +329,7 @@ class FlowSettings(BaseModel):
     """`eager` names cells by uid: `flow.yaml` already indexes them, and a slug
     is a name that renames."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     eager_cost_threshold_s: float = 5.0
     reactivity: Reactivity = "auto"
@@ -339,7 +339,7 @@ class FlowSettings(BaseModel):
 class FlowManifest(BaseModel):
     """`flow.yaml` — daemon-written, committed, the slug↔uid cross-check."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     flow_id: str
     name: str

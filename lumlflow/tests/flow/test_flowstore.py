@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -173,6 +174,75 @@ class TestOpen:
         with pytest.raises(FlowError):
             FlowStore.open(flow_dir)
 
+    def test_preserves_unknown_manifest_and_settings_keys_on_rewrite(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        store.close()
+        manifest = read_manifest(flow_dir)
+        manifest["future_section"] = {"format": 3, "enabled": True}
+        settings = manifest["settings"]
+        assert isinstance(settings, dict)
+        settings["future_setting"] = ["one", "two"]
+        (flow_dir / "flow.yaml").write_text(yaml.safe_dump(manifest))
+
+        reopened = FlowStore.open(flow_dir)
+        reopened.manifest.cells["features"] = "cell-features"
+        reopened.manifest.settings.reactivity = "lazy"
+        reopened.save_manifest()
+
+        rewritten = read_manifest(flow_dir)
+        assert rewritten["future_section"] == {"format": 3, "enabled": True}
+        assert rewritten["settings"] == {
+            "eager_cost_threshold_s": 5.0,
+            "reactivity": "lazy",
+            "eager": [],
+            "future_setting": ["one", "two"],
+        }
+
+    def test_refuses_a_newer_journal_schema_naming_both_versions(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        store.close()
+        _set_journal_schema_version(flow_dir, 3)
+
+        with pytest.raises(FlowError) as raised:
+            FlowStore.open(flow_dir)
+
+        message = str(raised.value)
+        assert "schema version 3" in message
+        assert "version 2" in message
+        assert "corrupt" not in message.lower()
+
+    def test_refuses_an_older_journal_schema_with_reinitialise_instructions(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        store.close()
+        _set_journal_schema_version(flow_dir, 1)
+
+        with pytest.raises(FlowError) as raised:
+            FlowStore.open(flow_dir)
+
+        message = str(raised.value)
+        assert "schema version 1" in message
+        assert "version 2" in message
+        assert f"delete {flow_dir / '.lumlflow'}/" in message
+        assert "re-initialise it from cells/ and flow.yaml" in message
+
+    def test_refuses_an_unknown_op_naming_it_even_with_a_caught_up_index(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        store.commit([cell_accepted()], intent="accept features", actor="user")
+        store.close()
+        journal_path = flow_dir / ".lumlflow" / "journal.jsonl"
+        lines = journal_path.read_bytes().splitlines()
+        first = json.loads(lines[0])
+        first["ops"].append({"op": "future_launch", "target": "features"})
+        lines[0] = json.dumps(first).encode()
+        journal_path.write_bytes(b"\n".join(lines) + b"\n")
+
+        with pytest.raises(FlowError, match="future_launch"):
+            FlowStore.open(flow_dir)
+
 
 class TestCommit:
     def test_requires_an_intent(self, store: FlowStore) -> None:
@@ -339,6 +409,16 @@ def _version_slugs(store: FlowStore) -> list[str]:
             "SELECT slug FROM asset_versions ORDER BY created_step"
         )
     ]
+
+
+def _set_journal_schema_version(flow_dir: Path, version: int) -> None:
+    journal_path = flow_dir / ".lumlflow" / "journal.jsonl"
+    lines = journal_path.read_bytes().splitlines()
+    first = json.loads(lines[0])
+    flow_init = next(op for op in first["ops"] if op["op"] == "flow_init")
+    flow_init["schema_version"] = version
+    lines[0] = json.dumps(first).encode()
+    journal_path.write_bytes(b"\n".join(lines) + b"\n")
 
 
 def _remove_tree(path: Path) -> None:

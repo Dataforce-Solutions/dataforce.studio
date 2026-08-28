@@ -14,7 +14,7 @@ from typing import BinaryIO
 from pydantic import ValidationError
 
 from lumlflow.flow.atomic import fsync_dir
-from lumlflow.flow.errors import JournalCorruption
+from lumlflow.flow.errors import FlowError, JournalCorruption
 from lumlflow.flow.store.models import Transaction
 
 _SCAN_CHUNK_BYTES = 64 * 1024
@@ -87,7 +87,25 @@ def _parse(line: bytes, number: int) -> Transaction:
     try:
         return Transaction.from_line(line)
     except ValidationError as error:
+        unknown_op = _unknown_op(error)
+        if unknown_op is not None:
+            raise FlowError(
+                f"unknown journal op `{unknown_op}` at line {number}"
+            ) from error
         raise JournalCorruption(f"unreadable transaction at line {number}") from error
+
+
+def _unknown_op(error: ValidationError) -> str | None:
+    for detail in error.errors():
+        context = detail.get("ctx")
+        if (
+            detail["type"] == "union_tag_invalid"
+            and detail["loc"][:1] == ("ops",)
+            and isinstance(context, dict)
+            and context.get("discriminator") == "'op'"
+        ):
+            return str(context["tag"])
+    return None
 
 
 def _rfind_newline(handle: BinaryIO, limit: int) -> int:

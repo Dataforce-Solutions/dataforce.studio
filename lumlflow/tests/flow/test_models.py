@@ -1,3 +1,4 @@
+import json
 from typing import get_args
 
 import pytest
@@ -69,18 +70,13 @@ class TestOpVocabulary:
                 }
             )
 
-    def test_unexpected_fields_are_refused(self) -> None:
-        with pytest.raises(ValidationError):
-            Transaction.model_validate(
-                {
-                    "step": 1,
-                    "ts": "2026-08-12T09:00:00+00:00",
-                    "actor": "user",
-                    "intent": "edit",
-                    "ops": [],
-                    "mood": "hopeful",
-                }
-            )
+    def test_unknown_transaction_and_op_fields_are_ignored_on_read(self) -> None:
+        original = transaction(1, [cell_accepted()])
+        payload = json.loads(original.to_line())
+        payload["mood"] = "hopeful"
+        payload["ops"][0]["future_field"] = {"kept_by": "a future release"}
+
+        assert Transaction.from_line(json.dumps(payload).encode()) == original
 
     def test_intent_is_mandatory(self) -> None:
         with pytest.raises(ValidationError):

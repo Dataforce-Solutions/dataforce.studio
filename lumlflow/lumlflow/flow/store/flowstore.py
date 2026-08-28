@@ -23,6 +23,7 @@ from lumlflow.flow.store.cas import Cas
 from lumlflow.flow.store.index import INDEX_SCHEMA_VERSION, Index
 from lumlflow.flow.store.journal import Journal
 from lumlflow.flow.store.models import (
+    JOURNAL_SCHEMA_VERSION,
     BranchCreated,
     FlowInit,
     FlowManifest,
@@ -123,6 +124,7 @@ class FlowStore:
         _scaffold(flow_dir)
         journal = Journal(store_dir(flow_dir) / JOURNAL_NAME)
         journal.repair()
+        _validate_journal_version(flow_dir, journal)
         index = _open_index(store_dir(flow_dir) / INDEX_NAME, journal)
         return cls(flow_dir, manifest, journal, index)
 
@@ -258,6 +260,25 @@ def _open_index(path: Path, journal: Journal) -> Index:
     for transaction in journal.since(index.last_step):
         index.apply(transaction)
     return index
+
+
+def _validate_journal_version(flow_dir: Path, journal: Journal) -> None:
+    for transaction in journal.replay():
+        for op in transaction.ops:
+            if not isinstance(op, FlowInit):
+                continue
+            stored = op.schema_version
+            if stored > JOURNAL_SCHEMA_VERSION:
+                raise FlowError(
+                    f"journal schema version {stored} is newer than this lumlflow's "
+                    f"version {JOURNAL_SCHEMA_VERSION}"
+                )
+            if stored < JOURNAL_SCHEMA_VERSION:
+                raise FlowError(
+                    f"journal schema version {stored} is older than this lumlflow's "
+                    f"version {JOURNAL_SCHEMA_VERSION}; delete {store_dir(flow_dir)}/ "
+                    "and re-initialise it from cells/ and flow.yaml"
+                )
 
 
 def _read_manifest(flow_dir: Path) -> FlowManifest:
