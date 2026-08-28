@@ -20,7 +20,6 @@ IDENTITY = "identity"
 EXTERNAL = "external"
 
 Observe = Callable[[str, str], None]
-AskSecret = Callable[[str], str]
 
 
 class Tracker:
@@ -73,7 +72,6 @@ class Ctx:
         params: dict[str, Any],
         scratch: Path,
         observe: Observe,
-        ask_secret: AskSecret,
     ) -> None:
         self._branch = branch
         self._step = step
@@ -82,7 +80,6 @@ class Ctx:
         self._params = params
         self._scratch = scratch
         self._observe = observe
-        self._ask_secret = ask_secret
         self._tracker = Tracker()
 
     @property
@@ -133,7 +130,3 @@ class Ctx:
     def tempdir(self) -> Path:
         """A directory that lives as long as the run does."""
         return Path(tempfile.mkdtemp(dir=self._scratch))
-
-    def secret(self, name: str) -> str:
-        """Ask the daemon. The value never reaches a value, preview, or log."""
-        return self._ask_secret(name)

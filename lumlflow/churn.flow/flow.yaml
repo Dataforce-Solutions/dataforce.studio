@@ -19,4 +19,3 @@ settings:
   eager_cost_threshold_s: 5.0
   reactivity: auto
   eager: []
-  env_policy: ask

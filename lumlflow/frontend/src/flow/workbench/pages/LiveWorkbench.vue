@@ -45,7 +45,6 @@
           :settings="records.settings.value"
           :journal="records.journal.value"
           :behind="openedBehind"
-          :env-busy="envBusy"
           :branch-busy="branchBusy"
           :connect="connectPrompt"
           @open-graph="graphVisible = true"
@@ -57,8 +56,6 @@
           @summarize-branch="onSummarizeBranch"
           @update-settings="onUpdateSettings"
           @restart-kernel="onRestartKernel"
-          @add-packages="onAddPackages"
-          @remove-package="onRemovePackage"
         />
       </aside>
 
@@ -407,7 +404,6 @@ const graphVisible = ref(false)
 /** Which panel sections are open — the catch-up marker's destination. */
 const panelOpen = ref<string[]>(['cells'])
 const scratchOpen = ref(false)
-const envBusy = ref(false)
 const handoffOpen = ref(false)
 const handoffGesture = ref<HandoffGesture>('summarize')
 const handoffPayload = ref<string | null>(null)
@@ -642,32 +638,6 @@ async function onPair(): Promise<void> {
 function onOpenActivity(): void {
   if (!panelOpen.value.includes('activity')) panelOpen.value = [...panelOpen.value, 'activity']
   session.markSeen()
-}
-
-async function onAddPackages(packages: string[]): Promise<void> {
-  await runEnvOp(() => ops.addPackages(packages))
-}
-
-async function onRemovePackage(name: string): Promise<void> {
-  await runEnvOp(() => ops.removePackages([name]))
-}
-
-/**
- * uv resolves the whole workspace env for either op, so a second one launched
- * over the first would race it. The banner underneath is what says the running
- * kernel has not caught up — installing never invalidates a recorded result.
- */
-async function runEnvOp(op: () => Promise<unknown>): Promise<void> {
-  if (envBusy.value) return
-  envBusy.value = true
-  try {
-    await op()
-    await records.refreshEnv()
-  } catch (failure) {
-    refused(failure)
-  } finally {
-    envBusy.value = false
-  }
 }
 
 async function onRestartAfterDeath(): Promise<void> {

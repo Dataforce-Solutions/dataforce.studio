@@ -27,7 +27,6 @@ CellClassification = Literal["cell", "note"]
 MaterializationState = Literal["running", "succeeded", "failed", "cancelled"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
-EnvPolicy = Literal["ask", "auto", "never"]
 
 
 class _Frozen(BaseModel):
@@ -245,13 +244,6 @@ class AgentEnd(_Frozen):
     label: str | None = None
 
 
-class SecretRefAdded(_Frozen):
-    """Records that a secret name exists. Values never enter the journal."""
-
-    op: Literal["secret_ref_added"] = "secret_ref_added"
-    name: str
-
-
 class Checkpointed(_Frozen):
     """A point somebody marked on purpose.
 
@@ -282,7 +274,6 @@ Op = Annotated[
     | FlagSet
     | AgentBegin
     | AgentEnd
-    | SecretRefAdded
     | Checkpointed,
     Field(discriminator="op"),
 ]
@@ -319,10 +310,6 @@ class FlowSettings(BaseModel):
     eager_cost_threshold_s: float = 5.0
     reactivity: Reactivity = "auto"
     eager: list[str] = Field(default_factory=list)
-    # What an env change does to a kernel holding the old imports. The banner is
-    # the floor under all three: `never` still says the kernel is behind, it
-    # only never acts on it.
-    env_policy: EnvPolicy = "ask"
 
 
 class FlowManifest(BaseModel):

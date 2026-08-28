@@ -58,7 +58,7 @@ export const CONNECT_PROMPT = [
   `- Run a cell through the \`run\` tool. Never execute a cell file. Nothing`,
   '  in a cell runs at edit time. A run is what records a result.',
   `- Cells are non-interactive. \`input()\` fails immediately. Pass values`,
-  `  through \`params\`, and secrets through \`ctx.secret("NAME")\`.`,
+  `  through \`params\`.`,
   `- Every change takes an \`intent\`. Write one line saying why. This flow's`,
   '  history reads it back.',
 ].join('\n')

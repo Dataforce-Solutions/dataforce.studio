@@ -148,7 +148,7 @@ function onUpdateSettings(next: FlowSettings): void {
   toast.add({
     severity: 'secondary',
     summary: 'update-settings',
-    detail: `reactivity ${next.reactivity} (${next.autoThresholdSeconds}s) · on env change: ${next.onEnvChange}`,
+    detail: `reactivity ${next.reactivity} (${next.autoThresholdSeconds}s)`,
     life: 2500,
   })
 }

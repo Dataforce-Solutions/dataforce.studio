@@ -68,8 +68,6 @@ export interface FlowOps {
   connect: () => Promise<ConnectPrompt>
   evaluate: (code: string, branch: string) => Promise<EvalResult>
   saveSettings: (settings: Partial<FlowSettingsReport>) => Result<'settings.set'>
-  addPackages: (packages: string[]) => Result<'env.add'>
-  removePackages: (packages: string[]) => Result<'env.remove'>
   restartKernel: () => Result<'kernel.restart'>
 }
 
@@ -205,20 +203,6 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
     // Config rather than history — which is why it carries no intent and lands
     // in `flow.yaml` instead of the journal.
     saveSettings: (settings) => session.request('settings.set', { flow: flow(), ...settings }),
-
-    addPackages: (packages) =>
-      session.request('env.add', {
-        flow: flow(),
-        packages,
-        intent: `added ${packages.join(', ')} to the workspace env`,
-      }),
-
-    removePackages: (packages) =>
-      session.request('env.remove', {
-        flow: flow(),
-        packages,
-        intent: `removed ${packages.join(', ')} from the workspace env`,
-      }),
 
     restartKernel: () => session.request('kernel.restart', { flow: flow() }),
   }

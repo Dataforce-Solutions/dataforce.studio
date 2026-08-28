@@ -52,7 +52,7 @@ Not connected? Every tool is also a verb: `lumlflow context`, `lumlflow status`,
 - `ctx.tracker` records a run through `log_param(s)` and `log_metric(s)`.
   Return `ctx.tracker.record` as an output to store it as an `experiment`.
 - Cells are non-interactive. `input()` fails immediately. Take values through
-  `params`, and secrets through `ctx.secret("NAME")`.
+  `params`.
 - Each run gets a scratch working directory. Return every file you want kept as
   a declared output.
 

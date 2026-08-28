@@ -33,8 +33,6 @@ class Link(Protocol):
 
     def notify(self, method: str, params: dict[str, Any]) -> None: ...
 
-    def request(self, method: str, params: dict[str, Any]) -> Any: ...
-
     def stop(self) -> None: ...
 
 
@@ -50,7 +48,6 @@ class Kernel:
             workspace_dir=workspace_dir,
             registry=self.registry,
             emit=link.notify,
-            ask_secret=self._secret,
         )
         self.methods: dict[str, Callable[[dict[str, Any]], Any]] = {
             "handshake": self.handshake,
@@ -143,14 +140,6 @@ class Kernel:
         self.stopped.set()
         self._link.stop()
         return {"ok": True}
-
-    def _secret(self, name: str) -> str:
-        value = self._link.request("secret_get", {"name": name})
-        if isinstance(value, dict):
-            value = value.get("value")
-        if not isinstance(value, str):
-            raise KeyError(f"no secret named `{name}` is set for this workspace")
-        return value
 
     def _is_workspace_code(self, path: Path) -> bool:
         if any(marker in path.parts for marker in _VENV_MARKERS):

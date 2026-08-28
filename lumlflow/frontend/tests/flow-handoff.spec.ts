@@ -88,7 +88,6 @@ const ENV = {
     {
       flow: 'churn',
       kernel: 'running' as const,
-      policy: 'ask' as const,
       restart_required: false,
       behind: [],
     },
@@ -138,7 +137,6 @@ function reads(overrides: Handlers = {}): Handlers {
       settings: {
         reactivity: params.reactivity ?? 'auto',
         eager_cost_threshold_s: params.eager_cost_threshold_s ?? 5,
-        env_policy: params.env_policy ?? 'ask',
       },
     }),
     set_focus: (params) => ({
@@ -502,72 +500,41 @@ describe('the scratch REPL reads the viewed branch', () => {
   })
 })
 
-// --- env ops and the flow's settings ------------------------------------------
+// --- packages and the flow's settings -----------------------------------------
 
-describe('the packages panel drives the workspace env', () => {
-  it('adds through the daemon and re-reads what the lockfile now pins', async () => {
+describe('the packages panel and settings', () => {
+  it('lists packages without package-manager controls', async () => {
     const { wrapper, live } = await workbench()
 
     await openPanel(wrapper, 'packages')
-    await wrapper.find('input[aria-label="add packages"]').setValue('lightgbm')
-    await settle()
-    await clickText(wrapper, 'add')
 
-    expect(asked(live, 'env.add')).toEqual([
-      {
-        flow: FLOW,
-        packages: ['lightgbm'],
-        intent: 'added lightgbm to the workspace env',
-      },
-    ])
-    // Re-read after the install: once at mount, once because it moved.
-    expect(asked(live, 'env.status')).toHaveLength(2)
+    expect(wrapper.text()).toContain('pandas')
+    expect(wrapper.find('input[aria-label="add packages"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="remove pandas"]').exists()).toBe(false)
+    expect(asked(live, 'env.status')).toHaveLength(1)
+    expect(asked(live, 'env.add')).toEqual([])
+    expect(asked(live, 'env.remove')).toEqual([])
     wrapper.unmount()
   })
 
-  it('removes the package the row names', async () => {
-    const { wrapper, live } = await workbench()
-
-    await openPanel(wrapper, 'packages')
-    const remove = wrapper
-      .findAll('button')
-      .find((node) => node.attributes('aria-label') === 'remove pandas')!
-    await remove.trigger('click')
-    await settle()
-
-    expect(asked(live, 'env.remove')).toEqual([
-      {
-        flow: FLOW,
-        packages: ['pandas'],
-        intent: 'removed pandas from the workspace env',
-      },
-    ])
-    wrapper.unmount()
-  })
-
-  it('writes the env-change policy and renders the daemon’s answer', async () => {
+  it('writes reactivity and renders the daemon’s answer', async () => {
     const { wrapper, live } = await workbench()
     await openPanel(wrapper, 'settings')
-    // Driven through the panel's own contract: what a PrimeVue overlay does to
-    // a click is its business, and the settings the panel emits are the page's.
     const settings = wrapper.findComponent(PanelSettings)
-    expect(settings.props('settings')).toMatchObject({ onEnvChange: 'ask' })
+    expect(settings.props('settings')).toMatchObject({ reactivity: 'auto' })
 
-    settings.vm.$emit('update', { ...settings.props('settings'), onEnvChange: 'restart' })
+    settings.vm.$emit('update', { ...settings.props('settings'), reactivity: 'lazy' })
     await settle()
 
-    // The panel says "restart automatically"; `flow.yaml` calls it `auto`.
     expect(asked(live, 'settings.set')).toEqual([
       {
         flow: FLOW,
-        reactivity: 'auto',
+        reactivity: 'lazy',
         eager_cost_threshold_s: 5,
-        env_policy: 'auto',
       },
     ])
-    // Rendered back off the daemon's answer, not off the click.
-    expect(settings.props('settings')).toMatchObject({ onEnvChange: 'restart' })
-    expect(wrapper.text()).toContain('restart automatically')
+    expect(settings.props('settings')).toMatchObject({ reactivity: 'lazy' })
+    expect(wrapper.text()).not.toContain('on env change')
     wrapper.unmount()
   })
 
@@ -575,7 +542,7 @@ describe('the packages panel drives the workspace env', () => {
     const { wrapper, live } = await workbench({
       handlers: {
         'settings.set': () => {
-          throw new FlowApiError('`restart` is not an env policy', { status: 400 })
+          throw new FlowApiError('`lazy` was refused', { status: 400 })
         },
       },
     })

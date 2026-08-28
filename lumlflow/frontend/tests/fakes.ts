@@ -112,7 +112,7 @@ export function flowStatus(overrides: Partial<FlowStatus> = {}): FlowStatus {
     agent: null,
     unwritten: [],
     kernel: { state: 'running', restart_required: false, behind: [] },
-    settings: { reactivity: 'auto', eager_cost_threshold_s: 5, env_policy: 'ask' },
+    settings: { reactivity: 'auto', eager_cost_threshold_s: 5 },
     cells: [],
     disk_bytes: 4096,
     hygiene: [],

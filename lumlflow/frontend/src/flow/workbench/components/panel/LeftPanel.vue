@@ -96,10 +96,7 @@
           <AccordionContent :pt="CONTENT_PT">
             <PackagesPanel
               :env="env"
-              :busy="envBusy"
               @restart-kernel="emit('restart-kernel')"
-              @add-packages="emit('add-packages', $event)"
-              @remove-package="emit('remove-package', $event)"
             />
           </AccordionContent>
         </AccordionPanel>
@@ -142,8 +139,7 @@ import PanelSettings from './PanelSettings.vue'
 /**
  * The left panel, scoped to ONE viewed branch: identifier, current agent task,
  * the inventory lenses (all over the same cells — never a second store), and
- * the two settings that are real. Switching the viewed branch re-scopes all of
- * it.
+ * the flow settings. Switching the viewed branch re-scopes all of it.
  */
 const props = defineProps<{
   branches: BranchInfo[]
@@ -155,8 +151,6 @@ const props = defineProps<{
   journal: JournalEntry[]
   /** Head entries that landed while this browser was away — frozen by the page. */
   behind?: number
-  /** An env op is in flight: uv is running and a second one would race it. */
-  envBusy?: boolean
   /** A branch op is in flight — the timeline's verbs wait rather than race it. */
   branchBusy?: boolean
   /** The prompt that pairs an agent, once the daemon has answered for it. */
@@ -175,8 +169,6 @@ const emit = defineEmits<{
   'summarize-branch': []
   'update-settings': [settings: FlowSettings]
   'restart-kernel': []
-  'add-packages': [packages: string[]]
-  'remove-package': [name: string]
 }>()
 
 /**

@@ -119,12 +119,8 @@ def test_the_record_is_a_copy_a_cell_cannot_write_back_through(tmp_path):
     assert ctx.tracker.record["metrics"] == {"auc": 0.91}
 
 
-def test_a_secret_is_asked_for_by_name_and_never_held(tmp_path):
-    asked: list[str] = []
-    ctx = _ctx(tmp_path, ask_secret=lambda name: asked.append(name) or "sk-live-1")
-
-    assert ctx.secret("API_KEY") == "sk-live-1"
-    assert asked == ["API_KEY"]
+def test_ctx_has_no_secret_channel(tmp_path: Path) -> None:
+    assert not hasattr(_ctx(tmp_path), "secret")
 
 
 def _ctx(
@@ -133,7 +129,6 @@ def _ctx(
     params: dict | None = None,
     scratch: Path | None = None,
     observe=lambda fact, detail: None,
-    ask_secret=lambda name: "",
 ) -> Ctx:
     return Ctx(
         branch="main",
@@ -143,5 +138,4 @@ def _ctx(
         params=params or {},
         scratch=scratch or tmp_path,
         observe=observe,
-        ask_secret=ask_secret,
     )

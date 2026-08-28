@@ -497,7 +497,6 @@ export interface FlowSettings {
   reactivity: 'lazy' | 'auto'
   /** Assets cheaper than this auto-materialize when reactivity is 'auto'. */
   autoThresholdSeconds: number
-  onEnvChange: 'ask' | 'restart' | 'never'
 }
 
 // ---------------------------------------------------------------------------

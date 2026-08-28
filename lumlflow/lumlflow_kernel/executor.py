@@ -38,15 +38,12 @@ from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
 
 SCRATCH_DIRNAME = "scratch"
-NON_INTERACTIVE_HINT = (
-    "cells are non-interactive — take values via `params`, secrets via `ctx`"
-)
+NON_INTERACTIVE_HINT = "cells are non-interactive — take values via `params`"
 
 _CACHE_ENTRIES = 8
 _SAFE_ID = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
 
 Emit = Callable[[str, dict[str, Any]], None]
-AskSecret = Callable[[str], str]
 
 
 class Cancelled(BaseException):
@@ -91,13 +88,11 @@ class Executor:
         workspace_dir: Path,
         registry: Registry,
         emit: Emit,
-        ask_secret: AskSecret,
     ) -> None:
         self._flow_dir = flow_dir
         self._workspace_dir = workspace_dir
         self._registry = registry
         self._emit = emit
-        self._ask_secret = ask_secret
         store = flow_dir / ".lumlflow"
         self._values = Cas(store / "values")
         self._previews = Cas(store / "previews")
@@ -254,7 +249,6 @@ class Executor:
             params=params,
             scratch=scratch,
             observe=lambda fact, detail: self._observe(observed, version, fact, detail),
-            ask_secret=self._ask_secret,
         )
 
     def _observe(

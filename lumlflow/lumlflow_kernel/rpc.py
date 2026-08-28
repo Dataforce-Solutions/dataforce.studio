@@ -1,7 +1,6 @@
 """JSON-RPC over one local socket, line-delimited.
 
-The link is bidirectional: the daemon calls in, the kernel emits events, and
-`secret_get` is a request the kernel itself makes. The reader loop owns the
+The daemon calls in and the kernel emits events. The reader loop owns the
 socket's read side and never blocks on user code — long methods run on one
 worker thread (the executor is serial by design), so `cancel` and `shutdown`
 are answered while a run still holds that thread.
@@ -21,8 +20,6 @@ PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INTERNAL_ERROR = -32603
-
-_REQUEST_TIMEOUT_S = 30.0
 
 
 class RpcError(Exception):
@@ -77,10 +74,7 @@ class Connection:
         self._reader = sock.makefile("rb")
         self._writer = sock.makefile("wb")
         self._write_lock = threading.Lock()
-        self._id_lock = threading.Lock()
         self._work: queue.Queue[tuple[dict[str, Any], Handler] | None] = queue.Queue()
-        self._pending: dict[int, _Pending] = {}
-        self._next_id = 0
         self._stopped = threading.Event()
 
     def serve(self, handler: Handler) -> None:
@@ -98,37 +92,11 @@ class Connection:
             self._stopped.set()
             self._work.put(None)
             worker.join(timeout=5.0)
-            self._fail_pending("the kernel link closed")
             self.close()
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
         """An event. Notifications carry no id and are never answered."""
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
-
-    def request(
-        self,
-        method: str,
-        params: dict[str, Any],
-        *,
-        timeout: float = _REQUEST_TIMEOUT_S,
-    ) -> Any:
-        """Call the daemon and wait — the one direction user code triggers."""
-        with self._id_lock:
-            self._next_id += 1
-            request_id = self._next_id
-        pending = _Pending()
-        self._pending[request_id] = pending
-        self._send(
-            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
-        )
-        try:
-            if not pending.done.wait(timeout):
-                raise RpcError(f"the daemon did not answer `{method}` in time")
-            if pending.error is not None:
-                raise RpcError(str(pending.error.get("message", "the daemon refused")))
-            return pending.result
-        finally:
-            self._pending.pop(request_id, None)
 
     def stop(self) -> None:
         """End `serve` after the in-flight message is answered."""
@@ -156,8 +124,8 @@ class Connection:
             self._send_error(None, RpcError("unreadable message", code=INVALID_REQUEST))
             return
         if "method" not in message:
-            self._answer_pending(message)
-        elif message.get("method") in handler.inline or "id" not in message:
+            return
+        if message.get("method") in handler.inline or "id" not in message:
             self._invoke(message, handler)
         else:
             self._work.put((message, handler))
@@ -199,20 +167,6 @@ class Connection:
             if request_id is not None:
                 self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
-    def _answer_pending(self, message: dict[str, Any]) -> None:
-        request_id = message.get("id")
-        pending = self._pending.get(request_id) if isinstance(request_id, int) else None
-        if pending is None:
-            return
-        pending.result = message.get("result")
-        pending.error = message.get("error")
-        pending.done.set()
-
-    def _fail_pending(self, message: str) -> None:
-        for pending in list(self._pending.values()):
-            pending.error = {"message": message}
-            pending.done.set()
-
     def _send_error(self, request_id: Any, error: RpcError) -> None:
         # Nothing to answer: a notification carries no id, and a line that did
         # not parse carries nothing at all.
@@ -233,10 +187,3 @@ class Connection:
                 # land in the store on the next connection; losing the event
                 # stream is not a reason to kill user code.
                 self._stopped.set()
-
-
-class _Pending:
-    def __init__(self) -> None:
-        self.done = threading.Event()
-        self.result: Any = None
-        self.error: dict[str, Any] | None = None

@@ -10,20 +10,14 @@ from lumlflow_kernel.kernel import Kernel
 
 
 class FakeLink:
-    """Stands in for the daemon: keeps every event, answers `secret_get`."""
+    """Stands in for the daemon and keeps every event."""
 
-    def __init__(self, secrets: dict[str, str] | None = None) -> None:
+    def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, Any]]] = []
-        self.requests: list[tuple[str, dict[str, Any]]] = []
-        self.secrets = dict(secrets or {})
         self.stopped = False
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
         self.events.append((method, params))
-
-    def request(self, method: str, params: dict[str, Any]) -> Any:
-        self.requests.append((method, params))
-        return {"value": self.secrets.get(str(params.get("name")))}
 
     def stop(self) -> None:
         self.stopped = True
@@ -112,7 +106,6 @@ def stored_log(kernel: Kernel, record: dict[str, Any]) -> bytes:
 
 
 def store_blobs(kernel: Kernel) -> list[bytes]:
-    """Every blob the store holds — what a leak sweep reads."""
     store = kernel.flow_dir / ".lumlflow"
     return [
         path.read_bytes()

@@ -8,7 +8,6 @@ cell reached for.
 
 from __future__ import annotations
 
-import json
 import os
 import threading
 import time
@@ -18,10 +17,8 @@ import pytest
 
 from lumlflow_kernel.executor import NON_INTERACTIVE_HINT
 from tests.kernel.helpers import (
-    FakeLink,
     make_kernel,
     run,
-    store_blobs,
     stored_log,
     stored_preview,
     stored_value,
@@ -127,28 +124,6 @@ def test_reading_the_branch_makes_the_run_identity_dependent(tmp_path):
     assert record["external"] is False
     assert stored_value(kernel, record, "where") == b"ran on exp/lr-sweep at step 12"
     assert link.named("identity_access")
-
-
-def test_a_secret_reaches_the_cell_and_nothing_the_store_keeps(tmp_path):
-    secret = "sk-live-DEADBEEF"
-    kernel, link = make_kernel(tmp_path, link=FakeLink(secrets={"API_KEY": secret}))
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx):
-            key = ctx.secret("API_KEY")
-            print("using a key of", len(key), "characters")
-            return {"length": {"characters": len(key)}}
-        """,
-        produces={"length": "asset"},
-    )
-
-    assert record["state"] == "succeeded"
-    assert link.requests == [("secret_get", {"name": "API_KEY"})]
-    assert secret.encode() not in b"".join(store_blobs(kernel))
-    assert secret not in json.dumps(link.events)
-    assert secret not in json.dumps(record)
-    assert b"16 characters" in stored_log(kernel, record)
 
 
 def test_asking_for_input_fails_at_once_with_the_prompt_above_the_hint(tmp_path):

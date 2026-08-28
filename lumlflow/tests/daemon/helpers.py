@@ -134,21 +134,6 @@ def write_lock(root: Path, pins: dict[str, str]) -> Path:
     return write_file(root / envs.LOCK_FILE, _lock_body(pins))
 
 
-def uv_that_locks(tmp_path: Path, pins: dict[str, str], monkeypatch: Any) -> Path:
-    """A uv that records the call and leaves the lockfile a real one would.
-
-    Returns the log, so a test can say which verb reached it.
-    """
-    log = tmp_path / "uv.log"
-    stub_uv(
-        tmp_path / "bin",
-        f'#!/bin/sh\necho "$@" >> "{log}"\n'
-        f"cat > \"$PWD/{envs.LOCK_FILE}\" <<'LOCKFILE'\n{_lock_body(pins)}\nLOCKFILE\n",
-        monkeypatch,
-    )
-    return log
-
-
 def _lock_body(pins: dict[str, str]) -> str:
     return "version = 1\n" + "".join(
         f'\n[[package]]\nname = "{name}"\nversion = "{version}"\n'

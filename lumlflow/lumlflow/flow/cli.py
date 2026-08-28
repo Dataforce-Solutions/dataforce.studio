@@ -46,7 +46,6 @@ agent_app = typer.Typer(
     help="Register an agent session by hand. An MCP client needs none of this.",
     no_args_is_help=True,
 )
-secrets_app = typer.Typer(help="Secrets a cell can ask for.", no_args_is_help=True)
 env_app = typer.Typer(help="The workspace's packages.", no_args_is_help=True)
 flow_app = typer.Typer(help="Manage flows in this workspace.", no_args_is_help=True)
 # Plumbing, kept reachable for tests and power users and shown to nobody: the
@@ -109,7 +108,6 @@ def register(app: typer.Typer) -> None:
     # nobody. `variant` is the platform's word for something else.
     app.add_typer(lane_app, name="variant", hidden=True)
     app.add_typer(agent_app, name="agent")
-    app.add_typer(secrets_app, name="secrets")
     app.add_typer(env_app, name="env")
     app.add_typer(flow_app, name="flow")
     app.add_typer(daemon_app, name="daemon", hidden=True)
@@ -801,64 +799,6 @@ def agent_exec(
     finally:
         _call("agent.end", {"actor": actor}, flow=flow, as_json=False)
     raise typer.Exit(code)
-
-
-@secrets_app.command("set")
-def secrets_set(
-    name: str = typer.Argument(..., help="The name a cell asks for."),
-    value: str | None = typer.Option(None, "--value", help="Prompted for when absent."),
-    flow: str | None = _FLOW,
-    as_json: bool = _JSON,
-) -> None:
-    """Store a secret for this flow. Its cells read it. Nothing else does."""
-    params = {"name": name, "value": value or typer.prompt(name, hide_input=True)}
-    result = _call("secrets.set", params, flow=flow, as_json=as_json)
-    stored = result["name"]
-    _emit(
-        result,
-        as_json,
-        [f'`{stored}` is set. a cell reaches it with ctx.secret("{stored}")'],
-    )
-
-
-@secrets_app.command("list")
-def secrets_list(flow: str | None = _FLOW, as_json: bool = _JSON) -> None:
-    """The names cells can ask for. Values are never shown."""
-    result = _call("secrets.list", {}, flow=flow, as_json=as_json)
-    names = result.get("names") or []
-    _emit(result, as_json, [*names] if names else ["no secrets set here"])
-
-
-@env_app.command("add")
-def env_add(
-    packages: list[str] = typer.Argument(..., help="Packages, as uv takes them."),
-    intent: str | None = _INTENT,
-    as_json: bool = _JSON,
-) -> None:
-    """Install packages into the workspace env. Every flow here shares it."""
-    result = _call(
-        "env.add",
-        {"packages": packages, "intent": intent},
-        as_json=as_json,
-        scoped=False,
-    )
-    _emit(result, as_json, render.env)
-
-
-@env_app.command("remove")
-def env_remove(
-    packages: list[str] = typer.Argument(..., help="Packages to drop."),
-    intent: str | None = _INTENT,
-    as_json: bool = _JSON,
-) -> None:
-    """Take packages out of the workspace env."""
-    result = _call(
-        "env.remove",
-        {"packages": packages, "intent": intent},
-        as_json=as_json,
-        scoped=False,
-    )
-    _emit(result, as_json, render.env)
 
 
 @env_app.command("status")

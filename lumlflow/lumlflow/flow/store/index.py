@@ -36,7 +36,6 @@ from lumlflow.flow.store.models import (
     Renamed,
     Rewound,
     RunRecorded,
-    SecretRefAdded,
     SelectionSet,
     Transaction,
     VersionFlag,
@@ -733,7 +732,7 @@ class Index:
                 )
             # The marker rides the transaction row itself — there is no state
             # for it to fold into, which is the whole point of a marker.
-            case SecretRefAdded() | Renamed() | Checkpointed():
+            case Renamed() | Checkpointed():
                 pass
 
     def _accept_cell(self, op: CellAccepted, step: int) -> None:

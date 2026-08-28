@@ -6,16 +6,12 @@ invalidation: what already ran keeps the pins it ran under, and the only thing
 an install moves is what the next kernel imports.
 """
 
-import asyncio
 import sys
-import time
-from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from lumlflow.flow.daemon import envs
-from lumlflow.flow.daemon.hub import FlowSession
 from lumlflow.flow.errors import EnvError
 from lumlflow.flow.store.models import EnvChanged, RunRecorded
 
@@ -28,7 +24,6 @@ from tests.daemon.helpers import (
     make_workspace,
     ops_of,
     stub_uv,
-    uv_that_locks,
     write_cell,
     write_file,
     write_lock,
@@ -265,23 +260,6 @@ class Pinned:
         return {"reading": {"auc": 0.5}}
 """
 
-RELEASE_FILE = "release"
-
-HELD_CELL = f"""
-class Held:
-    \"\"\"Holds the kernel's worker until the test lets go of it.\"\"\"
-    produces = {{"done": "asset"}}
-
-    def materialize(self, ctx):
-        import time
-
-        release = ctx.workspace_dir / "{RELEASE_FILE}"
-        deadline = time.monotonic() + 30
-        while not release.exists() and time.monotonic() < deadline:
-            time.sleep(0.02)
-        return {{"done": True}}
-"""
-
 # Whatever the workspace actually has installed, this is not it: the drift a
 # kernel is measured against is the lockfile it started under against the one
 # there now, and both are read from the file.
@@ -289,254 +267,68 @@ PINNED_BEFORE = "1.0.0"
 PINNED_AFTER = "9.9.9"
 
 
-class TestInstall:
-    """`env add` while a kernel is up: the banner, and nothing else."""
-
-    @stubbed_uv
-    async def test_an_install_leaves_results_alone_and_asks_for_a_restart(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+class TestExternalChange:
+    async def test_a_change_leaves_results_alone_and_asks_for_a_restart(
+        self, tmp_path: Path
+    ) -> None:
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": PINNED_BEFORE})
         write_cell(root / "churn.flow", "rows", FRAME_CELL)
-        log = uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
 
         async with daemon_api(root) as api:
             await api.run({"flow": "churn", "target": "rows"})
-            ran_under = ops_of(api.hub.session("churn"), RunRecorded)[0].env_lock_hash
+            session = api.hub.session("churn")
+            assert session.kernel.handshake is not None
+            pid = session.kernel.handshake["pid"]
+            ran_under = ops_of(session, RunRecorded)[0].env_lock_hash
 
-            await api.env_add({"packages": ["pandas"], "intent": "faster frames"})
+            write_lock(root, {"pandas": PINNED_AFTER})
             status = await api.status({})
+            reported = await api.env_status({})
             listed = await api.cells_list({"flow": "churn"})
-            runs = ops_of(api.hub.session("churn"), RunRecorded)
-            moved = ops_of(api.hub.session("churn"), EnvChanged)[-1]
+            runs = ops_of(session, RunRecorded)
+            moved = ops_of(session, EnvChanged)[-1]
 
-        assert log.read_text("utf-8").strip() == "add pandas"
-        # No cache nuke: the run that already happened keeps the pins it ran
-        # under, and nothing about it went stale.
+            assert session.kernel.handshake is not None
+            assert session.kernel.handshake["pid"] == pid
+            await api.kernel_restart({"flow": "churn"})
+            restarted = await api.env_status({})
+
         assert [run.env_lock_hash for run in runs] == [ran_under]
         assert ran_under != envs.lock_hash(envs.packages(root))
         assert [entry["state"] for entry in listed["cells"]] == ["synced"]
+        assert [entry["older_env"] for entry in listed["cells"]] == [True]
         assert moved.summary == f"updated pandas {PINNED_BEFORE} → {PINNED_AFTER}"
-        # The kernel imported pandas, so it is holding code the lockfile has
-        # moved past — the one kernel control that surfaces.
         kernel = flow_named(status, "churn")["kernel"]
         assert (kernel["state"], kernel["restart_required"], kernel["behind"]) == (
             "running",
             True,
             ["pandas"],
         )
-        # And the result says which side of the install it was computed on.
-        assert [entry["older_env"] for entry in listed["cells"]] == [True]
-
-    @stubbed_uv
-    async def test_a_package_the_kernel_never_imported_needs_no_restart(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """A restart is worth raising only over code already in `sys.modules`.
-        Everything else the next run imports as installed."""
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"lightgbm": PINNED_BEFORE})
-        write_cell(root / "churn.flow", "score", SCORE_CELL)
-        uv_that_locks(tmp_path, {"lightgbm": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            await api.run({"flow": "churn", "target": "score"})
-            env = await api.env_add({"packages": ["lightgbm"]})
-
-        assert flow_named(env, "churn") == {
+        assert flow_named(reported, "churn") == {
             "flow": "churn",
             "kernel": "running",
-            "policy": "ask",
-            "restart_required": False,
-            "behind": [],
+            "restart_required": True,
+            "behind": ["pandas"],
         }
+        assert flow_named(restarted, "churn")["restart_required"] is False
 
-    @stubbed_uv
-    async def test_only_a_cell_that_declared_the_env_reruns_after_an_install(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """The env is provenance, not a memo-key ingredient — except where a
-        cell said otherwise."""
+    async def test_only_a_cell_that_declared_the_env_reruns_after_a_change(
+        self, tmp_path: Path
+    ) -> None:
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": PINNED_BEFORE})
         write_cell(root / "churn.flow", "score", SCORE_CELL)
         write_cell(root / "churn.flow", "pinned", ENV_SENSITIVE_CELL)
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
 
         async with daemon_api(root) as api:
             for slug in ("score", "pinned"):
                 await api.run({"flow": "churn", "target": slug})
-            await api.env_add({"packages": ["pandas"]})
+            write_lock(root, {"pandas": PINNED_AFTER})
             again = {
                 slug: await api.run({"flow": "churn", "target": slug})
                 for slug in ("score", "pinned")
             }
 
-        # Pruned, not merely cached: the ordinary cell's key never moved, so
-        # there is nothing to serve it from — there is nothing to do.
         assert again["score"]["pruned"] == ["score"]
         assert again["pinned"]["executed"] == ["pinned"]
-
-    @stubbed_uv
-    async def test_no_flow_is_open_yet_and_the_install_still_lands(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """A flow picks the env up when it opens — the same lazy path shared
-        code takes — so nothing has to be running for `env add` to work."""
-        root = make_workspace(tmp_path / "project")
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            env = await api.env_add({"packages": ["pandas"]})
-            (recorded,) = ops_of(api.hub.session("churn"), EnvChanged)
-
-        assert env["packages"] == [{"name": "pandas", "version": PINNED_AFTER}]
-        assert env["flows"] == []
-        assert recorded.packages == {"pandas": PINNED_AFTER}
-
-    @stubbed_uv
-    async def test_removing_a_package_is_the_same_transaction_in_reverse(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"pandas": PINNED_BEFORE, "scipy": "1.11.0"})
-        log = uv_that_locks(tmp_path, {"pandas": PINNED_BEFORE}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            await api.status({})
-            await api.env_remove({"packages": ["scipy"]})
-            moved = ops_of(api.hub.session("churn"), EnvChanged)[-1]
-
-        assert log.read_text("utf-8").strip() == "remove scipy"
-        assert moved.summary == "removed scipy"
-
-    async def test_naming_no_package_is_refused_before_uv_is_reached(
-        self, tmp_path: Path
-    ):
-        root = make_workspace(tmp_path / "project")
-
-        async with daemon_api(root) as api:
-            with pytest.raises(EnvError) as failed:
-                await api.env_add({"packages": []})
-
-        assert "name a package" in str(failed.value)
-
-    @stubbed_uv
-    async def test_the_banner_answers_while_a_run_is_in_flight(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """An install landing mid-run is the case this is for. A status call
-        that queued behind a ten-minute cell would put a spinner where the
-        banner goes, so asking what the kernel imported never waits on it."""
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"pandas": PINNED_BEFORE})
-        write_cell(root / "churn.flow", "rows", FRAME_CELL)
-        write_cell(root / "churn.flow", "held", HELD_CELL)
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            await api.run({"flow": "churn", "target": "rows"})
-            session = api.hub.session("churn")
-            held = asyncio.create_task(api.run({"flow": "churn", "target": "held"}))
-            try:
-                await _until(lambda: session.queue.busy, "the run never started")
-                env = await api.env_add({"packages": ["pandas"]})
-            finally:
-                (root / RELEASE_FILE).touch()
-                await held
-
-        assert flow_named(env, "churn")["restart_required"] is True
-
-    @stubbed_uv
-    async def test_a_run_in_flight_records_the_pins_it_started_under(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """The kernel imported before the install landed, so that is what the
-        cell computed under. Recording the pins the install left would take the
-        "computed under an older env" badge off a result that predates it."""
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"pandas": PINNED_BEFORE})
-        started_under = envs.lock_hash(envs.packages(root))
-        write_cell(root / "churn.flow", "held", HELD_CELL)
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            session = api.hub.session("churn")
-            held = asyncio.create_task(api.run({"flow": "churn", "target": "held"}))
-            try:
-                await _until(lambda: session.queue.busy, "the run never started")
-                await api.env_add({"packages": ["pandas"]})
-            finally:
-                (root / RELEASE_FILE).touch()
-                await held
-            (run,) = ops_of(session, RunRecorded)
-            listed = await api.cells_list({"flow": "churn"})
-
-        assert run.env_lock_hash == started_under
-        assert [entry["older_env"] for entry in listed["cells"]] == [True]
-
-
-class TestRestartPolicy:
-    """Three policies, and a banner under all of them."""
-
-    @stubbed_uv
-    @pytest.mark.parametrize("policy", ["ask", "never"])
-    async def test_a_kernel_is_never_restarted_out_from_under_the_user(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, policy: str
-    ):
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"pandas": PINNED_BEFORE})
-        write_cell(root / "churn.flow", "rows", FRAME_CELL)
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            await api.run({"flow": "churn", "target": "rows"})
-            session = api.hub.session("churn")
-            session.store.manifest.settings.env_policy = policy  # type: ignore[assignment]
-            pid = _kernel_pid(session)
-
-            env = await api.env_add({"packages": ["pandas"]})
-
-            assert _kernel_pid(session) == pid
-            assert flow_named(env, "churn")["restart_required"] is True
-
-    @stubbed_uv
-    async def test_the_auto_policy_applies_the_install_to_the_kernel(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        root = make_workspace(tmp_path / "project")
-        write_lock(root, {"pandas": PINNED_BEFORE})
-        write_cell(root / "churn.flow", "rows", FRAME_CELL)
-        uv_that_locks(tmp_path, {"pandas": PINNED_AFTER}, monkeypatch)
-
-        async with daemon_api(root) as api:
-            await api.run({"flow": "churn", "target": "rows"})
-            session = api.hub.session("churn")
-            session.store.manifest.settings.env_policy = "auto"
-            pid = _kernel_pid(session)
-
-            env = await api.env_add({"packages": ["pandas"]})
-
-            # A different process, up and holding the packages the lockfile now
-            # names — which is the whole of what "apply the install" means.
-            assert _kernel_pid(session) != pid
-            assert flow_named(env, "churn") == {
-                "flow": "churn",
-                "kernel": "running",
-                "policy": "auto",
-                "restart_required": False,
-                "behind": [],
-            }
-
-
-def _kernel_pid(session: FlowSession) -> int:
-    assert session.kernel.handshake is not None
-    return int(session.kernel.handshake["pid"])
-
-
-async def _until(ready: Callable[[], bool], complaint: str, seconds: float = 10.0):
-    deadline = time.monotonic() + seconds
-    while not ready():
-        assert time.monotonic() < deadline, complaint
-        await asyncio.sleep(0.01)

@@ -1099,11 +1099,11 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Delete `daemon/uploads.py`, `api.promote`, `uploads.sync()` on `run`, `hub._scaffold_sdk`, `envs.ensure_sdk`, `FlowSession.declares_native`, `LumlUploader` wiring in `main.py`; delete the two upload ops, `OutputRecord.luml_ref` and the `uploaded` field `queries` derives from it
   - [x] Remove the CLI `promote` verb, the UI *promote to LUML* item, the `uploaded` badge and its model field, and the `uploaded` chips `useCompare` feeds `ArtifactLinks.vue` (`ExpandDrawer` has no cloud link to remove); leave `ArtifactLinks.vue` in place, rendering its rows without chips, for the tracker rewrite
   - [x] Delete `tests/daemon/test_uploads.py` and the five `ensure_sdk` tests in `test_envs.py`; add a test that a `model` run journals no upload and touches no lockfile
-- [ ] Remove secrets, env writes and env_policy
-  - [ ] Delete `daemon/secrets.py`, `api.secrets_*`, `lumlflow secrets`, `ctx.secret`, `secret_get` and the kernel→daemon request channel it rode on (`kernel_proc._serve` and the kernel's request side), `SecretRefAdded`, `Ctx.secret` in `lumlflow_typing`
-  - [ ] Delete `envs.add/remove`, `api.env_add/env_remove`, `lumlflow env add/remove`, the Packages panel add/remove rows
-  - [ ] Delete `env_policy` (setting, `settings.set`, `PanelSettings` control, the `auto` restart path); hard-code the banner-plus-restart behaviour
-  - [ ] Update tests
+- [x] Remove secrets, env writes and env_policy
+  - [x] Delete `daemon/secrets.py`, `api.secrets_*`, `lumlflow secrets`, `ctx.secret`, `secret_get` and the kernel→daemon request channel it rode on (`kernel_proc._serve` and the kernel's request side), `SecretRefAdded`, `Ctx.secret` in `lumlflow_typing`
+  - [x] Delete `envs.add/remove`, `api.env_add/env_remove`, `lumlflow env add/remove`, the Packages panel add/remove rows
+  - [x] Delete `env_policy` (setting, `settings.set`, `PanelSettings` control, the `auto` restart path); hard-code the banner-plus-restart behaviour
+  - [x] Update tests
 - [ ] Remove retired aliases
   - [ ] Delete CLI `fork/switch/tree/archive`, the `variant` group, `--variant/--branch/--unsynced`, `mcp._RETIRED_NAMES` and the `variant` wire aliases; the `daemon` group is untouched here (the one-daemon task unhides `stop` and `status`)
   - [ ] Update `test_cli.py` / `test_mcp.py`

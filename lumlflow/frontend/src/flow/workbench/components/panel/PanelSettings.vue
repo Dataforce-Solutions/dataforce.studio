@@ -29,33 +29,14 @@
       <p class="text-sm text-muted-color">{{ reactivityHint }}</p>
     </div>
 
-    <div class="flex flex-col gap-1.5 px-1.5">
-      <p class="text-sm font-medium">on env change</p>
-      <Select
-        :model-value="settings.onEnvChange"
-        :options="envChangeOptions"
-        option-label="label"
-        option-value="value"
-        size="small"
-        class="w-full"
-        @update:model-value="setEnvPolicy"
-      />
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { InputNumber, Select, SelectButton } from 'primevue'
+import { InputNumber, SelectButton } from 'primevue'
 import type { FlowSettings } from '../../model/types'
 
-/**
- * The two settings that are real. A per-flow policy is set once and read back
- * rarely, so it rides in the panel's accordion, collapsed. Reactivity ships on
- * `auto` and is the only setting here that makes the daemon do anything by
- * itself; the third state, eager, is per-asset and lives on the card. The
- * env-change policy governs third-party packages only.
- */
 const props = defineProps<{ settings: FlowSettings }>()
 
 const emit = defineEmits<{ update: [settings: FlowSettings] }>()
@@ -63,12 +44,6 @@ const emit = defineEmits<{ update: [settings: FlowSettings] }>()
 const reactivityOptions = [
   { label: 'lazy', value: 'lazy' },
   { label: 'auto', value: 'auto' },
-]
-
-const envChangeOptions = [
-  { label: 'ask to restart', value: 'ask' },
-  { label: 'restart automatically', value: 'restart' },
-  { label: 'never', value: 'never' },
 ]
 
 const smallOptions = { pcToggleButton: { root: { class: 'text-sm' } } }
@@ -85,9 +60,5 @@ function setReactivity(value: FlowSettings['reactivity']): void {
 
 function setThreshold(value: number | null): void {
   if (value !== null) emit('update', { ...props.settings, autoThresholdSeconds: value })
-}
-
-function setEnvPolicy(value: FlowSettings['onEnvChange']): void {
-  emit('update', { ...props.settings, onEnvChange: value })
 }
 </script>

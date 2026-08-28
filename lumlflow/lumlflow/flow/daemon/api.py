@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any, get_args
 
-from lumlflow.flow.daemon import connect, envs, handoff, queries, secrets, workspace
+from lumlflow.flow.daemon import connect, envs, handoff, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Focus, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
@@ -30,7 +30,7 @@ from lumlflow.flow.errors import (
 from lumlflow.flow.scheduler.planner import Preflight
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
-from lumlflow.flow.store.models import AgentBegin, AgentEnd, EnvPolicy, Reactivity
+from lumlflow.flow.store.models import AgentBegin, AgentEnd, Reactivity
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 
@@ -85,11 +85,7 @@ class Api:
             "agent.payload": self.agent_payload,
             "agent.connect": self.agent_connect,
             "settings.set": self.settings_set,
-            "secrets.set": self.secrets_set,
-            "secrets.list": self.secrets_list,
             "env.status": self.env_status,
-            "env.add": self.env_add,
-            "env.remove": self.env_remove,
             "run": self.run,
             "eval": self.eval,
             "preflight": self.preflight,
@@ -490,33 +486,9 @@ class Api:
             "rewired": rewired,
         } | _projection(self._reproject(session, branch, actor=actor, force=force))
 
-    async def secrets_set(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Store a secret for this flow. The value is never read back."""
-        session = self.hub.session(_flow_name(params))
-        name = secrets.set_secret(
-            session,
-            str(params.get("name") or ""),
-            str(params.get("value") or ""),
-            actor=_actor(params),
-        )
-        return {"name": name, "names": secrets.names(session)}
-
-    async def secrets_list(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self.hub.session(_flow_name(params))
-        return {"names": secrets.names(session)}
-
     async def env_status(self, params: dict[str, Any]) -> dict[str, Any]:
         """What the workspace pins, and which kernels are running behind it."""
         return await self._env()
-
-    async def env_add(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Put packages in the workspace env. Every flow under it shares them."""
-        await envs.add(self.hub.root, _packages(params))
-        return await self._env_moved(params)
-
-    async def env_remove(self, params: dict[str, Any]) -> dict[str, Any]:
-        await envs.remove(self.hub.root, _packages(params))
-        return await self._env_moved(params)
 
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
         """Check a branch out: rebind the worktree and project its slice."""
@@ -714,10 +686,6 @@ class Api:
             )
         if params.get("eager_cost_threshold_s") is not None:
             settings.eager_cost_threshold_s = float(params["eager_cost_threshold_s"])
-        if params.get("env_policy") is not None:
-            settings.env_policy = _one_of(
-                params["env_policy"], get_args(EnvPolicy), "env policy"
-            )
         session.store.save_manifest()
         # Turning reactivity on, or lifting the threshold, is a decision about
         # the cells that are unsynced right now — not only about the next edit.
@@ -727,7 +695,6 @@ class Api:
             "settings": {
                 "reactivity": settings.reactivity,
                 "eager_cost_threshold_s": settings.eager_cost_threshold_s,
-                "env_policy": settings.env_policy,
             },
         }
 
@@ -859,7 +826,6 @@ class Api:
             "settings": {
                 "reactivity": settings.reactivity,
                 "eager_cost_threshold_s": settings.eager_cost_threshold_s,
-                "env_policy": settings.env_policy,
             },
         }
 
@@ -879,34 +845,11 @@ class Api:
             ],
         }
 
-    async def _env_moved(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Journal what the install did, then apply each flow's restart policy.
-
-        The banner is the floor under every policy: a kernel left holding the
-        old imports is reported as behind whether or not anything restarts it.
-        """
-        envs.sync(
-            self.hub.root,
-            self.hub.opened(here=True),
-            actor=_actor(params),
-            intent=params.get("intent"),
-        )
-        for session in self.hub.opened(here=True):
-            if session.store.manifest.settings.env_policy != "auto":
-                continue
-            # A restart mid-run kills the run. The policy is about applying an
-            # install, not about losing ten minutes of training to one.
-            if session.queue.busy or not await session.kernel.env_drift():
-                continue
-            await session.kernel.restart()
-        return await self._env()
-
     async def _env_flow(self, session: FlowSession) -> dict[str, Any]:
         stale = await session.kernel.env_drift()
         return {
             "flow": session.ref.name,
             "kernel": session.kernel.state,
-            "policy": session.store.manifest.settings.env_policy,
             "restart_required": bool(stale),
             "behind": stale,
         }
@@ -1156,7 +1099,3 @@ def _target(params: dict[str, Any]) -> str:
 def _targets(params: dict[str, Any]) -> list[str]:
     named = [str(name) for name in params.get("targets") or [] if str(name).strip()]
     return named or [_target(params)]
-
-
-def _packages(params: dict[str, Any]) -> list[str]:
-    return [str(name) for name in params.get("packages") or [] if str(name).strip()]

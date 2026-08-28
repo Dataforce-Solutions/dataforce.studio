@@ -23,7 +23,7 @@ import pytest
 import typer.main
 from lumlflow.cli import app
 from lumlflow.flow import render
-from lumlflow.flow.daemon import client, secrets
+from lumlflow.flow.daemon import client
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from typer.testing import CliRunner, Result
@@ -37,7 +37,6 @@ from tests.daemon.helpers import (
     make_workspace,
     no_git_words,
     source_of,
-    uv_that_locks,
     write_cell,
     write_file,
     write_lock,
@@ -409,23 +408,6 @@ def test_a_brief_on_another_branch_does_not_claim_the_agents_files(
     assert "is working here" not in printed.output
 
 
-def test_a_secret_belongs_to_the_flow_whose_history_names_it(
-    cli: Invoke, workspace: Path
-):
-    cli("init", "churn")
-    cli("init", "sales")
-
-    cli("secrets", "set", "API_KEY", "--value", "hunter2", "--flow", "churn")
-    churn = cli("secrets", "list", "--flow", "churn")
-    sales = cli("secrets", "list", "--flow", "sales")
-
-    assert "API_KEY" in churn.output
-    assert "no secrets set here" in sales.output
-    # The value is scoped the same way the names are, so the two agree.
-    assert secrets.get(workspace / "churn.flow", "API_KEY") == "hunter2"
-    assert secrets.get(workspace / "sales.flow", "API_KEY") is None
-
-
 def test_deleting_a_cell_is_per_branch_and_says_so(cli: Invoke, workspace: Path):
     flow = workspace / "churn.flow"
     cli("init", "churn")
@@ -538,42 +520,29 @@ def test_promote_is_not_a_command(cli: Invoke) -> None:
     assert "No such command 'promote'" in removed.output
 
 
-def test_secrets_are_named_but_never_shown(cli: Invoke):
-    cli("init", "churn")
+def test_secrets_and_package_writes_are_not_commands(cli: Invoke) -> None:
+    secret = cli("secrets")
+    added = cli("env", "add", "lightgbm")
+    removed = cli("env", "remove", "pandas")
 
-    stored = cli("secrets", "set", "API_KEY", "--value", "hunter2")
-    listed = cli("secrets", "list")
+    assert secret.exit_code == 2
+    assert "No such command 'secrets'" in secret.output
+    for result, command in ((added, "add"), (removed, "remove")):
+        assert result.exit_code == 2
+        assert f"No such command '{command}'" in result.output
 
-    assert "API_KEY" in stored.output and "hunter2" not in stored.output
-    assert listed.output.strip() == "API_KEY"
 
+def test_env_status_stays_read_only(cli: Invoke, workspace: Path) -> None:
+    write_lock(workspace, {"pandas": "2.2.0"})
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="the uv stub is a POSIX shell script"
-)
-def test_env_verbs_move_the_lockfile_and_name_the_kernel_left_behind(
-    cli: Invoke, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """The install lands, the results stand, and the one thing that has to be
-    said out loud is that the running kernel is holding the older code."""
-    write_lock(workspace, {"pandas": "1.0.0"})
-    log = uv_that_locks(tmp_path, {"pandas": "9.9.9", "lightgbm": "4.5.0"}, monkeypatch)
-    cli("init", "churn")
-    write_cell(workspace / "churn.flow", "rows", FRAME_CELL)
-    cli("run", "rows")
-
-    added = cli("env", "add", "lightgbm", "-m", "trying lightgbm")
     listed = cli("env", "status")
-    status = cli("status")
-    shown = cli("cells", "show", "rows")
+    help_page = cli("env", "--help")
 
-    assert log.read_text("utf-8").strip() == "add lightgbm"
-    assert "lightgbm 4.5.0" in added.output
-    assert "lightgbm 4.5.0" in listed.output
-    assert "restart the kernel to apply `pandas`" in status.output
-    assert "computed under an older env" in shown.output
-    for result in (added, listed, status, shown):
-        _no_internals(result)
+    assert "pandas 2.2.0" in listed.output
+    assert "status" in help_page.output
+    assert "add" not in help_page.output
+    assert "remove" not in help_page.output
+    _no_internals(listed)
 
 
 def test_an_agent_session_brackets_the_command_it_runs(cli: Invoke, workspace: Path):

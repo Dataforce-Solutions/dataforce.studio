@@ -2,7 +2,7 @@
 
 Pinned here is what the daemon reads off a fresh kernel — the handshake it
 records inference facts from, module eviction after a workspace edit, paging a
-stored value, `ctx.secret` travelling back up the link, and shutdown — plus one
+stored value, and shutdown — plus one
 end-to-end pass where a spawned `python -m lumlflow_kernel` runs a cell and
 reports it in events.
 """
@@ -26,7 +26,7 @@ import pytest
 
 from lumlflow_kernel import PROTOCOL_VERSION
 from lumlflow_kernel.executor import CellError
-from tests.kernel.helpers import FakeLink, make_kernel, run, stored_value
+from tests.kernel.helpers import make_kernel, run, stored_value
 
 _TIMEOUT_S = 10.0
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -223,43 +223,6 @@ def test_paging_a_kind_that_has_no_pager_is_refused(tmp_path: Path) -> None:
                 "query": {},
             }
         )
-
-
-def test_a_cell_asking_for_a_secret_gets_it_from_the_daemon(tmp_path: Path) -> None:
-    kernel, link = make_kernel(
-        tmp_path, link=FakeLink(secrets={"API_KEY": "sk-live-1"})
-    )
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx):
-            return {"note": "matched" if ctx.secret("API_KEY") == "sk-live-1" else "no"}
-        """,
-        produces={"note": {"kind": "note"}},
-    )
-
-    assert link.requests == [("secret_get", {"name": "API_KEY"})]
-    assert record["state"] == "succeeded"
-    assert stored_value(kernel, record, "note") == b"matched"
-
-
-def test_a_secret_the_daemon_does_not_hold_is_a_recorded_failure(
-    tmp_path: Path,
-) -> None:
-    kernel, _ = make_kernel(tmp_path)
-
-    record = run(
-        kernel,
-        """
-        def materialize(self, ctx):
-            return {"note": ctx.secret("API_KEY")}
-        """,
-        produces={"note": {"kind": "note"}},
-    )
-
-    assert record["state"] == "failed"
-    assert "API_KEY" in record["error"]["message"]
 
 
 def test_shutdown_stops_the_link_and_marks_the_kernel_stopped(tmp_path: Path) -> None:

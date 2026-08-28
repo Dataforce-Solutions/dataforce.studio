@@ -25,7 +25,6 @@ SPEC_OP_VOCABULARY = {
     "flag_set",
     "agent_begin",
     "agent_end",
-    "secret_ref_added",
     "checkpointed",
 }
 

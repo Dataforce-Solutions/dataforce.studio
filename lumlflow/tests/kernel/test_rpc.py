@@ -1,9 +1,8 @@
 """The kernel's end of the link: framing, dispatch, and the inline lane.
 
 Pinned here is the transport contract the daemon is written against — one JSON
-line per message, an answer for every `id`, events with no `id`, a
-kernel-initiated request for `secret_get`, and a reader thread that keeps
-answering while the worker holds a run.
+line per message, an answer for every `id`, events with no `id`, and a reader
+thread that keeps answering while the worker holds a run.
 """
 
 from __future__ import annotations
@@ -13,13 +12,12 @@ import json
 import socket
 import threading
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from lumlflow_kernel.rpc import METHOD_NOT_FOUND, Connection, RpcError, connect
+from lumlflow_kernel.rpc import METHOD_NOT_FOUND, Connection, connect
 
 _TIMEOUT_S = 5.0
 
@@ -144,59 +142,6 @@ def test_notify_puts_an_event_on_the_wire_with_no_id(wire: _Wire) -> None:
         "method": "log",
         "params": {"run_id": "r1", "stream": "stdout", "seq": 1},
     }
-
-
-def test_a_kernel_initiated_request_returns_what_the_daemon_answers(
-    wire: _Wire,
-) -> None:
-    wire.serve(_Handler({}))
-
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        asked = pool.submit(wire.connection.request, "secret_get", {"name": "API_KEY"})
-        message = wire.daemon.read()
-        wire.daemon.send(
-            {"jsonrpc": "2.0", "id": message["id"], "result": {"value": "sk-live-1"}}
-        )
-
-        assert asked.result(timeout=_TIMEOUT_S) == {"value": "sk-live-1"}
-
-    assert message["method"] == "secret_get"
-    assert message["params"] == {"name": "API_KEY"}
-
-
-def test_a_daemon_error_reply_raises(wire: _Wire) -> None:
-    wire.serve(_Handler({}))
-
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        asked = pool.submit(wire.connection.request, "secret_get", {"name": "NOPE"})
-        message = wire.daemon.read()
-        wire.daemon.send(
-            {
-                "jsonrpc": "2.0",
-                "id": message["id"],
-                "error": {"code": -32603, "message": "no secret named `NOPE`"},
-            }
-        )
-
-        with pytest.raises(RpcError, match="no secret named"):
-            asked.result(timeout=_TIMEOUT_S)
-
-
-def test_a_request_nobody_answers_gives_up(wire: _Wire) -> None:
-    with pytest.raises(RpcError, match="did not answer `secret_get` in time"):
-        wire.connection.request("secret_get", {"name": "API_KEY"}, timeout=0.05)
-
-
-def test_a_pending_request_fails_when_the_link_closes(wire: _Wire) -> None:
-    wire.serve(_Handler({}))
-
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        asked = pool.submit(wire.connection.request, "secret_get", {"name": "API_KEY"})
-        wire.daemon.read()
-        wire.daemon.close()
-
-        with pytest.raises(RpcError, match="the kernel link closed"):
-            asked.result(timeout=_TIMEOUT_S)
 
 
 def test_an_unknown_method_is_answered_with_method_not_found(wire: _Wire) -> None:

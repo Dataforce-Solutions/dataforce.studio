@@ -50,7 +50,6 @@ class TestInit:
             "eager_cost_threshold_s": 5.0,
             "reactivity": "auto",
             "eager": [],
-            "env_policy": "ask",
         }
 
     def test_takes_an_explicit_name(self, flow_dir: Path) -> None:

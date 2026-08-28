@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import docs, envs, secrets, workspace
+from lumlflow.flow.daemon import docs, envs, workspace
 from lumlflow.flow.daemon import reconcile as reconciliation
 from lumlflow.flow.daemon.kernel_proc import KernelProcess
 from lumlflow.flow.daemon.projections import Worktree
@@ -83,10 +83,6 @@ class FlowSession:
             flow_dir=ref.path,
             workspace_dir=workspace_dir,
             on_event=self._observed if streams is not None else None,
-            # `ctx.secret` reaches this flow's keychain entries and nothing
-            # else: the kernel holds no secrets of its own, and the value it is
-            # handed never comes back across this line.
-            ask_secret=lambda name: secrets.get(ref.path, name),
         )
         self.planner = Planner(store)
         self.queue = RunQueue(

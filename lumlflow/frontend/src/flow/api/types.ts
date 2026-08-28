@@ -223,11 +223,6 @@ export interface AgentEndOp {
   label: string | null
 }
 
-export interface SecretRefAddedOp {
-  op: 'secret_ref_added'
-  name: string
-}
-
 /**
  * A point somebody marked on purpose. It carries no state of its own — the
  * step, the intent and the actor are the transaction's, which is the whole
@@ -256,7 +251,6 @@ export type FlowOp =
   | FlagSetOp
   | AgentBeginOp
   | AgentEndOp
-  | SecretRefAddedOp
   | CheckpointedOp
 
 /**
@@ -624,7 +618,6 @@ export interface KernelReport {
 export interface FlowSettingsReport {
   reactivity: 'lazy' | 'auto'
   eager_cost_threshold_s: number
-  env_policy: 'ask' | 'auto' | 'never'
 }
 
 export interface FlowBrief {

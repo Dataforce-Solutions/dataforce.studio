@@ -52,7 +52,6 @@ KernelState = Literal["stopped", "running"]
 # "stopped" and stays wrong for the rest of the tab's life without this.
 KERNEL_STATE_EVENT = "kernel_state"
 OnEvent = Callable[[str, dict[str, Any]], None]
-AskSecret = Callable[[str], str | None]
 
 
 class KernelProcess:
@@ -64,7 +63,6 @@ class KernelProcess:
         flow_dir: Path,
         workspace_dir: Path,
         on_event: OnEvent | None = None,
-        ask_secret: AskSecret | None = None,
     ) -> None:
         self.flow_dir = flow_dir
         self.workspace_dir = workspace_dir
@@ -76,7 +74,6 @@ class KernelProcess:
         # is measured against.
         self.env: dict[str, str] = {}
         self._on_event = on_event
-        self._ask_secret = ask_secret
         self._logs = Cas(store_dir(flow_dir) / "logs")
         self._kernel_dir = store_dir(flow_dir) / KERNEL_DIRNAME
         self._start_lock = asyncio.Lock()
@@ -354,9 +351,7 @@ class KernelProcess:
         method = message.get("method")
         if method is None:
             self._answer(message)
-        elif "id" in message:
-            self._serve(str(method), message)
-        elif self._on_event is not None:
+        elif "id" not in message and self._on_event is not None:
             self._emit(str(method), message.get("params") or {})
 
     def _emit(self, event: str, params: dict[str, Any]) -> None:
@@ -382,23 +377,6 @@ class KernelProcess:
             return
         pending.set_exception(
             KernelError(str(error.get("message", "the kernel refused the call")))
-        )
-
-    def _serve(self, method: str, message: dict[str, Any]) -> None:
-        """The one direction user code triggers: `ctx.secret` asking the daemon."""
-        if method != "secret_get":
-            self._send(
-                {
-                    "jsonrpc": "2.0",
-                    "id": message.get("id"),
-                    "error": {"code": -32601, "message": f"no method `{method}`"},
-                }
-            )
-            return
-        name = str((message.get("params") or {}).get("name", ""))
-        value = self._ask_secret(name) if self._ask_secret is not None else None
-        self._send(
-            {"jsonrpc": "2.0", "id": message.get("id"), "result": {"value": value}}
         )
 
     async def _call(

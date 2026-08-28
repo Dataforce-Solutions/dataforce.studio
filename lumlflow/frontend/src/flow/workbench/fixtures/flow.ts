@@ -363,7 +363,6 @@ export const env: EnvState = {
 export const settings: FlowSettings = {
   reactivity: 'auto',
   autoThresholdSeconds: 10,
-  onEnvChange: 'ask',
 }
 
 export const churnFixture: WorkbenchFixture = {

@@ -269,7 +269,7 @@ async def test_settings_write_what_a_panel_renders_without_journaling(
         session = api.hub.session("churn")
         before = len(transactions(session))
 
-        written = await api.settings_set({"env_policy": "auto", "reactivity": "lazy"})
+        written = await api.settings_set({"reactivity": "lazy"})
         threshold = await api.settings_set({"eager_cost_threshold_s": 30})
 
         after = len(transactions(session))
@@ -278,14 +278,13 @@ async def test_settings_write_what_a_panel_renders_without_journaling(
     assert written["settings"] == {
         "reactivity": "lazy",
         "eager_cost_threshold_s": 5.0,
-        "env_policy": "auto",
     }
     assert threshold["settings"]["eager_cost_threshold_s"] == 30.0
-    assert (reread.reactivity, reread.env_policy) == ("lazy", "auto")
+    assert reread.reactivity == "lazy"
     assert after == before
 
 
-async def test_a_setting_only_takes_the_words_it_has(tmp_path: Path):
+async def test_reactivity_only_takes_the_words_it_has(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -293,12 +292,12 @@ async def test_a_setting_only_takes_the_words_it_has(tmp_path: Path):
         await api.flow_open({"flow": "churn"})
 
         with pytest.raises(FlowError) as refused:
-            await api.settings_set({"env_policy": "restart"})
+            await api.settings_set({"reactivity": "restart"})
 
         settings = api.hub.session("churn").store.manifest.settings
 
-    assert "`ask`" in str(refused.value)
-    assert settings.env_policy == "ask"
+    assert "`auto`" in str(refused.value)
+    assert settings.reactivity == "auto"
 
 
 async def test_no_gesture_hands_an_agent_the_vocabulary_git_owns(tmp_path: Path):

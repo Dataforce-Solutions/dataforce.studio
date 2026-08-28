@@ -39,8 +39,6 @@ class Ctx(Protocol):
         """A scratch directory that lives as long as the run does."""
         ...
 
-    def secret(self, name: str) -> str: ...
-
 
 @runtime_checkable
 class CellProtocol(Protocol):

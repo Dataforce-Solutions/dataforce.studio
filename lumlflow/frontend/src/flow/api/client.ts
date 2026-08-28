@@ -190,7 +190,6 @@ export interface EnvReport {
   flows: {
     flow: string
     kernel: 'running' | 'stopped'
-    policy: 'ask' | 'auto' | 'never'
     restart_required: boolean
     behind: string[]
   }[]
@@ -289,15 +288,13 @@ export interface FlowMethods {
   >
   /** A read against a branch's values — never a version, never a journal line. */
   eval: Method<BranchScoped & { code: string }, EvalResult>
-  /** Config, not history: the three settings the panel renders, journaled nowhere. */
+  /** Config, not history: the settings the panel renders, journaled nowhere. */
   'settings.set': Method<
     FlowScoped & Partial<FlowSettingsReport>,
     { flow: string; settings: FlowSettingsReport }
   >
   /** Workspace-scoped: one venv, every flow under it. */
   'env.status': Method<Record<string, never>, EnvReport>
-  'env.add': Method<Intentful & { packages: string[] }, EnvReport>
-  'env.remove': Method<Intentful & { packages: string[] }, EnvReport>
   'kernel.restart': Method<FlowScoped, { flow: string; kernel: KernelReport }>
   'journal.since': Method<FlowScoped & { cursor: number }, JournalPage>
 }

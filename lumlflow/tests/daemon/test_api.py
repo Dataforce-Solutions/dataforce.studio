@@ -187,9 +187,18 @@ async def test_opening_a_flow_reports_the_settings_a_panel_renders(tmp_path: Pat
     assert opened["settings"] == {
         "reactivity": "auto",
         "eager_cost_threshold_s": 5.0,
-        "env_policy": "ask",
     }
     assert relaxed["settings"]["reactivity"] == "lazy"
+
+
+async def test_secrets_and_package_writes_are_not_api_methods(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        removed = {"secrets.set", "secrets.list", "env.add", "env.remove"}
+
+        assert removed.isdisjoint(api.methods)
+        assert "env.status" in api.methods
 
 
 async def test_status_covers_every_flow_and_names_the_interpreter(tmp_path: Path):

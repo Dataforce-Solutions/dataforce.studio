@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from lumlflow.flow.errors import JournalCorruption
 from lumlflow.flow.store.journal import Journal
-from lumlflow.flow.store.models import AgentBegin, SecretRefAdded
+from lumlflow.flow.store.models import AgentBegin, Checkpointed
 
 from tests.flow.helpers import cell_accepted, transaction
 
@@ -24,7 +24,7 @@ class TestAppendAndReplay:
             transaction(
                 2, [AgentBegin(actor="claude-1", label="claude")], actor="agent"
             ),
-            transaction(3, [SecretRefAdded(name="API_KEY")], settled=True),
+            transaction(3, [Checkpointed(branch_id="main")], settled=True),
         ]
         for entry in written:
             journal.append(entry)

@@ -155,7 +155,6 @@ const ENV: EnvReport = {
     {
       flow: 'churn',
       kernel: 'running',
-      policy: 'ask',
       restart_required: false,
       behind: [],
     },
@@ -576,13 +575,10 @@ describe('the left panel is scoped to the viewed branch', () => {
 
   it('renders the flow settings the daemon reports, not a default it invented', async () => {
     const auto = await workbench()
-    // A per-flow policy is set once and read back rarely: it is folded away
-    // until someone asks for it, and asking is one click with a name on it.
     const toggle = auto.wrapper
       .findAll('[data-pc-name="accordionheader"]')
       .find((header) => header.text() === 'settings')!
     expect(toggle.attributes('aria-expanded')).toBe('false')
-    expect(auto.wrapper.text()).not.toContain('ask to restart')
 
     await toggle.trigger('click')
     await settle()
@@ -590,7 +586,7 @@ describe('the left panel is scoped to the viewed branch', () => {
     // The default: auto below a threshold, and the threshold is editable.
     const body = auto.wrapper.text()
     expect(body).toContain('auto below')
-    expect(body).toContain('ask to restart')
+    expect(body).not.toContain('on env change')
     auto.wrapper.unmount()
 
     const { wrapper } = await workbench({
@@ -598,7 +594,7 @@ describe('the left panel is scoped to the viewed branch', () => {
         'flow.open': () =>
           flowStatus({
             cells: MAIN,
-            settings: { reactivity: 'lazy', eager_cost_threshold_s: 30, env_policy: 'never' },
+            settings: { reactivity: 'lazy', eager_cost_threshold_s: 30 },
           }),
       },
     })
@@ -609,7 +605,6 @@ describe('the left panel is scoped to the viewed branch', () => {
     // Lazy marks and waits, so there is no threshold to show.
     expect(lazyBody.text()).not.toContain('auto below')
     expect(lazyBody.text()).toContain('nothing runs until you ask for it')
-    expect(lazyBody.text()).toContain('never')
     wrapper.unmount()
   })
 

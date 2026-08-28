@@ -17,7 +17,7 @@ import asyncio
 import shutil
 import sys
 import tomllib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -80,19 +80,6 @@ async def uv_sync(workspace_dir: Path) -> None:
     the workspace does not have and blame the cell for the ImportError.
     """
     await uv(workspace_dir, "sync")
-
-
-async def add(workspace_dir: Path, names: Sequence[str]) -> str:
-    """Put packages in the workspace env. Every flow under it shares them."""
-    if not names:
-        raise EnvError("name a package to add")
-    return await uv(workspace_dir, "add", *names)
-
-
-async def remove(workspace_dir: Path, names: Sequence[str]) -> str:
-    if not names:
-        raise EnvError("name a package to remove")
-    return await uv(workspace_dir, "remove", *names)
 
 
 def packages(workspace_dir: Path) -> dict[str, str]:

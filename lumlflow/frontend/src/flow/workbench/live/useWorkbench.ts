@@ -271,24 +271,17 @@ function envState(report: EnvReport | null, flow: string, kernel: KernelReport |
   } satisfies EnvState
 }
 
-/**
- * The daemon calls restarting on an env change `auto`; the panel calls it
- * "restart automatically". One vocabulary each, translated here.
- */
 function flowSettings(report: FlowSettingsReport | undefined): FlowSettings {
   return {
     reactivity: report?.reactivity ?? 'auto',
     autoThresholdSeconds: report?.eager_cost_threshold_s ?? 5,
-    onEnvChange: report?.env_policy === 'auto' ? 'restart' : (report?.env_policy ?? 'ask'),
   }
 }
 
-/** The same translation the other way, for the write. */
 export function settingsReport(settings: FlowSettings): FlowSettingsReport {
   return {
     reactivity: settings.reactivity,
     eager_cost_threshold_s: settings.autoThresholdSeconds,
-    env_policy: settings.onEnvChange === 'restart' ? 'auto' : settings.onEnvChange,
   }
 }
 

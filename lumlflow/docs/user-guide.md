@@ -92,7 +92,7 @@ The filename is the cell's name, its **slug**. Everything else uses that one spe
 
 A class with a docstring and nothing else is a **note cell**. It has no `materialize` and no declarations. A note cell is versioned markdown. It travels with the flow and appears under *docs* in the left panel.
 
-The runtime enforces two rules. Assets are immutable. Never mutate a consumed input in place. Downstream cells and other lanes receive the same value. Cells are also non-interactive. `input()` fails immediately, because a typed answer is neither recorded nor replayable. Put configuration in `params`. Put credentials through `lumlflow secrets set NAME`. Read them inside a cell as `ctx.secret("NAME")`.
+The runtime enforces two rules. Assets are immutable. Never mutate a consumed input in place. Downstream cells and other lanes receive the same value. Cells are also non-interactive. `input()` fails immediately, because a typed answer is neither recorded nor replayable. Put configuration in `params`.
 
 ## The workbench
 
@@ -100,7 +100,7 @@ The workbench is one screen over one lane. The top bar names the flow. It carrie
 
 **Canvas** lays the cells out on the graph. Outputs come foremost, and source sits behind an accordion. The edges are the declared `consumes` wiring. **Notebook** is a single column. It accents the code and puts outputs below each cell, ordered topologically. The two views are two densities of the same cards over the same lane. Anything you do in one, you can do in the other. The canvas/notebook toggle in the top bar switches between them. The selected cell comes with you, and the other view opens scrolled to it. The view, the lane and the selected cell all ride the URL. A link to what you are looking at is therefore a link someone else can open.
 
-The left panel is scoped to the lane you are viewing. Switching lanes re-scopes all of it. At the top is the lane identifier. It shows the lane's name, its state, and where it started from. Clicking it opens the lane map. Its step count opens the [step timeline](#lanes). A *new lane* action sits beside it. Under it is the current agent task, taken from the intent of the last transaction on the lane. Everything below is a section you can fold. **cells** is open, and the rest wait until you ask for them. The same cells appear through three lenses: **experiments**, **models**, and **data**. Data covers dataset outputs. It also covers cells that read files from outside the store, whose freshness the store cannot know. **docs** adds the lane's note cells. A lens with nothing on the lane is not listed at all. **Activity** is the journal's one home. It lists every transaction on the lane, newest first. It draws a *since you were here* divider when you have been away. Its *Summarize lane* button hands the lane to your agent, which writes the note. Its header carries the count when something landed while you were gone. **Packages** is the workspace environment. Its own header flags a kernel that is behind that environment. **Settings** holds the two settings there are. **Reactivity** decides what refreshes itself and what waits for you (see [Reactivity](#reactivity)). The second setting decides what happens to the running kernel when packages change.
+The left panel is scoped to the lane you are viewing. Switching lanes re-scopes all of it. At the top is the lane identifier. It shows the lane's name, its state, and where it started from. Clicking it opens the lane map. Its step count opens the [step timeline](#lanes). A *new lane* action sits beside it. Under it is the current agent task, taken from the intent of the last transaction on the lane. Everything below is a section you can fold. **cells** is open, and the rest wait until you ask for them. The same cells appear through three lenses: **experiments**, **models**, and **data**. Data covers dataset outputs. It also covers cells that read files from outside the store, whose freshness the store cannot know. **docs** adds the lane's note cells. A lens with nothing on the lane is not listed at all. **Activity** is the journal's one home. It lists every transaction on the lane, newest first. It draws a *since you were here* divider when you have been away. Its *Summarize lane* button hands the lane to your agent, which writes the note. Its header carries the count when something landed while you were gone. **Packages** is the workspace environment. Its own header flags a kernel that is behind that environment. **Settings** holds reactivity and its automatic-refresh cost threshold (see [Reactivity](#reactivity)).
 
 The inventory lists cells, not files. Data files and shared helper modules beside the flow appear in Workspace, not here. The store does not version them.
 
@@ -235,17 +235,17 @@ The interface does not claim to do two things. Stopping a run stops the run, not
 
 ## Packages and the kernel
 
-Every flow under a workspace shares one environment, resolved from one lockfile. The *packages* section of the left panel lists that environment and changes it. The CLI is equivalent:
+Every flow under a workspace shares one environment, resolved from one lockfile. The *packages* section of the left panel lists that environment. Change it with the project's package manager, then use the CLI to inspect it:
 
 ```bash
+uv add lightgbm
+uv remove xgboost
 lumlflow env status
-lumlflow env add lightgbm
-lumlflow env remove xgboost
 ```
 
 Installing or removing a package never invalidates a recorded result. A materialization keeps the environment it ran under as provenance. A card whose recorded environment differs from the current one says so on its badge.
 
-The live Python process does need attention. It cannot swap out packages it has already imported. After an install, the *packages* header carries a warning mark. The section shows *restart kernel to apply* with the button. Restarting loses nothing. The process holds no state that the store does not hold. lumlflow drains the queue rather than retrying it silently. The *on env change* setting decides whether lumlflow offers a restart, takes one automatically, or never suggests one. It sits in the *settings* section at the foot of the panel.
+The live Python process does need attention. It cannot swap out packages it has already imported. After an install, the *packages* header carries a warning mark. The section shows *restart kernel to apply* with the button. Restarting loses nothing. The process holds no state that the store does not hold. lumlflow drains the queue rather than retrying it silently.
 
 You never have to start, select, or connect anything. Opening a flow is all the attaching there is. Python starts on the first gesture that actually needs it. Those gestures are expanding a value, paging a frame, diffing, and running a cell. On `auto`, a refresh that reactivity decided on is one of those gestures too. Everything else reads stored previews.
 
@@ -285,8 +285,7 @@ Everything the workbench does is also a verb. Both write to the same store. The 
 | `lumlflow asset download <cell[.output]> [--to <path>]` | Copy a stored value out of the flow |
 | `lumlflow agent exec -- <command>` | Wrap an agent that is itself a CLI, with its edits attributed to it |
 | `lumlflow agent begin --label <name>` / `agent end` | Register or end a session by hand |
-| `lumlflow env status` / `env add <pkgs>` / `env remove <pkgs>` | The workspace's packages |
-| `lumlflow secrets set <NAME>` / `secrets list` | Secrets a cell reads with `ctx.secret("NAME")` |
+| `lumlflow env status` | The workspace's packages |
 | `lumlflow flow delete <name>` | Delete a flow: its cells, its store, its history |
 | `lumlflow mcp [--workspace <dir>] [--label <name>]` | Serve this workspace to an agent over MCP (spawned by the agent's harness) |
 | `lumlflow root` | The workspace this directory belongs to |
