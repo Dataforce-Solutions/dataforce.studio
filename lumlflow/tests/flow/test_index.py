@@ -10,6 +10,8 @@ from lumlflow.flow.store.models import (
     AgentBegin,
     BranchArchived,
     BranchCreated,
+    CellNoted,
+    CellNoteKind,
     CellRemoved,
     EnvChanged,
     FlagSet,
@@ -324,6 +326,84 @@ class TestFold:
 
         (row,) = rows(index, "SELECT flags FROM asset_versions")
         assert json.loads(row["flags"]) == []
+
+    def test_indexes_a_cell_note_with_its_transaction_scope(self, index: Index) -> None:
+        index.apply(
+            transaction(
+                1,
+                [
+                    CellNoted(
+                        uid="cell-score",
+                        kind="projection_completed",
+                        sentence="restored score to version 2",
+                        version_id="version-2",
+                    )
+                ],
+                actor="system",
+                branch="lane-main",
+            )
+        )
+
+        (row,) = rows(index, "SELECT * FROM cell_notes")
+        assert (
+            row["branch_id"],
+            row["uid"],
+            row["kind"],
+            row["sentence"],
+            row["version_id"],
+            row["step"],
+            row["actor"],
+        ) == (
+            "lane-main",
+            "cell-score",
+            "projection_completed",
+            "restored score to version 2",
+            "version-2",
+            1,
+            "system",
+        )
+
+    def test_returns_the_latest_note_per_kind_for_one_lane_and_cell(
+        self, index: Index
+    ) -> None:
+        entries: list[tuple[int, str, str, CellNoteKind, str]] = [
+            (1, "lane-main", "cell-score", "refresh_failed", "first failure"),
+            (2, "lane-exp", "cell-score", "refresh_failed", "lane failure"),
+            (3, "lane-main", "cell-report", "refresh_failed", "other cell"),
+            (
+                4,
+                "lane-main",
+                "cell-score",
+                "projection_completed",
+                "restored version",
+            ),
+            (5, "lane-main", "cell-score", "refresh_failed", "latest failure"),
+        ]
+        for step, branch, uid, kind, sentence in entries:
+            index.apply(
+                transaction(
+                    step,
+                    [CellNoted(uid=uid, kind=kind, sentence=sentence)],
+                    actor="system",
+                    branch=branch,
+                )
+            )
+
+        notes = index.cell_notes("lane-main", "cell-score")
+
+        assert [
+            (note.kind, note.sentence, note.version_id, note.step, note.actor)
+            for note in notes
+        ] == [
+            ("refresh_failed", "latest failure", None, 5, "system"),
+            ("projection_completed", "restored version", None, 4, "system"),
+        ]
+        assert [
+            note.sentence for note in index.cell_notes("lane-exp", "cell-score")
+        ] == ["lane failure"]
+        assert [
+            note.sentence for note in index.cell_notes("lane-main", "cell-report")
+        ] == ["other cell"]
 
     def test_session_ops_are_journal_facts_only(self, index: Index) -> None:
         index.apply(transaction(1, [AgentBegin(actor="claude-1", label="claude")]))

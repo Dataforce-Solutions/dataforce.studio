@@ -1113,9 +1113,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Shrink handoff to one copy-context gesture
   - [x] `agent.payload` without a gesture parameter, carrying the traceback's frames and the exception's final line, never its full text (D4.11); one button per card; delete `HandoffPopover`/`HandoffDialog`
   - [x] Update `test_handoff.py` (the payload rule included) and `flow-handoff.spec.ts`
-- [ ] Add the cell-note journal op
-  - [ ] The `CellNoted` op of D2 (uid, note kind, sentence, optional version) with its index by (lane, uid, kind, step), its replay, and its exposure on `cells.show` (latest note per kind: kind, sentence, version, step, actor); the journal schema version constant raised from 1 to 2; nothing emits it yet
-  - [ ] Tests in `tests/flow`: replay and index of a note, the latest note per kind per (lane, uid)
+- [x] Add the cell-note journal op
+  - [x] The `CellNoted` op of D2 (uid, note kind, sentence, optional version) with its index by (lane, uid, kind, step), its replay, and its exposure on `cells.show` (latest note per kind: kind, sentence, version, step, actor); the journal schema version constant raised from 1 to 2; nothing emits it yet
+  - [x] Tests in `tests/flow`: replay and index of a note, the latest note per kind per (lane, uid)
 - [ ] Tolerate store version skew
   - [ ] Per D11.4: journal ops and transactions ignore unknown fields on read; the manifest and settings preserve unknown keys on read and write them back unchanged; `open` compares `FlowInit.schema_version` with the running constant — a newer version or an unknown op type refused naming both numbers (or the op), an older version refused naming both and telling the user to delete `<name>.flow/.lumlflow/`
   - [ ] Tests in `tests/flow`: an unknown op field ignored; an unknown manifest and settings key preserved across a rewrite; a version-3 store refused naming 3 and 2; a version-1 store refused with the re-initialise sentence; an unknown op refused naming it

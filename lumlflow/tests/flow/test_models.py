@@ -2,7 +2,15 @@ from typing import get_args
 
 import pytest
 from lumlflow.flow.store import models
-from lumlflow.flow.store.models import CellManifest, Op, OutputSpec, Transaction
+from lumlflow.flow.store.models import (
+    JOURNAL_SCHEMA_VERSION,
+    CellManifest,
+    CellNoted,
+    FlowInit,
+    Op,
+    OutputSpec,
+    Transaction,
+)
 from pydantic import BaseModel, ValidationError
 
 from tests.flow.helpers import cell_accepted, transaction
@@ -11,6 +19,7 @@ SPEC_OP_VOCABULARY = {
     "flow_init",
     "cell_accepted",
     "cell_removed",
+    "cell_noted",
     "selection_set",
     "branch_created",
     "branch_archived",
@@ -97,6 +106,37 @@ class TestManifest:
 
 
 class TestWireFormat:
+    def test_flow_init_stamps_journal_schema_version_two(self) -> None:
+        assert JOURNAL_SCHEMA_VERSION == 2
+        assert FlowInit(flow_id="F", name="churn").schema_version == 2
+
+    def test_a_cell_note_requires_a_lane_scoped_transaction(self) -> None:
+        with pytest.raises(ValidationError, match="lane-scoped"):
+            transaction(
+                1,
+                [
+                    CellNoted(
+                        uid="cell-score",
+                        kind="refresh_failed",
+                        sentence="could not refresh score",
+                    )
+                ],
+            )
+
+    def test_a_cell_note_requires_the_system_actor(self) -> None:
+        with pytest.raises(ValidationError, match="system actor"):
+            transaction(
+                1,
+                [
+                    CellNoted(
+                        uid="cell-score",
+                        kind="refresh_failed",
+                        sentence="could not refresh score",
+                    )
+                ],
+                branch="lane-main",
+            )
+
     def test_a_line_round_trips_through_canonical_json(self) -> None:
         original = transaction(9, [cell_accepted(slug="train_model")], branch="b1")
         line = original.to_line()

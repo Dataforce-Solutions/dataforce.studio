@@ -229,6 +229,16 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
         # failure where it happened.
         "failed_by": _failed_by(session, mat),
         "provenance": _provenance(session, version),
+        "notes": [
+            {
+                "kind": note.kind,
+                "sentence": note.sentence,
+                "version": note.version_id,
+                "step": note.step,
+                "actor": note.actor,
+            }
+            for note in session.store.index.cell_notes(here.branch.branch_id, uid)
+        ],
     }
 
 

@@ -32,6 +32,7 @@ TABLES = (
     "baselines",
     "materializations",
     "transactions",
+    "cell_notes",
     "worktrees",
     "workspace_tree",
     "value_pins",

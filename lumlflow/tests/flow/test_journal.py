@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from lumlflow.flow.errors import JournalCorruption
 from lumlflow.flow.store.journal import Journal
-from lumlflow.flow.store.models import AgentBegin, Checkpointed
+from lumlflow.flow.store.models import AgentBegin, CellNoted, Checkpointed
 
 from tests.flow.helpers import cell_accepted, transaction
 
@@ -30,6 +30,24 @@ class TestAppendAndReplay:
             journal.append(entry)
 
         assert list(journal.replay()) == written
+
+    def test_replays_a_cell_note(self, journal: Journal) -> None:
+        written = transaction(
+            1,
+            [
+                CellNoted(
+                    uid="cell-score",
+                    kind="projection_completed",
+                    sentence="restored score to its selected version",
+                    version_id="version-2",
+                )
+            ],
+            actor="system",
+            branch="lane-main",
+        )
+        journal.append(written)
+
+        assert list(journal.replay()) == [written]
 
     def test_writes_one_canonical_line_per_transaction(self, journal: Journal) -> None:
         journal.append(transaction(1))

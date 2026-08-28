@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 from lumlflow.flow.errors import FlowError
+from lumlflow.flow.store.models import CellNoted
 
 from tests.daemon.helpers import (
     BROKEN_CELL,
@@ -301,6 +302,42 @@ class Summary:
     assert note["note"] is True
     assert note["doc"] == "The sweep so far.\n\n`lr=3e-4` won by a nose."
     assert cell["doc"] == "The headline metric."
+
+
+async def test_cell_show_exposes_the_latest_note_per_kind(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        branch_id = session.store.branches.get("main").branch_id
+        (version,) = session.store.index.slice_versions(branch_id).values()
+        committed = session.store.commit(
+            [
+                CellNoted(
+                    uid=version.uid,
+                    kind="projection_completed",
+                    sentence="restored score to its selected version",
+                    version_id=version.version_id,
+                )
+            ],
+            intent="recorded projection completion",
+            actor="system",
+            branch=branch_id,
+        )
+
+        shown = await api.cells_show({"flow": "churn", "slug": "score"})
+
+    assert shown["notes"] == [
+        {
+            "kind": "projection_completed",
+            "sentence": "restored score to its selected version",
+            "version": version.version_id,
+            "step": committed.step,
+            "actor": "system",
+        }
+    ]
 
 
 async def test_a_cell_says_who_made_it_who_last_touched_it_and_under_what_intent(

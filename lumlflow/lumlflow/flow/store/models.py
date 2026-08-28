@@ -7,11 +7,11 @@ facts its rows need, nothing is inferred from surrounding lines.
 
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lumlflow.flow.hashing import canonical_json
 
-JOURNAL_SCHEMA_VERSION = 1
+JOURNAL_SCHEMA_VERSION = 2
 
 FlagCode = Literal[
     "dangling_ref",
@@ -27,6 +27,11 @@ CellClassification = Literal["cell", "note"]
 MaterializationState = Literal["running", "succeeded", "failed", "cancelled"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
+CellNoteKind = Literal[
+    "projection_completed",
+    "refresh_failed",
+    "experiment_unclosed",
+]
 
 
 class _Frozen(BaseModel):
@@ -111,6 +116,14 @@ class CellRemoved(_Frozen):
     op: Literal["cell_removed"] = "cell_removed"
     uid: str
     branch_id: str
+
+
+class CellNoted(_Frozen):
+    op: Literal["cell_noted"] = "cell_noted"
+    uid: str
+    kind: CellNoteKind
+    sentence: str
+    version_id: str | None = None
 
 
 class SelectionSet(_Frozen):
@@ -260,6 +273,7 @@ Op = Annotated[
     FlowInit
     | CellAccepted
     | CellRemoved
+    | CellNoted
     | SelectionSet
     | BranchCreated
     | BranchArchived
@@ -292,6 +306,16 @@ class Transaction(BaseModel):
     settled: bool = False
     branch: str | None = None
     ops: list[Op]
+
+    @model_validator(mode="after")
+    def require_cell_note_scope(self) -> Self:
+        if not any(isinstance(op, CellNoted) for op in self.ops):
+            return self
+        if self.branch is None:
+            raise ValueError("cell notes require a lane-scoped transaction")
+        if self.actor != "system":
+            raise ValueError("cell notes require the system actor")
+        return self
 
     def to_line(self) -> bytes:
         return canonical_json(self.model_dump(mode="json")) + b"\n"

@@ -23,6 +23,8 @@ from lumlflow.flow.store.models import (
     BranchCreated,
     CellAccepted,
     CellManifest,
+    CellNoted,
+    CellNoteKind,
     CellRemoved,
     Checkpointed,
     EnvChanged,
@@ -43,7 +45,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 6
+INDEX_SCHEMA_VERSION = 7
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -126,6 +128,17 @@ CREATE TABLE transactions (
     marker INTEGER NOT NULL DEFAULT 0,
     branch TEXT,
     ops TEXT NOT NULL
+);
+
+CREATE TABLE cell_notes (
+    branch_id TEXT NOT NULL,
+    uid TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    sentence TEXT NOT NULL,
+    version_id TEXT,
+    step INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    PRIMARY KEY (branch_id, uid, kind, step)
 );
 
 CREATE TABLE worktrees (
@@ -220,6 +233,17 @@ class TransactionRow:
     # Somebody marked this step on purpose, as opposed to `settled`, which the
     # commit computes. The two answer the same question from opposite ends.
     marker: bool = False
+
+
+@dataclass(frozen=True)
+class CellNoteRow:
+    branch_id: str
+    uid: str
+    kind: CellNoteKind
+    sentence: str
+    version_id: str | None
+    step: int
+    actor: str
 
 
 @dataclass(frozen=True)
@@ -519,6 +543,19 @@ class Index:
             if op.get("op") == "flag_set" and op.get("version_id") is None
         ]
 
+    def cell_notes(self, branch_id: str, uid: str) -> list[CellNoteRow]:
+        """The newest note of every kind for a cell on one lane."""
+        rows = self._conn.execute(
+            "SELECT * FROM cell_notes WHERE branch_id = ? AND uid = ? "
+            "ORDER BY step DESC, kind",
+            (branch_id, uid),
+        )
+        latest: dict[CellNoteKind, CellNoteRow] = {}
+        for row in rows:
+            note = _cell_note(row)
+            latest.setdefault(note.kind, note)
+        return list(latest.values())
+
     def first_version(self, uid: str) -> VersionRow | None:
         """The version a cell was born as — who created it, and when."""
         row = self._conn.execute(
@@ -655,10 +692,11 @@ class Index:
             ),
         )
         for op in transaction.ops:
-            self._apply_op(op, transaction.step)
+            self._apply_op(op, transaction)
         self._set_meta("last_step", str(transaction.step))
 
-    def _apply_op(self, op: Op, step: int) -> None:
+    def _apply_op(self, op: Op, transaction: Transaction) -> None:
+        step = transaction.step
         match op:
             case FlowInit():
                 self._set_meta("flow_id", op.flow_id)
@@ -672,6 +710,23 @@ class Index:
                 self._conn.execute(
                     "DELETE FROM baselines WHERE branch_id = ? AND uid = ?",
                     (op.branch_id, op.uid),
+                )
+            case CellNoted():
+                if transaction.branch is None:
+                    raise ValueError("cell notes require a lane-scoped transaction")
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO cell_notes "
+                    "(branch_id, uid, kind, sentence, version_id, step, actor) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        transaction.branch,
+                        op.uid,
+                        op.kind,
+                        op.sentence,
+                        op.version_id,
+                        step,
+                        transaction.actor,
+                    ),
                 )
             case SelectionSet():
                 self._select(op.branch_id, op.uid, op.version_id, op.pinned)
@@ -906,6 +961,18 @@ def _transaction(row: sqlite3.Row) -> TransactionRow:
         settled=bool(row["settled"]),
         branch=row["branch"],
         marker=bool(row["marker"]),
+    )
+
+
+def _cell_note(row: sqlite3.Row) -> CellNoteRow:
+    return CellNoteRow(
+        branch_id=row["branch_id"],
+        uid=row["uid"],
+        kind=row["kind"],
+        sentence=row["sentence"],
+        version_id=row["version_id"],
+        step=int(row["step"]),
+        actor=row["actor"],
     )
 
 

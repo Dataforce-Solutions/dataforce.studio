@@ -123,6 +123,10 @@ ignore_missing_imports = true
 module = ["pyarrow.*", "polars.*", "cloudpickle.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
 # The build backend is a build-time dependency, absent from the runtime env
 # the checker runs in.
 [[tool.mypy.overrides]]
