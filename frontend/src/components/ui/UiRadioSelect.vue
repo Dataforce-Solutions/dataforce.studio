@@ -19,14 +19,16 @@
     </div>
     <Divider class="divider" />
     <div class="popover-footer">
-      <div class="flex items-center gap-2">
-        <Checkbox
-          :modelValue="isShowAll"
-          inputId="showAll"
-          binary
-          @update:modelValue="onShowAllUpdate($event)"
-        />
-        <label for="showAll"> show all </label>
+      <div>
+        <div v-if="showAllAvailable" class="flex items-center gap-2">
+          <Checkbox
+            :modelValue="isShowAll"
+            inputId="showAll"
+            binary
+            @update:modelValue="onShowAllUpdate($event)"
+          />
+          <label for="showAll"> show all </label>
+        </div>
       </div>
       <Button label="Apply" severity="secondary" @click="apply" />
     </div>
@@ -50,6 +52,7 @@ type Props = {
   selectedByDefault?: boolean
   size?: 'small' | 'medium' | 'large'
   placeholder?: string
+  showAllAvailable?: boolean
 }
 type Emits = {
   (event: 'edit', list: string[]): void
@@ -58,6 +61,7 @@ type Emits = {
 const props = withDefaults(defineProps<Props>(), {
   selectedByDefault: true,
   size: 'medium',
+  showAllAvailable: true,
 })
 const emit = defineEmits<Emits>()
 

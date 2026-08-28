@@ -14,6 +14,7 @@
             :options="options"
             :selected-options="model || []"
             :selected-by-default="false"
+            :show-all-available="false"
             size="small"
             placeholder="Find tag"
             @edit="onEdit"
