@@ -31,16 +31,10 @@ from lumlflow.flow.daemon.projections import Worktree
 from lumlflow.flow.daemon.reactive import Reactor
 from lumlflow.flow.daemon.reconcile import AcceptedFile, Reconciliation, Tier
 from lumlflow.flow.daemon.stream import Streams
-from lumlflow.flow.daemon.uploads import NATIVE_TYPES, Uploader, Uploads
 from lumlflow.flow.daemon.watcher import Watches, WatchSet
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.accept import Acceptance
-from lumlflow.flow.errors import (
-    EnvError,
-    FlowAlreadyExists,
-    FlowError,
-    FlowNotFound,
-)
+from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
 from lumlflow.flow.scheduler.planner import Planner
 from lumlflow.flow.scheduler.queue import RunQueue
 from lumlflow.flow.store.flowstore import (
@@ -71,7 +65,6 @@ class FlowSession:
         store: FlowStore,
         workspace_dir: Path,
         *,
-        uploader: Uploader | None = None,
         streams: Streams | None = None,
     ) -> None:
         self.ref = ref
@@ -106,11 +99,6 @@ class FlowSession:
         # Reactivity's sweep. Armed by whatever moved a verdict, never by its
         # own runs — see `reactive`.
         self.reactor = Reactor(self)
-        self.uploads = Uploads(store, flow=ref.name, uploader=uploader)
-        # Whether this flow has been looked at for native outputs yet: the
-        # scaffolding question is asked once per session, and again whenever
-        # acceptance moves something.
-        self.sdk_checked = False
         # Cell files as acceptance last found them level with the branch head,
         # so a burst of verbs re-parses only what actually moved. Session-lived:
         # a daemon that just started knows nothing and reads everything.
@@ -149,21 +137,9 @@ class FlowSession:
     ) -> Reconciliation:
         return reconciliation.reconcile(self, tier=tier, actor=actor)
 
-    def declares_native(self) -> bool:
-        """Does this flow publish anything — a `model`, `dataset`, `experiment`?"""
-        branch = self.store.index.branch(self.branch)
-        if branch is None:
-            return False
-        return any(
-            spec.type in NATIVE_TYPES
-            for version in self.store.index.slice_versions(branch.branch_id).values()
-            for spec in version.manifest.produces.values()
-        )
-
     async def close(self) -> None:
         try:
             await self.reactor.stop()
-            await self.uploads.close()
             await self.kernel.stop()
         finally:
             # A kernel that will not die is no reason to leak the store handle.
@@ -177,22 +153,15 @@ class Hub:
         self,
         root: Path,
         *,
-        uploader: Uploader | None = None,
         streams: Streams | None = None,
     ) -> None:
         self.root = root.resolve()
-        self._uploader = uploader
         self._streams = streams
         self._sessions: dict[Path, FlowSession] = {}
         # The trees the open sessions need watched, refcounted so several flows
         # in one workspace share its watch. Moved here whether or not a watcher
         # is listening: the hub is what knows when a session begins and ends.
         self.watches = Watches()
-        # The workspace env is a singleton, so the SDK is added to it once —
-        # whichever of the hosted flows turns out to publish first. Keyed by
-        # workspace, because a flow opened from above the launch directory runs
-        # under its own.
-        self._sdk_scaffolded: set[Path] = set()
 
     def flows(self) -> list[FlowRef]:
         return workspace.find_flows(self.root)
@@ -287,26 +256,7 @@ class Hub:
             # file. Whichever door it came through, reactivity's question has a
             # new answer.
             session.reactor.arm()
-        if moved or not session.sdk_checked:
-            session.sdk_checked = True
-            await self._scaffold_sdk(session)
         self.document(session)
-
-    async def _scaffold_sdk(self, session: FlowSession) -> None:
-        """Declaring a published output is what pulls the SDK into the env.
-
-        A workspace that cannot be synced is not a reason to refuse the op that
-        asked — the scaffolding is a convenience over a dependency the user can
-        add themselves, and the upload path runs daemon-side either way.
-        """
-        here = session.workspace_dir
-        if here in self._sdk_scaffolded or not session.declares_native():
-            return
-        # Claimed before the await: two flows declaring a native output in the
-        # same breath must not both shell out to uv over one pyproject.
-        self._sdk_scaffolded.add(here)
-        with contextlib.suppress(EnvError, OSError):
-            await envs.ensure_sdk(here)
 
     def document(self, session: FlowSession | None = None) -> None:
         """Keep the generated docs current — the agent that only reads files
@@ -341,7 +291,6 @@ class Hub:
             ref,
             store,
             self._workspace_of(ref),
-            uploader=self._uploader,
             streams=self._streams,
         )
         self._sessions[ref.path] = session

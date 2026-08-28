@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from lumlflow.flow.daemon import queries
+from lumlflow.flow.daemon import envs, queries
 from lumlflow.flow.daemon.hub import FlowSession
 from lumlflow.flow.errors import FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
@@ -24,6 +24,7 @@ from tests.daemon.helpers import (
     REPORT_CELL,
     SCORE_CELL,
     daemon_api,
+    fake_venv,
     flow_named,
     make_workspace,
     ops_of,
@@ -34,6 +35,14 @@ from tests.daemon.helpers import (
     write_cell,
     write_file,
 )
+
+MODEL_CELL = """
+class Train:
+    produces = {"model": "model"}
+
+    def materialize(self, ctx):
+        return {"model": "WEIGHTS"}
+"""
 
 
 async def test_the_browser_sees_flows_as_documents_and_files_as_context(
@@ -221,6 +230,41 @@ async def test_a_run_crosses_daemon_kernel_and_store_in_two_flows(tmp_path: Path
     assert kernels["churn"] not in (None, kernels["sales"])
     assert values_in(root / "sales.flow") == [{"auc": 0.91}]
     assert values_in(root / "churn.flow") == [{"auc": 0.91}, {"auc_pct": 91.0}]
+
+
+async def test_a_model_run_never_uploads_or_writes_project_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(
+        tmp_path / "project",
+        files={
+            "pyproject.toml": "[project]\nname = 'project'\nversion = '0.1.0'",
+            "uv.lock": "version = 1",
+        },
+    )
+    fake_venv(root)
+    write_cell(root / "churn.flow", "train", MODEL_CELL)
+    project_before = (root / "pyproject.toml").read_bytes()
+    lock_before = (root / "uv.lock").read_bytes()
+    uv_calls: list[tuple[str, ...]] = []
+
+    async def record_uv(_workspace_dir: Path, *args: str) -> str:
+        uv_calls.append(args)
+        return ""
+
+    monkeypatch.setattr(envs.shutil, "which", lambda _name: "uv")
+    monkeypatch.setattr(envs, "uv", record_uv)
+
+    async with daemon_api(root) as api:
+        outcome = await api.run({"target": "train"})
+        session = api.hub.session("churn")
+        op_names = [op.op for entry in transactions(session) for op in entry.ops]
+
+    assert outcome["executed"] == ["train"]
+    assert all(not name.startswith("upload_") for name in op_names)
+    assert uv_calls == []
+    assert (root / "pyproject.toml").read_bytes() == project_before
+    assert (root / "uv.lock").read_bytes() == lock_before
 
 
 async def test_preflight_names_the_closure_the_run_then_executes(tmp_path: Path):

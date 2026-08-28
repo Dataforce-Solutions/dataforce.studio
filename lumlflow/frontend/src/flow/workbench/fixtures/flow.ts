@@ -259,15 +259,6 @@ export const journal: JournalEntry[] = [
     settled: true,
   },
   {
-    step: 18,
-    time: '13:52',
-    branch: 'main',
-    actor: claude,
-    intent: 'publish the sweep winner',
-    kind: 'promote',
-    summary: 'promoted `train_model.model` → collection churn-models',
-  },
-  {
     step: 17,
     time: '13:40',
     branch: 'main',

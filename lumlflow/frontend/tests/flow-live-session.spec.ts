@@ -753,12 +753,11 @@ describe('mutating ops', () => {
     await ops.rewind(4, { branch: 'main' })
     await ops.adopt('train_model', 'sweep', { branch: 'main' })
     await ops.archive('sweep')
-    await ops.promote('train_model.run', 'main')
     await ops.addPackages(['lightgbm'])
     await ops.removePackages(['lightgbm'])
 
     const mutations = daemon.calls.filter((call) => call.method !== 'flow.open')
-    expect(mutations).toHaveLength(13)
+    expect(mutations).toHaveLength(12)
     for (const call of mutations) {
       expect(String(call.params.intent ?? '')).not.toBe('')
     }

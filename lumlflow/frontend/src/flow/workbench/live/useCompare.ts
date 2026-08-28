@@ -27,7 +27,6 @@ import type {
   BranchRecord,
   DiffSide,
   DiffVersionSide,
-  MaterializedOutput,
   StaleState,
   StoredPreview,
 } from '@/flow/api/types'
@@ -352,8 +351,7 @@ function shapeless(entry: BranchDiff['shapeless'][number]): ShapelessDifference 
 /**
  * The focused asset's outputs that leave the flow, and where each branch's
  * stands. There is no artifact screen to open from here, so the row says what
- * it is and the chips say whether the upload landed — a link that went nowhere
- * would be worse than the sentence.
+ * it is; a link that went nowhere would be worse than the sentence.
  */
 function artifacts(compared: BranchDiff, slug: string | null): CompareArtifactLink[] {
   if (slug === null) return []
@@ -374,16 +372,7 @@ function artifacts(compared: BranchDiff, slug: string | null): CompareArtifactLi
     // What it is, in the four-word vocabulary the cell declared it under.
     label: `${output} · ${kind}`,
     href: '',
-    byBranch: Object.fromEntries(
-      sides.map((side) => [side.branch, uploadState(side.outputs, output)]),
-    ),
   }))
-}
-
-function uploadState(outputs: MaterializedOutput[], name: string): string {
-  const output = outputs.find((entry) => entry.name === name)
-  if (output === undefined) return 'not materialized'
-  return output.uploaded ? 'uploaded' : 'not uploaded'
 }
 
 function params(declared: Record<string, unknown>): Record<string, ParamValue> {

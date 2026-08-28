@@ -73,7 +73,6 @@ import { computed, useTemplateRef } from 'vue'
 import { Button, Menu, Popover } from 'primevue'
 import type { MenuItem } from 'primevue/menuitem'
 import {
-  CloudUpload,
   Copy,
   EllipsisVertical,
   Maximize2,
@@ -120,7 +119,6 @@ const emit = defineEmits<{
   delete: []
   duplicate: []
   'add-downstream': []
-  promote: []
   eager: [on: boolean]
 }>()
 
@@ -140,10 +138,6 @@ const stopTooltip = computed(() => {
     others === 1 ? '1 other lane still waits' : `${others} other lanes still wait`
   return `leave the run, requeue this lane. ${branches} for it.`
 })
-
-const hasInlineAsset = computed(() =>
-  props.cell.outputs.some((output) => output.declared === 'asset'),
-)
 
 /**
  * Four groups, in the order a reader reaches for them: look at it, change it,
@@ -175,8 +169,6 @@ const menuItems = computed<CellMenuItem[]>(() => {
   items.push({ label: 'duplicate', glyph: Copy, command: () => emit('duplicate') })
   if (!props.cell.isNote) {
     items.push({ separator: true })
-    if (hasInlineAsset.value)
-      items.push({ label: 'promote to LUML', glyph: CloudUpload, command: () => emit('promote') })
     items.push({
       label: props.cell.eager ? 'eager materialization · on' : 'eager materialization · off',
       glyph: Zap,

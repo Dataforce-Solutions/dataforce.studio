@@ -67,9 +67,8 @@ CHEATSHEET = """\
   resolves when exactly one cell on the lane produces it. lumlflow then
   rewrites it to the full spelling for you.
 - `produces = {"name": "asset"}` declares outputs. The four words are `model`,
-  `dataset`, `experiment` and `asset`. They say what leaves the flow, not what
-  the value is. **Declare `asset` unless you mean to publish. Promote later.**
-  lumlflow infers the rendered kind from the value itself.
+  `dataset`, `experiment` and `asset`. They classify the output; lumlflow infers
+  the rendered kind from the value itself.
 - A class with only a docstring is a note cell. It renders as markdown.
 - Always name a cell. The filename is the name everything addresses it by.
 - Params live in `params = {...}`. `ctx.seed()` applies `params["seed"]`.
@@ -121,7 +120,7 @@ For an agent that is itself a CLI:
 `lumlflow cells show <cell>` · `lumlflow cells new <cell> [--after <producer>]` ·
 `lumlflow rename <cell> <new-name>` · `lumlflow cells delete <cell>` ·
 `lumlflow run <cell[.output]>` · `lumlflow preflight <cell>` ·
-`lumlflow asset preview <cell[.output]>` · `lumlflow promote <cell[.output]>` ·
+`lumlflow asset preview <cell[.output]>` ·
 `lumlflow lane list` · `lumlflow graph` ·
 `lumlflow lane new <lane>` · `lumlflow lane use <lane>` ·
 `lumlflow diff <a> <b>` ·

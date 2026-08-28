@@ -80,7 +80,6 @@ function trainerDetail(over: Partial<CellDetail> = {}): CellDetail {
       declared: 'asset' as const,
       size: 128,
       persisted: true,
-      uploaded: false,
     })),
     ...over,
   })
@@ -497,7 +496,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
             declared: 'asset',
             size: 4096,
             persisted: true,
-            uploaded: false,
           },
         ],
       }),
@@ -615,7 +613,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
           declared: 'asset' as const,
           size: 4096,
           persisted: true,
-          uploaded: false,
         })),
       }),
       handlers: {
@@ -750,7 +747,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
             declared: 'asset',
             size: 0,
             persisted: false,
-            uploaded: false,
           },
         ],
       }),

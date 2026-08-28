@@ -44,7 +44,8 @@ async def test_agents_md_lands_at_the_workspace_root_and_names_every_flow(
     assert "`churn`" in generated and "`sales`" in generated
     assert docs.QUICKSTART in generated
     # The authoring defaults an agent has to know before it writes a cell.
-    assert "Declare `asset` unless you mean to publish" in generated
+    assert "The four words are `model`" in generated
+    assert "Promote later" not in generated
     assert "Always name a cell" in generated
     assert "immutable" in generated
 

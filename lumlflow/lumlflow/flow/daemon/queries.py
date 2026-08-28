@@ -803,7 +803,6 @@ def _outputs(
             "declared": produces[name].type if name in produces else "asset",
             "size": record.size,
             "persisted": record.persisted,
-            "uploaded": record.luml_ref is not None,
         }
         for name, record in sorted(mat.outputs.items())
     ]

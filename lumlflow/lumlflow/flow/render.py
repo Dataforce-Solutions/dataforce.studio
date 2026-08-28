@@ -263,21 +263,6 @@ def asset_diff(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
-def published(payload: dict[str, Any]) -> list[str]:
-    """Where an output stands with the platform — never why the network failed
-    in the platform's own words unless it said something worth relaying."""
-    target = f"`{payload['slug']}.{payload['output']}`"
-    if payload["state"] == "uploaded":
-        return [f"{target} is published"]
-    if payload["state"] == "failed":
-        detail = payload.get("detail")
-        return [
-            f"{target} did not upload" + (f": {detail}" if detail else ""),
-            "it stays queued. the next run or promote tries again",
-        ]
-    return [f"{target} is queued. it uploads when the platform is reachable"]
-
-
 def preflight(payload: dict[str, Any]) -> list[str]:
     """What a run would do, before it does it."""
     lines = [f"`{payload['target']}` on `{payload['branch']}`"]

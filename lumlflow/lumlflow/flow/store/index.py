@@ -39,14 +39,12 @@ from lumlflow.flow.store.models import (
     SecretRefAdded,
     SelectionSet,
     Transaction,
-    UploadRecorded,
-    UploadStateChanged,
     VersionFlag,
     WorkspaceCodeChanged,
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 5
+INDEX_SCHEMA_VERSION = 6
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -138,14 +136,6 @@ CREATE TABLE worktrees (
     lock_holder TEXT
 );
 
-CREATE TABLE upload_queue (
-    mat_id TEXT NOT NULL,
-    output TEXT NOT NULL,
-    state TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (mat_id, output)
-);
-
 CREATE TABLE workspace_tree (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     tree_hash TEXT NOT NULL,
@@ -231,17 +221,6 @@ class TransactionRow:
     # Somebody marked this step on purpose, as opposed to `settled`, which the
     # commit computes. The two answer the same question from opposite ends.
     marker: bool = False
-
-
-@dataclass(frozen=True)
-class UploadRow:
-    """One output's place in the upload queue. `done` carries its reference on
-    the materialization, so the queue keeps only the state."""
-
-    mat_id: str
-    output: str
-    state: str
-    attempts: int
 
 
 @dataclass(frozen=True)
@@ -397,37 +376,6 @@ class Index:
             "SELECT * FROM materializations WHERE mat_id = ?", (mat_id,)
         ).fetchone()
         return _materialization(row) if row is not None else None
-
-    def materializations_since(self, step: int) -> list[MaterializationRow]:
-        """Runs that produced something after `step`, oldest first.
-
-        Only the succeeded ones: a failure produced no bytes, and the caller
-        asking is the uploader, which has nothing to publish for either.
-        """
-        rows = self._conn.execute(
-            "SELECT * FROM materializations WHERE state = 'succeeded' "
-            "AND COALESCE(finished_step, started_step) > ? "
-            "ORDER BY COALESCE(finished_step, started_step)",
-            (step,),
-        ).fetchall()
-        return [_materialization(row) for row in rows]
-
-    def uploads(self, *, pending: bool = False) -> list[UploadRow]:
-        """The upload queue. `pending` drops what already has its reference."""
-        clause = "WHERE state != 'done' " if pending else ""
-        rows = self._conn.execute(
-            "SELECT mat_id, output, state, attempts FROM upload_queue "
-            f"{clause}ORDER BY mat_id, output"
-        ).fetchall()
-        return [
-            UploadRow(
-                mat_id=row["mat_id"],
-                output=row["output"],
-                state=row["state"],
-                attempts=int(row["attempts"]),
-            )
-            for row in rows
-        ]
 
     def knows_cell(self, uid: str) -> bool:
         """Has this store ever minted or observed the cell? Deleting it from a
@@ -771,10 +719,6 @@ class Index:
             case EnvChanged():
                 self._set_meta("env_lock_hash", op.lock_hash)
                 self._set_meta("env_packages", _dump(op.packages))
-            case UploadStateChanged():
-                self._set_upload(op.mat_id, op.output, op.state, op.attempts)
-            case UploadRecorded():
-                self._record_upload(op)
             case FlagSet():
                 self._flag_version(op)
             case AgentBegin():
@@ -906,34 +850,6 @@ class Index:
             # cell, and staleness derives `failed` from it. A cancelled or
             # still-running record observed nothing and leaves it standing.
             self._set_baseline(op.branch_id, op.uid, op.mat_id)
-
-    def _set_upload(self, mat_id: str, output: str, state: str, attempts: int) -> None:
-        self._conn.execute(
-            "INSERT INTO upload_queue (mat_id, output, state, attempts) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(mat_id, output) DO UPDATE SET "
-            "state = excluded.state, attempts = excluded.attempts",
-            (mat_id, output, state, attempts),
-        )
-
-    def _record_upload(self, op: UploadRecorded) -> None:
-        row = self._conn.execute(
-            "SELECT outputs FROM materializations WHERE mat_id = ?", (op.mat_id,)
-        ).fetchone()
-        if row is not None:
-            outputs = json.loads(row["outputs"])
-            record = outputs.get(op.output)
-            if record is not None:
-                record["luml_ref"] = op.ref.model_dump(mode="json")
-                self._conn.execute(
-                    "UPDATE materializations SET outputs = ? WHERE mat_id = ?",
-                    (_dump(outputs), op.mat_id),
-                )
-        self._conn.execute(
-            "INSERT INTO upload_queue (mat_id, output, state, attempts) "
-            "VALUES (?, ?, 'done', 0) ON CONFLICT(mat_id, output) DO UPDATE SET "
-            "state = 'done'",
-            (op.mat_id, op.output),
-        )
 
     def _flag_version(self, op: FlagSet) -> None:
         if op.version_id is None:

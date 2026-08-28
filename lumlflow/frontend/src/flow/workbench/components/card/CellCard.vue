@@ -189,7 +189,6 @@
         @delete="emit('delete')"
         @duplicate="emit('duplicate')"
         @add-downstream="emit('add-downstream')"
-        @promote="emit('promote')"
         @eager="emit('eager', $event)"
       />
     </footer>
@@ -252,7 +251,6 @@ const emit = defineEmits<{
   delete: []
   duplicate: []
   'add-downstream': []
-  promote: []
   eager: [on: boolean]
   /** A handoff popover opened — the gesture to go and build a payload for. */
   handoff: [gesture: HandoffGesture]

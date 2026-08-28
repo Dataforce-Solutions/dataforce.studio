@@ -5,11 +5,10 @@
  * gesture goes over the wire and what comes back is what the reader hands over,
  * because the traceback of a run nobody opened is a fact only the store has.
  * The activity feed is **read-only and cursor-anchored** — a marker, not an
- * inbox — and the upload states in it are journal lines, so a publish waiting
- * out an offline window is visible rather than a spinner. The scratch REPL is a
- * **read of any branch**, including one whose files are nowhere, and it writes
- * no version. Env ops and the flow's settings go through the daemon and render
- * its answer, never a control that looks like it took a change and dropped it.
+ * inbox. The scratch REPL is a **read of any branch**, including one whose
+ * files are nowhere, and it writes no version. Env ops and the flow's settings
+ * go through the daemon and render its answer, never a control that looks like
+ * it took a change and dropped it.
  */
 
 import { describe, expect, it, beforeEach } from 'vitest'
@@ -35,7 +34,6 @@ import {
   openCardMenu,
   openPanel,
   settle,
-  settleJournal,
   storedPreview,
   transaction,
 } from './fakes'
@@ -260,16 +258,6 @@ async function clickText(wrapper: VueWrapper, label: string): Promise<void> {
   await settle()
 }
 
-/** Popovers, menus, dialogs and drawers are teleported into the body. */
-async function clickInBody(match: string): Promise<void> {
-  const node = Array.from(document.body.querySelectorAll('button, .p-menu-item-link')).find(
-    (found) => found.textContent?.trim().includes(match),
-  )
-  if (!node) throw new Error(`nothing in the overlay matching "${match}"`)
-  ;(node as HTMLElement).click()
-  await settle()
-}
-
 function overlays(): string {
   return document.body.textContent ?? ''
 }
@@ -452,123 +440,6 @@ describe('the activity feed is read-only and opens at the cursor', () => {
     wrapper.unmount()
   })
 
-  it('renders the upload states the journal recorded, queued through recorded', async () => {
-    const { wrapper, live } = await workbench()
-
-    live.socket.deliver({
-      channel: 'journal',
-      type: 'transaction',
-      flow: FLOW,
-      step: 11,
-      transaction: transaction(11, {
-        intent: 'promoted train_model.run',
-        ops: [
-          {
-            op: 'upload_state_changed',
-            mat_id: 'm-1',
-            output: 'run',
-            state: 'queued',
-            attempts: 0,
-          },
-        ],
-      }),
-    })
-    live.socket.deliver({
-      channel: 'journal',
-      type: 'transaction',
-      flow: FLOW,
-      step: 12,
-      transaction: transaction(12, {
-        intent: 'publishing train_model.run',
-        ops: [
-          {
-            op: 'upload_state_changed',
-            mat_id: 'm-1',
-            output: 'run',
-            state: 'failed',
-            attempts: 2,
-          },
-        ],
-      }),
-    })
-    live.socket.deliver({
-      channel: 'journal',
-      type: 'transaction',
-      flow: FLOW,
-      step: 13,
-      transaction: transaction(13, {
-        intent: 'published train_model.run',
-        ops: [
-          {
-            op: 'upload_recorded',
-            mat_id: 'm-1',
-            output: 'run',
-            ref: {
-              collection: 'churn-models',
-              artifact_id: 'art-1',
-              version: 'v1',
-              digest: 'sha',
-            },
-          },
-        ],
-      }),
-    })
-    await settleJournal()
-
-    await openPanel(wrapper, 'activity')
-
-    const feed = wrapper.text()
-    expect(feed).toContain('upload queued')
-    expect(feed).toContain('upload failed · 2 attempts')
-    expect(feed).toContain('uploaded to churn-models')
-    wrapper.unmount()
-  })
-})
-
-// --- promote -----------------------------------------------------------------
-
-describe('promote publishes an output the cell declared inline', () => {
-  it('names the output and reports the state the daemon put it in', async () => {
-    const live = await attach({
-      status: flowStatus({ cells: SLICE }),
-      handlers: reads({
-        promote: (params) => ({
-          flow: 'churn',
-          branch: String(params.branch),
-          slug: 'features',
-          output: 'train_split',
-          state: 'queued',
-        }),
-      }),
-    })
-    const wrapper = mount(LiveCellCard, {
-      props: {
-        session: live.session,
-        stream: live.stream,
-        branch: 'main',
-        summary: SLICE[0],
-        density: 'canvas',
-      },
-    })
-    await settle()
-
-    const more = wrapper.findAll('button').find((node) => node.attributes('aria-label') === 'more')!
-    await more.trigger('click')
-    await settle()
-    await clickInBody('promote to LUML')
-
-    expect(asked(live, 'promote')).toEqual([
-      {
-        flow: FLOW,
-        branch: 'main',
-        target: 'features.train_split',
-        intent: 'promoted features.train_split',
-      },
-    ])
-    // Offline is a state, not a failure: the queue entry is what was reported.
-    expect(wrapper.text()).toContain('train_split · upload queued')
-    wrapper.unmount()
-  })
 })
 
 // --- the scratch REPL --------------------------------------------------------

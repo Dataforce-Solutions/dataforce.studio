@@ -59,7 +59,6 @@ export interface FlowOps {
     options: { branch: string; force?: boolean },
   ) => Result<'adopt'>
   archive: (branch: string) => Result<'archive'>
-  promote: (target: string, branch: string) => Result<'promote'>
   /** Reads, not mutations — they carry no intent because they journal nothing. */
   handoff: (
     gesture: HandoffGesture,
@@ -189,14 +188,6 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
 
     archive: (branch) =>
       session.request('archive', { flow: flow(), branch, intent: `archived ${branch}` }),
-
-    promote: (target, branch) =>
-      session.request('promote', {
-        flow: flow(),
-        branch,
-        target,
-        intent: `promoted ${target}`,
-      }),
 
     // The gesture is the whole request: what a handoff carries is the daemon's
     // to decide, so no surface gets to assemble a thinner version of it.

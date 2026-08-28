@@ -30,7 +30,6 @@ from lumlflow.flow.daemon import client, web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
-from lumlflow.flow.daemon.uploads import LumlUploader
 from lumlflow.flow.daemon.watcher import Watcher
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowError
@@ -62,10 +61,7 @@ class Daemon:
         # Everything a browser watches goes through here, and a session that is
         # opened before it would announce its commits to nobody.
         self.streams = Streams()
-        # The one place the network is reached from: uploads are daemon-side,
-        # so a no-network kernel never strands a published output, and a hub
-        # built anywhere else publishes nothing until someone hands it this.
-        self.hub = Hub(self.root, uploader=LumlUploader(), streams=self.streams)
+        self.hub = Hub(self.root, streams=self.streams)
         self.api = Api(self.hub, stop=self.stop)
         self.watcher = Watcher(self.hub)
         self.token = secrets.token_hex(16)

@@ -33,7 +33,6 @@ from tests.daemon.helpers import (
     FRAME_CELL,
     REPORT_CELL,
     SCORE_CELL,
-    FakeLuml,
     LocalDaemon,
     make_workspace,
     no_git_words,
@@ -77,18 +76,9 @@ def workspace(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def platform() -> FakeLuml:
-    """No verb here reaches the real platform: the daemon process is what wires
-    an uploader in, and this stands in for it."""
-    return FakeLuml()
-
-
-@pytest.fixture
-def cli(
-    workspace: Path, platform: FakeLuml, monkeypatch: pytest.MonkeyPatch
-) -> Iterator[Invoke]:
+def cli(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Invoke]:
     loop = asyncio.new_event_loop()
-    hub = Hub(workspace, uploader=platform)
+    hub = Hub(workspace)
     api = Api(hub)
     monkeypatch.setattr(
         client, "connect", lambda root, **kwargs: LocalDaemon(api, loop)
@@ -541,37 +531,11 @@ def test_an_output_with_no_bytes_says_what_to_do_about_it(cli: Invoke, workspace
     assert "run `score` first" in answered["error"]
 
 
-def test_promote_publishes_a_stored_output_and_names_only_the_cell(
-    cli: Invoke, workspace: Path, platform: FakeLuml
-):
-    cli("init", "churn")
-    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
-    cli("run", "score")
+def test_promote_is_not_a_command(cli: Invoke) -> None:
+    removed = cli("promote")
 
-    published = cli("promote", "score.summary", "-m", "shipping the baseline")
-    answered = json.loads(cli("promote", "score.summary", "--json").output)
-
-    assert "`score.summary` is published" in published.output
-    assert [request.slug for request in platform.received] == ["score"]
-    # The reference is a `--json` fact: a printed line speaks the cell.
-    assert answered["reference"]["collection"] == "col-1"
-    _no_internals(published)
-
-
-def test_promote_offline_says_it_is_queued_rather_than_claiming_a_publish(
-    cli: Invoke, workspace: Path, platform: FakeLuml
-):
-    cli("init", "churn")
-    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
-    cli("run", "score")
-    platform.offline = True
-
-    failed = cli("promote", "score.summary")
-
-    assert "did not upload" in failed.output
-    assert "unreachable" in failed.output
-    assert "tries again" in failed.output
-    _no_internals(failed)
+    assert removed.exit_code == 2
+    assert "No such command 'promote'" in removed.output
 
 
 def test_secrets_are_named_but_never_shown(cli: Invoke):

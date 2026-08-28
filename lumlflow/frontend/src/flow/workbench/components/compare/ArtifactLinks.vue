@@ -16,20 +16,6 @@
         </span>
         <span class="ml-auto text-sm text-muted-color">{{ destination(artifact) }}</span>
       </div>
-      <div class="flex flex-wrap gap-1.5">
-        <span
-          v-for="(reference, branch) in artifact.byBranch"
-          :key="branch"
-          v-tooltip.top="branch"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-1.5 py-0.5 font-mono text-sm dark:border-surface-700"
-        >
-          <span
-            class="h-2 w-2 shrink-0 rounded-full"
-            :style="{ background: branchColor(String(branch)) }"
-          />
-          {{ reference }}
-        </span>
-      </div>
     </div>
   </div>
 </template>
@@ -37,7 +23,6 @@
 <script setup lang="ts">
 import type { CompareArtifactLink } from '../../model/types'
 import KindBadge from '../../ui/KindBadge.vue'
-import { branchColor } from '../../ui/kinds'
 
 defineProps<{ artifacts: CompareArtifactLink[] }>()
 

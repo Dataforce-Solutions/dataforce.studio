@@ -18,7 +18,6 @@ from typing import Any, get_args
 from lumlflow.flow.daemon import connect, envs, handoff, queries, secrets, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Focus, Hub
 from lumlflow.flow.daemon.projections import Projection
-from lumlflow.flow.daemon.uploads import Published
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl import loader, portable, scaffold
 from lumlflow.flow.dsl.accept import PLACEHOLDER_SLUG, AcceptedCell, Batch
@@ -91,7 +90,6 @@ class Api:
             "env.status": self.env_status,
             "env.add": self.env_add,
             "env.remove": self.env_remove,
-            "promote": self.promote,
             "run": self.run,
             "eval": self.eval,
             "preflight": self.preflight,
@@ -733,26 +731,6 @@ class Api:
             },
         }
 
-    async def promote(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Publish a stored output the cell declared inline.
-
-        The authoring default is `asset`, so promoting is the cheap way out of
-        it afterwards: the bytes are already staged, and this only asks the
-        platform to keep a copy.
-        """
-        session, branch = await self._read(params)
-        here = queries.read(session, branch)
-        slug, output, record = queries.locate(here, _target(params))
-        if record is None or record.value_ref is None:
-            raise ValueNotStored(_unstored(slug, output, record is not None))
-        published = await session.uploads.promote(
-            here.mats[here.uid_of(slug)].mat_id,
-            output,
-            actor=_actor(params),
-            intent=params.get("intent"),
-        )
-        return {"flow": session.ref.name, "branch": branch} | _published(published)
-
     async def run(self, params: dict[str, Any]) -> dict[str, Any]:
         """Run a target's closure. `force` drops memoization for this plan.
 
@@ -767,10 +745,6 @@ class Api:
             actor=_actor(params),
             force=bool(params.get("force")),
         )
-        # Publishing is downstream of the record and never in the run's way: a
-        # native output is journaled as queued here, and uploaded off to one
-        # side, so a network that is not there costs a run nothing.
-        session.uploads.sync()
         self.hub.document(session)
         # A result the user paid for is what makes the cheap cells under it
         # affordable: running the expensive parent is the gesture that lets
@@ -1092,20 +1066,6 @@ def _one_of(value: Any, allowed: Sequence[str], called: str) -> Any:
             + " or ".join(f"`{word}`" for word in allowed)
         )
     return str(value)
-
-
-def _published(published: Published) -> dict[str, Any]:
-    return {
-        "slug": published.slug,
-        "output": published.output,
-        "state": published.state,
-        "reference": (
-            published.reference.model_dump(mode="json")
-            if published.reference is not None
-            else None
-        ),
-        "detail": published.detail,
-    }
 
 
 def _preflight(preflight: Preflight) -> dict[str, Any]:

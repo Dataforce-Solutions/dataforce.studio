@@ -162,7 +162,6 @@ export function cellDetail(slug: string, overrides: Partial<CellDetail> = {}): C
         declared: 'asset',
         size: 32,
         persisted: true,
-        uploaded: false,
       },
     ],
     error: null,

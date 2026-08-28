@@ -273,10 +273,6 @@ export interface FlowMethods {
     Intentful & { slug: string; to: string; force?: boolean },
     Projected & { slug: string; renamed_from: string; branch: string; rewired: string[] }
   >
-  promote: Method<
-    Intentful & { target: string },
-    { flow: string; branch: string; slug: string; output: string; state: string }
-  >
   /**
    * The prompt that pairs an agent with this flow. Flow-scoped: an agent
    * connects to the workspace, not to a branch or a cell, and the connection

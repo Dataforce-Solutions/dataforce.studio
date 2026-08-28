@@ -33,7 +33,6 @@ export type FlagCode =
 
 export type DeclaredAssetType = 'model' | 'dataset' | 'experiment' | 'asset'
 export type MaterializationState = 'running' | 'succeeded' | 'failed' | 'cancelled'
-export type UploadState = 'queued' | 'uploading' | 'failed'
 export type KindSource = 'declared' | 'matcher' | 'fallback'
 
 export interface VersionFlag {
@@ -69,13 +68,6 @@ export interface InputRef {
   mat_id: string
 }
 
-export interface LumlRef {
-  collection: string
-  artifact_id: string
-  version: string
-  digest: string
-}
-
 export interface OutputRecord {
   content_hash: string
   kind: string
@@ -83,7 +75,6 @@ export interface OutputRecord {
   size: number
   preview_ref: string | null
   value_ref: string | null
-  luml_ref: LumlRef | null
   persisted: boolean
 }
 
@@ -211,21 +202,6 @@ export interface EnvChangedOp {
   summary: string
 }
 
-export interface UploadStateChangedOp {
-  op: 'upload_state_changed'
-  mat_id: string
-  output: string
-  state: UploadState
-  attempts: number
-}
-
-export interface UploadRecordedOp {
-  op: 'upload_recorded'
-  mat_id: string
-  output: string
-  ref: LumlRef
-}
-
 export interface FlagSetOp {
   op: 'flag_set'
   flag: string
@@ -277,8 +253,6 @@ export type FlowOp =
   | MemoHitOp
   | WorkspaceCodeChangedOp
   | EnvChangedOp
-  | UploadStateChangedOp
-  | UploadRecordedOp
   | FlagSetOp
   | AgentBeginOp
   | AgentEndOp
@@ -461,7 +435,6 @@ export interface MaterializedOutput {
   declared: DeclaredAssetType
   size: number
   persisted: boolean
-  uploaded: boolean
 }
 
 export interface CellDetail extends CellSummary {

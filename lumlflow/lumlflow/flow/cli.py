@@ -84,7 +84,6 @@ def register(app: typer.Typer) -> None:
         adopt,
         diff,
         rename,
-        promote,
         export,
         root,
         mcp,
@@ -747,30 +746,6 @@ def asset_download(
         as_json,
         [f"wrote {result['path']} · {result['kind']}, {result['size']} bytes"],
     )
-
-
-def promote(
-    target: str = typer.Argument(..., help="`cell` or `cell.output`."),
-    flow: str | None = _FLOW,
-    lane: str | None = _LANE,
-    variant: str | None = _LANE_WAS,
-    branch: str | None = _BRANCH_WAS,
-    intent: str | None = _INTENT,
-    as_json: bool = _JSON,
-) -> None:
-    """Publish a stored asset to LUML.
-
-    Declare `asset` unless you mean to publish, then promote later. The bytes
-    are staged the moment the cell succeeds. This verb only asks the platform
-    to keep a copy of what the flow already holds.
-    """
-    params = {
-        "target": target,
-        "branch": _lane(lane, variant, branch),
-        "intent": intent,
-    }
-    result = _call("promote", params, flow=flow, as_json=as_json)
-    _emit(result, as_json, render.published)
 
 
 @agent_app.command("begin")

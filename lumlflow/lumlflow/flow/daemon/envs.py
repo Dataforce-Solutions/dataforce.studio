@@ -14,7 +14,6 @@ current.
 """
 
 import asyncio
-import re
 import shutil
 import sys
 import tomllib
@@ -33,10 +32,8 @@ if TYPE_CHECKING:
 PROJECT_FILE = "pyproject.toml"
 LOCK_FILE = "uv.lock"
 VENV_DIRNAME = ".venv"
-SDK_PACKAGE = "luml-sdk"
 _SYNC_TIMEOUT_S = 600.0
 _OUTPUT_TAIL_CHARS = 2000
-_REQUIREMENT_NAME = re.compile(r"^[A-Za-z0-9._-]+")
 
 
 @dataclass(frozen=True)
@@ -83,25 +80,6 @@ async def uv_sync(workspace_dir: Path) -> None:
     the workspace does not have and blame the cell for the ImportError.
     """
     await uv(workspace_dir, "sync")
-
-
-async def ensure_sdk(workspace_dir: Path) -> bool:
-    """Put the luml SDK in the workspace env — what a published output needs.
-
-    Scaffolded rather than assumed, because the SDK is an ordinary workspace
-    dependency: the venv holds no lumlflow code, so a flow that declares a
-    `model`, `dataset` or `experiment` output has to declare the library that
-    talks to the platform too. A workspace with no `pyproject.toml` declares
-    nothing and is left alone, and one that already asks for the SDK is not
-    asked again — `uv add` would rewrite the user's lockfile for nothing.
-    """
-    project = workspace_dir / PROJECT_FILE
-    if not project.exists() or shutil.which("uv") is None:
-        return False
-    if _declares(project, SDK_PACKAGE):
-        return False
-    await uv(workspace_dir, "add", SDK_PACKAGE)
-    return True
 
 
 async def add(workspace_dir: Path, names: Sequence[str]) -> str:
@@ -271,25 +249,3 @@ async def uv(workspace_dir: Path, *args: str) -> str:
         tail = output[-_OUTPUT_TAIL_CHARS:].strip()
         raise EnvError(f"`{spelled}` failed in {workspace_dir}:\n{tail}")
     return output
-
-
-def _declares(project: Path, package: str) -> bool:
-    try:
-        declared = tomllib.loads(project.read_text("utf-8"))
-    except (OSError, ValueError):
-        return False
-    project_table = declared.get("project") or {}
-    groups = [
-        project_table.get("dependencies") or [],
-        *(project_table.get("optional-dependencies") or {}).values(),
-        *(declared.get("dependency-groups") or {}).values(),
-    ]
-    return any(_requirement(entry) == package for group in groups for entry in group)
-
-
-def _requirement(entry: object) -> str:
-    """The distribution a requirement string names, normalised as PyPI does."""
-    if not isinstance(entry, str):
-        return ""
-    found = _REQUIREMENT_NAME.match(entry.strip())
-    return normalize(found.group(0)) if found else ""

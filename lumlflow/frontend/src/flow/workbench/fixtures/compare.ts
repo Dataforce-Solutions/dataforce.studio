@@ -131,12 +131,6 @@ export const sweepCompare: CompareView = {
       kind: 'experiment',
       label: 'churn-xgb experiment',
       href: '/experiments',
-      byBranch: {
-        main: 'exp-0142',
-        'exp/lr-3e4': 'exp-0143',
-        'exp/lr-1e3': 'exp-0144',
-        'exp/lr-3e3': 'exp-0145',
-      },
     },
     {
       slug: 'train_model',
@@ -144,12 +138,6 @@ export const sweepCompare: CompareView = {
       kind: 'model',
       label: 'churn model',
       href: '/experiments',
-      byBranch: {
-        main: 'churn-xgb v6',
-        'exp/lr-3e4': 'churn-xgb v7',
-        'exp/lr-1e3': 'churn-xgb v8',
-        'exp/lr-3e3': 'churn-xgb v9',
-      },
     },
     {
       slug: 'holdout_eval',
@@ -157,12 +145,6 @@ export const sweepCompare: CompareView = {
       kind: 'metric',
       label: 'holdout auc',
       href: '',
-      byBranch: {
-        main: '0.841',
-        'exp/lr-3e4': '0.841',
-        'exp/lr-1e3': '0.856',
-        'exp/lr-3e3': '0.848',
-      },
     },
   ],
 }

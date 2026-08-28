@@ -14,19 +14,15 @@ from lumlflow.flow.store.models import (
     EnvChanged,
     FlagSet,
     FlowInit,
-    LumlRef,
     MemoHit,
     Rewound,
     SelectionSet,
-    UploadRecorded,
-    UploadStateChanged,
     WorkspaceCodeChanged,
     WorktreeBound,
 )
 
 from tests.flow.helpers import (
     cell_accepted,
-    output_record,
     run_recorded,
     snapshot,
     transaction,
@@ -300,49 +296,6 @@ class TestFold:
         (row,) = rows(index, "SELECT * FROM meta WHERE key = 'env_lock_hash'")
         assert row["value"] == "c" * 64
 
-    def test_upload_states_then_the_recorded_reference(self, index: Index) -> None:
-        accepted = cell_accepted()
-        run = run_recorded(
-            uid=accepted.uid,
-            version_id=accepted.version_id,
-            branch_id="main",
-            outputs={"run": output_record()},
-        )
-        index.apply(transaction(1, [accepted, run]))
-        index.apply(
-            transaction(
-                2,
-                [
-                    UploadStateChanged(
-                        mat_id=run.mat_id, output="run", state="failed", attempts=2
-                    )
-                ],
-            )
-        )
-        index.apply(
-            transaction(
-                3,
-                [
-                    UploadRecorded(
-                        mat_id=run.mat_id,
-                        output="run",
-                        ref=LumlRef(
-                            collection="churn",
-                            artifact_id="A1",
-                            version="3",
-                            digest="d" * 64,
-                        ),
-                    )
-                ],
-            )
-        )
-
-        (queued,) = rows(index, "SELECT * FROM upload_queue")
-        assert (queued["state"], queued["attempts"]) == ("done", 2)
-        (materialization,) = rows(index, "SELECT outputs FROM materializations")
-        reference = json.loads(materialization["outputs"])["run"]["luml_ref"]
-        assert reference["artifact_id"] == "A1"
-
     def test_flagging_a_version_appends_to_its_flags(self, index: Index) -> None:
         accepted = cell_accepted()
         index.apply(transaction(1, [accepted]))
@@ -533,14 +486,6 @@ class TestRebuild:
                 ],
             ),
             transaction(5, [run]),
-            transaction(
-                6,
-                [
-                    UploadStateChanged(
-                        mat_id=run.mat_id, output="data", state="queued", attempts=0
-                    )
-                ],
-            ),
         ]
         incremental = Index(tmp_path / "incremental.sqlite")
         for entry in history:

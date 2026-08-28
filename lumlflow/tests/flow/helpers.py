@@ -33,7 +33,6 @@ TABLES = (
     "materializations",
     "transactions",
     "worktrees",
-    "upload_queue",
     "workspace_tree",
     "value_pins",
 )

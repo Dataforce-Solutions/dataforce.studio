@@ -1095,10 +1095,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Remove the sandbox and safety modes
   - [x] Delete `daemon/sandbox.py`, the spawn wrapping in `kernel_proc.py`, the `sandbox`/`paranoid`/`strict` settings and their threading to the executor and REPL; keep `_restored`; drop the `sandboxed` line in `render.py` and the sandbox half of `_kernel()`
   - [x] Remove `tests/daemon/test_safety.py` and other references
-- [ ] Remove the cloud upload queue and SDK scaffolding
-  - [ ] Delete `daemon/uploads.py`, `api.promote`, `uploads.sync()` on `run`, `hub._scaffold_sdk`, `envs.ensure_sdk`, `FlowSession.declares_native`, `LumlUploader` wiring in `main.py`; delete the two upload ops, `OutputRecord.luml_ref` and the `uploaded` field `queries` derives from it
-  - [ ] Remove the CLI `promote` verb, the UI *promote to LUML* item, the `uploaded` badge and its model field, and the `uploaded` chips `useCompare` feeds `ArtifactLinks.vue` (`ExpandDrawer` has no cloud link to remove); leave `ArtifactLinks.vue` in place, rendering its rows without chips, for the tracker rewrite
-  - [ ] Delete `tests/daemon/test_uploads.py` and the five `ensure_sdk` tests in `test_envs.py`; add a test that a `model` run journals no upload and touches no lockfile
+- [x] Remove the cloud upload queue and SDK scaffolding
+  - [x] Delete `daemon/uploads.py`, `api.promote`, `uploads.sync()` on `run`, `hub._scaffold_sdk`, `envs.ensure_sdk`, `FlowSession.declares_native`, `LumlUploader` wiring in `main.py`; delete the two upload ops, `OutputRecord.luml_ref` and the `uploaded` field `queries` derives from it
+  - [x] Remove the CLI `promote` verb, the UI *promote to LUML* item, the `uploaded` badge and its model field, and the `uploaded` chips `useCompare` feeds `ArtifactLinks.vue` (`ExpandDrawer` has no cloud link to remove); leave `ArtifactLinks.vue` in place, rendering its rows without chips, for the tracker rewrite
+  - [x] Delete `tests/daemon/test_uploads.py` and the five `ensure_sdk` tests in `test_envs.py`; add a test that a `model` run journals no upload and touches no lockfile
 - [ ] Remove secrets, env writes and env_policy
   - [ ] Delete `daemon/secrets.py`, `api.secrets_*`, `lumlflow secrets`, `ctx.secret`, `secret_get` and the kernel→daemon request channel it rode on (`kernel_proc._serve` and the kernel's request side), `SecretRefAdded`, `Ctx.secret` in `lumlflow_typing`
   - [ ] Delete `envs.add/remove`, `api.env_add/env_remove`, `lumlflow env add/remove`, the Packages panel add/remove rows

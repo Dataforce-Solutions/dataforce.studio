@@ -41,7 +41,6 @@
 import {
   Bot,
   BotOff,
-  CloudUpload,
   Flag,
   Package,
   Pencil,
@@ -73,7 +72,6 @@ const GLYPHS: Record<JournalKind, LucideIcon> = {
   adopt: Replace,
   rename: TextCursorInput,
   delete: Trash2,
-  promote: CloudUpload,
   'agent-begin': Bot,
   'agent-end': BotOff,
   offline: WifiOff,

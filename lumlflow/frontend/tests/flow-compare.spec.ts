@@ -56,7 +56,6 @@ function sweepDiff(overrides: Partial<BranchDiff> = {}): BranchDiff {
               declared: 'experiment' as const,
               size: 2048,
               persisted: true,
-              uploaded: index !== 4,
             },
             {
               name: 'model',
@@ -65,7 +64,6 @@ function sweepDiff(overrides: Partial<BranchDiff> = {}): BranchDiff {
               declared: 'model' as const,
               size: 8192,
               persisted: true,
-              uploaded: false,
             },
           ],
         })),
@@ -85,7 +83,6 @@ function sweepDiff(overrides: Partial<BranchDiff> = {}): BranchDiff {
             declared: 'asset' as const,
             size: 32,
             persisted: true,
-            uploaded: false,
           },
         ],
       })),
@@ -369,8 +366,8 @@ describe('the comparison collapses a wide sweep', () => {
 
     // Artifacts are the focused cell's outputs that leave the flow, in the word
     // each was declared under — a `metric` the flow keeps inline is not one —
-    // with each branch's upload state, and no link where no screen answers.
-    // Links are a follow-up action, so the section starts folded.
+    // and no link where no screen answers. Links are a follow-up action, so
+    // the section starts folded.
     await wrapper
       .findAll('[data-pc-name="accordionheader"]')
       .find((header) => header.text().startsWith('Links'))!
@@ -380,8 +377,7 @@ describe('the comparison collapses a wide sweep', () => {
     expect(artifacts).toContain('run · experiment')
     expect(artifacts).toContain('model · model')
     expect(artifacts).not.toContain('scores')
-    expect(artifacts).toContain('uploaded')
-    expect(artifacts).toContain('not uploaded')
+    expect(artifacts).not.toContain('uploaded')
     expect(wrapper.find('a[href="/experiments"]').exists()).toBe(false)
 
     wrapper.unmount()

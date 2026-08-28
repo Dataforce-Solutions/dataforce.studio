@@ -25,7 +25,6 @@ FlagCode = Literal[
 AssetType = Literal["model", "dataset", "experiment", "asset"]
 CellClassification = Literal["cell", "note"]
 MaterializationState = Literal["running", "succeeded", "failed", "cancelled"]
-UploadState = Literal["queued", "uploading", "failed"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
 EnvPolicy = Literal["ask", "auto", "never"]
@@ -74,13 +73,6 @@ class InputRef(_Frozen):
     mat_id: str
 
 
-class LumlRef(_Frozen):
-    collection: str
-    artifact_id: str
-    version: str
-    digest: str
-
-
 class OutputRecord(_Frozen):
     content_hash: str
     kind: str
@@ -88,7 +80,6 @@ class OutputRecord(_Frozen):
     size: int
     preview_ref: str | None = None
     value_ref: str | None = None
-    luml_ref: LumlRef | None = None
     persisted: bool = True
 
 
@@ -228,23 +219,6 @@ class EnvChanged(_Frozen):
     summary: str = ""
 
 
-class UploadStateChanged(_Frozen):
-    op: Literal["upload_state_changed"] = "upload_state_changed"
-    mat_id: str
-    output: str
-    state: UploadState
-    attempts: int = 0
-
-
-class UploadRecorded(_Frozen):
-    """The success terminal: the collection reference lands on the output."""
-
-    op: Literal["upload_recorded"] = "upload_recorded"
-    mat_id: str
-    output: str
-    ref: LumlRef
-
-
 class FlagSet(_Frozen):
     """A version flag, or — with no `version_id` — a flag on the transaction."""
 
@@ -305,8 +279,6 @@ Op = Annotated[
     | MemoHit
     | WorkspaceCodeChanged
     | EnvChanged
-    | UploadStateChanged
-    | UploadRecorded
     | FlagSet
     | AgentBegin
     | AgentEnd

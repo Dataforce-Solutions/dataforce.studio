@@ -154,8 +154,6 @@ const KINDS: [FlowOp['op'], JournalKind][] = [
   ['adopted', 'adopt'],
   ['renamed', 'rename'],
   ['cell_removed', 'delete'],
-  ['upload_recorded', 'promote'],
-  ['upload_state_changed', 'promote'],
   ['env_changed', 'env'],
   ['agent_begin', 'agent-begin'],
   ['agent_end', 'agent-end'],
@@ -209,18 +207,6 @@ function summarize(transaction: Transaction): string {
         break
       case 'env_changed':
         said.push(op.summary)
-        break
-      case 'upload_recorded':
-        said.push(`uploaded to ${op.ref.collection}`)
-        break
-      // Publishing states are journal lines because a queue nobody can see is a
-      // spinner: an upload waiting out an offline window says so here.
-      case 'upload_state_changed':
-        said.push(
-          op.state === 'failed' && op.attempts
-            ? `upload failed · ${formatCount(op.attempts, 'attempt')}`
-            : `upload ${op.state}`,
-        )
         break
       default:
         break

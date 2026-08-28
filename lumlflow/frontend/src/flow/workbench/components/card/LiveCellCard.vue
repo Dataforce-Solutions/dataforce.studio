@@ -18,7 +18,6 @@
       @delete="onDelete"
       @duplicate="emit('duplicate')"
       @add-downstream="emit('add-downstream')"
-      @promote="onPromote"
       @eager="onEager"
       @send-to-agent="emit('send-to-agent', $event)"
       @resolve-conflict="onResolveConflict"
@@ -70,7 +69,6 @@ import { useCell } from '../../live/useCell'
 import type { PageMove } from '../../live/useCell'
 import type { FlowSessionHandle } from '../../live/useFlowSession'
 import { useFlowOps } from '../../live/useFlowOps'
-import { primaryOutput } from '../../model/registry'
 import type { FlowCell, Preflight } from '../../model/types'
 import KernelStartHint from '../session/KernelStartHint.vue'
 import CellCard from './CellCard.vue'
@@ -317,17 +315,6 @@ async function onHandoff(gesture: HandoffGesture): Promise<void> {
   try {
     const built = await ops.handoff(gesture, { branch: props.branch, slug: slug.value })
     handoff.value = { gesture, text: built.text }
-  } catch (refused) {
-    notice.value = said(refused)
-  }
-}
-
-async function onPromote(): Promise<void> {
-  const primary = primaryOutput(live.cell.value)
-  if (!primary) return
-  try {
-    const published = await ops.promote(`${slug.value}.${primary.name}`, props.branch)
-    notice.value = `${primary.name} · upload ${published.state}`
   } catch (refused) {
     notice.value = said(refused)
   }

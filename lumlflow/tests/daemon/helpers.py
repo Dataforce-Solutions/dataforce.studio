@@ -29,7 +29,7 @@ from lumlflow.flow.store.flowstore import (
     store_dir,
 )
 from lumlflow.flow.store.index import VersionRow
-from lumlflow.flow.store.models import LumlRef, OutputSpec, Transaction
+from lumlflow.flow.store.models import OutputSpec, Transaction
 
 SCORE_CELL = """
 class Score:
@@ -93,25 +93,6 @@ class Rows:
 
         return {"rows": pandas.DataFrame({"n": list(range(50))})}
 """
-
-
-class FakeLuml:
-    """The platform. Records what it was handed, and refuses when told to."""
-
-    def __init__(self, *, offline: bool = False) -> None:
-        self.offline = offline
-        self.received: list[Any] = []
-
-    async def upload(self, request: Any) -> LumlRef:
-        if self.offline:
-            raise ConnectionError("the platform is unreachable")
-        self.received.append(request)
-        return LumlRef(
-            collection="col-1",
-            artifact_id=f"art-{len(self.received)}",
-            version="v1",
-            digest=request.content_hash,
-        )
 
 
 def make_workspace(
@@ -251,13 +232,9 @@ class LocalDaemon:
 
 
 @contextlib.asynccontextmanager
-async def daemon_api(root: Path, *, uploader: Any = None) -> AsyncIterator[Api]:
-    """An API over a hub, closed — kernels and all — when the test ends.
-
-    No uploader unless a test hands one over: reaching the real platform is
-    something the daemon process wires up, and a test that publishes says so.
-    """
-    hub = Hub(root, uploader=uploader)
+async def daemon_api(root: Path) -> AsyncIterator[Api]:
+    """An API over a hub, closed — kernels and all — when the test ends."""
+    hub = Hub(root)
     try:
         yield Api(hub)
     finally:

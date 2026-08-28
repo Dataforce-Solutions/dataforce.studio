@@ -22,8 +22,6 @@ SPEC_OP_VOCABULARY = {
     "memo_hit",
     "workspace_code_changed",
     "env_changed",
-    "upload_state_changed",
-    "upload_recorded",
     "flag_set",
     "agent_begin",
     "agent_end",

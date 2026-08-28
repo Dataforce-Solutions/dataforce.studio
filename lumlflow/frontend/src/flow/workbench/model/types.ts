@@ -191,7 +191,7 @@ export interface ExperimentPreview {
   mainMetric: { name: string; value: number; higherIsBetter: boolean }
   config: Record<string, ParamValue>
   curves: { name: string; points: [number, number][] }[]
-  /** Present once the daemon uploaded it — links out to the tracker. */
+  /** Present when the experiment has a tracker destination. */
   trackerRef?: string
 }
 
@@ -426,7 +426,6 @@ export type JournalKind =
   | 'adopt'
   | 'rename'
   | 'delete'
-  | 'promote'
   | 'agent-begin'
   | 'agent-end'
   | 'offline'
@@ -602,7 +601,6 @@ export interface CompareArtifactLink {
   label: string
   /** Tracker route, per the fallback chain. */
   href: string
-  byBranch: Record<BranchName, string>
 }
 
 export interface CompareView {
