@@ -63,8 +63,7 @@ const failureSummary = computed(() => {
   return since ? `failing: ${names} (since ${since})` : `failing: ${names}`
 })
 
-// Nothing is broken now, but something was — worth saying, because the counters that
-// would have shown it are wiped by every restart.
+// Past failures are worth showing: restarts wipe the counters.
 const recentIncidents = computed(() => {
   const incidents = props.health?.incidents ?? []
   if (!incidents.length) return ''

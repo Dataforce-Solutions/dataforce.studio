@@ -176,8 +176,7 @@ watch(
         : new Set(response.rows.filter((row) => !prevFirstPageIds!.has(row.event_id)).map((row) => row.event_id))
     prevFirstPageIds = ids
   },
-  // The page the panel mounts with is the baseline — without it, everything the
-  // first tick brings would count as old.
+  // The mount page is the baseline; without it the first tick's rows would count as old.
   { immediate: true },
 )
 

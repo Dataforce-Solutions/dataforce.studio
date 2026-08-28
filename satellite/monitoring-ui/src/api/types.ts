@@ -1,6 +1,5 @@
-// TypeScript mirrors of the Satellite Query API contracts
-// (agent/schemas/monitoring_query.py). The UI does no metric math — it renders
-// these already-aggregated shapes directly.
+// TypeScript mirrors of the Satellite Query API contracts (agent/schemas/monitoring_query.py).
+// The UI renders these pre-aggregated shapes; no metric math.
 
 export enum Window {
   H24 = '24h',

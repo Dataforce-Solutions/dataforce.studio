@@ -8,8 +8,7 @@ from fastapi import HTTPException, Request, status
 
 SESSION_COOKIE_NAME = "monitoring_session"
 DEFAULT_SESSION_TTL_SECONDS = 30 * 60
-# Sliding renewal never extends a session past this point: activity keeps a dashboard
-# alive across a working day, but a tab left open forever still re-authenticates.
+
 DEFAULT_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
 
@@ -73,7 +72,7 @@ class MonitoringSessionStore:
         if session.is_expired(now):
             del self._sessions[session_id]
             return None
-        # Use is renewal: slide the expiry, but never past the hard deadline.
+
         renewed = replace(session, expires_at=min(now + self._ttl_seconds, session.hard_deadline))
         self._sessions[session_id] = renewed
         return renewed

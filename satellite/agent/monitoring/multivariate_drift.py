@@ -14,16 +14,14 @@ from agent.monitoring.models import (
 
 _EMPTY = MetricComputation(values={}, severity=Severity.NORMAL, signals=[])
 
-# Scatter points sent to the dashboard per side; enough to read a cloud, small in JSON.
+# Scatter points sent to the dashboard per side.
 _PROJECTION_LIMIT = 300
 
-# A row counts as an outlier when its squared distance exceeds the chi-square quantile the
-# reference itself would exceed only 1% of the time, so a healthy window sits near 1%.
+# Outlier: squared distance past the chi-square quantile the reference exceeds 1% of the time.
 _OUTLIER_QUANTILE = 0.99
 _Z_OUTLIER = 2.3263478740408408  # standard normal quantile at 0.99
 
-# Share of outlying rows that counts as drift. Well above the 1% the reference produces,
-# so ordinary sampling noise does not raise an alert.
+# Drift threshold on the outlier share, well above the reference's own 1%.
 _WARNING_RATE = 0.05
 _CRITICAL_RATE = 0.10
 
@@ -114,10 +112,6 @@ class MultivariateDriftMetric(Metric):
         outliers = [value > limit for value in squared]
         outlier_rate = sum(outliers) / len(squared)
 
-        # The live Gaussian describes the bulk: a couple of rows with a feature far out of
-        # range would otherwise inflate its covariance by orders of magnitude, and both the
-        # dispersion ratio and the drawn ellipse would describe those rows instead of the
-        # traffic. The tail is not swept under the rug — it is what outlier_rate reports.
         bulk = [score for score, out in zip(scores, outliers, strict=True) if not out]
         if len(bulk) < 2:
             bulk = scores
@@ -134,8 +128,6 @@ class MultivariateDriftMetric(Metric):
             "mean_distance": sum(distances) / len(distances),
             "p95_distance": _quantile(sorted(distances), 0.95),
             "count": len(rows),
-            # What the dashboard panel draws: the headline number, both Gaussians as 95%
-            # ellipses in the PC1 × PC2 plane, and the live rows themselves.
             "shift_metric": "centroid shift",
             "shift_value": centroid_shift,
             "shift_unit": "σ",
@@ -381,9 +373,6 @@ def _parse_pca_profile(pca_profile: dict) -> _PCAModel | None:
     covariance = _square_matrix(reference.get("covariance"), k)
     if reference_mean is None or covariance is None:
         return None
-    # A component with no spread has no scale to measure a distance in; that reference
-    # cannot answer "how far is this row", so the metric steps aside instead of dividing
-    # by an all-but-zero variance and calling every window an outlier.
     if any(covariance[i][i] <= 0.0 for i in range(k)):
         return None
     precision = _invert(covariance)

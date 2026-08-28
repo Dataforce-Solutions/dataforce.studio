@@ -12,7 +12,6 @@ from agent.monitoring.models import (
 )
 from agent.monitoring.thresholds import Threshold
 
-# The signal key is also the key its count has in the window, so the dashboard can plot it.
 TIMEOUT_SIGNAL = "timeout_count"
 
 
@@ -130,9 +129,6 @@ class RuntimeHealthMetric(Metric):
             severity, breached = evaluated
             signals.append(AlertSignal("latency_p95", latency_p95, breached, severity))
 
-        # The spec asks for two levels here: any timeout in a window deserves attention,
-        # timeouts that keep coming window after window are an outage. "Repeated" is read
-        # off the alert itself — it is still open only if an earlier window raised it.
         if timeout_count > 0:
             severity = Severity.CRITICAL if timeouts_already_open else Severity.WARNING
             signals.append(AlertSignal(TIMEOUT_SIGNAL, float(timeout_count), 0.0, severity))

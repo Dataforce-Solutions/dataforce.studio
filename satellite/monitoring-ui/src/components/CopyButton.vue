@@ -41,7 +41,7 @@ async function copy(): Promise<void> {
       legacyCopy(props.value)
       flash()
     } catch {
-      // nothing else to try: leave the icon untouched so the click reads as "did not copy"
+      // leave the icon untouched so the click reads as "did not copy"
     }
   }
 }

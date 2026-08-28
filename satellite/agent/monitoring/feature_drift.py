@@ -13,7 +13,6 @@ from agent.monitoring.models import (
 )
 from agent.monitoring.thresholds import Threshold
 
-# The spec puts PSI 0.1 itself in the warning band, hence the inclusive bound.
 DEFAULT_PSI = Threshold(warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True)
 
 
@@ -37,8 +36,6 @@ class FeatureDriftMetric(Metric):
         numerical = summaries.get("numerical_features") or {}
         categorical = summaries.get("categorical_features") or {}
 
-        # PSI bounds are a property of the deployment: the profile's rule wins when it
-        # has one, the spec default stands in otherwise.
         bounds = thresholds.resolve(data.profile, thresholds.PSI, DEFAULT_PSI)
         features: dict[str, dict[str, Any]] = {}
         signals: list[AlertSignal] = []
@@ -99,8 +96,6 @@ class FeatureDriftMetric(Metric):
             "psi": score,
             "count": count,
             "status": status.value,
-            # The two halves the PSI score compares, kept so the dashboard can draw them
-            # side by side instead of only showing the number they collapse into.
             "distribution": distribution,
         }
         if evaluated is not None:

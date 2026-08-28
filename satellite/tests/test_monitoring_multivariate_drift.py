@@ -30,10 +30,8 @@ WINDOW = TimeWindow(
 
 SQRT_HALF = math.sqrt(0.5)
 
-# PCA fit on training data where x2 tracks x1: both components kept, identity scaler, and
-# a score cloud that is wide along the diagonal (variance 4) and tight across it (0.01).
-# A row off the diagonal therefore sits many standard deviations away even when x1 and x2
-# are each perfectly ordinary.
+# PCA fit where x2 tracks x1: wide along the diagonal (variance 4), tight across it
+# (0.01) — an off-diagonal row is many sigmas out even with ordinary x1 and x2.
 PCA_PROFILE: dict[str, Any] = {
     "scaler": {"mean_": [0.0, 0.0], "scale_": [1.0, 1.0], "n_features": 2},
     "pca": {
@@ -53,8 +51,7 @@ PCA_PROFILE: dict[str, Any] = {
     "reference_projection": [[1.0, 0.05], [-1.0, -0.05], ["bad", 1.0]],
 }
 
-# A plain isotropic reference: distance is just the Euclidean norm of the row, which makes
-# the numbers in the assertions easy to follow.
+# Isotropic reference: distance is the Euclidean norm, keeping assertion numbers simple.
 UNIT_PROFILE: dict[str, Any] = {
     "scaler": {"mean_": [0.0, 0.0], "scale_": [1.0, 1.0], "n_features": 2},
     "pca": {

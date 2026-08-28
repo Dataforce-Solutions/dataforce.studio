@@ -52,12 +52,7 @@ class MonitoringWorker:
         self._window_seconds = window_seconds
         self._interval_seconds = interval_seconds
         self._clock = clock or (lambda: datetime.now(UTC))
-        # The worker swallows per-metric failures on purpose; the counters are what makes
-        # that survivable — an empty tab and a broken metric look identical otherwise.
         self._health = health
-        # How far back a restarted worker may catch up. Without a bound, an agent that was
-        # down over the weekend would replay hundreds of windows on its first tick; the
-        # events behind them expire anyway.
         self._max_backfill_windows = max(1, max_backfill_windows)
         self._stopped = False
 
@@ -95,8 +90,6 @@ class MonitoringWorker:
             logger.warning(f"[monitoring] backfill check failed for {deployment_id}: {error}")
             return [latest]
         if done_through is None or done_through >= latest.end:
-            # A deployment that has never been materialized starts from the present rather
-            # than replaying however much history the database happens to hold.
             return [] if done_through is not None and done_through >= latest.end else [latest]
 
         width = self._window_seconds
@@ -125,7 +118,6 @@ class MonitoringWorker:
             events = await self._store.read_events(deployment.deployment_id, window)
             active_alerts = await self._store.active_alerts(deployment.deployment_id)
         except Exception as error:
-            # Storage unavailable: skip this deployment's window, retried next interval.
             logger.warning(
                 f"[monitoring] storage read failed for {deployment.deployment_id}: {error}"
             )
@@ -157,7 +149,6 @@ class MonitoringWorker:
                     deployment.deployment_id, metric.metric, window, failing=False
                 )
             except Exception as error:
-                # A failing metric is isolated and does not stop the others.
                 logger.warning(
                     f"[monitoring] metric '{metric.metric}' failed for "
                     f"{deployment.deployment_id}: {error}"

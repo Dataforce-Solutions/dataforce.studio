@@ -40,8 +40,7 @@ async def _introspect(token: str) -> MonitoringIntrospection:
 @pytest.fixture()
 def app():  # noqa: ANN201
     application = create_agent_app(_authorize, _introspect)
-    # The wiring under test is the routes and the door; the data behind them comes from
-    # a deterministic in-memory store instead of whatever GreptimeDB the host runs.
+    # Routes and auth under test; the data comes from a deterministic in-memory store.
     store = InMemoryMonitoringStore()
     store.add_event(
         InferenceEvent(

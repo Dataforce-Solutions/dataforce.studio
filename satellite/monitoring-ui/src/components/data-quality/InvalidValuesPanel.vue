@@ -109,8 +109,7 @@ const props = withDefaults(
   { trends: () => [], trendsStatus: 'idle' },
 )
 
-// Each check keeps the colour of the severity it usually raises, so the charts read
-// together with the table above them.
+// Each check keeps the colour of the severity it usually raises.
 const TREND_COLORS: Record<string, string> = {
   missing: '#f97316',
   type_mismatch: '#ef4444',
@@ -173,8 +172,7 @@ const unseenNote = computed(() => {
     : `${distinct} the training reference never saw.`
 })
 
-// A window materialized before the checks kept their evidence has rates but nothing to
-// show behind them — saying "everything matched" there would be a lie.
+// Old windows carry rates but no evidence; do not claim "everything matched".
 const noEvidenceLabel = computed(() => {
   const rates = [
     props.row.missing_rate,

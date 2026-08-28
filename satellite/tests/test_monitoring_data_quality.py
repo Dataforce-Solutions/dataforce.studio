@@ -242,8 +242,7 @@ async def test_data_quality_alert_resolves_when_inputs_recover() -> None:
 
 
 def test_batched_observations_counted_individually() -> None:
-    # One event carrying a batch of 4 (as read_events normalizes inputs to arrays): one
-    # in-range, one below min, one above max, one wrong-typed.
+    # One event with a batch of 4: in-range, below min, above max, wrong-typed.
     events = [_event({"age": [30.0, 5.0, 100.0, "x"]})]
 
     result = _compute(events, _profile(numerical=NUMERICAL))

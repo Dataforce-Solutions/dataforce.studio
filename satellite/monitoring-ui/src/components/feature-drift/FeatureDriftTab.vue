@@ -98,13 +98,11 @@ defineEmits<{
 
 const view = computed(() => sectionView(props.status, props.featureDrift?.state))
 
-// The reference profile knows the kind for every feature; the drift payload only carries it
-// once a window with a distribution has been materialized.
+// The profile knows every feature's kind; the drift payload only after a materialized window.
 const selectedKind = computed(
   () => props.referenceProfile?.feature?.kind ?? props.featureDrift?.selected?.distribution?.kind,
 )
 
-// Wording that used to live in the drawer, before the shell became tab-agnostic.
 const baselineLabel = computed(() => {
   const baseline = props.referenceProfile?.baseline_label
   return baseline ? `Computed at training · ${baseline}` : 'Training-time baseline'

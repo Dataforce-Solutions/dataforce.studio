@@ -13,8 +13,7 @@ const props = withDefaults(
   { height: 230 },
 )
 
-// The same lesson the runtime series taught: an isolated measurement has no neighbour
-// to draw a line to, and without a marker it renders as nothing at all.
+// Isolated points need markers, same as the runtime series.
 const measured = computed(() =>
   Math.max(0, ...props.series.map((entry) => entry.points.filter((p) => p.value != null).length)),
 )

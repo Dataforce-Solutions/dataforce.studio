@@ -25,9 +25,8 @@ export default defineConfig({
     // A single inlined bundle carrying ApexCharts is expectedly over the default 500 kB hint.
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      // The bundle is committed and served with the Agent, so keep the output to a
-      // single stable set of files: one app.js (dynamic imports inlined so ApexCharts
-      // is not split into a hash-named chunk), one stylesheet, and index.html.
+      // Committed bundle: one stable app.js (dynamic imports inlined so ApexCharts is not
+      // a hash-named chunk), one stylesheet, index.html.
       output: {
         inlineDynamicImports: true,
         entryFileNames: 'assets/app.js',

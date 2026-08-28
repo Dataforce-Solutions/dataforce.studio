@@ -103,8 +103,7 @@ const shiftMetricLabel = computed(() =>
   props.panel.shift_metric ? props.panel.shift_metric.replace(/_/g, ' ') : 'Shift distance',
 )
 
-// The unit belongs to the metric: sigmas for a threshold-based measure, nothing for a
-// Mahalanobis distance, which is already expressed in standard deviations of its own space.
+// Sigmas for the threshold measure; Mahalanobis is already in its own sigmas.
 const spreadLabel = computed(() =>
   props.panel.dispersion_ratio != null ? `${props.panel.dispersion_ratio.toFixed(2)}×` : '—',
 )

@@ -23,10 +23,8 @@ TaskType = Literal["regression", "classification"]
 
 DEFAULT_BINS = 10
 
-# Share of training variance the stored principal components must cover.
 DEFAULT_EXPLAINED_VARIANCE = 0.90
 
-# How many training points travel with the profile for the PC1 × PC2 scatter.
 PROJECTION_SAMPLE = 400
 
 PROFILE_STATUS_READY = "ready"
@@ -172,9 +170,6 @@ def compute_pca_profile(
             "feature_names": numerical_names,
             "explained_variance_ratio": _to_vector(pca.explained_variance_ratio_[:keep]),
         },
-        # A thinned sample of the training cloud in the PC1 × PC2 plane. Mean and
-        # covariance describe that cloud but cannot be drawn; the dashboard plots live
-        # traffic against these points, so the shape has to travel with the profile.
         "reference_projection": _thin(scores[:, :2], PROJECTION_SAMPLE),
         "reference_distribution": {
             "mean": _to_vector(scores.mean(axis=0)),

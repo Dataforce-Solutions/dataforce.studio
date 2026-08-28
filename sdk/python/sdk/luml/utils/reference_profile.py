@@ -23,10 +23,8 @@ TaskType = Literal["regression", "classification", "forecasting"]
 
 DEFAULT_BINS = 10
 
-# Share of training variance the stored principal components must cover.
 DEFAULT_EXPLAINED_VARIANCE = 0.90
 
-# How many training points travel with the profile for the PC1 × PC2 scatter.
 PROJECTION_SAMPLE = 400
 
 PROFILE_STATUS_READY = "ready"
@@ -94,7 +92,6 @@ def compute_output_summaries(
     summaries: dict[str, dict[str, Any]] = {}
 
     if task_type in ("regression", "forecasting"):
-        # a forecast is a numeric prediction per horizon: one summary per column
         summaries["numerical_outputs"] = {
             str(column): _numerical_summary(frame[column], position, bins)
             for position, column in enumerate(frame.columns, start=1)
@@ -176,9 +173,6 @@ def compute_pca_profile(
                 pca.explained_variance_ratio_[:keep]
             ),
         },
-        # A thinned sample of the training cloud in the PC1 × PC2 plane. Mean and
-        # covariance describe that cloud but cannot be drawn; the dashboard plots live
-        # traffic against these points, so the shape has to travel with the profile.
         "reference_projection": _thin(scores[:, :2], PROJECTION_SAMPLE),
         "reference_distribution": {
             "mean": _to_vector(scores.mean(axis=0)),
@@ -272,7 +266,6 @@ def build_reference_profile(
     if probability_summary is not None:
         profile["probability_summary"] = probability_summary
     if task_type == "forecasting" and horizons:
-        # which columns of the single forecast output are which horizon
         profile["forecast_summary"] = {"name": "y", "horizons": list(horizons)}
     return profile
 
@@ -457,9 +450,6 @@ def _to_matrix(array: np.ndarray) -> list[list[float]]:
     return [[float(value) for value in row] for row in matrix]
 
 
-# Decision boundary of a binary sklearn classifier's ``predict``: argmax over two
-# classes is exactly p > 0.5. The band is a presentation width for "near the boundary";
-# the live rate is compared against the reference rate computed with the same band.
 BINARY_DECISION_THRESHOLD = 0.5
 THRESHOLD_BAND = 0.05
 

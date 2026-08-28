@@ -83,7 +83,6 @@ class DeploymentMetadata(BaseModel):
         return cls(
             name=record.get("name"),
             status=record.get("status"),
-            # the artifact is the model the deployment serves
             model_name=record.get("artifact_name") or record.get("model_artifact_name"),
             environment=record.get("orbit_name"),
             satellite=record.get("satellite_name"),

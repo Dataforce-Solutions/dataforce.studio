@@ -47,8 +47,6 @@ def get_query_service(request: Request) -> MonitoringQueryService:
     return request.app.state.monitoring_query
 
 
-# Retention keeps 30 days of data; a touch of slack spares clients that compute
-# "30 days ago" a hair differently from a pointless 422.
 _MAX_RANGE_SECONDS = 31 * 24 * 3600
 
 
@@ -287,8 +285,6 @@ def build_query_router() -> APIRouter:
     return router
 
 
-# Whether this Satellite hosts the deployment. The machine surface answers 404 for
-# anything else, revealing nothing about other Satellites.
 HostedFn = Callable[[UUID], bool]
 
 

@@ -27,12 +27,6 @@ class SKlearnPyFunc(PyFunc):
         with open(pickled_estimator_path, "rb") as f:
             self.estimator = load(f)
 
-        # An estimator fitted on a DataFrame gets one back (see compute), so its
-        # recorded column names still match. Only the positional path needs them gone:
-        # there the inputs arrive as one array and the names would trip sklearn's
-        # column check. On a Pipeline the attribute is a read-only property forwarded
-        # from the first step and cannot be dropped — sklearn then merely warns, which
-        # is harmless here.
         self.input_dtypes = self.fnnx_context.get_value("input_dtypes")
         if not self.input_dtypes and hasattr(self.estimator, "feature_names_in_"):
             with suppress(AttributeError):
@@ -56,9 +50,6 @@ class SKlearnPyFunc(PyFunc):
         else:
             x = self.np.column_stack([inputs[col] for col in input_order])
         outputs = {"y": self.estimator.predict(x)}
-        # A classifier that can say how sure it is, says so: the per-row top class
-        # probability rides along as y_score, mirroring the reference profile's
-        # confidence summary. Monitoring reads it; callers may simply ignore it.
         if hasattr(self.estimator, "predict_proba"):
             try:
                 proba = self.np.asarray(self.estimator.predict_proba(x), dtype=float)
@@ -84,18 +75,12 @@ class SKlearnPyFunc(PyFunc):
         }
         data = {}
         for col in input_order:
-            # Batched requests arrive as one value per row, each value possibly wrapped
-            # in its own list ([[5.1], [4.9]]); flattened here, since a frame column is
-            # one-dimensional by definition. The positional path's column_stack always
-            # coped with either shape — this path must too.
             raw = self.np.asarray(inputs[col], dtype=object).ravel()
             series = pd.Series(raw)
             target = dtypes.get(self.input_dtypes.get(col, "str"), object)
             try:
                 data[col] = series.astype(target)
             except (TypeError, ValueError):
-                # A column that cannot be cast is passed on as it arrived — sklearn
-                # will raise with a message about that column.
                 data[col] = series
         return pd.DataFrame(data, columns=list(input_order))
 

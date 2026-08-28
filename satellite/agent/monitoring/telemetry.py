@@ -89,12 +89,6 @@ class TelemetrySetup:
             tp.add_span_processor(BatchSpanProcessor(_span_exporter))
             self._tracer_provider = tp
 
-            # Metrics are recorded but not exported. Nothing ever read the metric tables —
-            # the dashboard computes runtime health from the raw events, whose retention
-            # covers every window it offers — while the periodic exporter re-wrote every
-            # series each interval whether traffic came or not, making the metric tables
-            # the fastest-growing data on the Satellite. The recording stays as a no-op so
-            # instrumentation is untouched and an exporter can be reattached in one place.
             self._meter_provider = NoOpMeterProvider()
 
             event_span_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)

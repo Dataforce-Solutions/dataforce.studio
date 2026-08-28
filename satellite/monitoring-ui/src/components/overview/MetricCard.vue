@@ -80,8 +80,7 @@ const popover = ref<HTMLElement | null>(null)
 const moreButton = ref<HTMLElement | null>(null)
 const anchor = ref({ top: 0, left: 0 })
 
-// Fixed to the viewport, anchored under the "+N" button and nudged back inside the window
-// when the card sits near the right edge.
+// Viewport-fixed under the "+N" button, nudged back inside near the right edge.
 const popoverStyle = computed(() => ({
   position: 'fixed' as const,
   top: `${anchor.value.top}px`,
@@ -120,8 +119,7 @@ watch(expanded, (open) => {
     placePopover()
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeydown)
-    // The list is anchored in viewport coordinates, so it follows nothing once the page
-    // moves under it — close instead of drifting away from its button.
+    // Anchored in viewport coordinates: close on page scroll instead of drifting.
     window.addEventListener('scroll', close, true)
     window.addEventListener('resize', close)
   } else {

@@ -108,8 +108,6 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
 
         store: MonitoringSessionStore = request.app.state.monitoring_sessions
         session = store.create(claims.deployment_id, claims.scope)
-        # The Platform forwards its theme so the first paint matches; anything but the
-        # two known values is dropped rather than echoed into the redirect.
         target = MONITORING_APP_PATH
         if theme in ("light", "dark"):
             target = f"{MONITORING_APP_PATH}?theme={theme}"

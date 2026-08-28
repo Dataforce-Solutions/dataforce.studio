@@ -90,8 +90,7 @@ const psiLabel = computed(() =>
   props.detail?.psi != null ? `PSI ${props.detail.psi.toFixed(2)}` : 'PSI not available',
 )
 
-// With an empty ranking there is nothing to select, so asking the reader to pick a feature
-// would send them to a list that cannot answer.
+// Empty ranking: nothing to select, so no "pick a feature" hint.
 const emptyTitle = computed(() =>
   props.hasFeatures === false ? 'Nothing to inspect yet' : 'No feature selected',
 )

@@ -128,8 +128,7 @@ const PAD_R = 12
 const PAD_T = 12
 const PAD_B = 30
 
-// Axes follow the bulk of the data: a handful of extreme rows (a feature sent far out of
-// range) would otherwise own the whole width and squash the cloud into a line.
+// Axes follow the bulk: a few extreme rows would squash the cloud into a line.
 const CLIP_QUANTILE = 0.02
 const PAD_SHARE = 0.08
 

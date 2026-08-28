@@ -31,7 +31,7 @@ defineEmits<{ expand: [] }>()
 
 const lines = computed(() => props.value.split('\n').length)
 
-// Payloads are the reason the full-screen view exists; say how much is hidden below the fold.
+// Show how much is hidden below the fold.
 const sizeLabel = computed(() => `${lines.value} lines · ${props.value.length} chars`)
 </script>
 

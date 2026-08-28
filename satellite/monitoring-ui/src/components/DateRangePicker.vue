@@ -132,7 +132,7 @@ const monthLabel = computed(() =>
 )
 
 const weekdayNames = computed(() => {
-  // Monday-first, taken from the locale so the grid speaks the reader's language.
+  // Monday-first, from the locale.
   const monday = new Date(2024, 0, 1) // a Monday
   return Array.from({ length: 7 }, (_, i) =>
     new Date(monday.getTime() + i * 86_400_000).toLocaleString(undefined, { weekday: 'short' }),
@@ -235,8 +235,7 @@ function apply(): void {
   emit('apply', start.toISOString(), end.toISOString())
 }
 
-// Embedded mode reports every valid selection upward — including the one it opens
-// with — so a host composing several pickers always holds a complete picture.
+// Embedded mode reports every valid selection upward, including the initial one.
 watch(
   [valid, draft],
   () => {

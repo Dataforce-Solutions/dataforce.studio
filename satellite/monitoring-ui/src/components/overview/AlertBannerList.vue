@@ -91,8 +91,7 @@ watch(visible, (banners) => {
   selected.value = banners.find((banner) => banner.metric === key) ?? null
 })
 
-// The feature name is rendered next to the title, not inside it: the title is prose and
-// gets capitalized, while a feature is an identifier and must survive verbatim.
+// The title gets capitalized; the feature name must survive verbatim, so it sits beside it.
 function bannerTitle(banner: AlertBanner): string {
   return `${groupLabel(banner.group)} ${severityLabel(banner.severity).toLowerCase()}`
 }

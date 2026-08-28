@@ -309,8 +309,7 @@ class InMemoryMonitoringStore:
 
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]:
         self._guard()
-        # Everything that still needs attention: an acknowledged alert is still firing,
-        # only a resolved one is gone. Matches what the Greptime store returns.
+
         return [
             a for a in self._alerts if a.deployment_id == deployment_id and a.state != "resolved"
         ]

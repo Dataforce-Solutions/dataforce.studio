@@ -211,8 +211,7 @@ watch(
   },
 )
 
-// A feature is either numerical or categorical, so only one of the two checks applies —
-// the column names the one that ran instead of showing a bare number.
+// Only one of the two checks applies; the column names the one that ran.
 function rangeLabel(row: DataQualityFeatureRow): string {
   if (row.range_violation_rate != null) return `${formatRate(row.range_violation_rate)} out of range`
   if (row.unseen_category_rate != null) return `${formatRate(row.unseen_category_rate)} unseen`

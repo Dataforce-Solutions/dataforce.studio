@@ -9,8 +9,7 @@ export interface ChartCard {
 
 const FALLBACK_COLOR = '#2673fd'
 
-// The runtime rollup drives both Overview and Runtime, so the same series is titled and
-// coloured the same on both — a reader moving between the tabs sees one chart, not two.
+// Overview and Runtime share the rollup: same titles and colours on both.
 const RUNTIME_CHART_META: Record<string, { title: string; subtitle: string; color: string }> = {
   requests: {
     title: 'Requests over time',

@@ -78,8 +78,7 @@ export function useMonitoringDashboard() {
 
   const dataQuality = ref<DataQualityResponse | null>(null)
   const dataQualityStatus = ref<LoadStatus>('idle')
-  // The table request covers every feature; the history behind one feature's rates is a
-  // second, narrower request made when its detail panel opens.
+  // One feature's history is a second, narrower request made when its panel opens.
   const qualityTrends = ref<Series[]>([])
   const qualityTrendsStatus = ref<LoadStatus>('idle')
   const profileDocument = ref<ReferenceProfileResponse | null>(null)
@@ -119,8 +118,7 @@ export function useMonitoringDashboard() {
   function reportSessionExpired(): void {
     if (sessionExpired.value) return
     sessionExpired.value = true
-    // targetOrigin '*' is safe: the payload is a flag, and the Platform verifies the
-    // message origin equals the Satellite origin on its side.
+    // targetOrigin '*' is safe: the payload is a flag and the Platform checks the origin.
     window.parent?.postMessage({ type: MONITORING_SESSION_EXPIRED_MESSAGE }, '*')
   }
 
@@ -147,8 +145,7 @@ export function useMonitoringDashboard() {
   }
 
   function loadOverview(): Promise<void> {
-    // Whether monitoring itself is keeping up rides along with the tab that shows it;
-    // a failure here must never keep the metrics from rendering.
+    // Worker health must never keep the metrics from rendering.
     void monitoringApi
       .getWorkerHealth()
       .then((value) => (workerHealth.value = value))
@@ -198,9 +195,8 @@ export function useMonitoringDashboard() {
       // Not an anchor: acknowledging one alert is not "I saw the new ones too".
       applyAlerts,
     )
-    // Each section response carries its own copy of the banners, and section tabs hide
-    // acknowledged ones — so the tab the user is looking at must refetch now, or the
-    // banner they just dismissed keeps staring at them until the next manual refresh.
+    // Each section carries its own banner copy and hides acknowledged ones —
+    // refetch the visible tab now.
     if (activeTab.value === 'overview') await loadOverview()
     else if (activeTab.value === 'runtime') await loadRuntime()
     else if (activeTab.value === 'data-quality') await loadDataQuality()
@@ -494,8 +490,7 @@ export function useMonitoringDashboard() {
   }
 
   async function load(): Promise<void> {
-    // The session names the deployment; settings restore before anything is fetched,
-    // so the first load already speaks the reader's window, compare and tab.
+    // Settings restore before the first fetch, so the first load already uses them.
     try {
       const info = await monitoringApi.getSessionInfo()
       restoreSettings(info.deployment_id)
@@ -569,8 +564,7 @@ export function useMonitoringDashboard() {
     }
   }
 
-  // App.vue owns the only instance, so the timer dies with the app; the guard keeps
-  // tests that call the composable outside a component scope warning-free.
+  // App.vue owns the only instance; the guard keeps out-of-component test calls warning-free.
   if (getCurrentScope()) onScopeDispose(() => setAutoRefresh(0))
 
   async function setWindow(next: Window): Promise<void> {
@@ -702,17 +696,15 @@ export function useMonitoringDashboard() {
       : DASHBOARD_TABS.filter((tab) => UNIVERSAL_TAB_KEYS.includes(tab.key)),
   )
 
-  // A restored or remembered tab may not exist for this model kind (settings are
-  // per-deployment, but the kind is only known once the header arrives) — land on
-  // Overview instead of an invisible tab.
+  // A restored tab may not exist for this model kind (known once the header arrives) —
+  // land on Overview.
   watch(visibleTabs, (tabs) => {
     if (!tabs.some((tab) => tab.key === activeTab.value)) {
       void setActiveTab('overview')
     }
   })
 
-  // Every later change lands in storage as it happens. Registered last, after every
-  // piece of state it watches exists.
+  // Registered last, after every piece of state it watches exists.
   watch([dimensions, activeTab, autoRefreshSeconds, tracesSort], persistSettings, { deep: true })
 
   return {

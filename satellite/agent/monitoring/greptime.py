@@ -25,9 +25,7 @@ RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
 FAILURES_TABLE = "monitoring_worker_failures"
 OTEL_TRACES_TABLE = "otel_traces"
-# Written by the collector's late metrics pipeline; nothing reads them and nothing writes
-# them any more. Retention is still applied so the data a running Satellite already
-# accumulated drains away instead of sitting on disk forever.
+
 LEGACY_METRIC_TABLES = (
     "inference_requests",
     "inference_errors",
@@ -104,8 +102,6 @@ def _sql_ts(value: datetime) -> str:
 
 
 def _json_path(key: str) -> str:
-    # Bracket path so a key containing dots (inference.deployment_id) is treated as one
-    # literal key rather than a nested path.
     return _sql_str(f'["{key}"]')
 
 
@@ -265,9 +261,6 @@ class GreptimeMonitoringStore:
         attrs = row.get("span_attributes")
         attrs = attrs if isinstance(attrs, dict) else (_parse_json(attrs) or {})
         status = str(attrs.get(_ATTR_STATUS, "") or "")
-        # The instrumentation records the upstream's own code (504 for a gateway timeout,
-        # 429 for a quota); collapsing every failure to 500 here hid what actually went
-        # wrong, and no timeout could ever be recognized downstream.
         status_code = _coerce_int(attrs.get(_ATTR_STATUS_CODE))
         if status_code is None:
             status_code = 200 if status == "success" else 500

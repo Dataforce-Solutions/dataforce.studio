@@ -105,26 +105,21 @@ _WINDOW_SECONDS: dict[Window, int] = {
     Window.D7: 7 * 24 * 3600,
     Window.D30: 30 * 24 * 3600,
 }
-# Automatic granularity per window. The 24h window buckets by 15 minutes rather than by
-# hour: real traffic arrives in bursts, and hourly buckets collapse a whole test run — or a
-# quiet deployment's entire day — into a single point, which a line chart cannot draw.
+
 _AUTO_BUCKET_SECONDS: dict[Window, int] = {
     Window.H24: 900,
     Window.D7: 6 * 3600,
     Window.D30: 24 * 3600,
 }
-# Bucket widths the automatic layout may pick when it zooms to the data: seconds a reader
-# can reason about, from half a minute up to a day.
+
 _BUCKET_LADDER = (30, 60, 120, 300, 900, 1800, 3600, 6 * 3600, 12 * 3600, 24 * 3600)
-# Aim for this many buckets across the data span, and only zoom when the data covers less
-# than this share of the selected window.
+
 _TARGET_BUCKETS = 40
 _ZOOM_SPAN_SHARE = 0.5
 
 _BANNER_LIMIT = 5
 _TOP_DRIFTED_LIMIT = 10
 
-# How far back the worker's own failure history is read for the dashboard.
 _INCIDENT_WINDOW = 7 * 24 * 3600
 _ALERT_GROUP_ORDER = (
     GROUP_RUNTIME,
@@ -147,11 +142,8 @@ class QueryDimensions:
     severity: SeverityFilter = SeverityFilter.ALL
     granularity: Granularity = Granularity.AUTO
     feature: str | None = None
-    # A custom absolute range. When both are set they define the interval and ``window``
-    # is only a fallback label; retention caps useful ranges at 30 days back.
     start: datetime | None = None
     end: datetime | None = None
-    # The comparison period, when compare is CUSTOM.
     compare_start: datetime | None = None
     compare_end: datetime | None = None
 
@@ -176,7 +168,6 @@ class _Rollup:
     latency_p50_ms: float | None
     latency_p95_ms: float | None
     latency_max_ms: float | None
-    # How the calls ended, most frequent outcome first.
     status_breakdown: tuple[StatusBreakdownRow, ...] = ()
 
     @property
@@ -235,7 +226,6 @@ def _status_breakdown(events: list[InferenceEvent]) -> tuple[StatusBreakdownRow,
         )
         for (status, code), count in counts.items()
     ]
-    # Ties break on the code so the table keeps a stable order between refreshes.
     rows.sort(key=lambda row: (-row.count, row.status, row.status_code or 0))
     return tuple(rows)
 
@@ -247,8 +237,6 @@ def _bucket_seconds(dims: QueryDimensions) -> int:
     elif dims.granularity is Granularity.DAY:
         bucket = 24 * 3600
     elif dims.is_custom_range:
-        # No preset table fits an arbitrary span: take the smallest ladder step that
-        # keeps the series at or under the density of the densest preset (96 buckets).
         bucket = next((b for b in _BUCKET_LADDER if span / b <= 96), _BUCKET_LADDER[-1])
     else:
         bucket = _AUTO_BUCKET_SECONDS[dims.window]
@@ -349,8 +337,6 @@ def _alert_banner(
     source = thresholds.PROFILE if key and thresholds.defines(profile, key) else thresholds.DEFAULT
     value_label = format_value(alert.current_value, parsed.unit)
     threshold_label = format_value(alert.threshold, parsed.unit)
-    # The title already names the group and the feature, so the message is only numbers.
-    # A timeout has no numeric bound to quote — any timeout is the breach.
     message = alert.message or (
         f"{value_label} in this window"
         if parsed.unit == COUNT
@@ -400,7 +386,6 @@ class MonitoringQueryService:
     ) -> None:
         self._store = store
         self._clock = clock
-        # The worker's own counters live in this process, not in the database.
         self._health_source = health_source
 
     def _window_bounds(self, dims: QueryDimensions) -> tuple[datetime, datetime]:
@@ -454,8 +439,6 @@ class MonitoringQueryService:
         try:
             rollup, series = await self._runtime(deployment_id, dims)
             baseline_rollup = await self._previous_rollup(deployment_id, dims)
-            # with dims: the banners carry history and threshold provenance, so an alert
-            # opened here is the same view the Alerts tab gives it
             alerts = await self._banners(
                 deployment_id, dims.severity, group=GROUP_RUNTIME, dims=dims
             )
@@ -498,8 +481,7 @@ class MonitoringQueryService:
 
         matching = [a for a in alerts if _severity_matches(a.severity, dims.severity)]
         criticals = [a for a in matching if a.severity == Severity.CRITICAL]
-        # The banners open the same detail panel the Alerts tab uses, so they carry the
-        # same content: the metric's history and where its threshold came from.
+
         shown = sorted(matching, key=_banner_order)[:_BANNER_LIMIT]
         histories = await self._alert_histories(deployment_id, dims, shown)
         document = await self._profile_document(deployment_id)
@@ -598,8 +580,7 @@ class MonitoringQueryService:
         if computed_at is None:
             return False
         start, _ = self._window_bounds(dims)
-        # The store reads these as UTC-aware, but a naive value must not raise here and take
-        # the whole tab down with it — read it as UTC, which is what the Agent writes.
+
         if computed_at.tzinfo is None:
             computed_at = computed_at.replace(tzinfo=UTC)
         return computed_at < start
@@ -632,8 +613,7 @@ class MonitoringQueryService:
                 if result.computed_at is not None
             ]
             measured = [point for point in points if point.value is not None]
-            # A check that never applied to this feature (range on a categorical one, say)
-            # has no series at all; a single window is a reading, not yet a trend.
+
             if len(measured) < 2:
                 continue
             series.append(Series(key=check, label=label, unit="ratio", points=points))
@@ -961,9 +941,7 @@ class MonitoringQueryService:
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return TracesResponse(state=SectionState.UNAVAILABLE, limit=limit, offset=offset)
-        # Sorting happens before pagination — a page of a sorted list, not a sorted page.
-        # Status sorts by HTTP code with the timestamp as a stable tiebreaker, so equal
-        # codes keep a meaningful order instead of an arbitrary one.
+
         keys = {
             TraceSort.TS: lambda e: e.ts,
             TraceSort.LATENCY: lambda e: e.latency_ms,
@@ -998,8 +976,6 @@ class MonitoringQueryService:
         if event is None:
             return TraceDetailResponse(state=SectionState.EMPTY, profile_status=profile)
 
-        # trace_id comes from an event we already scoped to this deployment, so pulling
-        # its spans by trace_id cannot reach another deployment's data.
         spans: list[SpanRecord] = []
         if event.trace_id:
             try:
@@ -1020,19 +996,15 @@ class MonitoringQueryService:
         events = await self._store.fetch_events(deployment_id, start, end)
         baseline_bounds = self._baseline_bounds(dims)
         if baseline_bounds is None:
-            # The rollup always covers the whole selected window; only the series layout
-            # follows where the events actually are.
             series_start, bucket, n_buckets = _series_layout(events, start, dims)
             return _rollup(events), _runtime_series(events, series_start, bucket, n_buckets)
 
-        # Compare mode: both periods share one fixed grid — zooming to either period's
-        # data would break the bucket-for-bucket overlay the charts draw.
         bucket = _bucket_seconds(dims)
         n_buckets = math.ceil(dims.span_seconds() / bucket)
         series = _runtime_series(events, start, bucket, n_buckets)
         base_events = await self._store.fetch_events(deployment_id, *baseline_bounds)
         base_series = _runtime_series(base_events, baseline_bounds[0], bucket, n_buckets)
-        # Shift the baseline onto the current window's axis so the lines overlay.
+
         shift = start - baseline_bounds[0]
         base_by_key = {one.key: one for one in base_series}
         for one in series:
@@ -1205,8 +1177,6 @@ def _output_psi_series(history: list[StoredMetricResult]) -> Series | None:
     return Series(key="output_psi", label="PSI", unit="score", points=points)
 
 
-# The design draws the prediction trend as the median with its p05–p95 band; the mean
-# rides along as its own line.
 _TREND_KEYS = (("median", "Median"), ("p05", "p05"), ("p95", "p95"), ("mean", "Mean"))
 
 
@@ -1229,7 +1199,6 @@ def _output_trend_series(history: list[StoredMetricResult]) -> list[Series]:
     ]
 
 
-# Classes past this many are noise on a line chart; the ranking still names them all.
 _CLASS_TREND_LIMIT = 6
 
 
@@ -1366,8 +1335,7 @@ def _multivariate_panel(
     values = result.values
     projection = values.get("projection", {})
     ellipses = values.get("ellipses", {})
-    # The per-feature PSI shown beside the scatter is the univariate ranking, so it comes
-    # from the feature-drift result rather than being recomputed into this one.
+
     feature_source = drift.values if drift is not None else values
     return MultivariatePanel(
         state=SectionState.OK,
@@ -1434,9 +1402,7 @@ def _data_quality_rows(values: dict, feature: str | None) -> list[DataQualityFea
     for name, entry in features.items():
         if feature is not None and name != feature:
             continue
-        # The metric names its checks after what they test — missing, type_mismatch,
-        # range_violation, unseen_category — and the table speaks the reader's language.
-        # Reading the display names straight off the payload left two columns empty.
+
         range_violation = _maybe_float(entry.get("range_violation_rate"))
         unseen_category = _maybe_float(entry.get("unseen_category_rate"))
         applicable = [rate for rate in (range_violation, unseen_category) if rate is not None]

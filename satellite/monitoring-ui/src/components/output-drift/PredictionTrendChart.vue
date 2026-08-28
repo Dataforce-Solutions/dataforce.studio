@@ -46,8 +46,7 @@ const chartSeries = computed(() => {
       result.push({
         name,
         type: 'line',
-        // {x, y} objects, matching the rangeArea series: ApexCharts refuses to mix
-        // the tuple format with range data in one combo chart.
+        // {x, y} objects: ApexCharts refuses tuples mixed with range data in one combo chart.
         data: entry.points.map((point) => ({
           x: new Date(point.t).getTime(),
           y: point.value,

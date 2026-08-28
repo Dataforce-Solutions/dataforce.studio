@@ -129,8 +129,7 @@ function togglePicker(): void {
   if (pickerOpen.value) pickerSession.value += 1
 }
 
-// A popover that only closes through Apply turns into furniture: a click anywhere
-// outside it, or Escape, dismisses without applying.
+// Outside click or Escape dismisses without applying.
 function onPointerDown(event: PointerEvent) {
   if (!rangeControl.value?.contains(event.target as Node)) pickerOpen.value = false
 }
@@ -161,7 +160,7 @@ function clearRange(): void {
   pickerOpen.value = false
 }
 
-// A preset click elsewhere leaves custom mode; the stale draft must not linger open.
+// A preset click elsewhere leaves custom mode; close the stale draft.
 watch(customActive, (active) => {
   if (!active) pickerOpen.value = false
 })

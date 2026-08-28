@@ -32,9 +32,8 @@ const chartSeries = computed(() => {
 
 const isRatio = computed(() => props.series.unit === 'ratio')
 
-// A bucket with no requests has no latency or error rate, so those series are mostly nulls
-// and an isolated measurement has no neighbour to draw a line to. Without a marker such a
-// series renders as a blank chart, which reads as "no data" rather than "one data point".
+// Mostly-null series with isolated points render blank without markers —
+// "no data" instead of "one data point".
 const measured = computed(() => props.series.points.filter((point) => point.value != null).length)
 
 /**
@@ -78,9 +77,8 @@ const markerSize = computed(() => {
   return Math.min(MAX_MARKER_SIZE, Math.max(CARD_MARKER_SIZE, Math.round(scaled)))
 })
 
-// A rate that stayed at zero all window has nothing to auto-scale against, and ApexCharts
-// then invents a range — a flat "no problems" line came out labelled up to 200%. Pin such
-// a chart to 0…1% so it reads as zero, and leave every other series to scale itself.
+// ApexCharts invents a range for an all-zero series (a flat line labelled up to 200%);
+// pin such charts to 0…1%.
 const flatZero = computed(
   () =>
     isRatio.value &&
@@ -118,7 +116,7 @@ const options = computed(() => ({
   colors: hasBaseline.value ? [props.color, '#94a3b8'] : [props.color],
   dataLabels: { enabled: false },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
-  // The baseline reads as a ghost: dashed, grey, no fill of its own.
+  // Baseline: dashed, grey, no fill.
   stroke: hasBaseline.value
     ? { curve: 'smooth', width: [2, 2], dashArray: [0, 5] }
     : { curve: 'smooth', width: 2 },
@@ -140,8 +138,7 @@ const options = computed(() => ({
       formatter: (value: number) => formatTick(value),
     },
   },
-  // The tooltip speaks the same numbers as the axis: an error rate reads 0.2%,
-  // never 0.200000000000000011.
+  // Tooltip uses the axis formatting: 0.2%, never 0.200000000000000011.
   tooltip: {
     theme: chartTooltipTheme.value,
     x: { format: 'dd MMM HH:mm' },

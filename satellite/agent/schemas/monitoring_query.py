@@ -13,8 +13,7 @@ class Window(StrEnum):
 
 
 class Compare(StrEnum):
-    # "reference" is the legacy no-op: drift metrics always measure against the training
-    # reference anyway, so as a *compare mode* it carries no baseline — same as "off".
+    # Legacy no-op: drift always measures against the training reference — same as "off".
     OFF = "off"
     REFERENCE = "reference"
     PREVIOUS = "previous"
@@ -75,8 +74,7 @@ class Series(BaseModel):
     label: str
     unit: str | None = None
     points: list[SeriesPoint]
-    # The same metric over the comparison period, time-shifted onto this window's axis
-    # so the two lines overlay bucket for bucket. Present only in compare mode.
+    # Comparison-period series, time-shifted onto this axis; compare mode only.
     baseline: list[SeriesPoint] | None = None
 
 
@@ -121,8 +119,7 @@ class DriftedFeature(BaseModel):
     feature: str
     psi: float
     severity: Severity
-    # Compare mode: this feature's typical PSI over the comparison period, and how far
-    # the current reading moved from it.
+    # Compare mode: typical PSI over the comparison period, and the move from it.
     baseline_psi: float | None = None
     psi_delta: float | None = None
 
@@ -239,14 +236,13 @@ class DataQualityFeatureRow(BaseModel):
     kind: str | None = None  # "numeric" | "categorical"
     missing_rate: float | None = None
     type_error_rate: float | None = None
-    # The table shows one "range / unseen" column — a feature is either numerical or
-    # categorical, so only one of the two applies — but both rates travel for detail.
+    # Only one of the two applies per feature; both rates travel for the detail panel.
     range_unseen_rate: float | None = None
     range_violation_rate: float | None = None
     unseen_category_rate: float | None = None
     checked: int | None = None
     status: Severity = Severity.OK
-    # None when nothing was rejected in this window — the panel then has nothing to explain.
+    # None when nothing was rejected in this window.
     invalid: InvalidValueSummary | None = None
     # Compare mode: current rate minus the comparison period's mean, per check.
     missing_delta: float | None = None
@@ -261,10 +257,8 @@ class DataQualityResponse(BaseModel):
     # One series per check of the selected feature; empty when no feature is asked for.
     trends: list[Series] = []
     alerts: list[AlertBanner] = []
-    # End of the window the table describes, and whether that window closed before the
-    # selected time range even began. The table is a snapshot of the last computed window
-    # rather than a rollup of the range, so on a stand that has been idle it keeps showing
-    # readings the range no longer covers — see `stale` on FeatureDriftResponse.
+    # End of the described window. The table is a snapshot of the last computed window,
+    # so an idle stand keeps readings the range no longer covers — see `stale`.
     computed_at: datetime | None = None
     stale: bool = False
 
@@ -324,10 +318,8 @@ class FeatureDriftResponse(BaseModel):
     alerts: list[AlertBanner] = []
     # End of the window this ranking and the multivariate panel describe.
     computed_at: datetime | None = None
-    # True when that window closed before the selected range began. The trends beside it
-    # (PSI over time, the runtime series, traces) are read within the range and go empty,
-    # but the snapshot keeps its last reading — without this flag the two disagree
-    # silently and a two-day-old window reads as the current one.
+    # True when the window closed before the selected range began; without the flag a
+    # stale snapshot reads as current while the in-range trends go empty.
     stale: bool = False
 
 
@@ -414,8 +406,7 @@ class OutputDriftResponse(BaseModel):
     confidence: ConfidenceBlock | None = None
     # Classifiers whose artifact reports full probability vectors (y_proba).
     probabilities: ProbabilityBlock | None = None
-    # Forecasting deployments: each horizon against its own baseline; the headline
-    # psi/distribution above describe the worst horizon.
+    # Forecasting: each horizon vs its own baseline; the headline describes the worst horizon.
     horizons: list[HorizonDrift] = []
     alerts: list[AlertBanner] = []
     # End of the window the snapshot describes.

@@ -199,10 +199,6 @@ def create_agent_app(
             headers=error.headers,
         )
 
-    # In full mode the dashboard Query API reads live telemetry from GreptimeDB; otherwise
-    # register_monitoring falls back to an empty in-memory store. The reference profile is
-    # the exception: it ships in the artifact, so it comes from the deployment state the
-    # handler already loaded rather than from the database.
     data_store = (
         GreptimeQueryStore(
             host=config.GREPTIMEDB_HOST,
@@ -281,7 +277,6 @@ def create_agent_app(
                 "name": deployment.metadata.name,
                 "status": deployment.metadata.status,
                 "monitoring_mode": "full" if deployment.monitoring_enabled else "off",
-                # in-memory, so None right after a restart until the worker's next window
                 "last_monitored_at": worker_health.snapshot(
                     deployment.deployment_id
                 ).deployment.last_window_end,
@@ -289,9 +284,6 @@ def create_agent_app(
             for deployment in local_deployments
         ]
 
-    # Monitoring as a facet of the deployment tree: same bearer credential as compute,
-    # deployment named in the path because a key, unlike a dashboard session, is valid
-    # for the whole orbit and carries no deployment of its own.
     app.include_router(
         build_machine_router(lambda deployment_id: str(deployment_id) in ms_handler.deployments),
         dependencies=[Depends(verify_token)],

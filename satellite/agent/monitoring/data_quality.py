@@ -13,8 +13,6 @@ from agent.monitoring.models import (
 )
 from agent.monitoring.thresholds import Threshold
 
-# How much evidence the detail panel gets: enough to name the culprits, small enough to
-# store in every window's payload.
 EXAMPLE_LIMIT = 3
 UNSEEN_LIMIT = 5
 
@@ -114,7 +112,6 @@ DEFAULT_THRESHOLDS: dict[str, Threshold] = {
     "unseen_category": Threshold(warning=0.0, critical=0.01),
 }
 
-# The profile names its rules after the rate they bound.
 _PROFILE_KEYS = {check: f"{check}_rate" for check in DEFAULT_THRESHOLDS}
 
 

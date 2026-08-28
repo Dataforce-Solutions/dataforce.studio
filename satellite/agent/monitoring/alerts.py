@@ -8,8 +8,6 @@ how to phrase the number, and where the value sits inside a materialized window.
 
 from typing import Any
 
-# Data-quality keys are ``feature.check``; a feature name may itself contain dots
-# ("petal.length"), so the check is recognized by name rather than by the last dot.
 QUALITY_CHECKS = ("missing", "type_mismatch", "range_violation", "unseen_category")
 
 RATIO = "ratio"

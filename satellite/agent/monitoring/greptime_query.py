@@ -38,8 +38,7 @@ logger = logging.getLogger("satellite")
 INFERENCE_EVENTS_TABLE = "inference_events"
 OTEL_TRACES_TABLE = "otel_traces"
 
-# The collector stores span kind/status as OTel proto enum names; the Platform's span
-# viewer expects their numeric values, so translate on the way out.
+# OTel proto enum names, translated to the numeric values the Platform span viewer expects.
 _SPAN_KINDS = {
     "SPAN_KIND_UNSPECIFIED": 0,
     "SPAN_KIND_INTERNAL": 1,
@@ -54,8 +53,6 @@ _SPAN_STATUS = {
     "STATUS_CODE_ERROR": 2,
 }
 
-# Set by instrumentation that knows its span semantics (chat/agent/tool/...); absent
-# spans fall back to the viewer's default icon.
 _ATTR_SPAN_TYPE = "dfs.span_type"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
@@ -63,11 +60,8 @@ FAILURES_TABLE = "monitoring_worker_failures"
 _RESOLVED = "resolved"
 _ACKNOWLEDGED = "acknowledged"
 
-# Upper bound on materialized windows read for a trend line — a day of one-minute windows
-# with room to spare, so a long-running deployment cannot drag the dashboard down.
 _HISTORY_LIMIT = 2000
 
-# span_attributes keys emitted by the Satellite inference instrumentation.
 _ATTR_DEPLOYMENT = "inference.deployment_id"
 _ATTR_EVENT_ID = "inference.event_id"
 _ATTR_STATUS = "inference.status"
@@ -91,8 +85,6 @@ def _sql_str(value: str) -> str:
 
 
 def _json_path(key: str) -> str:
-    # Bracket path so keys containing dots (inference.deployment_id) are treated as one
-    # literal key rather than a nested path.
     return _sql_str(f'["{key}"]')
 
 
@@ -171,13 +163,8 @@ class GreptimeQueryStore:
         self._timeout = timeout
         self._client = client
         self._owns_client = client is None
-        # The reference profile does not live in GreptimeDB: it ships inside the artifact
-        # and the Agent loads it per deployment on the deploy path. The caller passes a
-        # lookup into that in-memory state; without one the tab stays empty.
         self._profile_source = profile_source
         self._profile_status_source = profile_status_source
-        # Same story for the deployment's own identity — name, status, served model: it is
-        # Platform state the Agent syncs, never telemetry, so it cannot come from SQL.
         self._deployment_source = deployment_source
 
     def _get_client(self) -> httpx.AsyncClient:
@@ -197,8 +184,6 @@ class GreptimeQueryStore:
             )
         except httpx.HTTPError as error:
             raise MonitoringStoreUnavailable("GreptimeDB unreachable") from error
-        # GreptimeDB returns SQL-level failures (e.g. a missing table) as an HTTP 4xx with a
-        # JSON body carrying a non-zero code, so parse the body before trusting the status.
         try:
             payload = response.json()
         except ValueError as error:
@@ -284,8 +269,6 @@ class GreptimeQueryStore:
         try:
             columns, rows = await self._query(sql)
         except _QueryError:
-            # otel_traces is optional: without it a trace still renders as its single
-            # inference span, synthesized by the query service.
             logger.debug("otel_traces unavailable; no span tree for trace %s", trace_id)
             return []
         spans = []
@@ -303,7 +286,6 @@ class GreptimeQueryStore:
             return None
         attrs = _as_attrs(record.get("span_attributes"))
         span_type = attrs.get(_ATTR_SPAN_TYPE)
-        # The collector writes '' rather than NULL for a missing parent.
         parent = str(record.get("parent_span_id") or "") or None
         message = str(record.get("span_status_message") or "") or None
         return SpanRecord(
@@ -548,7 +530,6 @@ def _worker_severity(value: Any) -> str:  # noqa: ANN401
 
 
 def _map_severity(value: Any) -> Any:  # noqa: ANN401
-    # The worker (models.Severity) says "normal"; the Query API contract says "ok".
     return "ok" if value == "normal" else value
 
 

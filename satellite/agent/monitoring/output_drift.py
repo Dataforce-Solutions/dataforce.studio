@@ -3,8 +3,6 @@ from typing import Any
 
 from agent.monitoring import psi, thresholds
 
-# The distribution shape is shared with feature drift on purpose: the dashboard
-# renders both with the same chart.
 from agent.monitoring.feature_drift import (
     _categorical_distribution,
     _numerical_distribution,
@@ -21,7 +19,6 @@ from agent.monitoring.models import (
 from agent.monitoring.runtime_health import quantile
 from agent.monitoring.thresholds import Threshold
 
-# The spec puts PSI 0.1 itself in the warning band, hence the inclusive bound.
 DEFAULT_PSI = Threshold(warning=psi.PSI_WARNING, critical=psi.PSI_CRITICAL, warning_inclusive=True)
 
 _EMPTY = MetricComputation(values={}, severity=Severity.NORMAL, signals=[])
@@ -76,8 +73,6 @@ class OutputDriftMetric(Metric):
             "name": name,
             "kind": "numeric",
             "trend": _trend(predictions),
-            # The two halves the PSI score compares, materialized so the dashboard can
-            # draw reference vs current side by side — same shape feature drift records.
             "distribution": _numerical_distribution(summary, predictions),
         }
         return _computation(score, values, bounds)
@@ -276,8 +271,6 @@ def _probabilities(
     return block, signal
 
 
-# The response key a classifier's per-row top probability rides under, matching the
-# reference summary the SDK writes.
 _CONFIDENCE_OUTPUT = "y_score"
 
 

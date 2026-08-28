@@ -8,9 +8,7 @@ from agent.handlers.model_server_handler import ModelServerHandler
 from agent.schemas.deployments import Deployment, LocalDeployment
 from agent.settings import config
 
-# The Agent talks to whatever PLATFORM_URL the environment configures, so the mock has to
-# follow it — pinning a literal URL here made the suite pass only on a machine whose .env
-# happened to match.
+# The mock must follow PLATFORM_URL from the environment, not a pinned literal.
 PLATFORM_URL = str(config.PLATFORM_URL).rstrip("/")
 
 

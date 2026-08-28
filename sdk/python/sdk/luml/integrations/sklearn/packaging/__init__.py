@@ -104,9 +104,6 @@ def _add_io(
             input_order = ["input"]
         x = example
 
-    # A frame-trained estimator is handed a frame back at inference. Stacking the
-    # columns into one array instead upcasts mixed dtypes to strings, and a
-    # ColumnTransformer that selects columns by name has nothing to select from.
     frame_inputs = bool(input_dtypes)
     extra_values: dict[str, Any] = {"input_order": input_order}
     if frame_inputs:
@@ -126,8 +123,6 @@ def _add_io(
             shape=y_shape,  # type: ignore
         )
     )
-    # A classifier with predict_proba also answers with its per-row confidence; the
-    # manifest must declare it or the model server would strip it from the response.
     from sklearn.base import is_classifier  # type: ignore[import-untyped]
 
     if is_classifier(estimator) and hasattr(estimator, "predict_proba"):
@@ -314,13 +309,10 @@ def save_sklearn(  # noqa: C901
 
     os.remove(estimator_path)
 
-    # After save, not before: the profile must land at the root of the archive, which is
-    # where the model server looks for it.
     if reference_data is not None:
         classifier = is_classifier(estimator)
         task_type: TaskType
         if horizons is not None:
-            # a multi-output regressor whose columns are forecast horizons
             task_type = "forecasting"
         else:
             task_type = "classification" if classifier else "regression"
@@ -340,9 +332,6 @@ def save_sklearn(  # noqa: C901
             task_type,
             estimator.predict,
             predict_proba=predict_proba,
-            # named after the artifact's actual response key, so the monitoring runtime
-            # can pick the label out of a multi-output response instead of guessing.
-            # A forecast's single output is described per horizon.
             output_names=list(horizons) if horizons is not None else ["y"],
             class_names=class_names,
             horizons=list(horizons) if horizons is not None else None,

@@ -162,7 +162,6 @@ describe('App (dashboard shell)', () => {
     expect(wrapper.find('[data-testid="data-quality-tab"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="overview-tab"]').exists()).toBe(false)
     expect(wrapper.findAll('[data-testid="dq-row"]')).toHaveLength(2)
-    // the raw request log has its own tab now
     expect(wrapper.find('[data-testid="traces-panel"]').exists()).toBe(false)
   })
 

@@ -38,8 +38,7 @@ const FULLSCREEN = 900
 
 describe('SeriesChart marks', () => {
   it('marks a measurement that has no neighbour to draw a line to', () => {
-    // Traffic in bursts: measured buckets sitting between empty ones. Each is a line of
-    // zero length — without a marker the chart looks empty while holding data.
+    // isolated buckets between empty ones need markers or the chart looks empty
     const bursty = [0.01, null, null, 0.02, null, null, 0.03, null, null, 0.04, null]
 
     expect(draw(bursty, CARD).marker).toBeGreaterThan(0)
@@ -60,7 +59,6 @@ describe('SeriesChart marks', () => {
   })
 
   it('grows the dots with the canvas and leaves the line alone', () => {
-    // A line keeps its shape at any size; a dot is only as visible as it is big.
     const card = draw([0.01, null, null, 0.02, null], CARD)
     const stage = draw([0.01, null, null, 0.02, null], FULLSCREEN)
 
