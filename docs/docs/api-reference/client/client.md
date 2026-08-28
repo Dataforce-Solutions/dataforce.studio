@@ -110,6 +110,17 @@ def deployments() -> "AsyncDeploymentResource"
 
 Deployments and their monitoring.
 
+<a id="luml_api._client.AsyncLumlClient.satellites"></a>
+
+#### satellites
+
+```python
+@cached_property
+def satellites() -> "AsyncSatelliteResource"
+```
+
+Satellites and their advertised operations.
+
 <a id="luml_api._client.LumlClient"></a>
 
 ## LumlClient Objects
@@ -183,4 +194,15 @@ def deployments() -> "DeploymentResource"
 ```
 
 Deployments and their monitoring.
+
+<a id="luml_api._client.LumlClient.satellites"></a>
+
+#### satellites
+
+```python
+@cached_property
+def satellites() -> "SatelliteResource"
+```
+
+Satellites and their advertised operations.
 

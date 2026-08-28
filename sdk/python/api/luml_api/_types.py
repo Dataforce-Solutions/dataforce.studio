@@ -475,10 +475,65 @@ class Satellite(_SatelliteRecord):
         self._openapi_path = openapi_path
 
     def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
+        """
+        List the Satellite's endpoints from its stored OpenAPI document.
+
+        The document is the one the Satellite pushed to the Platform when it
+        paired; the Satellite itself is not contacted. Each entry describes one
+        operation: method, path template, summary, description, parameters and
+        security.
+
+        Args:
+            facet: Only list operations tagged with this facet id, for example
+                "deployment:monitoring". None lists every operation.
+
+        Returns:
+            list of dicts with "method", "path", "summary", "description",
+            "parameters" and "security".
+
+        Raises:
+            LumlAPIError: If the Satellite paired without an OpenAPI document, so
+                no description is available.
+
+        Example:
+        ```python
+        satellite = luml.satellites.get("0199c9cd-3e36-72c0-b823-040eb8195067")
+        operations = satellite.operations(facet="deployment:monitoring")
+        ```
+        """
         document = self._client.get(self._openapi_path)
         return _openapi_operations(document, self.id, facet)
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:  # noqa: ANN401
+        """
+        Perform one HTTP call against the Satellite's own API.
+
+        Sends the request with the client's bearer key and returns the parsed
+        JSON as-is. Use it together with `operations()` to call endpoints the SDK
+        has no native method for, such as a custom capability's routes.
+
+        Args:
+            method: HTTP method, for example "GET".
+            path: Path relative to the Satellite's base URL, or an absolute URL
+                on the same origin. Any other origin raises before a request is
+                sent, so the key cannot leak to a foreign host.
+            **kwargs: Passed to the underlying HTTP client, for example `params`
+                or `json`.
+
+        Returns:
+            The Satellite's parsed JSON response.
+
+        Raises:
+            LumlAPIError: If `path` resolves to a different origin than the
+                Satellite's base URL.
+            APIStatusError: Subclass matching the HTTP error status, if any.
+
+        Example:
+        ```python
+        satellite = luml.satellites.get("0199c9cd-3e36-72c0-b823-040eb8195067")
+        health = satellite.request("GET", "/healthz")
+        ```
+        """
         url = _resolve_satellite_url(self.base_url, path, self.id)
         return self._client.request(method, url, **kwargs)
 
@@ -494,6 +549,11 @@ class AsyncSatellite(_SatelliteRecord):
         self._openapi_path = openapi_path
 
     async def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
+        """
+        List the Satellite's endpoints from its stored OpenAPI document.
+
+        Async variant of `Satellite.operations`.
+        """
         document = await self._client.get(self._openapi_path)
         return _openapi_operations(document, self.id, facet)
 
@@ -503,5 +563,10 @@ class AsyncSatellite(_SatelliteRecord):
         path: str,
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
+        """
+        Perform one HTTP call against the Satellite's own API.
+
+        Async variant of `Satellite.request`.
+        """
         url = _resolve_satellite_url(self.base_url, path, self.id)
         return await self._client.request(method, url, **kwargs)

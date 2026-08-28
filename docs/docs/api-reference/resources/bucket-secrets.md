@@ -530,8 +530,7 @@ async def main():
             bucket_secret_id,
             bucket_location,
             3874658765,
-            "some_upload_id"
-    )
+            "some_upload_id")
 ```
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>

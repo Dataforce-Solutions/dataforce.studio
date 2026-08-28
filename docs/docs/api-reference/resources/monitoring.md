@@ -7,7 +7,7 @@
 ## DeploymentMonitoring Objects
 
 ```python
-class DeploymentMonitoring(_MonitoringBase)
+class DeploymentMonitoring(_MonitoringBase[_SyncMonitoringClient])
 ```
 
 <a id="luml_api.resources.monitoring.DeploymentMonitoring.header"></a>
@@ -15,7 +15,7 @@ class DeploymentMonitoring(_MonitoringBase)
 #### header
 
 ```python
-def header() -> dict
+def header(**query: Any) -> dict[str, Any]
 ```
 
 Identity of the deployment as the dashboard header shows it.
@@ -70,8 +70,9 @@ def overview(
         compare: str = "reference",
         severity: str = "all",
         granularity: str = "auto",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Status summary of the deployment: what changed and where to look first.
@@ -93,7 +94,7 @@ Status summary of the deployment: what changed and where to look first.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -118,8 +119,9 @@ def runtime(
         window: str = "24h",
         compare: str = "reference",
         severity: str = "all",
-        granularity: str = "auto"
-) -> dict
+        granularity: str = "auto",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Whether the deployed endpoint is technically healthy.
@@ -141,7 +143,7 @@ Whether the deployed endpoint is technically healthy.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -165,8 +167,9 @@ runtime = monitoring.runtime(window="24h")
 def data_quality(
         window: str = "24h",
         severity: str = "all",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Whether live inputs still conform to the model contract.
@@ -189,7 +192,7 @@ feature's trends are included as well.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -213,8 +216,9 @@ data_quality = monitoring.data_quality(feature="age")
 def feature_drift(
         window: str = "24h",
         severity: str = "all",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Which inputs changed compared with the training reference.
@@ -234,7 +238,7 @@ Which inputs changed compared with the training reference.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -255,7 +259,11 @@ feature_drift = monitoring.feature_drift(severity="critical")
 #### output_drift
 
 ```python
-def output_drift(window: str = "24h", severity: str = "all") -> dict
+def output_drift(
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Did the model's outputs shift against the training reference.
@@ -281,7 +289,7 @@ Did the model's outputs shift against the training reference.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -302,7 +310,10 @@ output_drift = monitoring.output_drift(window="7d")
 #### reference_profile
 
 ```python
-def reference_profile(feature: str | None = None) -> dict
+def reference_profile(
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 The profile the deployment is compared against.
@@ -343,7 +354,11 @@ reference_profile = monitoring.reference_profile()
 #### alerts
 
 ```python
-def alerts(window: str = "24h", severity: str = "all") -> dict
+def alerts(
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Open and acknowledged alerts, grouped by metric family.
@@ -363,7 +378,7 @@ Open and acknowledged alerts, grouped by metric family.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -389,8 +404,9 @@ def traces(
         limit: int = 50,
         offset: int = 0,
         sort: str = "ts",
-        order: str = "desc"
-) -> dict
+        order: str = "desc",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 The local request log: one row per inference call.
@@ -415,7 +431,7 @@ the fully sorted log — not a sorted slice.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window``, ``sort`` or ``order`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -437,7 +453,7 @@ slowest = monitoring.traces(sort="latency", order="desc", limit=10)
 #### trace
 
 ```python
-def trace(event_id: str, window: str = "24h") -> dict
+def trace(event_id: str, window: str = "24h", **query: Any) -> dict[str, Any]
 ```
 
 One call with its full payloads and span tree.
@@ -478,7 +494,7 @@ trace = monitoring.trace("01a03491-e699-7244-ba1f-84ddc4cde2a1")
 #### worker
 
 ```python
-def worker() -> dict
+def worker(**query: Any) -> dict[str, Any]
 ```
 
 Whether monitoring itself is keeping up — not a metric about the model.
@@ -511,7 +527,7 @@ worker = monitoring.worker()
 ## AsyncDeploymentMonitoring Objects
 
 ```python
-class AsyncDeploymentMonitoring(_MonitoringBase)
+class AsyncDeploymentMonitoring(_MonitoringBase[_AsyncMonitoringClient])
 ```
 
 <a id="luml_api.resources.monitoring.AsyncDeploymentMonitoring.header"></a>
@@ -519,7 +535,7 @@ class AsyncDeploymentMonitoring(_MonitoringBase)
 #### header
 
 ```python
-async def header() -> dict
+async def header(**query: Any) -> dict[str, Any]
 ```
 
 Identity of the deployment as the dashboard header shows it.
@@ -580,8 +596,9 @@ async def overview(
         compare: str = "reference",
         severity: str = "all",
         granularity: str = "auto",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Status summary of the deployment: what changed and where to look first.
@@ -603,7 +620,7 @@ Status summary of the deployment: what changed and where to look first.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -634,8 +651,9 @@ async def runtime(
         window: str = "24h",
         compare: str = "reference",
         severity: str = "all",
-        granularity: str = "auto"
-) -> dict
+        granularity: str = "auto",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Whether the deployed endpoint is technically healthy.
@@ -657,7 +675,7 @@ Whether the deployed endpoint is technically healthy.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -687,8 +705,9 @@ async def main():
 async def data_quality(
         window: str = "24h",
         severity: str = "all",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Whether live inputs still conform to the model contract.
@@ -711,7 +730,7 @@ feature's trends are included as well.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -741,8 +760,9 @@ async def main():
 async def feature_drift(
         window: str = "24h",
         severity: str = "all",
-        feature: str | None = None
-) -> dict
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Which inputs changed compared with the training reference.
@@ -762,7 +782,7 @@ Which inputs changed compared with the training reference.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -789,7 +809,11 @@ async def main():
 #### output_drift
 
 ```python
-async def output_drift(window: str = "24h", severity: str = "all") -> dict
+async def output_drift(
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Did the model's outputs shift against the training reference.
@@ -815,7 +839,7 @@ Did the model's outputs shift against the training reference.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -842,7 +866,10 @@ async def main():
 #### reference_profile
 
 ```python
-async def reference_profile(feature: str | None = None) -> dict
+async def reference_profile(
+        feature: str | None = None,
+        **query: Any
+) -> dict[str, Any]
 ```
 
 The profile the deployment is compared against.
@@ -889,7 +916,11 @@ async def main():
 #### alerts
 
 ```python
-async def alerts(window: str = "24h", severity: str = "all") -> dict
+async def alerts(
+        window: str = "24h",
+        severity: str = "all",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 Open and acknowledged alerts, grouped by metric family.
@@ -909,7 +940,7 @@ Open and acknowledged alerts, grouped by metric family.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -941,8 +972,9 @@ async def traces(
         limit: int = 50,
         offset: int = 0,
         sort: str = "ts",
-        order: str = "desc"
-) -> dict
+        order: str = "desc",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 The local request log: one row per inference call.
@@ -967,7 +999,7 @@ the fully sorted log — not a sorted slice.
 
 **Raises**:
 
-- `LumlAPIError` - If ``window``, ``sort`` or ``order`` is not one the dashboard offers.
+- `UnprocessableEntityError` - If the Satellite rejects a query parameter.
 - `NotFoundError` - If the Satellite does not host this deployment.
   
 
@@ -995,7 +1027,11 @@ async def main():
 #### trace
 
 ```python
-async def trace(event_id: str, window: str = "24h") -> dict
+async def trace(
+        event_id: str,
+        window: str = "24h",
+        **query: Any
+) -> dict[str, Any]
 ```
 
 One call with its full payloads and span tree.
@@ -1042,7 +1078,7 @@ async def main():
 #### worker
 
 ```python
-async def worker() -> dict
+async def worker(**query: Any) -> dict[str, Any]
 ```
 
 Whether monitoring itself is keeping up — not a metric about the model.

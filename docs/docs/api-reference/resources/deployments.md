@@ -134,7 +134,7 @@ the client's API key; monitoring data never passes through the Platform.
 
 **Raises**:
 
-- `LumlAPIError` - If the deployment is not found, or its Satellite has no reachable base URL configured.
+- `LumlAPIError` - If the deployment is not found.
 - `MultipleResourcesFoundError` - If several deployments share that name.
   
 
@@ -291,7 +291,7 @@ the client's API key; monitoring data never passes through the Platform.
 
 **Raises**:
 
-- `LumlAPIError` - If the deployment is not found, or its Satellite has no reachable base URL configured.
+- `LumlAPIError` - If the deployment is not found.
 - `MultipleResourcesFoundError` - If several deployments share that name.
   
 
