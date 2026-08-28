@@ -214,12 +214,6 @@ async function workbench(
         persisted: true,
         preview: storedPreview('metric', [{ block: 'kv', entries: { auc: 0.91 } }]),
       }),
-      set_focus: (params) => ({
-        flow: 'churn',
-        branch: String(params.branch ?? 'main'),
-        asset: (params.asset as string | null) ?? null,
-        compare: (params.compare as string[]) ?? [],
-      }),
       ...options.handlers,
     },
   })

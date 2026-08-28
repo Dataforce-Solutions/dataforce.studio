@@ -174,12 +174,6 @@ async function compare(
           { block: 'kv', entries: { auc: 0.84 + SWEEP.indexOf(String(params.branch)) / 100 } },
         ]),
       }),
-      set_focus: (params) => ({
-        flow: 'churn',
-        branch: String(params.branch ?? 'main'),
-        asset: (params.asset as string | null) ?? null,
-        compare: (params.compare as string[]) ?? [],
-      }),
       ...options.handlers,
     },
   })
@@ -225,7 +219,7 @@ describe('the comparison collapses a wide sweep', () => {
     wrapper.unmount()
   })
 
-  it('leads with the daemon’s first divergence and reports the focus', async () => {
+  it('leads with the daemon’s first divergence', async () => {
     const { wrapper, live } = await compare()
 
     expect(wrapper.text()).toContain('Results · train_model')
@@ -233,10 +227,6 @@ describe('the comparison collapses a wide sweep', () => {
     for (const branch of SWEEP) expect(wrapper.text()).toContain(branch)
     expect(asked(live, 'asset.preview').map((params) => params.branch)).toEqual(SWEEP)
     expect(wrapper.text()).toContain('0.84')
-
-    // What the user is looking at is reported, so an agent's brief can say so.
-    const focus = asked(live, 'set_focus').at(-1)
-    expect(focus?.compare).toEqual(SWEEP)
 
     wrapper.unmount()
   })

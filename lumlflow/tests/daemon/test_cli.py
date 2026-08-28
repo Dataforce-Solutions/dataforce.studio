@@ -227,17 +227,21 @@ def test_diff_separates_an_edit_from_a_result_that_merely_moved(
     cli("run", "report")
 
     compared = cli("diff", "main", "sweep")
-    narrowed = cli("asset", "diff", "report", "--lane", "main", "--lane", "sweep")
     too_many = cli("diff", "main")
 
     edited = compared.output.index("edited on one side")
     results = compared.output.index("same code, different results")
     assert compared.output.index("score", edited) < results
     assert compared.output.index("report", results) > results
-    assert "definition same · result differs" in narrowed.output
     assert too_many.exit_code == 1
     _no_internals(compared)
-    _no_internals(narrowed)
+
+
+def test_asset_diff_is_not_a_command(cli: Invoke) -> None:
+    removed = cli("asset", "diff", "report", "--lane", "main", "--lane", "sweep")
+
+    assert removed.exit_code == 2
+    assert "No such command 'diff'" in removed.output
 
 
 def test_force_spends_the_cost_the_store_would_have_saved(cli: Invoke, workspace: Path):

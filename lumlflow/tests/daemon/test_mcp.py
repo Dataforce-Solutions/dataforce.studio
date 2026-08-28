@@ -377,9 +377,7 @@ def test_a_tool_missing_an_argument_says_which_one(talk: Talk):
     assert "`source`" in failed(answers, 2)
 
 
-def test_resources_serve_the_manifest_the_sources_the_previews_and_the_focus(
-    talk: Talk,
-):
+def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(talk: Talk):
     """The read-only half: what the flow holds, without invoking anything."""
     answers = talk(
         hello(),
@@ -390,7 +388,7 @@ def test_resources_serve_the_manifest_the_sources_the_previews_and_the_focus(
         request(5, "resources/read", {"uri": "flow://churn/manifest"}),
         request(6, "resources/read", {"uri": "flow://churn/cells/score"}),
         request(7, "resources/read", {"uri": "flow://churn/previews/score.summary"}),
-        request(8, "resources/read", {"uri": mcp.FOCUS_URI}),
+        request(8, "resources/read", {"uri": "session://focus"}),
         request(9, "resources/read", {"uri": "flow://churn/cells/nowhere"}),
     )
 
@@ -398,10 +396,8 @@ def test_resources_serve_the_manifest_the_sources_the_previews_and_the_focus(
     manifest = read(answers, 5)
     source = answers[6]["result"]["contents"][0]
     preview = read(answers, 7)
-    focus = read(answers, 8)
 
     assert listed == {
-        mcp.FOCUS_URI,
         "flow://churn/manifest",
         "flow://churn/cells/score",
         "flow://churn/previews/score.summary",
@@ -410,7 +406,7 @@ def test_resources_serve_the_manifest_the_sources_the_previews_and_the_focus(
     assert source["mimeType"] == "text/x-python"
     assert "class Score" in source["text"]
     assert preview["kind"] == "metric" and preview["preview"]["blocks"]
-    assert (focus["branch"], focus["checked_out"]) == ("main", False)
+    assert answers[8]["error"]["code"] == mcp.RESOURCE_NOT_FOUND
     # A name the flow does not know reads as a missing resource, not as a
     # runtime that failed — the client can tell a stale URI from a broken one.
     assert answers[9]["error"]["code"] == mcp.RESOURCE_NOT_FOUND

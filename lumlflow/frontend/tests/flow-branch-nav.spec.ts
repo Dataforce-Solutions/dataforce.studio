@@ -113,12 +113,6 @@ async function workbench(options: { handlers?: Handlers; branches?: BranchRecord
         cells: SLICES[String(params.branch)] ?? [],
       }),
       'cells.logs': () => ({ flow: 'churn', branch: 'main', slug: '', state: null, logs: null }),
-      set_focus: (params) => ({
-        flow: 'churn',
-        branch: String(params.branch ?? 'main'),
-        asset: null,
-        compare: [],
-      }),
       ...options.handlers,
     },
   })

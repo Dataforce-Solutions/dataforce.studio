@@ -58,14 +58,6 @@ const FLOW = 'churn.flow'
 const GIT_WORDS =
   /\b(branch|branches|branching|fork|forks|forked|forking|checkout|checked out|check out|commit|merge|clone|rebase|cherry-pick|worktree|trunk|unsynced|variant|variants)\b/i
 
-/**
- * One exemption, and only one: `.lumlflow/CHECKOUT.md` is a file name a prompt
- * tells an agent to read. File names do not move with the vocabulary — see
- * DESIGN.md, "what a user reads changes; what code calls does not" — so the
- * path is scrubbed before the sentence around it is read.
- */
-const spoken = (text: string): string => text.replace(/CHECKOUT\.md/g, 'the sidecar')
-
 const IGNORED_WARNINGS = [
   /Vue Flow parent container needs a width and a height/,
   // jsdom cannot compute SVG layout; vue-flow warns about unmeasurable handles.
@@ -183,7 +175,7 @@ describe('design system gallery', () => {
       // The user runs `lumlflow ui` and stops it with Ctrl+C; what serves it is
       // never a thing they are asked to learn the name of.
       expect(text).not.toMatch(/daemon/i)
-      expect(spoken(text)).not.toMatch(GIT_WORDS)
+      expect(text).not.toMatch(GIT_WORDS)
     })
   }
 

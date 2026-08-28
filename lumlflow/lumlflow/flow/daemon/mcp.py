@@ -52,7 +52,6 @@ PROTOCOL_VERSION = "2025-06-18"
 # server uses — initialize, tools, resources — has not moved across these.
 _SPOKEN = frozenset({"2024-11-05", "2025-03-26", PROTOCOL_VERSION})
 
-FOCUS_URI = "session://focus"
 _FLOW_SCHEME = "flow"
 
 INVALID_REQUEST = -32600
@@ -342,7 +341,6 @@ class Server:
         self._named: dict[str, str] = {}
         self._flows: dict[str, _Flow] = {}
         self._registered: set[str] = set()
-        self._active: str | None = None
 
     def dispatch(self, line: str) -> dict[str, Any] | None:
         """One message in, one message out — or none, for a notification."""
@@ -490,19 +488,12 @@ class Server:
         return {"flow": flow.name, "branch": wanted, "projected": None}
 
     def _resources(self) -> list[dict[str, Any]]:
-        """Everything readable: the brief, then each flow's cells and results.
+        """Each flow's cells and results.
 
         Enumerated against the branch this session is on rather than whichever
         one has files, so a session that switched reads its own branch back.
         """
-        listed = [
-            {
-                "uri": FOCUS_URI,
-                "name": "focus",
-                "description": "Where this session stands, and what needs doing.",
-                "mimeType": "application/json",
-            }
-        ]
+        listed: list[dict[str, Any]] = []
         for flow in self._all_flows():
             listed.append(
                 {
@@ -542,11 +533,6 @@ class Server:
         than as a failure, which is what lets a client tell a stale URI from a
         runtime that is not answering.
         """
-        if uri == FOCUS_URI:
-            flow = self._flow(self._active)
-            return _json_content(
-                uri, self._call("context", {"flow": flow.name, "branch": flow.branch})
-            )
         parts = urlsplit(uri)
         if parts.scheme != _FLOW_SCHEME or not parts.netloc:
             raise _Refused(RESOURCE_NOT_FOUND, f"nothing is served at `{uri}`")
@@ -581,9 +567,8 @@ class Server:
 
         Registration is what the pair panel detects, so it is driving that opens
         it — a client listing resources to fill a picker has not started work
-        here and is not announced as though it had. Driving is also what makes a
-        flow this session's active one, which is the flow `session://focus`
-        answers for.
+        here and is not announced as though it had. Driving also resolves and
+        remembers the flow spelling, so an unnamed later call stays on it.
 
         The first tool that *changes* something takes the flow's files with it,
         where there are files: from then on the agent's own edits to `cells/`
@@ -592,7 +577,6 @@ class Server:
         that only reads owns nothing, so orientation never blocks a checkout.
         """
         flow = self._flow(named)
-        self._active = flow.name
         if flow.name not in self._registered:
             # Recorded only once the journal holds it. A begin that did not
             # land leaves nothing named after this session, and the end it

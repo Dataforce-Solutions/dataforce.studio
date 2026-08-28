@@ -30,7 +30,6 @@ import type {
   FlowExport,
   FlowSettingsReport,
   FlowStatus,
-  FocusReport,
   HandoffGesture,
   HandoffPayload,
   JournalPage,
@@ -143,8 +142,6 @@ export interface ContextBrief {
   branch: string
   checked_out: boolean
   agent: string | null
-  /** Absent until a surface reports one — a guessed focus is worse than none. */
-  focus?: { branch: string | null; asset: string | null; compare: string[] }
   checkpoint: { step: number; intent: string; ts: string } | null
   cells: number
   unsynced: { slug: string; state: StaleState; causes: string[] }[]
@@ -203,10 +200,6 @@ export interface FlowMethods {
   ping: Method<Record<string, never>, PingResult>
   status: Method<FlowScoped, WorkspaceStatus>
   context: Method<BranchScoped, ContextBrief>
-  set_focus: Method<
-    FlowScoped & { branch?: string; asset?: string | null; compare?: string[] },
-    FocusReport
-  >
   tree: Method<FlowScoped, BranchTree>
   /** 2–5 branches; the daemon refuses fewer and more, and names how many. */
   diff: Method<FlowScoped & { branches: string[] }, BranchDiff>

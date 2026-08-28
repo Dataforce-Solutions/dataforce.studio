@@ -105,7 +105,7 @@ async def test_a_checked_out_flow_sends_the_agent_to_its_files(tmp_path: Path):
         unbound = str((await api.agent_connect({"flow": "sales"}))["text"])
 
     assert "`churn.flow/cells/`" in bound
-    assert "CHECKOUT.md" in bound
+    assert "CHECKOUT.md" not in bound
     assert "no files on disk" in unbound
     assert "sales.flow/cells/" not in unbound
 

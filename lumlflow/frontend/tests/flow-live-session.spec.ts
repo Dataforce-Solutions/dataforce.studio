@@ -8,7 +8,7 @@
  * requires of it.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { effectScope, nextTick, ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
@@ -811,20 +811,17 @@ describe('mutating ops', () => {
   })
 })
 
-// --- selection and focus ------------------------------------------------------
+// --- selection --------------------------------------------------------------
 
 describe('selection', () => {
   const route = (query: Record<string, string> = {}, path = `/flow/${FLOW}`) =>
     ({ path, query }) as unknown as RouteLocationNormalizedLoaded
 
   it('opens the notebook when the route is the notebook, without a parameter', async () => {
-    const { session } = await attach()
     const scope = effectScope()
     const selection = scope.run(() =>
       useSelection(route({}, `/flow/${FLOW}/notebook`), {
-        session,
         defaultBranch: ref('main'),
-        report: false,
       }),
     )!
 
@@ -834,50 +831,32 @@ describe('selection', () => {
     scope.stop()
   })
 
-  it('reads the URL, mirrors it back, and reports the focus to the daemon', async () => {
-    vi.useFakeTimers()
-    try {
-      const { session, daemon } = await attach()
-      const scope = effectScope()
-      const selection = scope.run(() =>
-        useSelection(route({ asset: 'features', view: 'notebook', state: 'running' }), {
-          session,
-          defaultBranch: ref('main'),
-        }),
-      )!
+  it('reads the URL and mirrors it back', async () => {
+    const scope = effectScope()
+    const selection = scope.run(() =>
+      useSelection(route({ asset: 'features', view: 'notebook', state: 'running' }), {
+        defaultBranch: ref('main'),
+      }),
+    )!
 
-      expect(selection.selectedSlug.value).toBe('features')
-      expect(selection.view.value).toBe('notebook')
-      expect(selection.viewedBranch.value).toBe('main')
+    expect(selection.selectedSlug.value).toBe('features')
+    expect(selection.view.value).toBe('notebook')
+    expect(selection.viewedBranch.value).toBe('main')
 
-      selection.viewedBranch.value = 'sweep'
-      selection.compared.value = ['main', 'sweep']
-      await nextTick()
+    selection.viewedBranch.value = 'sweep'
+    selection.compared.value = ['main', 'sweep']
+    await nextTick()
 
-      // Branch by name and cell by slug — the addressing story, in the URL.
-      // Query keys this selection does not own survive without influencing
-      // which data source the workbench uses.
-      expect(selection.query()).toBe(
-        'asset=features&branch=sweep&compare=main%2Csweep&state=running',
-      )
-      // Which view is up is the route, so a notebook link opens the notebook.
-      expect(selection.path()).toBe(`/flow/${FLOW}/notebook`)
+    // Branch by name and cell by slug — the addressing story, in the URL.
+    // Query keys this selection does not own survive without influencing
+    // which data source the workbench uses.
+    expect(selection.query()).toBe(
+      'asset=features&branch=sweep&compare=main%2Csweep&state=running',
+    )
+    // Which view is up is the route, so a notebook link opens the notebook.
+    expect(selection.path()).toBe(`/flow/${FLOW}/notebook`)
 
-      // Debounced: dragging across a canvas is one focus, not forty.
-      expect(daemon.calls.filter((call) => call.method === 'set_focus')).toHaveLength(0)
-      vi.advanceTimersByTime(300)
-      await settle()
-      const reports = daemon.calls.filter((call) => call.method === 'set_focus')
-      expect(reports).toHaveLength(1)
-      expect(reports[0].params).toMatchObject({
-        branch: 'sweep',
-        asset: 'features',
-        compare: ['main', 'sweep'],
-      })
-      scope.stop()
-    } finally {
-      vi.useRealTimers()
-    }
+    scope.stop()
   })
 })
 

@@ -23,8 +23,8 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from lumlflow.flow.daemon.docs import AGENTS_NAME, CHECKOUT_NAME
-from lumlflow.flow.store.flowstore import CELLS_DIRNAME, STORE_DIRNAME
+from lumlflow.flow.daemon.docs import AGENTS_NAME
+from lumlflow.flow.store.flowstore import CELLS_DIRNAME
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import FlowSession
@@ -70,7 +70,7 @@ def prompt(session: "FlowSession", *, workspace_dir: Path) -> dict[str, Any]:
         "",
         "Then, before anything else:",
         "",
-        *_reading(session, workspace_dir),
+        *_reading(workspace_dir),
         "",
         "While you are here:",
         "",
@@ -146,21 +146,18 @@ def _wrapped(body: str, *, indent: str = "") -> list[str]:
     )
 
 
-def _reading(session: "FlowSession", workspace_dir: Path) -> list[str]:
+def _reading(workspace_dir: Path) -> list[str]:
     """Where an agent learns the flow — the tool first, the files behind it.
 
     `context` before either file: the files say what a flow is, and only the
     tool says what this one is *doing* — which lane, what is stale and
     why, what failed last.
     """
-    checkout = session.ref.path / STORE_DIRNAME / CHECKOUT_NAME
     reading = [
         "- Call `context`. It names the lane you are on, what is stale and "
         "why, and what failed.",
         f"- Read `{workspace_dir / AGENTS_NAME}`. It holds the cell DSL and the verbs.",
     ]
-    if session.worktree.bound() is not None:
-        reading.append(f"- Read `{checkout}`. It says what the files hold.")
     return [line for item in reading for line in _bullet(item)]
 
 

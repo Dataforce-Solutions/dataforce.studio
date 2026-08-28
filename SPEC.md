@@ -1107,9 +1107,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Remove retired aliases
   - [x] Delete CLI `fork/switch/tree/archive`, the `variant` group, `--variant/--branch/--unsynced`, `mcp._RETIRED_NAMES` and the `variant` wire aliases; the `daemon` group is untouched here (the one-daemon task unhides `stop` and `status`)
   - [x] Update `test_cli.py` / `test_mcp.py`
-- [ ] Remove focus, asset diff, the dev shim and the sidecar
-  - [ ] Delete `api.set_focus`, `session.focus` and its one reader `handoff._focus`, `session://focus`, the `useSelection` focus reporter, `api.asset_diff` and `lumlflow asset diff`, `_refresh_web_app` and helpers in `lumlflow/cli.py`, `docs.refresh_checkout` and `CHECKOUT.md`
-  - [ ] Update the affected tests
+- [x] Remove focus, asset diff, the dev shim and the sidecar
+  - [x] Delete `api.set_focus`, `session.focus` and its one reader `handoff._focus`, `session://focus`, the `useSelection` focus reporter, `api.asset_diff` and `lumlflow asset diff`, `_refresh_web_app` and helpers in `lumlflow/cli.py`, `docs.refresh_checkout` and `CHECKOUT.md`
+  - [x] Update the affected tests
 - [ ] Shrink handoff to one copy-context gesture
   - [ ] `agent.payload` without a gesture parameter, carrying the traceback's frames and the exception's final line, never its full text (D4.11); one button per card; delete `HandoffPopover`/`HandoffDialog`
   - [ ] Update `test_handoff.py` (the payload rule included) and `flow-handoff.spec.ts`

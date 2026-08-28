@@ -1,6 +1,6 @@
 /**
- * What the user is looking at: the viewed branch, the selected asset, the open
- * comparison — in the URL, and reported to the daemon.
+ * What the user is looking at: the viewed branch, the selected asset, and the
+ * open comparison, mirrored in the URL.
  *
  * **In the URL** because a link to a cell on a branch is the addressing story
  * the whole product uses: slug and branch name, never a number. Which view is
@@ -9,30 +9,17 @@
  * `history.replaceState` rather than `router.replace` because the shell keys
  * its `RouterView` on the full path, and a route change would remount the page
  * — refitting the canvas and closing the drawer — on every click.
- *
- * **Reported** because `lumlflow context` and the MCP focus resource are what
- * an agent reads to know where its human is, and the daemon has no other way to
- * learn it. It is a report and never a guess: absent one, the brief omits focus
- * rather than pointing an agent at whatever happens to be first. Debounced,
- * because dragging across a canvas is one focus, not forty.
  */
 
-import { getCurrentScope, onScopeDispose, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 
-import type { FlowSessionHandle } from './useFlowSession'
-
 export type WorkbenchView = 'canvas' | 'notebook'
 
-const REPORT_DEBOUNCE_MS = 250
-
 export interface SelectionOptions {
-  session: FlowSessionHandle
   /** Where the URL says nothing — the branch the worktree is bound to. */
   defaultBranch: Ref<string>
-  /** Off in the gallery and in tests that assert the URL alone. */
-  report?: boolean
 }
 
 export interface SelectionHandle {
@@ -44,7 +31,6 @@ export interface SelectionHandle {
   path: () => string
   /** The query string this selection mirrors — asserted directly in tests. */
   query: () => string
-  reportFocus: () => Promise<void>
 }
 
 /** The notebook is a route of its own: `/flow/:flowId/notebook`. */
@@ -83,22 +69,6 @@ export function useSelection(
     return params.toString()
   }
 
-  async function reportFocus(): Promise<void> {
-    if (options.report === false) return
-    await options.session
-      .request('set_focus', {
-        flow: options.session.brief.value?.path,
-        branch: viewedBranch.value,
-        asset: selectedSlug.value,
-        compare: compared.value,
-      })
-      // A brief that lost its focus line is not worth a surfaced failure: the
-      // report is the least of what this session is doing.
-      .catch(() => {})
-  }
-
-  let pending: ReturnType<typeof setTimeout> | null = null
-
   watch([view, selectedSlug, viewedBranch, compared], () => {
     const search = query()
     if (typeof window !== 'undefined') {
@@ -108,20 +78,9 @@ export function useSelection(
         `${path()}${search ? `?${search}` : ''}`,
       )
     }
-    if (pending !== null) clearTimeout(pending)
-    pending = setTimeout(() => {
-      pending = null
-      void reportFocus()
-    }, REPORT_DEBOUNCE_MS)
   })
 
-  if (getCurrentScope()) {
-    onScopeDispose(() => {
-      if (pending !== null) clearTimeout(pending)
-    })
-  }
-
-  return { view, viewedBranch, selectedSlug, compared, path, query, reportFocus }
+  return { view, viewedBranch, selectedSlug, compared, path, query }
 }
 
 function queryOne(route: RouteLocationNormalizedLoaded, name: string): string | null {

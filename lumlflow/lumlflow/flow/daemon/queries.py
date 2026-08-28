@@ -420,41 +420,6 @@ def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
     }
 
 
-def asset_diff(
-    session: "FlowSession", branches: list[str], target: str
-) -> dict[str, Any]:
-    """One asset across two branches: did the code move, did the result move."""
-    if len(branches) != MIN_COMPARED:
-        raise FlowError("comparing one asset takes two lanes")
-    slices = _compared(session, branches)
-    slug, _, output = target.partition(".")
-    sides = [
-        {"branch": name}
-        | (
-            _result_side(name, here, here.by_slug()[slug].uid)
-            if slug in here.by_slug()
-            else {"state": "absent"}
-        )
-        for name, here in slices.items()
-    ]
-    definitions = {
-        here.by_slug()[slug].definition_hash
-        for here in slices.values()
-        if slug in here.by_slug()
-    }
-    return {
-        "flow": session.ref.name,
-        "slug": slug,
-        "output": output or None,
-        "branches": branches,
-        "definition": "same" if len(definitions) == 1 else "differs",
-        "result": _result_verdict(
-            [_content_hashes(here, slug, output) for here in slices.values()]
-        ),
-        "sides": sides,
-    }
-
-
 def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
     """Resolve `slug` or `slug.output` to the output record the branch observed.
 
@@ -548,7 +513,6 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
     checkpoint = index.checkpoint(here.branch.branch_id)
     dirty = [uid for uid in here.ordered() if not here.verdicts[uid].synced]
     holder = index.worktree_holder()
-    focus = session.focus
     # Both facts are about the files, and the files are one branch's: a brief on
     # a branch nobody checked out must not claim the agent working in `main` is
     # working in it.
@@ -559,19 +523,6 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
         "branch": branch,
         "checked_out": checked_out,
         "agent": holder.label if (checked_out and holder is not None) else None,
-        # Omitted rather than nulled when nothing was reported: an agent reading
-        # this must not spend a line learning that the user is nowhere.
-        **(
-            {
-                "focus": {
-                    "branch": focus.branch,
-                    "asset": focus.asset,
-                    "compare": list(focus.compare),
-                }
-            }
-            if focus is not None
-            else {}
-        ),
         "checkpoint": _transaction(checkpoint) if checkpoint is not None else None,
         "cells": len(here.versions),
         "unsynced": [
@@ -946,25 +897,6 @@ def _result_side(branch: str, here: Slice, uid: str) -> dict[str, Any]:
         "cost_seconds": mat.cost_seconds if mat is not None else None,
         "outputs": _outputs(mat, here.versions[uid]),
     }
-
-
-def _content_hashes(here: Slice, slug: str, output: str) -> str | None:
-    by_slug = here.by_slug()
-    if slug not in by_slug:
-        return None
-    mat = here.mats.get(by_slug[slug].uid)
-    if mat is None or mat.state != "succeeded":
-        return None
-    wanted = {name: r.content_hash for name, r in mat.outputs.items()}
-    if output:
-        wanted = {name: value for name, value in wanted.items() if name == output}
-    return json.dumps(wanted, sort_keys=True)
-
-
-def _result_verdict(observed: list[str | None]) -> str:
-    if any(record is None for record in observed):
-        return "unmaterialized"
-    return "same" if len(set(observed)) == 1 else "differs"
 
 
 def _preview(session: "FlowSession", record: OutputRecord | None) -> Any:

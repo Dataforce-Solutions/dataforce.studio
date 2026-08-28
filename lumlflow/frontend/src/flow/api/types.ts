@@ -665,13 +665,6 @@ export interface RunOutcome {
   abandoned: boolean
 }
 
-export interface FocusReport {
-  flow: string
-  branch: string | null
-  asset: string | null
-  compare: string[]
-}
-
 /**
  * `agent.connect`: the paste-ready prompt that pairs an agent with this flow.
  *

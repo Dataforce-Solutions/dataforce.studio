@@ -20,7 +20,6 @@ at all.
 import contextlib
 import shutil
 import traceback
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -42,20 +41,6 @@ from lumlflow.flow.store.flowstore import (
     FlowStore,
     store_dir,
 )
-
-
-@dataclass(frozen=True)
-class Focus:
-    """Where the user is looking, as the browser last reported it.
-
-    Reported, never inferred: a brief that guessed at a focus nobody has would
-    point an agent at whatever happens to be first. Absent a report there is
-    none, and the brief simply omits it.
-    """
-
-    branch: str | None = None
-    asset: str | None = None
-    compare: tuple[str, ...] = ()
 
 
 class FlowSession:
@@ -100,9 +85,6 @@ class FlowSession:
         # a daemon that just started knows nothing and reads everything.
         self.accepted_files: dict[str, AcceptedFile] = {}
         self.worktree = Worktree(store)
-        # A surface's report, not a fact about the store: it lives as long as
-        # the daemon does and no longer.
-        self.focus: Focus | None = None
 
     @property
     def branch(self) -> str:
@@ -188,7 +170,7 @@ class Hub:
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])
         session.reconcile(tier="cold")
-        self.document(session)
+        self.document()
         # Opening is where reactivity catches up on a workspace nobody was
         # watching: the offline edits have just landed, and cells left unsynced
         # by the last session are unsynced still. Armed whatever the cold start
@@ -252,19 +234,16 @@ class Hub:
             # file. Whichever door it came through, reactivity's question has a
             # new answer.
             session.reactor.arm()
-        self.document(session)
+        self.document()
 
-    def document(self, session: FlowSession | None = None) -> None:
-        """Keep the generated docs current — the agent that only reads files
-        learns where it is from these, so they follow the state, not a verb.
+    def document(self) -> None:
+        """Keep the generated workspace guide current.
 
         A workspace nobody can write to is not a reason to refuse the op that
-        asked; the docs are a convenience over facts the store already holds.
+        asked; the guide is a convenience over facts the store already holds.
         """
         with contextlib.suppress(OSError):
             docs.refresh_workspace(self.root, [ref.name for ref in self.flows()])
-            if session is not None:
-                docs.refresh_checkout(session)
 
     def init_flow(self, name: str) -> FlowSession:
         """Scaffold a new flow in the workspace, unbound.
@@ -279,7 +258,7 @@ class Hub:
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(self.root, [session])
-        self.document(session)
+        self.document()
         return session
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:

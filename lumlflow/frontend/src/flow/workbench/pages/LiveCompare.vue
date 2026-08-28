@@ -203,18 +203,12 @@ const session = props.session
 const ops = useFlowOps(session)
 
 const selection = useSelection(route, {
-  session,
   defaultBranch: computed(() => session.brief.value?.branch ?? 'main'),
 })
 
 const compared = computed(() => selection.compared.value)
 const area = useCompare(session, compared, selection.selectedSlug)
 const compare = computed(() => area.compare.value)
-
-// Landing on a comparison is itself the focus change: the daemon learns what
-// its human is looking at from these reports and from nowhere else, and an open
-// comparison is the one an agent's brief most needs to know about.
-void selection.reportFocus()
 
 const open = ref<string[]>(['results', 'divergence'])
 const allDifferences = ref<string[]>([])

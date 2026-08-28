@@ -246,23 +246,6 @@ def asset(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
-def asset_diff(payload: dict[str, Any]) -> list[str]:
-    target = payload["slug"] + (
-        f".{payload['output']}" if payload.get("output") else ""
-    )
-    lines = [
-        f"{target} · " + " vs ".join(f"`{name}`" for name in payload["branches"]),
-        f"definition {payload['definition']} · result {payload['result']}",
-    ]
-    for side in payload.get("sides") or []:
-        state = STATES.get(side["state"], side["state"])
-        cost = (
-            f" · {_seconds(side['cost_seconds'])}" if side.get("cost_seconds") else ""
-        )
-        lines.append(f"  {side['branch']:<{_SLUG_COLUMN}} {state}{cost}")
-    return lines
-
-
 def preflight(payload: dict[str, Any]) -> list[str]:
     """What a run would do, before it does it."""
     lines = [f"`{payload['target']}` on `{payload['branch']}`"]

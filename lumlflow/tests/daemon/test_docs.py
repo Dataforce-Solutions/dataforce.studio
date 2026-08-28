@@ -1,8 +1,8 @@
-"""The generated docs: the workspace cheatsheet and the per-flow sidecar.
+"""The generated workspace guide.
 
 The quickstart's length is a contract, not a preference — Tier-0 says an agent
 learns the whole loop from it, and a cheatsheet nobody finishes reading teaches
-nothing. The sidecar's contract is that it is true whenever anyone looks.
+nothing.
 """
 
 from pathlib import Path
@@ -69,27 +69,7 @@ async def test_a_teams_own_instructions_survive_the_generated_block(tmp_path: Pa
     assert again == first
 
 
-async def test_the_sidecar_is_true_the_moment_the_checkout_lands(tmp_path: Path):
-    """Written on the way out of the op, not at the next one — a file that says
-    the flow is not checked out while it is teaches an agent to distrust it."""
-    root = make_workspace(tmp_path / "project", flows=())
-    sidecar = store_dir(root / "churn.flow") / docs.CHECKOUT_NAME
-
-    async with daemon_api(root) as api:
-        await api.flow_init({"name": "churn"})
-        unbound = sidecar.read_text("utf-8")
-        await api.flow_checkout({"flow": "churn", "branch": "main"})
-        bound = sidecar.read_text("utf-8")
-
-    # The API path creates a flow unbound, and says so.
-    assert "(not on disk)" in unbound
-    assert "(not on disk)" not in bound
-    assert "lane: `main`" in bound
-
-
-async def test_the_checkout_sidecar_says_where_the_flow_is_and_what_is_not_current(
-    tmp_path: Path,
-):
+async def test_flow_operations_do_not_write_a_checkout_sidecar(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -97,16 +77,9 @@ async def test_the_checkout_sidecar_says_where_the_flow_is_and_what_is_not_curre
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
-        before = (store_dir(flow) / docs.CHECKOUT_NAME).read_text("utf-8")
         await api.run({"flow": "churn", "target": "report"})
-        after = (store_dir(flow) / docs.CHECKOUT_NAME).read_text("utf-8")
 
-    assert "lane: `main`" in before
-    assert "## Stale (2)" in before
-    assert "`report`: never run" in before
-    # A run is what moves staleness, and the sidecar follows it without a verb.
-    assert "Everything on this lane is current." in after
-    assert "checkpoint: step" in after
+    assert not (store_dir(flow) / "CHECKOUT.md").exists()
 
 
 async def test_the_generated_block_never_speaks_the_vocabulary_git_owns(
@@ -121,15 +94,3 @@ async def test_the_generated_block_never_speaks_the_vocabulary_git_owns(
     no_git_words((root / docs.AGENTS_NAME).read_text("utf-8"), "AGENTS.md")
     no_git_words(docs.QUICKSTART, "the quickstart")
     no_git_words(docs.CHEATSHEET, "the cheatsheet")
-
-
-async def test_the_sidecar_never_speaks_the_vocabulary_git_owns(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    flow = root / "churn.flow"
-    write_cell(flow, "score", SCORE_CELL)
-
-    async with daemon_api(root) as api:
-        await api.flow_open({"flow": "churn"})
-
-    sidecar = (store_dir(flow) / docs.CHECKOUT_NAME).read_text("utf-8")
-    no_git_words(sidecar, "the on-disk sidecar")

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, get_args
 
 from lumlflow.flow.daemon import connect, envs, handoff, queries, workspace
-from lumlflow.flow.daemon.hub import FlowSession, Focus, Hub
+from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl import loader, portable, scaffold
@@ -51,7 +51,6 @@ class Api:
             "ping": self.ping,
             "status": self.status,
             "context": self.context,
-            "set_focus": self.set_focus,
             "tree": self.tree,
             "graph": self.graph,
             "diff": self.diff,
@@ -69,7 +68,6 @@ class Api:
             "cells.eager": self.cells_eager,
             "asset.preview": self.asset_preview,
             "asset.page": self.asset_page,
-            "asset.diff": self.asset_diff,
             "asset.download": self.asset_download,
             "export": self.export,
             "import": self.import_cells,
@@ -131,28 +129,6 @@ class Api:
         session, branch = await self._read(params)
         return queries.context(session, branch)
 
-    async def set_focus(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Record what the user is looking at, so the brief can say so.
-
-        No quiesce: this reads nothing and resolves no version — it is a
-        report, sent on every selection change, and reconciling the file plane
-        for each one would make clicking a cell as expensive as running it.
-        """
-        session = self.hub.session(_flow_name(params))
-        session.focus = Focus(
-            branch=_named(params.get("branch")),
-            asset=_named(params.get("asset")),
-            compare=tuple(
-                str(name) for name in params.get("compare") or () if str(name)
-            ),
-        )
-        return {
-            "flow": session.ref.name,
-            "branch": session.focus.branch,
-            "asset": session.focus.asset,
-            "compare": list(session.focus.compare),
-        }
-
     async def tree(self, params: dict[str, Any]) -> dict[str, Any]:
         session, _ = await self._read(params)
         return queries.tree(session)
@@ -210,7 +186,7 @@ class Api:
             intent=params.get("intent"),
             force=bool(params.get("force")),
         )
-        self.hub.document(session)
+        self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
 
     async def flow_delete(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -362,12 +338,6 @@ class Api:
         )
         return {"slug": slug, "output": output, "kind": record.kind, "page": page}
 
-    async def asset_diff(self, params: dict[str, Any]) -> dict[str, Any]:
-        """One asset across two branches: did the code move, did the result."""
-        session, _ = await self._read(params)
-        branches = [str(name) for name in params.get("branches") or []]
-        return queries.asset_diff(session, branches, _target(params))
-
     async def asset_download(self, params: dict[str, Any]) -> dict[str, Any]:
         """Copy a stored value out of the flow, under a name of the caller's."""
         session, branch = await self._read(params)
@@ -500,7 +470,7 @@ class Api:
             intent=params.get("intent"),
             force=bool(params.get("force")),
         )
-        self.hub.document(session)
+        self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -712,7 +682,7 @@ class Api:
             actor=_actor(params),
             force=bool(params.get("force")),
         )
-        self.hub.document(session)
+        self.hub.document()
         # A result the user paid for is what makes the cheap cells under it
         # affordable: running the expensive parent is the gesture that lets
         # reactivity take the plot below it.
@@ -867,7 +837,7 @@ class Api:
         written = session.worktree.project_cell(
             accepted.uid, branch=branch, held=held, actor=actor
         )
-        self.hub.document(session)
+        self.hub.document()
         session.reactor.arm()
         return {
             "slug": accepted.slug,
@@ -888,7 +858,7 @@ class Api:
         self, session: FlowSession, branch: str, *, actor: str, force: bool
     ) -> Projection | None:
         """Carry a slice change into the files, when it is this branch's files."""
-        self.hub.document(session)
+        self.hub.document()
         # Switching, forking, rewinding, adopting and deleting all move which
         # versions the branch selects, which is the other half of what a verdict
         # is derived from. Reactivity has a new answer after every one of them.

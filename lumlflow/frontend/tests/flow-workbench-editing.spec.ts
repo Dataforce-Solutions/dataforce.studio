@@ -569,12 +569,6 @@ async function workbench(options: { handlers?: Handlers } = {}): Promise<Bench> 
         packages: [],
         flows: [],
       }),
-      set_focus: (params) => ({
-        flow: 'churn',
-        branch: String(params.branch ?? 'main'),
-        asset: (params.asset as string | null) ?? null,
-        compare: (params.compare as string[]) ?? [],
-      }),
       ...options.handlers,
     }),
   })

@@ -47,8 +47,6 @@ export const CONNECT_PROMPT = [
   `- Call \`context\`. It names the lane you are on, what is stale and`,
   '  why, and what failed.',
   `- Read \`/Users/you/work/AGENTS.md\`. It holds the cell DSL and the verbs.`,
-  `- Read \`/Users/you/work/churn.flow/.lumlflow/CHECKOUT.md\`. It says what`,
-  '  the files hold.',
   '',
   'While you are here:',
   '',

@@ -180,7 +180,6 @@ async def test_summarize_asks_for_a_note_cell_and_carries_the_branch_story(
         await api.flow_open({"flow": "churn"})
         await api.run({"target": "score"})
         await api.fork({"name": "sweep", "intent": "sweeping learning rates"})
-        await api.set_focus({"branch": "sweep", "asset": "score"})
 
         handed = await api.agent_payload({"gesture": "summarize", "branch": "sweep"})
 
@@ -188,23 +187,9 @@ async def test_summarize_asks_for_a_note_cell_and_carries_the_branch_story(
     assert "note cell" in str(handed["text"])
     assert fields["started-from"].startswith("main at step ")
     assert fields["cells"] == "2"
-    assert fields["focus"] == "the reader is looking at score"
     assert _listed(handed, "assets") == ["score: synced, metric"]
     assert _listed(handed, "notes") == ["notes"]
     assert "sweeping learning rates, by user" in _listed(handed, "recent")
-
-
-async def test_summarize_omits_a_focus_nobody_reported(tmp_path: Path):
-    """A guessed focus is worse than none: the brief omits it the same way."""
-    root = make_workspace(tmp_path / "project")
-    write_cell(root / "churn.flow", "score", SCORE_CELL)
-
-    async with daemon_api(root) as api:
-        await api.flow_open({"flow": "churn"})
-
-        handed = await api.agent_payload({"gesture": "summarize"})
-
-    assert "focus:" not in str(handed["text"])
 
 
 async def test_a_handoff_records_nothing_and_leaks_no_identifiers(tmp_path: Path):

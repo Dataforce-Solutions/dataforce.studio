@@ -267,7 +267,6 @@ const ops = useFlowOps(session)
 const records = useWorkbench(session)
 
 const selection = useSelection(route, {
-  session,
   defaultBranch: computed(() => session.brief.value?.branch ?? 'main'),
 })
 

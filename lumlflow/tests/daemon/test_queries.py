@@ -47,31 +47,6 @@ async def test_the_brief_names_what_is_unsynced_why_and_what_it_will_cost(
     assert brief["agent"] is None
 
 
-async def test_the_brief_omits_a_focus_nobody_reported_and_carries_a_reported_one(
-    tmp_path: Path,
-):
-    root = make_workspace(tmp_path / "project")
-    flow = root / "churn.flow"
-    write_cell(flow, "score", SCORE_CELL)
-    write_cell(flow, "report", REPORT_CELL)
-
-    async with daemon_api(root) as api:
-        unreported = await api.context({"flow": "churn"})
-        await api.fork({"flow": "churn", "name": "sweep"})
-        reported = await api.set_focus(
-            {"flow": "churn", "asset": "report", "compare": ["main", "sweep"]}
-        )
-        brief = await api.context({"flow": "churn"})
-
-    assert "focus" not in unreported
-    assert reported["asset"] == "report"
-    assert brief["focus"] == {
-        "branch": None,
-        "asset": "report",
-        "compare": ["main", "sweep"],
-    }
-
-
 async def test_the_brief_carries_the_failure_an_agent_has_to_read(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", BROKEN_CELL)

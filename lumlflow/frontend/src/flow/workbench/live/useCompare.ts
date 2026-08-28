@@ -91,7 +91,7 @@ export function useCompare(
    * The URL's asset when the comparison has something to say about it, else the
    * daemon's first divergence: an asset that diverges nowhere would lead with
    * four identical columns. The focus lives in the URL and nowhere else, so the
-   * link is the comparison and the daemon hears about it through `set_focus`.
+   * link is the comparison.
    */
   const focused = computed<string | null>(() => {
     const wanted = asset.value

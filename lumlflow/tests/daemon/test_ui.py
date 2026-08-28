@@ -131,27 +131,6 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     assert started == []
 
 
-def test_the_web_app_is_looked_at_before_serving_and_before_attaching(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Both ways out of `ui` end with a browser on files built from a checkout,
-    so both pass what checks them. What that check decides is tested apart."""
-    root = make_workspace(tmp_path / "project", flows=())
-    looked: list[Path] = []
-    monkeypatch.setattr(top_cli, "_refresh_web_app", looked.append)
-    monkeypatch.setattr(server, "serve_here", lambda root, **_: 0)
-    monkeypatch.setattr(client, "live_record", lambda _: None)
-    monkeypatch.chdir(root)
-    runner = CliRunner()
-
-    runner.invoke(app, ["ui", "--no-browser"])
-    monkeypatch.setattr(client, "live_record", lambda _: _record(foreground=True))
-    monkeypatch.setattr(client, "stand_down", lambda _: False)
-    runner.invoke(app, ["ui", "--no-browser"])
-
-    assert looked == [Path(top_cli.__file__).resolve().parent] * 2
-
-
 def _opens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """What `lumlflow ui` sent to a browser, in order."""
     opened: list[str] = []

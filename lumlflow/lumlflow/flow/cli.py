@@ -639,19 +639,6 @@ def asset_page(
     )
 
 
-@asset_app.command("diff")
-def asset_diff(
-    target: str = typer.Argument(..., help="`cell` or `cell.output`."),
-    lanes: list[str] = typer.Option([], "--lane", help="Given twice."),
-    flow: str | None = _FLOW,
-    as_json: bool = _JSON,
-) -> None:
-    """One cell's code and results across two lanes."""
-    params = {"target": target, "branches": list(lanes)}
-    result = _call("asset.diff", params, flow=flow, as_json=as_json)
-    _emit(result, as_json, render.asset_diff)
-
-
 @asset_app.command("download")
 def asset_download(
     target: str = typer.Argument(..., help="`cell` or `cell.output`."),

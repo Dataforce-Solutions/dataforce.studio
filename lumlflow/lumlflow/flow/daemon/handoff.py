@@ -168,7 +168,6 @@ def _summarize(
     facts = [queries.cell(here, uid) for uid in ordered[:_LISTED_CELLS]]
     lines = [_origin(session, here)]
     lines.append(f"cells: {len(ordered)}")
-    lines.extend(_focus(session))
     lines.extend(
         _lines(
             "assets",
@@ -233,19 +232,6 @@ def _address(
         lines.append(f"file: {session.ref.relpath}/{CELLS_DIRNAME}/{slug}.py")
     lines.append(f"version: accepted at step {detail['provenance']['step']}")
     return lines
-
-
-def _focus(session: "FlowSession") -> list[str]:
-    """What the reader is looking at, when a surface has said.
-
-    Only the branch-wide gestures carry it: a payload about one cell already
-    names the thing being looked at, and repeating it there would be a line the
-    agent spends learning nothing.
-    """
-    focus = session.focus
-    if focus is None or not focus.asset:
-        return []
-    return [f"focus: the reader is looking at {focus.asset}"]
 
 
 def _origin(session: "FlowSession", here: queries.Slice) -> str:

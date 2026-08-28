@@ -1,14 +1,10 @@
-"""The two files an agent that only reads files still learns everything from.
+"""The generated guide for an agent that reads workspace files.
 
 `AGENTS.md` at the workspace root is the DSL cheatsheet and the ~20-line
 quickstart the Tier-0 contract is measured against: read `context`, edit a cell,
 `run` it, and everything else is progressive disclosure. It leads with the MCP
 tools because that is how an agent reaches this workspace once it has connected;
 the verbs are the same operations spelled for an agent that is itself a CLI.
-`.lumlflow/CHECKOUT.md` is the per-flow sidecar — which lane is on disk,
-where its last checkpoint was, what is stale — so an agent that never calls
-anything still knows where it is. Its filename predates the vocabulary and does
-not move: a path is not something a user reads for its wording.
 
 The workspace file is written between markers rather than wholesale: `AGENTS.md`
 is where a team keeps its own instructions to agents, and a generated file that
@@ -16,18 +12,10 @@ eats them would teach everyone to delete it.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from lumlflow.flow import render
 from lumlflow.flow.atomic import atomic_write_bytes
-from lumlflow.flow.daemon import queries
-from lumlflow.flow.store.flowstore import store_dir
-
-if TYPE_CHECKING:
-    from lumlflow.flow.daemon.hub import FlowSession
 
 AGENTS_NAME = "AGENTS.md"
-CHECKOUT_NAME = "CHECKOUT.md"
 
 BEGIN_MARKER = "<!-- lumlflow:begin -->"
 END_MARKER = "<!-- lumlflow:end -->"
@@ -102,7 +90,7 @@ CHEATSHEET = """\
 Connected over MCP, this workspace serves `context` · `status` · `init-flow` ·
 `new-cell` · `edit-cell` · `run` · `asset-preview` · `new-lane` ·
 `use-lane` · `rewind` · `adopt` · `diff`. It reads back through
-`session://focus`, `flow://<flow>/manifest`, `flow://<flow>/cells/<cell>` and
+`flow://<flow>/manifest`, `flow://<flow>/cells/<cell>` and
 `flow://<flow>/previews/<cell>.<output>`.
 
 Address a cell by name (`features`), an output as `cell.output`, and a lane
@@ -144,16 +132,6 @@ def refresh_workspace(root: Path, flows: list[str]) -> Path:
     return path
 
 
-def refresh_checkout(session: "FlowSession") -> Path:
-    """Write the flow's `CHECKOUT.md` sidecar, if the state it names moved."""
-    path = store_dir(session.ref.path) / CHECKOUT_NAME
-    body = _checkout(session)
-    existing = path.read_text("utf-8") if path.exists() else ""
-    if body != existing:
-        atomic_write_bytes(path, body.encode("utf-8"))
-    return path
-
-
 def _generated(root: Path, flows: list[str]) -> str:
     here = ", ".join(f"`{name}`" for name in sorted(flows)) or "none yet"
     return "\n".join(
@@ -182,53 +160,3 @@ def _merge(existing: str, generated: str) -> str:
         )
         return f"{prefix}{block}"
     return existing[:start] + block + existing[end + len(END_MARKER) :].lstrip("\n")
-
-
-def _checkout(session: "FlowSession") -> str:
-    """The same facts `context` opens with, read the cheap way.
-
-    Not `queries.context`, deliberately: that brief preflights every stale cell
-    to cost the pending work, and this file is rewritten after every verb.
-    What the sidecar promises is where you are and what is stale.
-    """
-    branch = session.branch
-    here = queries.read(session, branch)
-    checkpoint = session.store.index.checkpoint(here.branch.branch_id)
-    dirty = [uid for uid in here.ordered() if not here.verdicts[uid].synced]
-    lines = [
-        f"# {session.ref.name}, on disk",
-        "",
-        f"- lane: `{branch}`"
-        + (
-            ""
-            if session.store.branches.bound_branch() is not None
-            else " (not on disk)"
-        ),
-        f"- cells: {len(here.versions)}",
-        "- checkpoint: "
-        + (
-            f"step {checkpoint.step}, {checkpoint.intent}"
-            if checkpoint is not None
-            else "none yet. this lane has not been whole and current"
-        ),
-        "",
-    ]
-    if not dirty:
-        lines.append("Everything on this lane is current.")
-    else:
-        lines.append(f"## Stale ({len(dirty)})")
-        lines.append("")
-        lines.extend(
-            f"- `{here.versions[uid].slug}`: {render.STATES[here.verdicts[uid].state]}"
-            + _because(here, uid)
-            for uid in dirty[: queries.LISTED_UNSYNCED]
-        )
-        if len(dirty) > queries.LISTED_UNSYNCED:
-            lines.append(f"- … and {len(dirty) - queries.LISTED_UNSYNCED} more")
-    lines += ["", "Run `lumlflow status` for the live picture.", ""]
-    return "\n".join(lines)
-
-
-def _because(here: queries.Slice, uid: str) -> str:
-    causes = here.verdicts[uid].causes
-    return f": {'; '.join(cause.detail for cause in causes)}" if causes else ""

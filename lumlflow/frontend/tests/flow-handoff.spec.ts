@@ -139,12 +139,6 @@ function reads(overrides: Handlers = {}): Handlers {
         eager_cost_threshold_s: params.eager_cost_threshold_s ?? 5,
       },
     }),
-    set_focus: (params) => ({
-      flow: 'churn',
-      branch: String(params.branch ?? 'main'),
-      asset: (params.asset as string | null) ?? null,
-      compare: (params.compare as string[]) ?? [],
-    }),
     preflight: (params) => ({
       branch: String(params.branch),
       target: String(params.target ?? ''),
