@@ -215,6 +215,18 @@ TOOLS: tuple[_Tool, ...] = (
         writes=True,
     ),
     _Tool(
+        "move-cell",
+        "cells.reorder",
+        "Move a cell directly before or after another cell. Give exactly one "
+        "of `before` and `after`.",
+        (
+            _Arg("slug", "string", "The cell to move.", required=True),
+            _Arg("before", "string", "Place it directly before this cell."),
+            _Arg("after", "string", "Place it directly after this cell."),
+        ),
+        writes=True,
+    ),
+    _Tool(
         "run",
         "run",
         "Run a cell, and whatever it needs first. Answers with what ran, what "

@@ -430,6 +430,25 @@ def test_a_tool_missing_an_argument_says_which_one(talk: Talk):
     assert "`source`" in failed(answers, 2)
 
 
+def test_move_cell_places_a_cell_and_returns_its_order(talk: Talk) -> None:
+    answers = talk(
+        hello(),
+        tool(1, "init-flow", {"name": "churn"}),
+        tool(2, "new-cell", {"slug": "first", "intent": "first"}),
+        tool(3, "new-cell", {"slug": "last", "intent": "last"}),
+        tool(4, "new-cell", {"slug": "moved", "intent": "moved"}),
+        tool(5, "move-cell", {"slug": "moved", "before": "last"}),
+    )
+
+    moved = answered(answers, 5)
+    live = talk.flow("churn")
+    moved_uid = slice_of(live, "main")["moved"].uid
+
+    assert moved["slug"] == "moved"
+    assert moved["uid"] == moved_uid
+    assert live.store.manifest.order == {moved_uid: moved["order"]}
+
+
 def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
     talk: Talk, workspace: Path
 ):
@@ -490,6 +509,8 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert set(tools) == {tool.name for tool in mcp.TOOLS}
     assert tools["edit-cell"]["inputSchema"]["required"] == ["slug", "source", "intent"]
     assert "anchor" in tools["new-cell"]["inputSchema"]["properties"]
+    assert tools["move-cell"]["inputSchema"]["required"] == ["slug"]
+    assert {"before", "after"} <= set(tools["move-cell"]["inputSchema"]["properties"])
     assert "lane" in tools["run"]["inputSchema"]["properties"]
     assert "directory" in tools["status"]["inputSchema"]["properties"]
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]

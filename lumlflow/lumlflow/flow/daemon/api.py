@@ -12,6 +12,7 @@ to re-derive them and none can disagree.
 import os
 import shutil
 from collections.abc import Awaitable, Callable, Sequence
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, get_args
 
@@ -31,6 +32,7 @@ from lumlflow.flow.ids import new_ulid
 from lumlflow.flow.scheduler.planner import Preflight
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
+from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import AgentBegin, AgentEnd, Reactivity
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
@@ -73,6 +75,7 @@ class Api:
             "cells.show": self.cells_show,
             "cells.logs": self.cells_logs,
             "cells.new": self.cells_new,
+            "cells.reorder": self.cells_reorder,
             "cells.edit": self.cells_edit,
             "cells.delete": self.cells_delete,
             "cells.eager": self.cells_eager,
@@ -333,6 +336,55 @@ class Api:
             session.store.manifest.order = previous_order
             raise
         return self._edited(session, accepted, branch=branch)
+
+    async def cells_reorder(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Move one flow-wide presentation key, constrained by this lane's wiring."""
+        session, branch = await self._read(params)
+        before = str(params.get("before") or "").strip()
+        after = str(params.get("after") or "").strip()
+        if bool(before) == bool(after):
+            raise FlowError("moving a cell needs exactly one of `before` or `after`")
+
+        moved = queries.head(session, branch, str(params.get("slug") or ""))
+        neighbour = queries.head(session, branch, before or after)
+        if moved.uid == neighbour.uid:
+            raise FlowError(f"`{moved.slug}` cannot be moved beside itself")
+
+        if before:
+            order_key = session.store.order_before(
+                neighbour.uid, excluding_uid=moved.uid
+            )
+        else:
+            order_key = session.store.order_after(
+                neighbour.uid, excluding_uid=moved.uid
+            )
+        branch_id = session.store.branches.get(branch).branch_id
+        versions = session.store.index.slice_versions(branch_id)
+        _validate_reorder_topology(
+            versions,
+            moved,
+            Decimal(order_key),
+            session.store.effective_order(),
+            branch,
+        )
+
+        previous_order = session.store.manifest.order
+        session.store.manifest.order = {
+            **(previous_order or {}),
+            moved.uid: order_key,
+        }
+        try:
+            session.store.save_manifest()
+        except BaseException:
+            session.store.manifest.order = previous_order
+            raise
+        self.hub.push_state(session, "order_changed")
+        return {
+            "slug": moved.slug,
+            "uid": moved.uid,
+            "branch": branch,
+            "order": order_key,
+        }
 
     async def cells_edit(self, params: dict[str, Any]) -> dict[str, Any]:
         """Write an edit the daemon was handed, under per-cell optimistic locking.
@@ -943,6 +995,45 @@ class Api:
 def _flags(accepted: AcceptedCell) -> list[dict[str, str | None]]:
     """What was wrong with a cell and still accepted — the chip's words."""
     return [{"code": flag.code, "detail": flag.detail} for flag in accepted.flags]
+
+
+def _validate_reorder_topology(
+    versions: dict[str, VersionRow],
+    moved: VersionRow,
+    order: Decimal,
+    effective: dict[str, Decimal],
+    branch: str,
+) -> None:
+    producer_uids = {
+        ref.uid
+        for ref in moved.manifest.consumes.values()
+        if ref.uid is not None and ref.uid != moved.uid and ref.uid in versions
+    }
+    producers = sorted(
+        (versions[uid] for uid in producer_uids), key=lambda version: version.slug
+    )
+    for producer in producers:
+        if effective[producer.uid] >= order:
+            raise FlowError(
+                f"`{moved.slug}` cannot be placed before its producer "
+                f"`{producer.slug}` on `{branch}`"
+            )
+
+    consumers = sorted(
+        (
+            version
+            for uid, version in versions.items()
+            if uid != moved.uid
+            and any(ref.uid == moved.uid for ref in version.manifest.consumes.values())
+        ),
+        key=lambda version: version.slug,
+    )
+    for consumer in consumers:
+        if effective[consumer.uid] <= order:
+            raise FlowError(
+                f"`{moved.slug}` cannot be placed after its consumer "
+                f"`{consumer.slug}` on `{branch}`"
+            )
 
 
 def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:

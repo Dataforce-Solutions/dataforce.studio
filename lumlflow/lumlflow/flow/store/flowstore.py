@@ -246,17 +246,34 @@ class FlowStore:
             for uid in invalid:
                 mapped.pop(uid)
 
-    def order_after(self, anchor_uid: str) -> str:
-        effective = self.effective_order()
-        if anchor_uid not in effective:
-            raise FlowError("the anchor is no longer selected on any lane")
-        lower = effective[anchor_uid]
+    def order_before(self, anchor_uid: str, *, excluding_uid: str | None = None) -> str:
+        effective, upper = self._order_anchor(anchor_uid, excluding_uid)
+        lower = max(
+            (key for key in effective.values() if key < upper),
+            default=Decimal(0),
+        )
+        if lower >= upper:
+            raise FlowError("the anchor's order must be later than the first step")
+        return _order_text(_exact_midpoint(lower, upper))
+
+    def order_after(self, anchor_uid: str, *, excluding_uid: str | None = None) -> str:
+        effective, lower = self._order_anchor(anchor_uid, excluding_uid)
         upper = min((key for key in effective.values() if key > lower), default=None)
         if upper is None:
             upper = Decimal(self.next_step)
         if upper <= lower:
             raise FlowError("the anchor's order must be earlier than the next step")
         return _order_text(_exact_midpoint(lower, upper))
+
+    def _order_anchor(
+        self, anchor_uid: str, excluding_uid: str | None
+    ) -> tuple[dict[str, Decimal], Decimal]:
+        effective = self.effective_order()
+        if excluding_uid is not None:
+            effective.pop(excluding_uid, None)
+        if anchor_uid not in effective:
+            raise FlowError("the anchor is no longer selected on any lane")
+        return effective, effective[anchor_uid]
 
     def _selected_uids(self) -> set[str]:
         return {

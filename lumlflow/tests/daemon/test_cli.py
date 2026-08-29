@@ -16,6 +16,7 @@ import json
 import re
 import sys
 from collections.abc import Callable, Iterator
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -243,6 +244,30 @@ def test_cells_new_after_prefills_the_wiring_and_the_signature(
     assert "from __future__ import annotations" in source
     assert "_check: CellProtocol = Report()" in source
     assert "score.summary → report (summary)" in wired.output
+
+
+def test_cells_move_places_a_cell_beside_its_neighbour(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    cli("cells", "new", "first")
+    cli("cells", "new", "last")
+    cli("cells", "new", "moved")
+
+    moved = cli("cells", "move", "moved", "--before", "last", "--json")
+    listed = cli("cells", "list", "--json")
+
+    assert moved.exit_code == 0, moved.output
+    payload = json.loads(moved.output)
+    by_slug = {cell["slug"]: cell for cell in json.loads(listed.output)["cells"]}
+    assert payload["slug"] == "moved"
+    assert payload["uid"]
+    assert (
+        Decimal(str(by_slug["first"]["order"]))
+        < Decimal(payload["order"])
+        < Decimal(str(by_slug["last"]["order"]))
+    )
+    assert payload["order"] == by_slug["moved"]["order"]
 
 
 def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path):

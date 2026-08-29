@@ -16,7 +16,9 @@ from typing import Any
 import pytest
 import yaml
 from lumlflow.flow.daemon import envs, queries, workspace
-from lumlflow.flow.daemon.hub import FlowSession
+from lumlflow.flow.daemon.api import Api
+from lumlflow.flow.daemon.hub import FlowSession, Hub
+from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
@@ -53,6 +55,31 @@ NOTE_CELL = '''
 class Note:
     """A note placed among the compute cells."""
 '''
+
+TRAIN_MODEL_CELL = """
+class TrainModel:
+    produces = {"model": "asset"}
+
+    def materialize(self, ctx):
+        return {"model": "WEIGHTS"}
+"""
+
+EVALUATE_CELL = """
+class Evaluate:
+    consumes = {"model": "train_model.model"}
+    produces = {"score": "asset"}
+
+    def materialize(self, ctx, model):
+        return {"score": len(model)}
+"""
+
+INDEPENDENT_EVALUATE_CELL = """
+class Evaluate:
+    produces = {"score": "asset"}
+
+    def materialize(self, ctx):
+        return {"score": 1}
+"""
 
 
 async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
@@ -277,6 +304,10 @@ async def test_anchored_adds_persist_exact_keys_across_rename_and_reload(
         await api.cells_new({"flow": "churn", "slug": "first", "source": NOTE_CELL})
         await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
         assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+        unmapped = await api.cells_list({"flow": "churn"})
+        assert all(
+            cell["order"] == str(cell["created_step"]) for cell in unmapped["cells"]
+        )
 
         await api.cells_new(
             {
@@ -421,6 +452,188 @@ async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
 
     assert restored["order"] == str(restored["created_step"])
     assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+
+
+async def test_reorder_checks_the_called_lanes_topology_and_allows_archived_lanes(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new(
+            {"flow": "churn", "slug": "train_model", "source": TRAIN_MODEL_CELL}
+        )
+        await api.cells_new(
+            {"flow": "churn", "slug": "evaluate", "source": EVALUATE_CELL}
+        )
+        await api.fork({"flow": "churn", "name": "exp"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "evaluate",
+                "source": INDEPENDENT_EVALUATE_CELL,
+            }
+        )
+        session = api.hub.session("churn")
+        manifest_before = (flow / "flow.yaml").read_bytes()
+        journal_before = transactions(session)
+
+        with pytest.raises(FlowError, match="train_model"):
+            await api.cells_reorder(
+                {
+                    "flow": "churn",
+                    "branch": "main",
+                    "slug": "evaluate",
+                    "before": "train_model",
+                }
+            )
+        with pytest.raises(FlowError, match="evaluate"):
+            await api.cells_reorder(
+                {
+                    "flow": "churn",
+                    "branch": "main",
+                    "slug": "train_model",
+                    "after": "evaluate",
+                }
+            )
+
+        assert (flow / "flow.yaml").read_bytes() == manifest_before
+        assert transactions(session) == journal_before
+
+        moved = await api.cells_reorder(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "evaluate",
+                "before": "train_model",
+            }
+        )
+        train_uid = slice_of(session, "exp")["train_model"].uid
+        assert Decimal(moved["order"]) < session.store.effective_order()[train_uid]
+
+        archived = await api.archive(
+            {"flow": "churn", "branch": "exp", "intent": "retired experiment"}
+        )
+        moved_back = await api.cells_reorder(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "evaluate",
+                "after": "train_model",
+            }
+        )
+        train_order_after = session.store.effective_order()[train_uid]
+
+    assert archived == {"branch": "exp", "archived": True}
+    assert moved_back["branch"] == "exp"
+    assert Decimal(moved_back["order"]) > train_order_after
+
+
+async def test_reorder_refuses_missing_lane_cells_and_an_invalid_position(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "shared", "source": NOTE_CELL})
+        await api.fork({"flow": "churn", "name": "exp"})
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "exp_only",
+                "source": NOTE_CELL,
+            }
+        )
+
+        with pytest.raises(FlowError, match="exp_only"):
+            await api.cells_reorder(
+                {
+                    "flow": "churn",
+                    "branch": "main",
+                    "slug": "exp_only",
+                    "before": "shared",
+                }
+            )
+        with pytest.raises(FlowError, match="exp_only"):
+            await api.cells_reorder(
+                {
+                    "flow": "churn",
+                    "branch": "main",
+                    "slug": "shared",
+                    "before": "exp_only",
+                }
+            )
+        with pytest.raises(FlowError, match="exactly one"):
+            await api.cells_reorder({"flow": "churn", "slug": "shared"})
+        with pytest.raises(FlowError, match="exactly one"):
+            await api.cells_reorder(
+                {
+                    "flow": "churn",
+                    "slug": "shared",
+                    "before": "shared",
+                    "after": "shared",
+                }
+            )
+        with pytest.raises(FlowError, match="itself"):
+            await api.cells_reorder(
+                {"flow": "churn", "slug": "shared", "before": "shared"}
+            )
+
+
+async def test_reorder_pushes_state_without_moving_the_journal_cursor(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    streams = Streams()
+    hub = Hub(streams=streams)
+    try:
+        api = Api(hub, directory=root)
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "first", "source": NOTE_CELL})
+        await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
+        await api.cells_new({"flow": "churn", "slug": "moved", "source": NOTE_CELL})
+        session = hub.session("churn")
+        before = await api.cells_list({"flow": "churn"})
+        before_by_slug = {cell["slug"]: cell for cell in before["cells"]}
+        cursor = session.store.next_step - 1
+        journal_before = transactions(session)
+        watching = streams.subscribe()
+        watching.journals.add(session.ref.address)
+
+        result = await api.cells_reorder(
+            {
+                "flow": "churn",
+                "slug": "moved",
+                "before": "last",
+            }
+        )
+        frame = await asyncio.wait_for(watching.next(), timeout=1)
+
+        assert result["slug"] == "moved"
+        assert result["uid"] == slice_of(session, "main")["moved"].uid
+        assert (
+            Decimal(str(before_by_slug["first"]["order"]))
+            < Decimal(result["order"])
+            < Decimal(str(before_by_slug["last"]["order"]))
+        )
+        assert frame == {
+            "channel": "journal",
+            "type": "state",
+            "state": "order_changed",
+            "flow": session.ref.address,
+            "step": cursor,
+        }
+        assert session.store.next_step - 1 == cursor
+        assert transactions(session) == journal_before
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(watching.next(), timeout=0.05)
+    finally:
+        await hub.close()
 
 
 async def test_removed_surfaces_are_not_api_methods(tmp_path: Path) -> None:

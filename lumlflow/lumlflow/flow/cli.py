@@ -576,6 +576,35 @@ def cells_edit(
     _emit(result, as_json, _edited(result, verb="edited"))
 
 
+@cells_app.command("move")
+def cells_move(
+    slug: str = typer.Argument(..., help="The cell to move."),
+    before: str | None = typer.Option(
+        None, "--before", help="Place it directly before this cell."
+    ),
+    after: str | None = typer.Option(
+        None, "--after", help="Place it directly after this cell."
+    ),
+    flow: str | None = _FLOW,
+    lane: str | None = _LANE,
+    as_json: bool = _JSON,
+) -> None:
+    """Move a cell beside another without changing its code."""
+    result = _call(
+        "cells.reorder",
+        {"slug": slug, "before": before, "after": after, "branch": lane},
+        flow=flow,
+        as_json=as_json,
+    )
+    direction = "before" if before else "after"
+    neighbour = before or after
+    _emit(
+        result,
+        as_json,
+        [f"moved `{result['slug']}` {direction} `{neighbour}` on `{result['branch']}`"],
+    )
+
+
 @cells_app.command("delete")
 def cells_delete(
     slug: str = typer.Argument(..., help="The cell to drop from this lane."),
