@@ -37,8 +37,36 @@ from lumlflow.flow.store.models import (
 CELL_SUFFIX = ".py"
 PLACEHOLDER_SLUG = "untitled"
 
+_EDITOR_CELL_PREFIXES = (".#", "._")
 _PLACEHOLDER = re.compile(rf"^{PLACEHOLDER_SLUG}(_\d+)?$")
 _WORD_BREAK = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+
+def cell_paths(directory: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in directory.glob(f"*{CELL_SUFFIX}")
+        if not path.name.startswith(_EDITOR_CELL_PREFIXES)
+    )
+
+
+def cell_source_matches(
+    data: bytes, source: bytes, flags: Sequence[VersionFlag]
+) -> bool:
+    if data == source:
+        return True
+    decoded, encoding_flags = _decode_cell(data)
+    if not encoding_flags or decoded.encode("utf-8") != source:
+        return False
+    return any(
+        flag.code == "invalid"
+        and (flag.detail or "").startswith("UTF-8 decoding failed:")
+        for flag in flags
+    )
+
+
+class CellReadError(OSError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -135,19 +163,25 @@ class Acceptance:
     ) -> AcceptedCell:
         """Accept the file at `path`, writing its uid and canonical references back.
 
-        Read as bytes and decoded without newline translation: what the store
-        records has to be what the file holds, or reconciliation would see every
-        file as diverged.
+        Valid UTF-8 is decoded without newline translation. Undecodable bytes
+        are represented with replacement characters and never written back.
         """
+        try:
+            data = path.read_bytes()
+        except OSError as error:
+            raise CellReadError(f"could not read cell file {path}") from error
+        source, encoding_flags = _decode_cell(data)
         return self._accept(
             path.stem,
-            path.read_bytes().decode("utf-8"),
+            source,
             path=path,
             branch=branch,
             actor=actor,
             intent=intent,
             base_version_id=base_version_id,
             batch=batch,
+            source_flags=encoding_flags,
+            write_back=not encoding_flags,
         )
 
     def accept_source(
@@ -291,6 +325,8 @@ class Acceptance:
         uid: str | None = None,
         fresh: bool = False,
         batch: Batch | None = None,
+        source_flags: Sequence[VersionFlag] = (),
+        write_back: bool = True,
     ) -> AcceptedCell:
         record = self._store.branches.get(branch)
         here = self._store.index.slice_versions(record.branch_id)
@@ -304,6 +340,8 @@ class Acceptance:
             given=uid,
             fresh=fresh,
             base_version_id=base_version_id,
+            source_flags=source_flags,
+            write_back=write_back,
         )
         previous = draft.identity.previous
         if previous is not None and _is_unchanged(previous, draft):
@@ -388,6 +426,8 @@ class Acceptance:
         given: str | None,
         fresh: bool = False,
         base_version_id: str | None,
+        source_flags: Sequence[VersionFlag],
+        write_back: bool,
     ) -> _Draft:
         """Everything the version will say, before anything is written down."""
         parsed = loader.parse(source)
@@ -408,7 +448,11 @@ class Acceptance:
             if parsed.cell is not None
             else normalize.Binding(consumes={})
         )
-        written = self._write_back(source, parsed.cell, identity.uid, binding, path)
+        written = (
+            self._write_back(source, parsed.cell, identity.uid, binding, path)
+            if write_back
+            else source
+        )
         # A file that does not parse has no class to bind or unparse; it is
         # recorded as it stands, flagged, so the next edit has something to
         # supersede.
@@ -426,6 +470,7 @@ class Acceptance:
             manifest=manifest,
             definition_hash=normalize.definition_hash(bound, manifest.params),
             flags=[
+                *source_flags,
                 *parsed.flags,
                 *naming,
                 *taken,
@@ -771,6 +816,21 @@ def _same_file(path: Path, other: Path) -> bool:
         return path.samefile(other)
     except OSError:
         return False
+
+
+def _decode_cell(data: bytes) -> tuple[str, list[VersionFlag]]:
+    try:
+        return data.decode("utf-8-sig"), []
+    except UnicodeDecodeError as error:
+        return data.decode("utf-8-sig", errors="replace"), [
+            VersionFlag(
+                code="invalid",
+                detail=(
+                    f"UTF-8 decoding failed: {error.reason}. "
+                    "save cell files with UTF-8 encoding"
+                ),
+            )
+        ]
 
 
 def _auto_intent(slug: str, identity: _Identity) -> str:

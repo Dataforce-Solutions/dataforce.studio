@@ -20,6 +20,7 @@ from lumlflow.flow.store.flowstore import (
 EXCLUDED_DIRS = frozenset(
     {".venv", ".git", "node_modules", "__pycache__", STORE_DIRNAME}
 )
+_EDITOR_FILE_PREFIXES = (".#", "._")
 
 
 @dataclass(frozen=True)
@@ -49,10 +50,14 @@ def scan_workspace(workspace_dir: Path) -> WorkspaceTree:
         if flow == here:
             dirnames[:] = [name for name in dirnames if name != CELLS_DIRNAME]
         for name in sorted(filenames):
-            if not name.endswith(".py"):
+            if not name.endswith(".py") or name.startswith(_EDITOR_FILE_PREFIXES):
                 continue
-            relative = (here / name).relative_to(root).as_posix()
-            files[relative] = hash_file(here / name)
+            path = here / name
+            relative = path.relative_to(root).as_posix()
+            try:
+                files[relative] = hash_file(path)
+            except OSError:
+                continue
             if flow is not None:
                 strays.append(relative)
     return WorkspaceTree(tree_hash=tree_hash(files), files=files, strays=strays)

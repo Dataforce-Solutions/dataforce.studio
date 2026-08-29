@@ -152,6 +152,11 @@ def _uid_edit(
         )
     anchor = cell.node.body[0]
     below_docstring = ast.get_docstring(cell.node) is not None
+    if anchor.lineno == cell.node.lineno:
+        at = _offset(
+            starts, anchor.end_lineno or anchor.lineno, anchor.end_col_offset or 0
+        )
+        return at, at, f'; {UID} = "{uid}"'.encode()
     line = (
         (anchor.end_lineno or anchor.lineno) + 1 if below_docstring else anchor.lineno
     )

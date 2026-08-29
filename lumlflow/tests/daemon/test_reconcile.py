@@ -11,6 +11,7 @@ from typing import Any
 from lumlflow.flow import render
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher
+from lumlflow.flow.dsl import tree as workspace_tree
 from lumlflow.flow.dsl.accept import Acceptance
 from lumlflow.flow.store.models import (
     CellAccepted,
@@ -538,6 +539,116 @@ async def test_reconciliation_leaves_files_it_was_never_asked_to_watch(
     assert cell_files(flow) == ["score"]
     assert (flow / "util.py").exists()
     assert (root / "data" / "raw.csv").read_text().strip() == "a,b"
+
+
+async def test_editor_links_and_an_undecodable_cell_do_not_break_reconciliation(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    cells = root / "churn.flow" / "cells"
+    (cells / ".#score.py").symlink_to("missing.py")
+    (cells / "._score.py").symlink_to("also-missing.py")
+    (cells / "dangling.py").symlink_to("not-there.py")
+    latin1_path = cells / "latin1.py"
+    latin1_source = b'class Latin1:\n    """caf\xe9"""\n'
+    latin1_path.write_bytes(latin1_source)
+
+    async with daemon_api(root) as api:
+        opened = await api.flow_open({"flow": "churn"})
+        listed = await api.cells_list({"flow": "churn"})
+
+    assert slugs(opened) == ["latin1"]
+    assert slugs(listed) == ["latin1"]
+    (latin1,) = listed["cells"]
+    assert [flag["code"] for flag in latin1["flags"]] == ["invalid"]
+    assert "UTF-8 encoding" in latin1["flags"][0]["detail"]
+    assert (cells / ".#score.py").is_symlink()
+    assert (cells / "._score.py").is_symlink()
+    assert (cells / "dangling.py").is_symlink()
+    assert latin1_path.read_bytes() == latin1_source
+
+
+async def test_an_unreadable_cell_is_skipped_without_being_deleted(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    score = write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        original_read_bytes = Path.read_bytes
+
+        def read_bytes(path: Path) -> bytes:
+            if path == score:
+                raise PermissionError("cell is unreadable")
+            return original_read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", read_bytes)
+        listed = await api.cells_list({"flow": "churn"})
+
+    assert slugs(listed) == ["score"]
+
+
+async def test_inline_class_and_utf8_bom_are_accepted_once(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    cells = flow / "cells"
+    (cells / "todo.py").write_text(
+        'class Todo: """Write the report."""', encoding="utf-8"
+    )
+    (cells / "meta.py").write_bytes(
+        b'\xef\xbb\xbfclass Meta:\n    """Track metadata."""\n'
+    )
+
+    async with daemon_api(root) as api:
+        first = await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        settled_at = len(transactions(session))
+        second = await api.cells_list({"flow": "churn"})
+        settled = len(transactions(session))
+
+    assert slugs(first) == ["meta", "todo"]
+    assert all(cell["flags"] == [] for cell in second["cells"])
+    compile((cells / "todo.py").read_text("utf-8"), "todo.py", "exec")
+    assert "uid =" in (cells / "todo.py").read_text("utf-8")
+    assert settled == settled_at
+
+
+async def test_an_unreadable_workspace_file_is_skipped_and_later_edits_land(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    root = make_workspace(
+        tmp_path / "project",
+        files={
+            "helpers.py": "AUC = 0.91",
+            "private/notes.py": "SECRET = 1",
+            ".#draft.py": "IGNORED = 1",
+            "._draft.py": "IGNORED = 2",
+        },
+    )
+    write_cell(root / "churn.flow", "score", HELPER_CELL)
+    private = root / "private" / "notes.py"
+    original_hash_file = workspace_tree.hash_file
+
+    def hash_file(path: Path) -> str:
+        if path == private:
+            raise PermissionError("workspace file is unreadable")
+        return original_hash_file(path)
+
+    monkeypatch.setattr(workspace_tree, "hash_file", hash_file)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "score"})
+        session = api.hub.session("churn")
+        write_file(root / "helpers.py", "AUC = 0.99")
+        listed = await api.cells_list({"flow": "churn"})
+        changes = ops_of(session, WorkspaceCodeChanged)
+
+    ignored = {"private/notes.py", ".#draft.py", "._draft.py"}
+    assert all(ignored.isdisjoint(change.files) for change in changes)
+    assert changes[-1].changed_paths == ["helpers.py"]
+    score = next(cell for cell in listed["cells"] if cell["slug"] == "score")
+    assert score["causes"] == ["`helpers.py` changed"]
 
 
 async def test_a_settled_file_plane_is_read_but_not_reparsed_on_every_verb(

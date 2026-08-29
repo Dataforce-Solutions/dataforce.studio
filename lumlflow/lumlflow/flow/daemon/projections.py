@@ -9,12 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from lumlflow.flow.atomic import atomic_write_bytes, unlink_retry
-from lumlflow.flow.dsl.accept import CELL_SUFFIX
+from lumlflow.flow.dsl.accept import CELL_SUFFIX, cell_paths, cell_source_matches
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FlowStore
 from lumlflow.flow.store.index import BranchRow
-
-_CELL_GLOB = f"*{CELL_SUFFIX}"
 
 
 @dataclass(frozen=True)
@@ -57,7 +55,7 @@ class Worktree:
         """
         if self.bound() is not None:
             return True
-        return any(self.cells_dir.glob(_CELL_GLOB))
+        return bool(cell_paths(self.cells_dir))
 
     def checkout(
         self,
@@ -91,16 +89,28 @@ class Worktree:
             path = self.cells_dir / f"{version.slug}{CELL_SUFFIX}"
             keep.add(path.name.lower())
             source = self._store.objects.get(version.raw_source_ref)
-            if not path.exists() or path.read_bytes() != source:
-                atomic_write_bytes(path, source)
-                written.append(version.slug)
+            if path.is_symlink() and not path.exists():
+                continue
+            if path.exists():
+                try:
+                    held = path.read_bytes()
+                except OSError:
+                    continue
+                if cell_source_matches(held, source, version.flags):
+                    continue
+            atomic_write_bytes(path, source)
+            written.append(version.slug)
         removed = []
-        for path in sorted(self.cells_dir.glob(_CELL_GLOB)):
+        for path in cell_paths(self.cells_dir):
             # Case-insensitively: slugs are lowercase, so a file the author
             # called `Features.py` *is* the cell `features` on the filesystems
             # that cannot tell them apart, and deleting it would delete the
             # cell this projection had just decided to keep.
             if path.name.lower() not in keep:
+                try:
+                    path.read_bytes()
+                except OSError:
+                    continue
                 unlink_retry(path)
                 removed.append(path.stem)
         return Projection(branch=branch.name, written=written, removed=removed)

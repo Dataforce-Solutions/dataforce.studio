@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Literal
 
 from lumlflow.flow.atomic import atomic_write_bytes
 from lumlflow.flow.dsl import loader, normalize
-from lumlflow.flow.dsl.accept import CELL_SUFFIX, AcceptedCell, Batch
+from lumlflow.flow.dsl.accept import AcceptedCell, Batch, CellReadError, cell_paths
 from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.hashing import hash_bytes
 from lumlflow.flow.store.models import (
@@ -39,7 +39,6 @@ Tier = Literal["live", "quiesce", "cold"]
 MIXED_EDITING = "mixed_editing"
 MIXED_EDITING_DETAIL = "attribution uncertain. two authors edited in one window"
 
-_CELL_GLOB = f"*{CELL_SUFFIX}"
 # One pass names every cell, a second binds the references that pass one could
 # not resolve, and a third takes up the files a rename rewired. Nothing a
 # fourth could find: slugs, uids and bindings are all settled by then.
@@ -197,21 +196,26 @@ def _accept_files(
     if not cells.is_dir():
         return seen
     level = _Level(session, batch, branch=branch)
+    unreadable = False
     for _ in range(_MAX_PASSES):
         moved = False
         deferred_rewires: list[AcceptedCell] = []
         read: list[tuple[Path, str]] = []
-        for path in sorted(cells.glob(_CELL_GLOB)):
+        for path in cell_paths(cells):
             unmoved = level.uid_of(path)
             if unmoved is not None:
                 seen.add(unmoved)
                 continue
-            accepted = session.acceptance.accept_path(
-                path,
-                branch=branch,
-                actor=actor,
-                batch=batch,
-            )
+            try:
+                accepted = session.acceptance.accept_path(
+                    path,
+                    branch=branch,
+                    actor=actor,
+                    batch=batch,
+                )
+            except CellReadError:
+                unreadable = True
+                continue
             seen.add(accepted.uid)
             read.append((path, accepted.uid))
             moved = moved or not accepted.unchanged
@@ -230,7 +234,15 @@ def _accept_files(
             # is what the branch head holds — the one moment a stamp can be
             # taken that the next reconciliation is entitled to trust.
             level.remember(read)
-            return seen
+            break
+    if unreadable:
+        seen.update(
+            batch.slice_over(
+                session.store.index.slice_versions(
+                    session.store.branches.get(branch).branch_id
+                )
+            )
+        )
     return seen
 
 
@@ -340,7 +352,11 @@ def _rewire(
         if not path.exists():
             unplaced.append(uid)
             continue
-        source = path.read_bytes().decode("utf-8")
+        try:
+            source = path.read_bytes().decode("utf-8-sig")
+        except (OSError, UnicodeDecodeError):
+            unplaced.append(uid)
+            continue
         cell = loader.parse(source).cell
         if cell is None:
             continue
@@ -422,7 +438,10 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
         if not path.exists():
             continue
         source = store.objects.get(version.raw_source_ref)
-        held = path.read_bytes()
+        try:
+            held = path.read_bytes()
+        except OSError:
+            continue
         if held == source:
             continue
         older = store.index.version_by_source(
