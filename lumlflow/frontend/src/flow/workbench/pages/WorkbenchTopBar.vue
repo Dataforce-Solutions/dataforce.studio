@@ -12,10 +12,9 @@
       :branches="branches"
       :viewed-branch="viewedBranch"
       :worktree-branch="session.worktreeBranch"
-      :worktree-locked="session.worktreeLocked"
       :disabled="opsDisabled"
       @view="emit('view-branch', $event)"
-      @checkout="(name, force) => emit('checkout-branch', name, force)"
+      @checkout="emit('checkout-branch', $event)"
       @new-branch="emit('new-branch')"
     />
 
@@ -142,7 +141,7 @@ const emit = defineEmits<{
   /** A pure store read: the whole screen re-scopes, no lock and no kernel. */
   'view-branch': [name: string]
   /** The one gesture in this bar that touches files. */
-  'checkout-branch': [name: string, force?: boolean]
+  'checkout-branch': [name: string]
   'new-branch': []
 }>()
 

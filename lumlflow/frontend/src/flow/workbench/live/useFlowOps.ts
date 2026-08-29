@@ -6,8 +6,7 @@
  * rewind to on purpose. The wordings below are the UI's auto-intents, the
  * counterpart of the `-m` an agent passes on the CLI.
  *
- * Optimistic only where the store is. An edit carries the `definition_hash` it
- * started from and renders pending until its transaction lands; a run is never
+ * An edit carries the `definition_hash` it started from; a run is never
  * optimistic, because what it will do is a preflight the daemon computes and
  * what it did is a materialization it records.
  */
@@ -40,16 +39,12 @@ export interface FlowOps {
     after?: string
     source?: string
   }) => Promise<EditedCell>
-  deleteCell: (slug: string, options: { branch: string; force?: boolean }) => Result<'cells.delete'>
+  deleteCell: (slug: string, options: { branch: string }) => Result<'cells.delete'>
   setEager: (slug: string, on: boolean, branch: string) => Result<'cells.eager'>
-  rename: (
-    slug: string,
-    to: string,
-    options: { branch: string; force?: boolean },
-  ) => Result<'rename'>
+  rename: (slug: string, to: string, options: { branch: string }) => Result<'rename'>
   fork: (name: string, from: string) => Result<'fork'>
-  checkout: (branch: string, options?: { force?: boolean }) => Result<'switch'>
-  rewind: (toStep: number, options: { branch: string; force?: boolean }) => Result<'rewind'>
+  checkout: (branch: string) => Result<'switch'>
+  rewind: (toStep: number, options: { branch: string }) => Result<'rewind'>
   /** The one op whose intent is the user's own words rather than an auto-intent. */
   checkpoint: (intent: string, branch: string) => Result<'checkpoint'>
   adopt: (
@@ -114,12 +109,11 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         intent: intentFor({ slug, after, source }),
       }),
 
-    deleteCell: (slug, { branch, force }) =>
+    deleteCell: (slug, { branch }) =>
       session.request('cells.delete', {
         flow: flow(),
         branch,
         slug,
-        force,
         intent: `deleted ${slug} from ${branch}`,
       }),
 
@@ -128,13 +122,12 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
     setEager: (slug, on, branch) =>
       session.request('cells.eager', { flow: flow(), branch, slug, eager: on }),
 
-    rename: (slug, to, { branch, force }) =>
+    rename: (slug, to, { branch }) =>
       session.request('rename', {
         flow: flow(),
         branch,
         slug,
         to,
-        force,
         intent: `renamed ${slug} to ${to}`,
       }),
 
@@ -147,20 +140,18 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         intent: `started ${name} from ${from}`,
       }),
 
-    checkout: (branch, options) =>
+    checkout: (branch) =>
       session.request('switch', {
         flow: flow(),
         branch,
-        force: options?.force,
         intent: `put ${branch} on disk`,
       }),
 
-    rewind: (toStep, { branch, force }) =>
+    rewind: (toStep, { branch }) =>
       session.request('rewind', {
         flow: flow(),
         branch,
         to_step: toStep,
-        force,
         intent: `rewound ${branch}`,
       }),
 

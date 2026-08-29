@@ -140,16 +140,6 @@ export const conflictCell = cellWith(base, {
   },
 })
 
-export const pendingProjectionCell = cellWith(base, {
-  pendingProjection: true,
-  provenance: {
-    createdBy: claude,
-    lastEditedBy: user,
-    intent: 'tune the plot styling',
-    step: 24,
-  },
-})
-
 export const uncertainAttributionCell = cellWith(base, {
   provenance: {
     createdBy: claude,

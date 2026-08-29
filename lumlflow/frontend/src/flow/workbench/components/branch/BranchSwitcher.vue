@@ -57,19 +57,7 @@
             </div>
           </div>
           <template v-else>
-            <span v-if="worktreeLocked" v-tooltip.top="LOCKED_TOOLTIP" class="inline-flex">
-              <Button
-                text
-                severity="secondary"
-                :label="`use ${viewedBranch} here`"
-                disabled
-                :pt="ACTION_PT"
-              >
-                <template #icon><FolderInput :size="14" /></template>
-              </Button>
-            </span>
             <Button
-              v-else
               text
               severity="secondary"
               :label="`use ${viewedBranch} here`"
@@ -78,15 +66,6 @@
             >
               <template #icon><FolderInput :size="14" /></template>
             </Button>
-            <Button
-              v-if="worktreeLocked"
-              v-tooltip.top="'use it here anyway. the agent loses its file view.'"
-              link
-              severity="danger"
-              label="use here anyway"
-              :pt="LINK_PT"
-              @click="emit('checkout', viewedBranch, true)"
-            />
           </template>
         </template>
 
@@ -117,7 +96,7 @@ import BranchTag from '../../ui/BranchTag.vue'
  * The shortcut between branches: pick one and the whole screen re-scopes to it.
  *
  * Switching here changes what is **viewed**, which is a store read costing no
- * lock and no kernel, and the URL follows so the new scope is a link. Making a
+ * kernel, and the URL follows so the new scope is a link. Making a
  * branch the working copy on disk is the other verb entirely and sits one
  * gesture deeper, behind a sentence naming what it moves — a dropdown that
  * rebound files as a side effect of browsing would make looking dangerous.
@@ -131,24 +110,17 @@ const props = defineProps<{
   viewedBranch: string
   /** Where the files are — the one branch this list marks as checked out. */
   worktreeBranch: string
-  /** Held by an agent session: checking out waits, or forces and takes it. */
-  worktreeLocked?: boolean
   disabled?: boolean
 }>()
 
 const emit = defineEmits<{
   view: [name: string]
-  /** `force` is the escape past an agent's worktree lock, never the default. */
-  checkout: [name: string, force?: boolean]
+  checkout: [name: string]
   'new-branch': []
 }>()
 
 const SELECT_PT = { label: { class: 'flex items-center py-1.5' } }
 const ACTION_PT = { root: { class: 'w-full justify-start font-normal' } }
-const LINK_PT = { root: { class: 'self-start p-0 text-sm font-normal' } }
-
-const LOCKED_TOOLTIP =
-  'the agent is working in the files. you can look anywhere. using a lane here waits.'
 
 const confirming = ref(false)
 

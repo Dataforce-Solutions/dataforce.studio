@@ -8,10 +8,10 @@
  * so absence returns `undefined` and the panel shows the command instead.
  *
  * The two claims this makes beyond the registration are both bounded. The
- * branch is the flow's — the worktree-attached session that pairing is about
- * holds exactly that one — and "working" means the agent has committed
- * something recently; past the threshold it reads idle with the time since,
- * which is the honest thing to say about a quiet process we do not own.
+ * branch is the flow's checked-out lane, and "working" means the agent has
+ * committed something recently; past the threshold it reads idle with the
+ * time since, which is the honest thing to say about a quiet process we do not
+ * own.
  */
 
 import type { FlowSessionHandle } from './useFlowSession'

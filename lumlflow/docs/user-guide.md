@@ -5,6 +5,7 @@ A flow is a directory of Python cells. It also holds a store of everything those
 ```python
 # cells/train_model.py
 
+
 class TrainModel:
     """Train the churn model on engineered features."""
 
@@ -313,8 +314,6 @@ The older spellings still work. `fork`, `switch`, `tree`, `archive`, `--branch` 
 **A cell failed.** The chip reads failed. The full traceback sits in the cell's `logs` tab. `lumlflow context` prints the same thing in a terminal. If an agent is working, use *Fix this*. It hands the agent the cell and the traceback, so you retype neither.
 
 **The run died taking the whole queue with it.** A kernel that runs out of memory raises a banner. The banner names the cell that was materializing and carries a restart button. lumlflow drains the queue rather than retrying it behind your back. Nothing recorded is lost. Everything the store holds is on disk.
-
-**"The agent is working in the files."** An agent session holds the flow's files while it runs. Viewing any lane keeps working. So does reading any card, and so does comparing lanes. Only use, rewind and adopt wait. Each of the three offers a force option. lumlflow records an edit you make in the meantime straight away. The card reads *saved · not yet written to files* until the files are free.
 
 **A card shows a flagged reference.** A cell points at something this lane does not have. This usually follows a delete or a rename on this lane only. The flag carries a suggestion. Applying it rewrites the reference. lumlflow accepts flagged versions rather than rejecting them. An agent iterating through a half-finished state therefore never loses work.
 

@@ -289,15 +289,11 @@ export function settingsReport(settings: FlowSettings): FlowSettingsReport {
 
 function overview(session: FlowSessionHandle): WorkbenchSession {
   const brief = session.brief.value
-  const holder = session.agent.value
   return {
     flowName: brief?.flow ?? '',
     state: session.state.value,
     paired: pairedAgent(session),
     worktreeBranch: brief?.branch ?? '',
-    // Only a worktree-attached session holds the lock; an MCP one edits the
-    // store and never the files, so it blocks no checkout.
-    worktreeLocked: holder?.worktree === true || undefined,
     changesBehind: session.changesBehind.value,
     diskUsage: brief ? formatBytes(brief.disk_bytes) : undefined,
   }

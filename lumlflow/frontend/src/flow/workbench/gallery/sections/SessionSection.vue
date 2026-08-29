@@ -70,15 +70,6 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="An agent holds the files"
-      caption="The one real lock: use, rewind and adopt wait while an agent session holds the files. UI edits still land in the store. The write to files waits."
-    >
-      <div class="max-w-xl">
-        <WorktreeLockNotice holder="claude-1" @force="onForce" />
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="Kernel start hint"
       caption="Every surface has a kernel-free tier. The hint rides next to expand, page, and diff affordances, so the UI says so before it starts a kernel."
     >
@@ -129,7 +120,6 @@ import { CONNECT_PROMPT } from '../../components/session/connectPrompt'
 import AgentTaskLine from '../../components/panel/AgentTaskLine.vue'
 import SocketReconnectBanner from '../../components/session/SocketReconnectBanner.vue'
 import StaleSummary from '../../components/session/StaleSummary.vue'
-import WorktreeLockNotice from '../../components/session/WorktreeLockNotice.vue'
 import { journal, session } from '../../fixtures'
 import GallerySpecimen from '../GallerySpecimen.vue'
 
@@ -154,10 +144,6 @@ const degradedStates: [string, string][] = [
     'Full browsing from previews. Expand/page/diff announce "this starts the kernel".',
   ],
   ['Socket dropped', 'Banner, auto-reconnect, cursor replay. No refresh, no loss.'],
-  [
-    'An agent holds the files',
-    'Use, rewind and adopt disabled with the reason and a force escape. UI edits still land; the write to files waits.',
-  ],
   [
     'Env mismatch on the viewed lane',
     'Header flag "env mismatch". Restart under this lane\'s lock. Background work for that lane waits, and the UI says so rather than looking idle.',
@@ -190,12 +176,4 @@ function onRestartKernel(): void {
   })
 }
 
-function onForce(): void {
-  toast.add({
-    severity: 'secondary',
-    summary: 'force',
-    detail: 'would take the files from claude-1. the agent loses its file view.',
-    life: 2500,
-  })
-}
 </script>

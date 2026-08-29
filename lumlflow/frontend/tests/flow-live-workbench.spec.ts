@@ -500,7 +500,7 @@ describe('the left panel is scoped to the viewed branch', () => {
     wrapper.unmount()
   })
 
-  it('waits on the agent for the files, and forces only when told to', async () => {
+  it('lets a paired agent and a lane checkout coexist', async () => {
     const { wrapper, live } = await workbench()
 
     live.socket.deliver({
@@ -510,19 +510,19 @@ describe('the left panel is scoped to the viewed branch', () => {
       step: 18,
       transaction: transaction(18, {
         intent: 'session start',
-        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1', worktree: true }],
+        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
     await settle()
 
-    // The notice states the reason rather than leaving a dead button.
-    expect(wrapper.text()).toContain('claude-1 holds the files')
+    expect(wrapper.text()).not.toContain('holds the files')
     await clickText(wrapper, 'button[aria-label^="Open the lane map"]', '')
-    await clickBranchVerb('exp/lr-sweep', 'force')
+    await clickBranchVerb('exp/lr-sweep', 'use here')
 
     expect(asked(live, 'switch')).toEqual([
-      expect.objectContaining({ branch: 'exp/lr-sweep', force: true }),
+      expect.objectContaining({ branch: 'exp/lr-sweep' }),
     ])
+    expect(asked(live, 'switch')[0]).not.toHaveProperty('force')
     wrapper.unmount()
   })
 
@@ -706,7 +706,7 @@ describe('the session is a journal subscription', () => {
       transaction: transaction(16, {
         actor: 'claude-1',
         intent: 'session start',
-        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1', worktree: true }],
+        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
     await settle()

@@ -213,8 +213,6 @@ export interface AgentBeginOp {
   op: 'agent_begin'
   actor: string
   label: string
-  /** A worktree-attached session edits files and holds the lock; MCP never does. */
-  worktree: boolean
 }
 
 export interface AgentEndOp {
@@ -405,8 +403,9 @@ export interface AutoDeclined {
 
 /**
  * Authorship as the store recorded it. `attribution_uncertain` is the honest
- * end of it: one worktree cannot tell an agent's edit from the human's during
- * the same session, and a flagged window beats a confident wrong name.
+ * end of it: a registered agent session cannot tell its direct file edit from
+ * the human's during the same session, and a flagged window beats a confident
+ * wrong name.
  */
 export interface CellProvenance {
   created_by: string
@@ -626,8 +625,6 @@ export interface FlowBrief {
   branch: string
   checked_out: boolean
   agent: string | null
-  /** Store edits whose projection into files the worktree lock is holding back. */
-  unwritten: string[]
   kernel: KernelReport
   settings: FlowSettingsReport
 }

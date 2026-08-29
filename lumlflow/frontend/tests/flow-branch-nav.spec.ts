@@ -246,7 +246,7 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
     wrapper.unmount()
   })
 
-  it('offers force only while an agent holds the files', async () => {
+  it('keeps lane checkout available while an agent is paired', async () => {
     const { wrapper, live } = await workbench()
 
     live.socket.deliver({
@@ -256,7 +256,7 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
       step: 18,
       transaction: transaction(18, {
         intent: 'session start',
-        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1', worktree: true }],
+        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
     await settle()
@@ -264,11 +264,14 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
     await openSwitcher(wrapper)
     await pickBranch('exp/lr-sweep')
     await openSwitcher(wrapper)
-    await clickOverlayButton('use here anyway')
+    expect(overlay()).not.toContain('use here anyway')
+    await clickOverlayButton('use exp/lr-sweep here')
+    await clickOverlayButton('use here')
 
     expect(asked(live, 'switch')).toEqual([
-      expect.objectContaining({ branch: 'exp/lr-sweep', force: true }),
+      expect.objectContaining({ branch: 'exp/lr-sweep' }),
     ])
+    expect(asked(live, 'switch')[0]).not.toHaveProperty('force')
     wrapper.unmount()
   })
 })

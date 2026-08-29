@@ -864,7 +864,7 @@ def _edited(result: dict[str, Any], *, verb: str) -> list[str]:
     written = (
         f"cells/{result['slug']}.py"
         if result.get("written_to_files")
-        else "saved · not yet written to files"
+        else "cells/ unchanged"
     )
     return [
         f"{verb} `{result['slug']}` on `{result['branch']}` · {written}",

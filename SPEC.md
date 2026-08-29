@@ -1129,9 +1129,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Remove lock-only force flags from the CLI and MCP
   - [x] Drop the `--force` options of `cells delete`, `import`, `rename`, `rewind` and the lane checkout verb, and the matching MCP tool arguments; `adopt --force`, `cells edit --force` and `run --force` stay; the CLI download's `--force` (D4.4) does not exist yet and is added by the slug-and-download task below
   - [x] Update `test_cli.py` / `test_mcp.py`: the flags are unknown options and the tools no longer declare the argument
-- [ ] Remove lock state from the workbench
-  - [ ] Delete `WorktreeLockNotice.vue`, the `pending`/`pendingProjection` state and the *saved · not yet written to files* wording in `LiveCellCard`/`CodeView`, and the `FlowBrief.unwritten` field of `api/types.ts`; confirm no `WorktreeLocked` reference remains anywhere in `lumlflow/` or `frontend/src`
-  - [ ] Update `flow-live-card.spec.ts` and `flow-workbench-editing.spec.ts`
+- [x] Remove lock state from the workbench
+  - [x] Delete `WorktreeLockNotice.vue`, the `pending`/`pendingProjection` state and the *saved · not yet written to files* wording in `LiveCellCard`/`CodeView`, and the `FlowBrief.unwritten` field of `api/types.ts`; confirm no `WorktreeLocked` reference remains anywhere in `lumlflow/` or `frontend/src`
+  - [x] Update `flow-live-card.spec.ts` and `flow-workbench-editing.spec.ts`
 - [ ] Raise the kernel link and RPC door limits
   - [ ] Set explicit stream limits (16 MiB) on the kernel link and the socket door (the HTTP door is untouched); treat a `readline` overrun on the kernel link as a run failure, not a dead link; answer `INVALID_REQUEST` on the socket door without dropping the connection
   - [ ] Cap capture chunks at 32 KiB; clip REPL output and result at 64 KiB with a marker

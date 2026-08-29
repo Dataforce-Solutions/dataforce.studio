@@ -100,15 +100,7 @@
             </Button>
 
             <template v-if="!branch.checkedOut">
-              <span v-if="worktreeLocked" v-tooltip.top="LOCKED_TOOLTIP" class="inline-flex">
-                <Button label="use here" text severity="secondary" disabled>
-                  <template #icon>
-                    <FolderInput :size="14" />
-                  </template>
-                </Button>
-              </span>
               <Button
-                v-else
                 v-tooltip.top="'bind the flow files to this lane'"
                 label="use here"
                 text
@@ -119,15 +111,6 @@
                   <FolderInput :size="14" />
                 </template>
               </Button>
-              <Button
-                v-if="worktreeLocked"
-                v-tooltip.top="'use it here anyway. the agent loses its file view.'"
-                link
-                severity="danger"
-                label="force"
-                :pt="LINK_PT"
-                @click="emit('checkout', branch.name, true)"
-              />
             </template>
 
             <Button
@@ -185,18 +168,16 @@ import MetaBadge from '../../ui/MetaBadge.vue'
  * The fork tree: one lane per branch, x is the journal step, a curve from the
  * parent lane at the fork step. View and use-here are separate verbs on
  * purpose: reading a branch is a pure store read, while binding the files to it
- * rebinds the single v1 worktree and waits on the agent's lock.
+ * rebinds the single v1 worktree.
  */
 const props = defineProps<{
   branches: BranchInfo[]
   selectable?: boolean
-  worktreeLocked?: boolean
 }>()
 
 const emit = defineEmits<{
   view: [name: string]
-  /** `force` is the escape past an agent's worktree lock, never the default. */
-  checkout: [name: string, force?: boolean]
+  checkout: [name: string]
   archive: [name: string]
   compare: [names: string[]]
 }>()
@@ -205,9 +186,6 @@ const ROW_H = 56
 const RAIL_W = 190
 const PAD_X = 14
 const CURVE = 10
-
-const LOCKED_TOOLTIP =
-  'the agent is working in the files. you can look anywhere. using a lane here waits.'
 
 const LINK_PT = { root: { class: 'p-0 text-sm font-normal' } }
 

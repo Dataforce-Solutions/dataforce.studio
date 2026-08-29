@@ -101,7 +101,6 @@ const unpairedSession: WorkbenchSession = {
   ...session,
   state: 'unpaired',
   paired: undefined,
-  worktreeLocked: false,
 }
 
 const idleSession: WorkbenchSession = {

@@ -128,19 +128,6 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Pending projection"
-      caption="While an agent session holds the files, a UI edit lands in the store and the write to files waits. The code tab says so instead of pretending the file changed."
-    >
-      <div class="max-w-2xl">
-        <CellCard
-          :cell="pendingProjectionCell"
-          density="notebook"
-          v-on="cardEvents(pendingProjectionCell)"
-        />
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="Expand drawer"
       caption="The card expanded into a full-height right drawer: the selected output at drawer density, config, the kernel-paged value for frames, links out to the tracker, and materialize-and-download when the bytes were never persisted."
     >
@@ -190,7 +177,6 @@ import {
   multiOutputCell,
   noteCell,
   olderEnvCell,
-  pendingProjectionCell,
   placeholderCell,
   runningCell,
   staleDefinitionCell,

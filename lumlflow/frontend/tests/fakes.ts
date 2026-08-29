@@ -110,7 +110,6 @@ export function flowStatus(overrides: Partial<FlowStatus> = {}): FlowStatus {
     branch: 'main',
     checked_out: true,
     agent: null,
-    unwritten: [],
     kernel: { state: 'running', restart_required: false, behind: [] },
     settings: { reactivity: 'auto', eager_cost_threshold_s: 5 },
     cells: [],

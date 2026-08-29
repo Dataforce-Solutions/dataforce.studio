@@ -368,8 +368,6 @@ export interface FlowCell {
   flag?: CellFlagInfo
   /** Edit landed on a moved head → overwrite / fork-my-edit menu. */
   conflict?: boolean
-  /** Saved to the store, projection to files deferred by the worktree lock. */
-  pendingProjection?: boolean
   /**
    * The name this cell answered to a moment ago. A rename is one identity
    * keeping its references, so the card carries the old name across rather than
@@ -468,8 +466,6 @@ export interface WorkbenchSession {
   state: FlowState
   paired?: PairedAgent
   worktreeBranch: BranchName
-  /** Held by an agent session: checkout/rewind/adopt wait, edits defer projection. */
-  worktreeLocked?: boolean
   /** "N changes since you were here" — a marker, not an inbox. */
   changesBehind?: number
   diskUsage?: string

@@ -127,28 +127,17 @@ const closure = ref<Preflight | null>(null)
 let plans = 0
 const conflict = ref(false)
 const draft = ref<string | null>(null)
-const pending = ref(unwritten())
 /**
  * The version the open editor started from. Pinned when the editor opens, not
  * read at save: `live.base` follows the head, so an agent's edit landing while
- * the reader types would move it to the very version the lock exists to protect
- * — and the save would sail through as an in-order write.
+ * the reader types would move it to the very version the optimistic check
+ * exists to protect — and the save would sail through as an in-order write.
  */
 const editingBase = ref<string | null>(null)
 
-function unwritten(): boolean {
-  return props.session.brief.value?.unwritten.includes(slug.value) ?? false
-}
-
-/**
- * The card's own two overlays on what the store says: an edit whose transaction
- * has not landed yet, and one that landed but is not in the files. Neither is a
- * verdict the daemon serves — they are what this surface is waiting on.
- */
 const shown = computed<FlowCell>(() => ({
   ...live.cell.value,
   conflict: conflict.value || undefined,
-  pendingProjection: pending.value || undefined,
   renamedFrom: props.renamedFrom,
 }))
 
@@ -253,7 +242,7 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
   // daemon has taken it, because until then it may still come back a conflict.
   notice.value = 'saving…'
   try {
-    const written = await ops.edit(slug.value, source, {
+    await ops.edit(slug.value, source, {
       branch: props.branch,
       base: editingBase.value ?? live.base.value ?? undefined,
       force: options.force,
@@ -261,9 +250,6 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
     conflict.value = false
     draft.value = null
     editingBase.value = null
-    // Saved either way; whether the files have it yet is the worktree lock's
-    // answer, and the card says which of the two happened.
-    pending.value = !written.written_to_files
     notice.value = null
   } catch (refused) {
     if (refused instanceof FlowApiError && refused.kind === 'EditConflict') {
@@ -334,16 +320,6 @@ watch(
     conflict.value = false
     draft.value = null
     editingBase.value = null
-    pending.value = unwritten()
-  },
-)
-
-// The lock is what held the write back, so the holder leaving is what completes
-// it — the same moment the daemon drains its deferred projections.
-watch(
-  () => props.session.agent.value,
-  (paired) => {
-    if (!paired) pending.value = false
   },
 )
 </script>

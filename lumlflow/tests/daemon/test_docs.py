@@ -20,6 +20,7 @@ from tests.daemon.helpers import (
 )
 
 QUICKSTART_LINES = 22
+USER_GUIDE = Path(__file__).resolve().parents[2] / "docs" / "user-guide.md"
 
 
 def test_the_quickstart_fits_in_about_twenty_lines_and_names_the_three_gestures():
@@ -29,6 +30,13 @@ def test_the_quickstart_fits_in_about_twenty_lines_and_names_the_three_gestures(
     assert "lumlflow run <cell>" in docs.QUICKSTART
     assert "lumlflow status" in docs.QUICKSTART
     assert "lumlflow context" in docs.QUICKSTART
+
+
+def test_the_user_guide_does_not_describe_the_removed_file_lock() -> None:
+    guide = USER_GUIDE.read_text("utf-8")
+
+    assert '"The agent is working in the files."' not in guide
+    assert "saved · not yet written to files" not in guide
 
 
 async def test_agents_md_lands_at_the_workspace_root_and_names_every_flow(

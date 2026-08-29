@@ -514,11 +514,11 @@ describe('the session state a journal drives', () => {
       step: 2,
       transaction: transaction(2, {
         intent: 'session start',
-        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1', worktree: true }],
+        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
 
-    expect(session.agent.value).toEqual({ actor: 'claude-1', label: 'claude-1', worktree: true })
+    expect(session.agent.value).toEqual({ actor: 'claude-1', label: 'claude-1' })
     expect(session.state.value).toBe('idle')
 
     socket.deliver({

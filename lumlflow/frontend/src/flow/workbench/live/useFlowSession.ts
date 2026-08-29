@@ -53,8 +53,6 @@ export const SETTLE_MS = 60
 export interface RegisteredAgent {
   actor: string
   label: string
-  /** A worktree session holds the lock and collects file-edit attribution. */
-  worktree: boolean
 }
 
 export interface RunningCell {
@@ -199,7 +197,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     transactions.value = [...held]
     for (const op of transaction.ops) {
       if (op.op === 'agent_begin') {
-        agent.value = { actor: op.actor, label: op.label, worktree: op.worktree }
+        agent.value = { actor: op.actor, label: op.label }
       } else if (op.op === 'agent_end' && agent.value?.actor === op.actor) {
         agent.value = null
       }

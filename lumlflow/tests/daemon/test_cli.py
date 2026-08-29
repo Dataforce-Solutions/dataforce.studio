@@ -685,6 +685,29 @@ def test_an_edit_reaches_the_files_while_an_agent_is_registered(
     _no_internals(status)
 
 
+def test_an_off_disk_edit_says_the_checked_out_files_are_unchanged(
+    cli: Invoke, workspace: Path
+) -> None:
+    flow = workspace / "churn.flow"
+    cli("init", "churn")
+    write_cell(flow, "score", SCORE_CELL)
+    cli("lane", "new", "sweep")
+
+    edited = cli(
+        "cells",
+        "edit",
+        "score",
+        "--lane",
+        "sweep",
+        stdin=SCORE_CELL.replace("0.91", "0.77"),
+    )
+
+    assert edited.exit_code == 0
+    assert "cells/ unchanged" in edited.output
+    assert "not yet written" not in edited.output
+    assert "0.91" in source_of(flow, "score")
+
+
 def test_an_intent_typed_at_a_verb_is_what_the_history_reads_back(
     cli: Invoke, workspace: Path
 ):

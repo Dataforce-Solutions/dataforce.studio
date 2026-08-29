@@ -9,9 +9,8 @@
     <BranchGraph
       :branches="branches"
       :selectable="selectable"
-      :worktree-locked="worktreeLocked"
       @view="emit('view', $event)"
-      @checkout="(name, force) => emit('checkout', name, force)"
+      @checkout="emit('checkout', $event)"
       @archive="emit('archive', $event)"
       @compare="emit('compare', $event)"
     />
@@ -28,13 +27,11 @@ import BranchGraph from './BranchGraph.vue'
 defineProps<{
   branches: BranchInfo[]
   selectable?: boolean
-  worktreeLocked?: boolean
 }>()
 
 const emit = defineEmits<{
   view: [name: string]
-  /** `force` is the escape past an agent's worktree lock, never the default. */
-  checkout: [name: string, force?: boolean]
+  checkout: [name: string]
   archive: [name: string]
   compare: [names: string[]]
 }>()

@@ -557,7 +557,7 @@ function beganPairing(step = 3) {
     ts: BEGAN_AT,
     actor: 'claude-1',
     intent: 'claude-1 started working',
-    ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1', worktree: true }],
+    ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
   })
 }
 

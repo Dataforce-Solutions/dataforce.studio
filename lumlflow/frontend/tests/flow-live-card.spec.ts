@@ -226,6 +226,7 @@ describe('a cell with four outputs is one card', () => {
 
     expect(wrapper.text()).toContain('class train_model')
     expect(wrapper.text()).not.toContain('def-hash')
+    expect(wrapper.text()).not.toContain('not yet written to files')
     wrapper.unmount()
   })
 })

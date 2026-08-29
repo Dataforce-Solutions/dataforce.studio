@@ -25,12 +25,6 @@
       @new-branch="onNewBranch"
     />
 
-    <WorktreeLockNotice
-      v-if="records.overview.value.worktreeLocked"
-      :holder="session.agent.value?.label"
-      @force="onForceCheckout"
-    />
-
     <div class="flex min-h-0 flex-1 gap-3">
       <aside
         class="w-80 shrink-0 min-h-0 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700"
@@ -180,7 +174,6 @@
     <BranchGraphOverlay
       v-model:visible="graphVisible"
       :branches="records.branches.value"
-      :worktree-locked="records.overview.value.worktreeLocked"
       selectable
       @view="onViewBranch"
       @checkout="onCheckout"
@@ -209,7 +202,6 @@ import BranchGraphOverlay from '../components/graph/BranchGraphOverlay.vue'
 import LeftPanel from '../components/panel/LeftPanel.vue'
 import ReplPanel from '../components/repl/ReplPanel.vue'
 import SessionBanners from '../components/session/SessionBanners.vue'
-import WorktreeLockNotice from '../components/session/WorktreeLockNotice.vue'
 import { coalesceTransactions } from '../live/toasts'
 import { formatCount } from '../model/format'
 import { summarized } from '../live/useCell'
@@ -745,19 +737,15 @@ async function onCheckpoint(intent: string): Promise<void> {
   }
 }
 
-async function onCheckout(name: string, force = false): Promise<void> {
+async function onCheckout(name: string): Promise<void> {
   try {
-    await ops.checkout(name, { force })
+    await ops.checkout(name)
     // The files now hold this branch, so the screen follows them.
     selection.viewedBranch.value = name
     graphVisible.value = false
   } catch (failure) {
     refused(failure)
   }
-}
-
-function onForceCheckout(): void {
-  void onCheckout(viewedBranch.value, true)
 }
 
 async function onArchive(name: string): Promise<void> {

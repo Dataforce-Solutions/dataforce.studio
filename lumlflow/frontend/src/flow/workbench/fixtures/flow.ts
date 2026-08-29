@@ -345,7 +345,6 @@ export const session: WorkbenchSession = {
     task: 'retrain on the bucketed features',
   },
   worktreeBranch: 'main',
-  worktreeLocked: true,
   diskUsage: '1.8 GB',
 }
 

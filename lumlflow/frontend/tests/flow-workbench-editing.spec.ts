@@ -1,11 +1,9 @@
 /**
  * Editing and running from the workbench.
  *
- * Four rules carry this suite. An edit is **optimistic only where the store
- * is**: it carries the version it started from, and a head that moved under it
- * comes back as a choice — overwrite or fork — with nothing written until the
- * reader picks. A write the worktree lock held back is **saved but not in the
- * files**, and says so rather than looking landed. A run states its closure
+ * Three rules carry this suite. An edit carries the version it started from,
+ * and a head that moved under it comes back as a choice — overwrite or fork —
+ * with nothing written until the reader picks. A run states its closure
  * **before** the click and its stop states its scope after: leaving a run twenty
  * forks await is not cancelling it. And a failure's volume is **its author's**:
  * an agent iterating through a broken state is demoted to the card, a person's
@@ -361,7 +359,7 @@ describe('an edit carries the version it started from', () => {
     wrapper.unmount()
   })
 
-  it('says a saved edit is not in the files when the lock held the write back', async () => {
+  it('does not render a deferred-file state after an edit lands', async () => {
     const { wrapper } = await card({
       handlers: {
         'cells.edit': () => ({
@@ -377,7 +375,7 @@ describe('an edit carries the version it started from', () => {
     await typeInto(wrapper, `${SOURCE}    lr = 0.1\n`)
     await clickText(wrapper, 'save')
 
-    expect(wrapper.text()).toContain('saved · not yet written to files')
+    expect(wrapper.text()).not.toContain('not yet written to files')
     wrapper.unmount()
   })
 
@@ -893,7 +891,7 @@ describe('an agent session that ended leaving something outstanding', () => {
     })
 
     for (const [step, op] of [
-      [40, { op: 'agent_begin' as const, actor: 'claude-1', label: 'claude-1', worktree: true }],
+      [40, { op: 'agent_begin' as const, actor: 'claude-1', label: 'claude-1' }],
       [41, { op: 'agent_end' as const, actor: 'claude-1', label: 'claude-1' }],
     ] as const) {
       live.socket.deliver({

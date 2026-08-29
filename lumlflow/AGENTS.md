@@ -11,6 +11,7 @@ A cell imports nothing. It is one class, declarations, and a `materialize`:
 ```python
 class TrainModel:
     """What this cell is for."""
+
     consumes = {"train": "features.train_split"}
     produces = {"model": "asset"}
 

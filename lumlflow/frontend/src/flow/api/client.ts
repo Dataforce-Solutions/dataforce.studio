@@ -150,7 +150,7 @@ export interface ContextBrief {
   recent: { step: number; intent: string; actor: string; ts: string }[]
 }
 
-/** What a projection-changing op wrote into the worktree, when it owned it. */
+/** What a projection-changing op wrote into the checked-out files. */
 export interface Projected {
   projected: { written: string[]; removed: string[] } | null
 }
@@ -160,7 +160,7 @@ export interface EditedCell {
   branch: string
   /** The base an editor carries into its next `cells.edit`. Never printed. */
   definition_hash: string
-  /** False while the worktree lock defers it: "saved · not yet written to files". */
+  /** Whether this lane was checked out and its files were projected. */
   written_to_files: boolean
   flags: { code: FlagCode; detail: string | null }[]
 }
@@ -207,7 +207,7 @@ export interface FlowMethods {
   'workspace.list': Method<{ path?: string }, WorkspaceListing>
   /** Scaffolds the flow unbound; the checkout below is what `init here` adds. */
   'flow.init': Method<{ name: string }, FlowBrief & { warnings: string[] }>
-  'flow.checkout': Method<Intentful & { force?: boolean }, Projected & FlowBrief>
+  'flow.checkout': Method<Intentful, Projected & FlowBrief>
   'flow.open': Method<FlowScoped & { worktree?: boolean }, FlowStatus>
   'cells.list': Method<BranchScoped & { unsynced?: boolean }, CellsPage>
   'cells.show': Method<BranchScoped & { slug: string }, CellDetail>
@@ -228,7 +228,7 @@ export interface FlowMethods {
     EditedCell
   >
   'cells.delete': Method<
-    Intentful & { slug: string; force?: boolean },
+    Intentful & { slug: string },
     Projected & { slug: string; branch: string; dangling: string[] }
   >
   /** The per-asset opt-in out of the cost threshold; lives in `flow.yaml`. */
@@ -244,8 +244,8 @@ export interface FlowMethods {
     Intentful & { name: string; from_branch?: string },
     { branch: string; from_branch: string; forked_at_step: number; cells: number }
   >
-  switch: Method<Intentful & { branch: string; force?: boolean }, Projected & FlowBrief>
-  rewind: Method<Intentful & { to_step: number; force?: boolean }, Projected & FlowBrief>
+  switch: Method<Intentful & { branch: string }, Projected & FlowBrief>
+  rewind: Method<Intentful & { to_step: number }, Projected & FlowBrief>
   /**
    * Mark this point on a branch. A marker, not a snapshot: the store already
    * keeps every version this step resolved to, so the intent is the whole
@@ -261,7 +261,7 @@ export interface FlowMethods {
   >
   archive: Method<Intentful & { branch: string }, { branch: string; archived: boolean }>
   rename: Method<
-    Intentful & { slug: string; to: string; force?: boolean },
+    Intentful & { slug: string; to: string },
     Projected & { slug: string; renamed_from: string; branch: string; rewired: string[] }
   >
   /**

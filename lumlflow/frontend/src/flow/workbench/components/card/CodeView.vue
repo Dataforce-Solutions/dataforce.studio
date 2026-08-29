@@ -30,14 +30,6 @@
         :aria-label="`source of ${cell.slug}`"
       />
       <pre v-else :class="sourceClass">{{ cell.source.trimEnd() }}</pre>
-
-      <p
-        v-if="cell.pendingProjection"
-        class="flex items-center gap-1.5 text-sm text-(--p-message-info-color)"
-      >
-        <Info :size="14" class="shrink-0" />
-        saved · not yet written to files
-      </p>
     </div>
   </div>
 </template>
@@ -45,7 +37,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Button } from 'primevue'
-import { Info, Pencil } from 'lucide-vue-next'
+import { Pencil } from 'lucide-vue-next'
 import type { FlowCell, ParamValue } from '../../model/types'
 import SourceEditor from './SourceEditor.vue'
 import { CODE_SURFACE_CLASS } from './codeSurface'

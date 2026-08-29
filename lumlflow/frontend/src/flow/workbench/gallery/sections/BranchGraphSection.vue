@@ -9,7 +9,7 @@
         viewed-branch="exp/lr-1e3"
         worktree-branch="main"
         @view="onView"
-        @checkout="onCheckout(false, $event)"
+        @checkout="onCheckout"
         @new-branch="onNewBranch"
       />
     </GallerySpecimen>
@@ -47,7 +47,7 @@
       <BranchGraph
         :branches="branches"
         @view="onView"
-        @checkout="onCheckout(false, $event)"
+        @checkout="onCheckout"
         @archive="onArchive"
         @compare="onCompare"
       />
@@ -61,21 +61,7 @@
         :branches="branches"
         selectable
         @view="onView"
-        @checkout="onCheckout(false, $event)"
-        @archive="onArchive"
-        @compare="onCompare"
-      />
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="Locked files"
-      caption="View stays available for every lane, because it is a pure store read. Use-here waits while an agent holds the files: disabled with the reason, plus the labeled force escape."
-    >
-      <BranchGraph
-        :branches="branches"
-        worktree-locked
-        @view="onView"
-        @checkout="onCheckout(true, $event)"
+        @checkout="onCheckout"
         @archive="onArchive"
         @compare="onCompare"
       />
@@ -93,9 +79,8 @@
       <BranchGraphOverlay
         v-model:visible="overlayVisible"
         :branches="branches"
-        :worktree-locked="true"
         @view="onView"
-        @checkout="onCheckout(true, $event)"
+        @checkout="onCheckout"
         @archive="onArchive"
         @compare="onCompare"
       />
@@ -148,13 +133,11 @@ function onView(name: string): void {
   })
 }
 
-function onCheckout(locked: boolean, name: string): void {
+function onCheckout(name: string): void {
   toast.add({
     severity: 'secondary',
     summary: 'use here',
-    detail: locked
-      ? `would use \`${name}\` here. it waits while the agent holds the files.`
-      : `would use \`${name}\` here. it binds the flow files.`,
+    detail: `would use \`${name}\` here. it binds the flow files.`,
     life: 2500,
   })
 }
