@@ -7,6 +7,7 @@ restart — is decided in-process and tested there.
 """
 
 import json
+import os
 import signal
 import socket
 import subprocess
@@ -14,11 +15,13 @@ import sys
 import time
 import webbrowser
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import websockets.sync.client
 from lumlflow import __version__
 from lumlflow import cli as top_cli
 from lumlflow.cli import app
@@ -36,6 +39,18 @@ Serve = Callable[..., "subprocess.Popen[str]"]
 
 _READY_TIMEOUT_S = 90.0
 _STOP_TIMEOUT_S = 90.0
+
+_GATED_CELL = """
+class Gated:
+    produces = {"summary": "asset"}
+
+    def materialize(self, ctx):
+        import time
+
+        while not (ctx.workspace_dir / "go").exists():
+            time.sleep(0.05)
+        return {"summary": {"auc": 0.91}}
+"""
 
 
 @pytest.fixture
@@ -83,6 +98,27 @@ def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
     ]
     assert top_cli.DEFAULT_HOST == "127.0.0.1"
     assert top_cli.DEFAULT_PORT == 5000
+
+
+def test_ui_accepts_a_launch_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    elsewhere = make_workspace(tmp_path / "elsewhere", flows=())
+    started: list[Path] = []
+
+    def start(directory: Path, **_: Any) -> int:
+        started.append(directory)
+        return 0
+
+    monkeypatch.setattr(client, "discover", lambda: None)
+    monkeypatch.setattr(server, "serve_here", start)
+    monkeypatch.chdir(elsewhere)
+
+    result = CliRunner().invoke(app, ["ui", str(root), "--no-browser"])
+
+    assert result.exit_code == 0, result.output
+    assert started == [root.resolve()]
 
 
 def test_the_browser_is_opened_on_the_address_that_carries_the_key(
@@ -231,6 +267,113 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     assert started == []
 
 
+@pytest.mark.parametrize("explicit_path", [True, False])
+def test_ui_refuses_a_store_that_differs_from_the_running_daemon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_path: bool,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    running_store = (tmp_path / "running-store").resolve()
+    requested_store = (tmp_path / "requested-store").resolve()
+    record = _record(tracker_store=str(running_store))
+    if explicit_path:
+        monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(running_store))
+        monkeypatch.setenv("BACKEND_STORE_URI", str(running_store))
+    else:
+        monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
+        monkeypatch.setenv("BACKEND_STORE_URI", str(requested_store))
+    monkeypatch.setattr(client, "discover", lambda: record)
+    monkeypatch.chdir(root)
+    args = ["ui", "--no-browser"]
+    if explicit_path:
+        args.extend(["--path", str(requested_store)])
+
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 1
+    assert str(running_store) in result.output
+    assert record.web_host in result.output
+    assert "lumlflow daemon stop" in result.output
+    if explicit_path:
+        assert os.environ["LUML_BACKEND_STORE_URI"] == str(running_store)
+
+
+def test_ui_refuses_a_host_that_differs_from_the_running_daemon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    running_store = (tmp_path / "running-store").resolve()
+    record = _record(tracker_store=str(running_store))
+    monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
+    monkeypatch.setenv("BACKEND_STORE_URI", str(running_store))
+    monkeypatch.setattr(client, "discover", lambda: record)
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(
+        app,
+        ["ui", "--no-browser", "--host", "0.0.0.0"],
+    )
+
+    assert result.exit_code == 1
+    assert str(running_store) in result.output
+    assert record.web_host in result.output
+    assert "lumlflow daemon stop" in result.output
+
+
+def test_ui_attaches_without_interrupting_a_run_or_leased_session(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "gated", _GATED_CELL)
+
+    with (
+        ThreadPoolExecutor(max_workers=1) as executor,
+        client.connect(root) as live,
+        client.attach(live.record) as paired,
+    ):
+        live.call("flow.open", {"flow": "churn"})
+        begun = paired.call(
+            "agent.begin",
+            {"flow": "churn", "actor": "codex", "label": "Codex", "lease": True},
+        )
+        runner = client.attach(live.record)
+        running = executor.submit(
+            runner.call, "run", {"flow": "churn", "target": "gated"}
+        )
+        try:
+            assert _settled(lambda: _running(live.record) == 1)
+            attached = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lumlflow.cli",
+                    "ui",
+                    "--no-browser",
+                ],
+                cwd=tmp_path,
+                capture_output=True,
+                text=True,
+                timeout=_STOP_TIMEOUT_S,
+            )
+            status = paired.call("status", {"flow": "churn"})
+
+            assert attached.returncode == 0, attached.stderr
+            assert (
+                f":{live.record.web_port}/?token={live.record.token}" in attached.stdout
+            )
+            assert not running.done()
+            assert begun["leased"] is True
+            assert status["flows"][0]["agent"] == "Codex"
+            assert workspace.read_record() == live.record
+        finally:
+            (root / "go").touch()
+            outcome = running.result(timeout=_STOP_TIMEOUT_S)
+            runner.close()
+
+    assert outcome["executed"] == ["gated"]
+
+
 def _opens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """What `lumlflow ui` sent to a browser, in order."""
     opened: list[str] = []
@@ -293,6 +436,53 @@ def test_ctrl_c_takes_the_kernels_it_spawned_with_it(
     assert running.returncode == 0
     assert spawned != []
     assert _settled(lambda: _kernels(root) == [])
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="no SIGINT to a child there")
+def test_ctrl_c_names_attached_clients_and_still_stops(
+    tmp_path: Path, serve: Serve
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    other = make_workspace(tmp_path / "other")
+    outside_flow = other / "churn.flow"
+    port = _free_port()
+
+    running = serve(root, "--port", str(port))
+    record = _served(root, port)
+    paired = client.attach(record)
+    try:
+        with websockets.sync.client.connect(
+            f"ws://127.0.0.1:{port}{web.STREAM_PATH}?token={record.token}",
+            open_timeout=30,
+        ) as stream:
+            paired.call("flow.open", {"flow": str(outside_flow), "worktree": False})
+            paired.call(
+                "agent.begin",
+                {
+                    "flow": str(outside_flow),
+                    "actor": "codex",
+                    "label": "Codex",
+                    "lease": True,
+                },
+            )
+            stream.send(json.dumps({"subscribe": "journal", "flow": str(outside_flow)}))
+            _receive_catch_up(stream)
+
+            running.send_signal(signal.SIGINT)
+            printed, errors = running.communicate(timeout=_STOP_TIMEOUT_S)
+    finally:
+        paired.close()
+
+    assert running.returncode == 0
+    assert "attached clients" in printed
+    assert "Codex" in printed
+    assert "stream subscriber" in printed
+    assert str(outside_flow) in printed
+    assert errors == ""
+    assert workspace.read_record() is None
+    lock = workspace.WorkspaceLock()
+    assert lock.acquire()
+    lock.release()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="no POSIX signals there")
@@ -468,7 +658,11 @@ def _command_paths() -> list[tuple[str, ...]]:
     return walk(get_command(app), ())
 
 
-def _record() -> DaemonRecord:
+def _record(*, tracker_store: str | None = None) -> DaemonRecord:
+    if tracker_store is None:
+        from lumlflow.settings import Settings
+
+        tracker_store = Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
     return DaemonRecord(
         pid=1,
         instance_id="instance",
@@ -476,7 +670,7 @@ def _record() -> DaemonRecord:
         token="t",
         web_host="127.0.0.1",
         web_port=2,
-        tracker_store="/tmp/experiments",
+        tracker_store=tracker_store,
         version=__version__,
     )
 
@@ -520,6 +714,20 @@ def _settled(wanted: Callable[[], bool], timeout: float = 30.0) -> bool:
             return True
         time.sleep(0.1)
     return False
+
+
+def _running(record: DaemonRecord) -> int:
+    with client.attach(record, timeout=5) as probe:
+        return int(probe.call("ping")["running"])
+
+
+def _receive_catch_up(
+    stream: "websockets.sync.client.ClientConnection",
+) -> None:
+    while True:
+        frame = json.loads(stream.recv(timeout=30))
+        if frame["type"] == "caught_up":
+            return
 
 
 def _free_port() -> int:

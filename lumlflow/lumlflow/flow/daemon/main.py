@@ -30,8 +30,8 @@ from lumlflow.flow.errors import FlowError
 
 # What a caller is told once the workspace is being served, and from where.
 Announce = Callable[[DaemonRecord], None]
-# The agent sessions one connection is carrying, as (flow, actor).
-Leases = set[tuple[str | None, str]]
+# The agent sessions one connection is carrying, as (flow, actor, label).
+Leases = set[tuple[str | None, str, str]]
 
 _AUTH_TIMEOUT_S = 10.0
 _BACKLOG = 64
@@ -74,6 +74,7 @@ class Daemon:
         self._record: DaemonRecord | None = None
         self._calls: set[asyncio.Task[None]] = set()
         self._clients: set[asyncio.StreamWriter] = set()
+        self._client_leases: dict[asyncio.StreamWriter, Leases] = {}
         self._stopped = asyncio.Event()
 
     def stop(self) -> None:
@@ -87,6 +88,7 @@ class Daemon:
         web_port: int = DEFAULT_WEB_PORT,
         exact_web_port: bool = False,
         announce: Announce | None = None,
+        report_attached: bool = False,
     ) -> int:
         """Hold the singleton lock and serve until this process is stopped."""
         # The signals before the lock: a Ctrl-C during startup is an answer,
@@ -127,6 +129,8 @@ class Daemon:
                 print(f"not watching flows: {unwatchable}", file=sys.stderr)
             (announce or self._announce)(record)
             await self._stopped.wait()
+            if report_attached:
+                self._report_attached()
         finally:
             if listener is not None and self._web_task is None:
                 listener.close()
@@ -222,6 +226,7 @@ class Daemon:
         mine: set[asyncio.Task[None]] = set()
         leased: Leases = set()
         self._clients.add(writer)
+        self._client_leases[writer] = leased
         try:
             while True:
                 try:
@@ -261,6 +266,7 @@ class Daemon:
             for call in mine:
                 call.cancel()
             self._clients.discard(writer)
+            self._client_leases.pop(writer, None)
             writer.close()
             await self._release(leased)
 
@@ -277,10 +283,44 @@ class Daemon:
         """
         if self._stopped.is_set():
             return
-        for flow, actor in sorted(leased, key=lambda lease: (lease[0] or "", lease[1])):
+        for flow, actor, _ in sorted(
+            leased, key=lambda lease: (lease[0] or "", lease[1])
+        ):
             with contextlib.suppress(FlowError, OSError):
                 await self.api.agent_end({"flow": flow, "actor": actor})
         leased.clear()
+
+    def _report_attached(self) -> None:
+        leases = sorted(
+            {
+                lease
+                for client_leases in self._client_leases.values()
+                for lease in client_leases
+            },
+            key=lambda lease: (lease[2].casefold(), lease[0] or ""),
+        )
+        outside_flows = sorted(
+            str(session.ref.path)
+            for session in self.hub.opened()
+            if not session.ref.path.is_relative_to(self.directory)
+        )
+        attached: list[str] = []
+        if leases:
+            sessions = ", ".join(
+                f"{label} on {flow}" if flow else label for flow, _, label in leases
+            )
+            noun = "session" if len(leases) == 1 else "sessions"
+            attached.append(f"leased agent {noun}: {sessions}")
+        if self.streams.watchers:
+            noun = "subscriber" if self.streams.watchers == 1 else "subscribers"
+            attached.append(f"{self.streams.watchers} stream {noun}")
+        if outside_flows:
+            noun = "flow" if len(outside_flows) == 1 else "flows"
+            attached.append(
+                f"open {noun} outside {self.directory}: {', '.join(outside_flows)}"
+            )
+        if attached:
+            print(f"stopping with attached clients: {'; '.join(attached)}", flush=True)
 
     async def _end_calls(self) -> None:
         calls = [call for call in self._calls if not call.done()]
@@ -372,6 +412,7 @@ def serve_here(
             web_port=web_port,
             exact_web_port=True,
             announce=announce,
+            report_attached=True,
         )
     )
 
@@ -454,7 +495,8 @@ def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) ->
         return
     if method == "agent.begin" and result.get("leased"):
         flow = params.get("flow")
-        leased.add((str(flow) if flow else None, actor))
+        label = str(result.get("label") or actor)
+        leased.add((str(flow) if flow else None, actor, label))
     elif method == "agent.end":
         for lease in [held for held in leased if held[1] == actor]:
             leased.discard(lease)

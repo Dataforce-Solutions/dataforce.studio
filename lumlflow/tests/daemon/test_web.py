@@ -474,6 +474,8 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
         web_port=7777,
         tracker_store="/tmp/experiments",
     )
+    monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
+    monkeypatch.setenv("BACKEND_STORE_URI", record.tracker_store)
     monkeypatch.setattr(daemon_client, "discover", lambda: record)
 
     result = CliRunner().invoke(app, ["ui", "--no-browser"])

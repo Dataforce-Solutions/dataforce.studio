@@ -27,6 +27,13 @@ flow_cli.register(app)
 
 @app.command()
 def ui(
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory to use when this command starts the daemon.",
+    ),
     path: str | None = typer.Option(
         None,
         "--path",
@@ -42,46 +49,67 @@ def ui(
         False, "--no-browser", help="Do not open the browser."
     ),
 ) -> None:
-    """Start lumlflow: Experiments, and this workspace's flows.
+    """Open lumlflow, starting it from DIRECTORY when needed.
 
-    It serves http://127.0.0.1:5000 by default. It keeps running until you stop
-    it with Ctrl+C. Start a second one in the same workspace and it opens the
-    browser on the one already serving.
+    With no daemon running, it serves http://127.0.0.1:5000 until Ctrl+C. When
+    one is already running, it opens that daemon and exits.
     """
     from lumlflow.flow.daemon import client, workspace
     from lumlflow.flow.daemon import main as server
     from lumlflow.flow.errors import FlowError
 
+    previous_store_environment: dict[str, str | None] = {}
     if path is not None:
-        # Read out of the environment by the store this process is about to
-        # serve; one already serving keeps the store it was started with.
-        os.environ["BACKEND_STORE_URI"] = path
+        # The legacy alias has higher settings precedence, so an explicit CLI
+        # value must override both aliases while this server is alive.
+        for name in ("BACKEND_STORE_URI", "LUML_BACKEND_STORE_URI"):
+            previous_store_environment[name] = os.environ.get(name)
+            os.environ[name] = path
 
-    directory = Path.cwd().resolve()
-    warning = workspace.network_filesystem_warning()
-    if warning is not None:
-        typer.echo(warning)
+    launch_directory = (directory or Path.cwd()).resolve()
     try:
+        tracker_store = _tracker_store()
+        warning = workspace.network_filesystem_warning()
+        if warning is not None:
+            typer.echo(warning)
         serving = client.discover()
         if serving is not None:
-            _attach(serving, port=port, no_browser=no_browser)
+            _attach(
+                serving,
+                host=host,
+                port=port,
+                tracker_store=tracker_store,
+                no_browser=no_browser,
+            )
             return
         code = server.serve_here(
-            directory,
+            launch_directory,
             web_host=host,
             web_port=port,
             announce=lambda record: _serving(
-                record, directory=directory, no_browser=no_browser
+                record, directory=launch_directory, no_browser=no_browser
             ),
         )
         if code == server.ALREADY_RUNNING:
             serving = client.discover()
             if serving is not None:
-                _attach(serving, port=port, no_browser=no_browser)
+                _attach(
+                    serving,
+                    host=host,
+                    port=port,
+                    tracker_store=tracker_store,
+                    no_browser=no_browser,
+                )
                 return
     except FlowError as failure:
         typer.echo(str(failure), err=True)
         raise typer.Exit(1) from failure
+    finally:
+        for name, value in previous_store_environment.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
     if code:
         raise typer.Exit(code)
 
@@ -96,13 +124,28 @@ def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> No
         webbrowser.open(_url(record))
 
 
-def _attach(record: "DaemonRecord", *, port: int, no_browser: bool) -> None:
+def _attach(
+    record: "DaemonRecord",
+    *,
+    host: str,
+    port: int,
+    tracker_store: str,
+    no_browser: bool,
+) -> None:
     """Point the browser at the daemon that is already serving.
 
     A port belongs to the process that bound it, so one that answers on
     another is said plainly rather than papered over — and never taken from
     a session somebody is using or a run somebody is waiting on.
     """
+    from lumlflow.flow.errors import FlowError
+
+    if record.tracker_store != tracker_store or record.web_host != host:
+        raise FlowError(
+            "lumlflow is already serving tracker store "
+            f"`{record.tracker_store}` on host `{record.web_host}`. "
+            "run `lumlflow daemon stop` before changing either setting"
+        )
     if not record.web_port:
         typer.echo(
             "lumlflow is already running without a browser endpoint",
@@ -115,6 +158,12 @@ def _attach(record: "DaemonRecord", *, port: int, no_browser: bool) -> None:
         typer.echo(f"it is serving port {record.web_port}, not {port}")
     if not no_browser:
         webbrowser.open(_url(record))
+
+
+def _tracker_store() -> str:
+    from lumlflow.settings import Settings
+
+    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
 
 
 def _url(record: "DaemonRecord") -> str:
