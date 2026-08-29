@@ -18,12 +18,13 @@ from __future__ import annotations
 import json
 import pickle
 import sys
-from collections.abc import Callable
 from pathlib import Path, PurePath
 from typing import Any
 
+from lumlflow_kernel.cas import hash_bytes
 from lumlflow_kernel.kinds import preview
 from lumlflow_kernel.kinds.preview import Block
+from lumlflow_kernel.tracker import ExperimentRef
 
 FRAME = "frame"
 FILE = "file"
@@ -183,37 +184,48 @@ class CheckpointKind:
 
 
 class ExperimentKind:
-    """A tracked run: the params a cell chose, and the numbers it got.
-
-    The shape `ctx.tracker` records, matched by shape like `metric` and `eval`
-    are — so a cell declaring `"run": "experiment"` and returning its tracker's
-    record gets the rich rendering without a dict override. Nothing else claims
-    it: `metric` wants numbers where this holds sections.
-    """
+    """A reference to a tracked run and its kernel-free snapshot."""
 
     kind = EXPERIMENT
     priority = 55
-    python_types = ("dict (params/metrics)",)
+    python_types = ("lumlflow_kernel.tracker.ExperimentRef",)
 
     def matches(self, value: Any) -> bool:
-        if not isinstance(value, dict) or set(value) - set(_EXPERIMENT_SECTIONS):
-            return False
-        if not any(section in value for section in _EXPERIMENT_SECTIONS):
-            return False
-        return _flat(value.get("params", {}), _is_scalar) and _flat(
-            value.get("metrics", {}), _is_number
-        )
+        return isinstance(value, ExperimentRef)
 
     def serialize(self, value: Any) -> bytes | Path:
-        return _dumps({name: dict(section) for name, section in value.items()})
+        ref = _experiment_ref(value)
+        return _dumps(
+            {
+                "experiment_id": ref.experiment_id,
+                "group": ref.group,
+                "store": str(ref.store),
+                "snapshot": ref.snapshot,
+            },
+            sort_keys=False,
+        )
 
-    def deserialize(self, source: Path) -> Any:
-        return json.loads(source.read_bytes())
+    def deserialize(self, source: Path) -> ExperimentRef:
+        payload = json.loads(source.read_bytes())
+        try:
+            snapshot = dict(payload["snapshot"])
+            return ExperimentRef(
+                experiment_id=str(payload["experiment_id"]),
+                group=str(payload["group"]),
+                store=Path(str(payload["store"])),
+                snapshot={
+                    "params": dict(snapshot["params"]),
+                    "metrics": dict(snapshot["metrics"]),
+                },
+            )
+        except (KeyError, TypeError, ValueError) as failure:
+            raise TypeError("stored experiment reference is invalid") from failure
 
     def preview(self, value: Any) -> list[Block]:
+        snapshot = _experiment_ref(value).snapshot
         blocks: list[Block] = []
         for section in _EXPERIMENT_SECTIONS:
-            entries = value.get(section) or {}
+            entries = snapshot.get(section) or {}
             if entries:
                 rendered = (
                     preview.metric(entries)
@@ -222,6 +234,9 @@ class ExperimentKind:
                 )
                 blocks.extend([preview.markdown(f"**{section}**"), rendered])
         return blocks or [preview.markdown("*this run recorded nothing*")]
+
+    def content_hash(self, value: Any) -> str:
+        return hash_bytes(_dumps(_experiment_ref(value).snapshot))
 
 
 class MetricKind:
@@ -389,12 +404,10 @@ def _png(figure: Any) -> bytes:
     return buffer.getvalue()
 
 
-def _dumps(value: Any) -> bytes:
-    """Canonical JSON, except that NaN survives: a diverged loss is a real
-    metric value, and the blob is only ever read back by the kind that wrote
-    it."""
+def _dumps(value: Any, *, sort_keys: bool = True) -> bytes:
+    """Compact JSON, key-sorted by default, with non-finite metrics preserved."""
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value, sort_keys=sort_keys, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
 
@@ -438,10 +451,10 @@ def _aggregates(rows: list[dict[str, Any]], columns: list[str]) -> dict[str, Any
     return means
 
 
-def _flat(section: Any, entry: Callable[[Any], bool]) -> bool:
-    return isinstance(section, dict) and all(
-        isinstance(name, str) and entry(value) for name, value in section.items()
-    )
+def _experiment_ref(value: Any) -> ExperimentRef:
+    if not isinstance(value, ExperimentRef):
+        raise TypeError("an `experiment` output must return `ctx.tracker.record`")
+    return value
 
 
 def _is_tensor(value: Any) -> bool:

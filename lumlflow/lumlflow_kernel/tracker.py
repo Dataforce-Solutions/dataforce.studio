@@ -4,10 +4,21 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 _DEFAULT_STORE = "~/.luml/experiments"
+
+
+@dataclass(frozen=True)
+class ExperimentRef:
+    """The stored identity and final snapshot of a tracked experiment."""
+
+    experiment_id: str
+    group: str
+    store: Path
+    snapshot: dict[str, dict[str, Any]]
 
 
 def tracker_store() -> Path:
@@ -97,8 +108,16 @@ class Tracker:
             self.log_metric(name, value, step=step)
 
     @property
-    def record(self) -> dict[str, Any]:
-        return {"params": dict(self._params), "metrics": dict(self._metrics)}
+    def record(self) -> ExperimentRef:
+        return ExperimentRef(
+            experiment_id=self.experiment_id,
+            group=self.group,
+            store=self.store,
+            snapshot={
+                "params": dict(self._params),
+                "metrics": dict(self._metrics),
+            },
+        )
 
     def complete(self) -> None:
         self._client.end_experiment(self.experiment_id)

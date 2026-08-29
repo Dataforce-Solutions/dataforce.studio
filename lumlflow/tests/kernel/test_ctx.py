@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from lumlflow_kernel.ctxobj import EXTERNAL, IDENTITY, Ctx
+from lumlflow_kernel.tracker import Tracker
 
 
 def test_reading_identity_and_external_handles_is_observed(tmp_path):
@@ -76,14 +78,18 @@ def test_tempdir_lands_inside_the_run_scratch(tmp_path):
 
 def test_the_tracker_records_locally_and_reaches_nothing(tmp_path):
     seen: list[tuple[str, str]] = []
-    ctx = _ctx(tmp_path, observe=lambda fact, detail: seen.append((fact, detail)))
+    ctx = _ctx(
+        tmp_path,
+        observe=lambda fact, detail: seen.append((fact, detail)),
+        tracker=_tracker(tmp_path),
+    )
 
     ctx.tracker.log_params({"lr": 3e-4, "optimizer": "adamw"})
     ctx.tracker.log_param("seed", 1337)
     ctx.tracker.log_metrics({"auc": 0.91})
     ctx.tracker.log_metric("f1", 0.83)
 
-    assert ctx.tracker.record == {
+    assert ctx.tracker.record.snapshot == {
         "params": {"lr": 3e-4, "optimizer": "adamw", "seed": 1337},
         "metrics": {"auc": 0.91, "f1": 0.83},
     }
@@ -93,13 +99,13 @@ def test_the_tracker_records_locally_and_reaches_nothing(tmp_path):
 
 
 def test_the_tracker_is_one_recorder_for_the_run(tmp_path):
-    ctx = _ctx(tmp_path)
+    ctx = _ctx(tmp_path, tracker=_tracker(tmp_path))
 
     assert ctx.tracker is ctx.tracker
 
 
 def test_a_metric_that_is_not_a_number_says_where_it_belongs(tmp_path):
-    ctx = _ctx(tmp_path)
+    ctx = _ctx(tmp_path, tracker=_tracker(tmp_path))
 
     with pytest.raises(ValueError, match="param"):
         ctx.tracker.log_metric("notes", "ran overnight")
@@ -107,16 +113,21 @@ def test_a_metric_that_is_not_a_number_says_where_it_belongs(tmp_path):
     # one, which is not what was recorded.
     with pytest.raises(ValueError, match="number"):
         ctx.tracker.log_metric("converged", True)
-    assert ctx.tracker.record["metrics"] == {}
+    assert ctx.tracker.record.snapshot["metrics"] == {}
 
 
 def test_the_record_is_a_copy_a_cell_cannot_write_back_through(tmp_path):
-    ctx = _ctx(tmp_path)
+    ctx = _ctx(tmp_path, tracker=_tracker(tmp_path))
     ctx.tracker.log_metric("auc", 0.91)
 
-    ctx.tracker.record["metrics"]["auc"] = 0.0
+    ctx.tracker.record.snapshot["metrics"]["auc"] = 0.0
 
-    assert ctx.tracker.record["metrics"] == {"auc": 0.91}
+    assert ctx.tracker.record.snapshot["metrics"] == {"auc": 0.91}
+
+
+def test_the_tracker_requires_an_experiment_output(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="declare an `experiment` output"):
+        _ = _ctx(tmp_path).tracker
 
 
 def test_ctx_has_no_secret_channel(tmp_path: Path) -> None:
@@ -129,6 +140,7 @@ def _ctx(
     params: dict | None = None,
     scratch: Path | None = None,
     observe=lambda fact, detail: None,
+    tracker: Tracker | None = None,
 ) -> Ctx:
     return Ctx(
         branch="main",
@@ -138,4 +150,15 @@ def _ctx(
         params=params or {},
         scratch=scratch or tmp_path,
         observe=observe,
+        tracker=tracker,
+    )
+
+
+def _tracker(tmp_path: Path) -> Tracker:
+    return Tracker(
+        Mock(),
+        experiment_id="exp-1",
+        group="churn",
+        store=tmp_path / "experiments",
+        params={},
     )

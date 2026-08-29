@@ -36,7 +36,12 @@ from lumlflow_kernel.cas import Cas, canonical_json, hash_bytes
 from lumlflow_kernel.ctxobj import EXTERNAL, IDENTITY, Ctx
 from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
-from lumlflow_kernel.tracker import Tracker, open_sdk_tracker, tracker_store
+from lumlflow_kernel.tracker import (
+    ExperimentRef,
+    Tracker,
+    open_sdk_tracker,
+    tracker_store,
+)
 
 SCRATCH_DIRNAME = "scratch"
 NON_INTERACTIVE_HINT = "cells are non-interactive — take values via `params`"
@@ -377,6 +382,11 @@ class Executor:
         value: Any,
         scratch: Path,
     ) -> dict[str, Any]:
+        if spec.type == "experiment" and not isinstance(value, ExperimentRef):
+            raise CellError(
+                f"`{name}` is declared as an `experiment`; "
+                "return `ctx.tracker.record` for it"
+            )
         resolution = self._registry.resolve(value, spec.kind)
         asset_type = resolution.asset_type
         self._emit(

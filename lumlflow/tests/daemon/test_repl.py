@@ -24,7 +24,8 @@ class Fanout:
     produces = {"curves": "experiment", "config": "asset"}
 
     def materialize(self, ctx):
-        return {"curves": {"auc": 0.91}, "config": {"lr": 0.1}}
+        ctx.tracker.log_metric("auc", 0.91)
+        return {"curves": ctx.tracker.record, "config": {"lr": 0.1}}
 """
 
 
@@ -93,7 +94,14 @@ async def test_a_cell_is_in_scope_by_name_and_every_output_by_its_own(
         await api.flow_open({"flow": "churn"})
         await api.run({"target": "fanout"})
 
-        answered = await api.eval({"code": "[fanout, fanout_curves, fanout_config]"})
+        answered = await api.eval(
+            {
+                "code": (
+                    "[fanout.snapshot['metrics'], "
+                    "fanout_curves.snapshot['metrics'], fanout_config]"
+                )
+            }
+        )
 
     assert answered["repr"] == "[{'auc': 0.91}, {'auc': 0.91}, {'lr': 0.1}]"
     assert answered["names"] == ["fanout", "fanout_config", "fanout_curves"]

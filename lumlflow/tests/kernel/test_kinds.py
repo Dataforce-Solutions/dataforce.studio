@@ -26,6 +26,7 @@ import pytest
 from lumlflow_kernel.cas import canonical_json
 from lumlflow_kernel.kernel import Kernel
 from lumlflow_kernel.kinds import builtin, preview, registry
+from lumlflow_kernel.tracker import ExperimentRef
 from tests.kernel.helpers import FakeLink, make_kernel, run, stored_preview
 
 BADGE_PLUGIN = '''
@@ -286,46 +287,51 @@ def test_a_plugins_page_hook_answers_the_page_call(tmp_path: Path) -> None:
 
 
 def test_a_tracker_record_is_an_experiment(kinds: registry.Registry) -> None:
-    record = {"params": {"lr": 3e-4, "optimizer": "adamw"}, "metrics": {"auc": 0.91}}
-    resolution = kinds.resolve(record)
+    ref = ExperimentRef(
+        experiment_id="exp-1",
+        group="churn",
+        store=Path("/tmp/experiments"),
+        snapshot={
+            "params": {"lr": 3e-4, "optimizer": "adamw"},
+            "metrics": {"auc": 0.91},
+        },
+    )
+    resolution = kinds.resolve(ref)
     assert (resolution.kind, resolution.source) == (
         builtin.EXPERIMENT,
         registry.MATCHER,
     )
 
 
-def test_an_experiment_that_recorded_only_one_side_is_still_one(
+def test_an_experiment_shaped_dict_is_not_an_experiment(
     kinds: registry.Registry,
 ) -> None:
-    assert kinds.resolve({"metrics": {"auc": 0.91}}).kind == builtin.EXPERIMENT
-    assert kinds.resolve({"params": {"seed": 1337}}).kind == builtin.EXPERIMENT
-    assert kinds.resolve({"metrics": {}}).kind == builtin.EXPERIMENT
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        # The sections are what makes it one: a dict that merely mentions
-        # metrics among other keys is somebody's own structure.
-        {"params": {"lr": 3e-4}, "metrics": {"auc": 0.91}, "notes": "ran overnight"},
-        # A metric holds numbers, so a string here is not the recorded shape.
-        {"metrics": {"auc": "high"}},
-        # And a nested section is not a flat one.
-        {"params": {"grid": {"lr": [0.1, 0.2]}}},
-    ],
-)
-def test_a_dict_that_only_looks_like_a_run_is_not_an_experiment(
-    kinds: registry.Registry, value: Any
-) -> None:
-    resolution = kinds.resolve(value)
+    resolution = kinds.resolve({"params": {"lr": 3e-4}, "metrics": {"auc": 0.91}})
     assert (resolution.kind, resolution.source) == (builtin.PICKLE, registry.FALLBACK)
+
+
+def test_experiment_serialization_requires_a_tracker_record(
+    kinds: registry.Registry,
+) -> None:
+    with pytest.raises(TypeError, match="ctx.tracker.record"):
+        kinds.get(builtin.EXPERIMENT).serialize(
+            {"params": {"lr": 3e-4}, "metrics": {"auc": 0.91}}
+        )
 
 
 def test_an_experiment_previews_its_params_and_its_numbers(
     kinds: registry.Registry,
 ) -> None:
-    record = {"params": {"lr": 3e-4}, "metrics": {"auc": 0.91, "f1": 0.83}}
-    assert kinds.get(builtin.EXPERIMENT).preview(record) == [
+    ref = ExperimentRef(
+        experiment_id="exp-1",
+        group="churn",
+        store=Path("/tmp/experiments"),
+        snapshot={
+            "params": {"lr": 3e-4},
+            "metrics": {"auc": 0.91, "f1": 0.83},
+        },
+    )
+    assert kinds.get(builtin.EXPERIMENT).preview(ref) == [
         {"block": "markdown", "text": "**params**"},
         {"block": "kv", "entries": {"lr": 3e-4}},
         {"block": "markdown", "text": "**metrics**"},
@@ -336,19 +342,46 @@ def test_an_experiment_previews_its_params_and_its_numbers(
 def test_an_experiment_that_recorded_nothing_says_so_rather_than_showing_nothing(
     kinds: registry.Registry,
 ) -> None:
-    blocks = kinds.get(builtin.EXPERIMENT).preview({"params": {}, "metrics": {}})
+    ref = ExperimentRef(
+        experiment_id="exp-1",
+        group="churn",
+        store=Path("/tmp/experiments"),
+        snapshot={"params": {}, "metrics": {}},
+    )
+    blocks = kinds.get(builtin.EXPERIMENT).preview(ref)
     assert blocks == [{"block": "markdown", "text": "*this run recorded nothing*"}]
 
 
-def test_an_experiment_comes_back_equal_and_hashes_the_same_either_order(
+def test_an_experiment_ref_round_trips_and_hashes_only_its_snapshot(
     kinds: registry.Registry, tmp_path: Path
 ) -> None:
     asset_type = kinds.get(builtin.EXPERIMENT)
-    record = {"params": {"lr": 3e-4}, "metrics": {"auc": 0.91}}
-    assert round_trip(asset_type, record, tmp_path) == record
-    assert asset_type.serialize(record) == asset_type.serialize(
-        {"metrics": {"auc": 0.91}, "params": {"lr": 3e-4}}
+    assert isinstance(asset_type, builtin.ExperimentKind)
+    snapshot = {
+        "params": {"lr": 3e-4},
+        "metrics": {"z_score": 0.91, "accuracy": 0.83},
+    }
+    first = ExperimentRef(
+        experiment_id="exp-1",
+        group="churn",
+        store=tmp_path / "first-store",
+        snapshot=snapshot,
     )
+    second = ExperimentRef(
+        experiment_id="exp-2",
+        group="another-flow",
+        store=tmp_path / "second-store",
+        snapshot={
+            "metrics": {"accuracy": 0.83, "z_score": 0.91},
+            "params": {"lr": 3e-4},
+        },
+    )
+
+    restored = round_trip(asset_type, first, tmp_path)
+    assert restored == first
+    assert list(restored.snapshot["metrics"]) == ["z_score", "accuracy"]
+    assert asset_type.content_hash(first) == asset_type.content_hash(second)
+    assert asset_type.serialize(first) != asset_type.serialize(second)
 
 
 def test_a_flat_dict_of_numbers_is_a_metric(kinds: registry.Registry) -> None:

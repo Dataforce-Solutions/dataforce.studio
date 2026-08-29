@@ -17,9 +17,16 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
 
-__all__ = ["AssetType", "CellProtocol", "Ctx", "Tracker"]
+__all__ = ["AssetType", "CellProtocol", "Ctx", "ExperimentRef", "Tracker"]
 
 AssetType = Literal["model", "dataset", "experiment", "asset"]
+
+
+class ExperimentRef(Protocol):
+    experiment_id: str
+    group: str
+    store: Path
+    snapshot: Mapping[str, Mapping[str, Any]]
 
 
 class Tracker(Protocol):
@@ -34,7 +41,7 @@ class Tracker(Protocol):
     ) -> None: ...
 
     @property
-    def record(self) -> Mapping[str, Any]: ...
+    def record(self) -> ExperimentRef: ...
 
 
 class Ctx(Protocol):

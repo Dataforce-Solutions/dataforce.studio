@@ -12,7 +12,7 @@ from __future__ import annotations
 import random
 import sys
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -22,36 +22,6 @@ IDENTITY = "identity"
 EXTERNAL = "external"
 
 Observe = Callable[[str, str], None]
-
-
-class _LocalTracker:
-    def __init__(self) -> None:
-        self._params: dict[str, Any] = {}
-        self._metrics: dict[str, float] = {}
-
-    def log_param(self, name: str, value: Any) -> None:
-        self._params[str(name)] = value
-
-    def log_params(self, values: Mapping[str, Any]) -> None:
-        for name, value in values.items():
-            self.log_param(name, value)
-
-    def log_metric(self, name: str, value: float, step: int | None = None) -> None:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(
-                f"`{name}` is a metric, so it takes a number — "
-                "anything else belongs in a param"
-            )
-        self._metrics[str(name)] = value
-
-    def log_metrics(self, values: Mapping[str, float], step: int | None = None) -> None:
-        for name, value in values.items():
-            self.log_metric(name, value, step=step)
-
-    @property
-    def record(self) -> dict[str, Any]:
-        """The experiment this run is. Return it as the cell's output."""
-        return {"params": dict(self._params), "metrics": dict(self._metrics)}
 
 
 class Ctx:
@@ -74,7 +44,7 @@ class Ctx:
         self._params = params
         self._scratch = scratch
         self._observe = observe
-        self._tracker = tracker or _LocalTracker()
+        self._tracker = tracker
 
     @property
     def branch(self) -> str:
@@ -97,9 +67,13 @@ class Ctx:
         return self._flow_dir
 
     @property
-    def tracker(self) -> Tracker | _LocalTracker:
+    def tracker(self) -> Tracker:
         """This run's recorder. Reading it observes nothing: it reaches no
         branch, no file outside the flow, and no network."""
+        if self._tracker is None:
+            raise RuntimeError(
+                "`ctx.tracker` requires this cell to declare an `experiment` output"
+            )
         return self._tracker
 
     def seed(self) -> None:

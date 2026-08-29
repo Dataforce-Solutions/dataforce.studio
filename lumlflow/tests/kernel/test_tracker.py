@@ -21,7 +21,7 @@ else:
     ).ExperimentTracker
 
 from lumlflow_kernel.kernel import Kernel
-from lumlflow_kernel.tracker import Tracker
+from lumlflow_kernel.tracker import ExperimentRef, Tracker
 from tests.kernel.helpers import FakeLink, make_kernel, run, stored_value
 
 DEADLINE_S = 20.0
@@ -41,7 +41,7 @@ def test_an_experiment_run_writes_metadata_params_metrics_and_completes(
         kernel,
         """
         def materialize(self, ctx):
-            if ctx.tracker.record["params"] != {"folds": 5}:
+            if ctx.tracker.record.snapshot["params"] != {"folds": 5}:
                 raise RuntimeError("declared params were not seeded")
             ctx.tracker.log_params({"alpha": 0.25, "optimizer": "adamw"})
             ctx.tracker.log_metrics({"rmse": 0.4, "mae": 0.3}, step=7)
@@ -75,8 +75,13 @@ def test_an_experiment_run_writes_metadata_params_metrics_and_completes(
         "mae": [{"value": 0.3, "step": 7}],
     }
     assert json.loads(stored_value(kernel, record, "metrics")) == {
-        "params": {"folds": 5, "alpha": 0.25, "optimizer": "adamw"},
-        "metrics": {"rmse": 0.4, "mae": 0.3},
+        "experiment_id": experiment.id,
+        "group": "churn",
+        "store": str(tracker_store),
+        "snapshot": {
+            "params": {"folds": 5, "alpha": 0.25, "optimizer": "adamw"},
+            "metrics": {"rmse": 0.4, "mae": 0.3},
+        },
     }
     started = link.named("experiment_started")
     assert started == [
@@ -90,6 +95,78 @@ def test_an_experiment_run_writes_metadata_params_metrics_and_completes(
     assert record["experiment_id"] == experiment.id
     assert record["store"] == str(tracker_store)
     assert link.named("materialized")[-1]["experiment_id"] == experiment.id
+
+
+def test_identical_numbers_prune_consumers_by_hashing_the_snapshot(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    body = """
+        def materialize(self, ctx):
+            ctx.tracker.log_param("alpha", 0.25)
+            ctx.tracker.log_metric("rmse", 0.4)
+            return {"metrics": ctx.tracker.record}
+    """
+
+    first = run(
+        kernel,
+        body,
+        run_id="first",
+        produces={"metrics": "experiment"},
+        identity=_identity(kernel, run_id="first"),
+    )
+    second = run(
+        kernel,
+        body,
+        run_id="second",
+        produces={"metrics": "experiment"},
+        identity=_identity(kernel, run_id="second"),
+    )
+
+    first_output = first["outputs"]["metrics"]
+    second_output = second["outputs"]["metrics"]
+    assert first_output["value_ref"] != second_output["value_ref"]
+    assert first_output["content_hash"] == second_output["content_hash"]
+    tracker = ExperimentTracker(f"sqlite://{tracker_store}")
+    assert len(tracker.list_experiments()) == 2
+
+
+def test_a_wrong_experiment_value_names_the_tracker_record(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"metrics": {"params": {}, "metrics": {"a": 1}}}
+        """,
+        produces={"metrics": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    assert record["state"] == "failed"
+    assert "ctx.tracker.record" in record["error"]["message"]
+    experiment = _only_experiment(ExperimentTracker(f"sqlite://{tracker_store}"))
+    assert experiment.status == "error"
+
+
+def test_ctx_tracker_without_an_experiment_output_fails_in_words(
+    tmp_path: Path,
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            ctx.tracker.log_metric("auc", 0.91)
+            return {"result": "unreachable"}
+        """,
+        produces={"result": "asset"},
+    )
+
+    assert record["state"] == "failed"
+    assert "declare an `experiment` output" in record["error"]["message"]
 
 
 def test_the_experiment_start_is_reported_before_materialize(
@@ -233,6 +310,10 @@ def test_metrics_are_in_the_tracker_in_order_while_the_cell_is_running(
 
     assert not worker.is_alive()
     assert finished[0]["state"] == "succeeded"
+    restored = kernel.executor.fresh(
+        finished[0]["outputs"]["run"]["value_ref"], "experiment"
+    )
+    assert restored.snapshot["metrics"] == {"loss": 0.5}
 
 
 def test_a_close_failure_keeps_the_materialization_and_reaches_the_event(
@@ -366,6 +447,12 @@ def test_the_churn_evaluate_cell_runs_unchanged_and_logs_alpha(
     assert record["state"] == "succeeded"
     assert experiment.static_params["alpha"] == 0.25
     assert set(experiment.dynamic_params) == {"rmse", "mae", "r2"}
+    restored = kernel.executor.fresh(
+        record["outputs"]["metrics"]["value_ref"], "experiment"
+    )
+    assert isinstance(restored, ExperimentRef)
+    assert restored.experiment_id == experiment.id
+    assert restored.snapshot["metrics"] == experiment.dynamic_params
 
 
 class _StartMarkingLink(FakeLink):

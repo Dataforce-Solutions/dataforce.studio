@@ -67,7 +67,8 @@ class Fanout:
     produces = {"curves": "experiment", "config": "asset"}
 
     def materialize(self, ctx, summary):
-        return {"curves": {"auc": summary["auc"]}, "config": {"lr": 0.1}}
+        ctx.tracker.log_metric("auc", summary["auc"])
+        return {"curves": ctx.tracker.record, "config": {"lr": 0.1}}
 """
 
 
