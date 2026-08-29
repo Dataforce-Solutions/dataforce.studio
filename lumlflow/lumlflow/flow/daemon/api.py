@@ -142,7 +142,9 @@ class Api:
             session,
             branch,
             around=str(around) if around else None,
-            depth=int(params.get("depth") or queries.DEFAULT_DEPTH),
+            depth=_number(
+                params.get("depth") or queries.DEFAULT_DEPTH, int, name="depth"
+            ),
         )
 
     async def diff(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -476,7 +478,7 @@ class Api:
         branch = _branch(session, params)
         result = session.store.branches.rewind(
             branch,
-            to_step=int(params.get("to_step") or 0),
+            to_step=_number(params.get("to_step") or 0, int, name="to_step"),
             actor=actor,
             intent=params.get("intent"),
         )
@@ -617,7 +619,11 @@ class Api:
                 params["reactivity"], get_args(Reactivity), "reactivity"
             )
         if params.get("eager_cost_threshold_s") is not None:
-            settings.eager_cost_threshold_s = float(params["eager_cost_threshold_s"])
+            settings.eager_cost_threshold_s = _number(
+                params["eager_cost_threshold_s"],
+                float,
+                name="eager_cost_threshold_s",
+            )
         session.store.save_manifest()
         # Turning reactivity on, or lifting the threshold, is a decision about
         # the cells that are unsynced right now — not only about the next edit.
@@ -714,7 +720,9 @@ class Api:
         session = self.hub.session(_flow_name(params), actor=_actor(params))
         entries = [
             entry.model_dump(mode="json")
-            for entry in session.store.journal.since(int(params.get("cursor") or 0))
+            for entry in session.store.journal.since(
+                _number(params.get("cursor") or 0, int, name="cursor")
+            )
         ]
         return {
             "flow": session.ref.name,
@@ -928,6 +936,16 @@ def _one_of(value: Any, allowed: Sequence[str], called: str) -> Any:
             + " or ".join(f"`{word}`" for word in allowed)
         )
     return str(value)
+
+
+def _number[Number: (int, float)](
+    value: Any, kind: type[Number], *, name: str
+) -> Number:
+    try:
+        return kind(value)
+    except (TypeError, ValueError, OverflowError) as invalid:
+        expected = "an integer" if kind is int else "a number"
+        raise FlowError(f"`{name}` must be {expected}") from invalid
 
 
 def _preflight(preflight: Preflight) -> dict[str, Any]:

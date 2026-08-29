@@ -50,6 +50,7 @@ class Served:
     http: TestClient
     root: Path
     hub: Hub
+    api: Api
     streams: Streams
 
     def rpc(self, method: str, params: dict[str, Any] | None = None) -> Any:
@@ -81,10 +82,11 @@ def served(tmp_path: Path, static: Path) -> Iterator[Served]:
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     streams = Streams()
     hub = Hub(root, streams=streams)
-    app = web.build_app(hub, Api(hub), streams, token=TOKEN, static=static)
+    api = Api(hub)
+    app = web.build_app(hub, api, streams, token=TOKEN, static=static)
     with TestClient(app) as http:
         try:
-            yield Served(http=http, root=root, hub=hub, streams=streams)
+            yield Served(http=http, root=root, hub=hub, api=api, streams=streams)
         finally:
             # On the app's own loop: the kernels a run started belong to it.
             portal = getattr(http, "portal", None)
@@ -239,6 +241,42 @@ def test_a_refusal_crosses_as_the_failure_it_was(served: Served):
         headers={web.TOKEN_HEADER: TOKEN},
     )
     assert unknown.status_code == 404
+
+
+def test_a_bad_numeric_parameter_is_a_json_refusal(
+    served: Served, capsys: pytest.CaptureFixture[str]
+) -> None:
+    answer = served.http.post(
+        web.RPC_PATH,
+        json={"method": "rewind", "params": {"flow": "churn", "to_step": "abc"}},
+        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
+    )
+
+    assert answer.status_code == 400
+    assert answer.headers["access-control-allow-origin"] == "*"
+    assert answer.json() == {
+        "error": {"kind": "FlowError", "message": "`to_step` must be an integer"}
+    }
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_an_unexpected_failure_is_json_without_its_traceback(served: Served) -> None:
+    async def fail(_params: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("the store failed")
+
+    served.api.methods["test.fail"] = fail
+    answer = served.http.post(
+        web.RPC_PATH,
+        json={"method": "test.fail"},
+        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
+    )
+
+    assert answer.status_code == 500
+    assert answer.headers["access-control-allow-origin"] == "*"
+    assert answer.json() == {"error": {"message": "the store failed"}}
+    assert "Traceback" not in answer.text
 
 
 def test_a_subscriber_is_caught_up_and_then_kept_up(served: Served):

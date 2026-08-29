@@ -39,6 +39,7 @@ UNAUTHORIZED = 401
 WS_UNAUTHORIZED = 4401
 _REFUSED = 400
 _NO_METHOD = 404
+_INTERNAL = 500
 
 
 def build_app(
@@ -93,6 +94,11 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             # A refusal the runtime named crosses as itself, so the browser's
             # client can rebuild it the way the CLI does.
             return _failed(str(failure), status=_REFUSED, kind=type(failure).__name__)
+        except asyncio.CancelledError:
+            raise
+        except Exception as failure:
+            traceback.print_exc()
+            return _failed(str(failure), status=_INTERNAL)
         return JSONResponse({"result": result})
 
     @router.websocket(STREAM_PATH)

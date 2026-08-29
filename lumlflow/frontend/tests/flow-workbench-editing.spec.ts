@@ -1005,6 +1005,28 @@ describe('the kernel dying is a banner, not a traceback', () => {
   })
 })
 
+describe('an unexpected HTTP failure stays actionable', () => {
+  it('shows the daemon’s message in the workbench', async () => {
+    const { wrapper } = await workbench({
+      handlers: {
+        run: () => {
+          throw new FlowApiError('the store failed', { status: 500 })
+        },
+      },
+    })
+
+    const run = cardFor(wrapper, 'features')
+      .findAll('button')
+      .find((node) => node.attributes('aria-label') === 'run')
+    await run!.trigger('click')
+    await settle()
+    await clickInBody('run 1 cell')
+
+    expect(toasts()).toContain('the store failed')
+    wrapper.unmount()
+  })
+})
+
 describe('adding, renaming and deleting a cell', () => {
   it('adds one downstream of the cell the gesture came from', async () => {
     const { wrapper, live } = await workbench({
