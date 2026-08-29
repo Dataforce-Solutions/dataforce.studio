@@ -231,7 +231,7 @@ class Hub:
         computed from code the hash no longer describes.
         """
         if reconciliation.sync_workspace_code(session.workspace_dir, [session]):
-            await session.kernel.evict_workspace_modules()
+            session.kernel.evict_workspace_modules()
         # The env is recorded, never acted on: a run that starts after an
         # install records the pins it ran under, and the kernel keeps the
         # modules it already imported until somebody restarts it.

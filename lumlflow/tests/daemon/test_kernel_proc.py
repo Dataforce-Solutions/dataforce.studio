@@ -268,14 +268,14 @@ async def test_a_failure_is_a_record_and_its_traceback_joins_the_logs(tmp_path: 
         assert kernel.state == "running"
 
 
-async def test_workspace_code_reloads_only_when_the_daemon_evicts_it(tmp_path: Path):
+async def test_workspace_code_reloads_after_eviction_is_requested(tmp_path: Path):
     root = make_workspace(tmp_path / "project", files={"helpers.py": "VALUE = 1"})
 
     async with flow_kernel(root) as kernel:
         first = await kernel.run(run_request("uses_helper", USES_HELPER))
         write_file(root / "helpers.py", "VALUE = 2")
         stale = await kernel.run(run_request("uses_helper", USES_HELPER, run_id="r2"))
-        evicted = await kernel.evict_workspace_modules()
+        kernel.evict_workspace_modules()
         fresh = await kernel.run(run_request("uses_helper", USES_HELPER, run_id="r3"))
 
     values = Cas(store_dir(root / "churn.flow") / "values")
@@ -284,7 +284,6 @@ async def test_workspace_code_reloads_only_when_the_daemon_evicts_it(tmp_path: P
         for result in (first, stale, fresh)
     ]
     assert read == [1, 1, 2]
-    assert "helpers" in evicted
 
 
 async def test_a_kernel_that_dies_names_the_cell_and_the_next_run_respawns(
@@ -371,11 +370,11 @@ def test_the_kernel_is_path_injected_and_the_workspace_rides_along(
     assert entries[2] == "/already/on/the/path"
 
 
-async def test_a_stopped_kernel_has_nothing_to_evict(tmp_path: Path):
+async def test_requesting_eviction_does_not_start_a_stopped_kernel(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
 
     async with flow_kernel(root) as kernel:
-        assert await kernel.evict_workspace_modules() == []
+        kernel.evict_workspace_modules()
         assert kernel.state == "stopped"
 
 

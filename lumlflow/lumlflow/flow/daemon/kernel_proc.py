@@ -96,6 +96,7 @@ class KernelProcess:
         self._token: str | None = None
         self._accepting = False
         self._next_id = 0
+        self._evict_before_next_run: bool = False
 
     @property
     def state(self) -> KernelState:
@@ -132,6 +133,13 @@ class KernelProcess:
     async def run(self, request: RunRequest) -> RunResult:
         await self.ensure_started()
         try:
+            if self._evict_before_next_run:
+                self._evict_before_next_run = False
+                try:
+                    await self._call("evict_workspace_modules", {})
+                except BaseException:
+                    self._evict_before_next_run = True
+                    raise
             record = await self._call("run", _run_payload(request), timeout=None)
         except _KernelProtocolError:
             raise
@@ -181,16 +189,9 @@ class KernelProcess:
         """Fire-and-forget: the kernel answers a cancel on its reader thread."""
         self._send({"jsonrpc": "2.0", "method": "cancel", "params": {"run_id": run_id}})
 
-    async def evict_workspace_modules(self) -> list[str]:
-        """Forget the workspace's modules before the next run imports them again.
-
-        A stopped kernel holds nothing to forget, and starting one to say so
-        would spawn a process for an edit the user may never run a cell against.
-        """
-        if self._writer is None:
-            return []
-        result = await self._call("evict_workspace_modules", {})
-        return list(result.get("evicted", []))
+    def evict_workspace_modules(self) -> None:
+        """Forget workspace modules immediately before the next run."""
+        self._evict_before_next_run = True
 
     async def env_drift(self) -> list[str]:
         """Packages this kernel imported that the workspace has moved since.

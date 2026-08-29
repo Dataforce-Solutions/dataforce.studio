@@ -5,6 +5,7 @@ Nothing here is stubbed. The files are files and the store is a store, because
 what is under test is precisely whether the two agree.
 """
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -390,7 +391,7 @@ async def test_renaming_a_producer_and_its_consumer_together_still_rewires(
     assert slugs(opened, "synced") == ["auc", "auc_report"]
 
 
-async def test_shared_code_marks_every_cell_and_empties_the_module_cache(
+async def test_shared_code_marks_every_cell_and_evicts_before_the_next_run(
     tmp_path: Path,
 ):
     """Workspace code is not versioned by the store, so a change to it is a
@@ -405,9 +406,9 @@ async def test_shared_code_marks_every_cell_and_empties_the_module_cache(
         session = api.hub.session("churn")
         evict_for_real = session.kernel.evict_workspace_modules
 
-        async def evict() -> list[str]:
+        def evict() -> None:
             evictions.append(True)
-            return await evict_for_real()
+            evict_for_real()
 
         session.kernel.evict_workspace_modules = evict  # type: ignore[method-assign]
         write_file(root / "helpers.py", "AUC = 0.99")
@@ -424,6 +425,58 @@ async def test_shared_code_marks_every_cell_and_empties_the_module_cache(
     assert evictions == [True]
     assert again["executed"] == ["score"]
     assert values_in(root / "churn.flow") == [{"auc": 0.91}, {"auc": 0.99}]
+
+
+async def test_a_helper_edit_does_not_wait_for_a_running_cell(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 0.91"})
+    flow = root / "churn.flow"
+    started = tmp_path / "started"
+    release = tmp_path / "release"
+    write_cell(
+        flow,
+        "score",
+        f"""
+        class Score:
+            produces = {{"summary": "asset"}}
+
+            def materialize(self, ctx):
+                import time
+                from pathlib import Path
+                import helpers
+
+                Path({str(started)!r}).touch()
+                deadline = time.monotonic() + 60
+                while not Path({str(release)!r}).exists():
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("the test did not release the cell")
+                    time.sleep(0.01)
+                return {{"summary": {{"auc": helpers.AUC}}}}
+        """,
+    )
+
+    async with daemon_api(root) as api:
+        running = asyncio.create_task(api.run({"flow": "churn", "target": "score"}))
+        try:
+            deadline = asyncio.get_running_loop().time() + 30
+            while not started.exists() and asyncio.get_running_loop().time() < deadline:
+                await asyncio.sleep(0.01)
+            assert started.exists()
+
+            write_file(root / "helpers.py", "AUC = 0.99")
+            listed = await asyncio.wait_for(
+                api.cells_list({"flow": "churn"}), timeout=2
+            )
+            assert not running.done()
+        finally:
+            release.touch()
+            first = await asyncio.wait_for(running, timeout=30)
+
+        second = await api.run({"flow": "churn", "target": "score"})
+
+    assert slugs(listed) == ["score"]
+    assert first["executed"] == ["score"]
+    assert second["executed"] == ["score"]
+    assert values_in(flow) == [{"auc": 0.91}, {"auc": 0.99}]
 
 
 async def test_a_user_verb_attributes_a_file_edit_to_the_one_registered_agent(

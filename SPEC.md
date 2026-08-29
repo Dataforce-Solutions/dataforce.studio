@@ -1146,9 +1146,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Truncate a failed journal append
   - [x] `journal.append` leaves the file as it was on failure; `commit` re-derives the next step after a failed append
   - [x] Test with a monkey-patched fsync; the flow reopens
-- [ ] Evict workspace modules before the next run
-  - [ ] Module eviction becomes an evict-before-next-run flag, never queued behind a running cell
-  - [ ] Test: 60 s run + helper edit, `cells.list` answers while the cell is still running
+- [x] Evict workspace modules before the next run
+  - [x] Module eviction becomes an evict-before-next-run flag, never queued behind a running cell
+  - [x] Test: 60 s run + helper edit, `cells.list` answers while the cell is still running
 - [ ] Mirror socket-door errors on the HTTP door
   - [ ] HTTP door mirrors the socket door's exception mapping (JSON 400 for `FlowError`, JSON 500 with the message otherwise, CORS headers on both, the traceback never in the reply); numeric params coerced through a `FlowError`-raising helper; the traceback goes wherever the daemon's exceptions go today until the logging task routes them to the rotated file
   - [ ] Tests in `tests/daemon/test_web.py`: `to_step: "abc"`, a non-`FlowError` exception whose reply is JSON and holds no traceback
