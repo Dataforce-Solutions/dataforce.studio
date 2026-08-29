@@ -14,7 +14,7 @@ knows.
 """
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -22,7 +22,7 @@ from lumlflow.flow.scheduler import memo, staleness
 from lumlflow.flow.scheduler.staleness import Verdict
 from lumlflow.flow.store.flowstore import FlowStore
 from lumlflow.flow.store.index import Index, VersionRow
-from lumlflow.flow.store.models import ConsumedRef
+from lumlflow.flow.store.models import ConsumedRef, TrackerRef
 
 #: Why reactivity left a cell for the user to run.
 #:
@@ -31,7 +31,9 @@ from lumlflow.flow.store.models import ConsumedRef
 #: store has no measurement of, which is not the same as a cheap one: a
 #: threshold cannot admit a cost nobody has ever observed. `too-expensive` is
 #: the honest one — timed, and over the line.
-AutoDecline = Literal["blocked", "never-timed", "too-expensive"]
+AutoDecline = Literal["blocked", "never-timed", "too-expensive", "dangling-experiment"]
+TrackerState = Literal["ok", "missing", "unreachable"]
+TrackerStateCheck = Callable[[TrackerRef], tuple[TrackerState, str]]
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ class Step:
     producers: tuple[str, ...] = ()
     needs_values: frozenset[str] = frozenset()
     estimate_seconds: float | None = None
+    must_execute: bool = False
+    demand: str | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,7 @@ class Plan:
     branch_id: str
     target: str
     steps: tuple[Step, ...]
+    reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,7 @@ class AutoVerdict:
     reason: AutoDecline | None = None
     estimate_seconds: float = 0.0
     untimed: tuple[str, ...] = ()
+    detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +108,7 @@ class Preflight:
     recompute: tuple[str, ...]
     unknown: tuple[str, ...]
     estimate_seconds: float
+    reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -117,8 +124,14 @@ class _Branch:
 
 
 class Planner:
-    def __init__(self, store: FlowStore) -> None:
+    def __init__(
+        self,
+        store: FlowStore,
+        *,
+        tracker_state: TrackerStateCheck | None = None,
+    ) -> None:
         self._store = store
+        self._tracker_state = tracker_state or _tracker_ok
 
     def plan(self, target: str, *, branch: str) -> Plan:
         branch_id = self._store.branches.get(branch).branch_id
@@ -152,8 +165,13 @@ class Planner:
         consumers = _consumers(ancestors, producers)
         seed = {uid} | {other for other in ancestors if not verdicts[other].synced}
         kept = _close_down(seed, consumers)
-        kept = self._with_demanded(kept, seed, consumers, here, branch_id)
+        kept, forced = self._with_demanded(kept, seed, consumers, here, branch_id)
         needs = _needed_outputs(kept, here)
+        ordered = _ordered(kept, producers, here)
+        for other in ordered:
+            demand = self._dangling_output(branch_id, other, here[other])
+            if demand is not None:
+                forced.setdefault(other, demand)
         steps = tuple(
             Step(
                 uid=other,
@@ -162,10 +180,18 @@ class Planner:
                 producers=tuple(p for p in producers[other] if p in kept),
                 needs_values=frozenset(needs[other]),
                 estimate_seconds=self._store.index.last_cost(other),
+                must_execute=other in forced,
+                demand=forced.get(other),
             )
-            for other in _ordered(kept, producers, here)
+            for other in ordered
         )
-        return Plan(branch, branch_id, target, steps)
+        return Plan(
+            branch,
+            branch_id,
+            target,
+            steps,
+            tuple(dict.fromkeys(forced[other] for other in ordered if other in forced)),
+        )
 
     def preflight(self, *targets: str, branch: str) -> Preflight:
         """The cost of running these targets together, not one after another.
@@ -191,10 +217,19 @@ class Planner:
         here = over.here
         needs: dict[str, frozenset[str]] = {}
         steps: dict[str, Step] = {}
+        reasons: list[str] = []
         for target in targets:
             planned = self._plan(target, branch=branch, branch_id=branch_id, over=over)
+            reasons.extend(planned.reasons)
             for step in planned.steps:
-                steps[step.uid] = step
+                previous = steps.get(step.uid)
+                steps[step.uid] = replace(
+                    step,
+                    must_execute=step.must_execute
+                    or (previous is not None and previous.must_execute),
+                    demand=step.demand
+                    or (previous.demand if previous is not None else None),
+                )
                 # A cell reached from two leaves is needed for the union of
                 # what both wanted of it: dropping one leaf's outputs would let
                 # a memo hit satisfy a request whose bytes it cannot feed.
@@ -213,6 +248,7 @@ class Planner:
                 )
                 for uid in _ordered(kept, producers, here)
             ),
+            tuple(dict.fromkeys(reasons)),
         )
 
     def _preflight(self, plan: Plan, here: dict[str, VersionRow]) -> Preflight:
@@ -238,6 +274,7 @@ class Planner:
             recompute=tuple(recompute),
             unknown=tuple(unknown),
             estimate_seconds=round(total, 6),
+            reasons=plan.reasons,
         )
 
     def auto_targets(self, branch: str) -> list[str]:
@@ -301,6 +338,13 @@ class Planner:
     ) -> AutoVerdict:
         settings = self._store.manifest.settings
         plan = self._plan(verdict.slug, branch=branch, branch_id=branch_id, over=over)
+        if plan.reasons:
+            return AutoVerdict(
+                verdict.slug,
+                taken=False,
+                reason="dangling-experiment",
+                detail=" ".join(plan.reasons),
+            )
         if any(_stalled(over.verdicts[step.uid]) for step in plan.steps):
             return AutoVerdict(verdict.slug, taken=False, reason="blocked")
         cost = self._preflight(plan, over.here)
@@ -337,42 +381,87 @@ class Planner:
         consumers: dict[str, set[str]],
         here: dict[str, VersionRow],
         branch_id: str,
-    ) -> set[str]:
+    ) -> tuple[set[str], dict[str, str]]:
         """Pull in producers whose bytes a scheduled consumer cannot read.
 
         Declared unpersisted outputs live nowhere, so demand for one schedules
         its producer whatever staleness says about it.
         """
         baselines = self._store.index.baselines(branch_id)
+        forced: dict[str, str] = {}
         while True:
-            demanded = {
-                ref.uid
-                for uid in kept
-                for ref in here[uid].manifest.consumes.values()
-                if ref.uid is not None
-                and ref.uid in consumers
-                and ref.uid not in kept
-                and self._bytes_missing(baselines, ref)
-            }
+            demanded: set[str] = set()
+            for uid in kept:
+                for ref in here[uid].manifest.consumes.values():
+                    if ref.uid is None or ref.uid not in consumers:
+                        continue
+                    missing, reason = self._input_missing(
+                        baselines, ref, producer=here[ref.uid].slug
+                    )
+                    if reason is not None:
+                        forced.setdefault(ref.uid, reason)
+                    if missing and ref.uid not in kept:
+                        demanded.add(ref.uid)
             if not demanded:
-                return kept
+                return kept, forced
             seed |= demanded
             kept = _close_down(seed, consumers)
 
-    def _bytes_missing(self, baselines: Mapping[str, str], ref: ConsumedRef) -> bool:
+    def _input_missing(
+        self,
+        baselines: Mapping[str, str],
+        ref: ConsumedRef,
+        *,
+        producer: str,
+    ) -> tuple[bool, str | None]:
         mat_id = baselines.get(str(ref.uid))
         mat = self._store.index.materialization(mat_id) if mat_id else None
         if mat is None:
-            return False
+            return False, None
         record = mat.outputs.get(str(ref.output))
+        if record is None:
+            return True, None
+        if record.tracker_ref is not None:
+            reason = self._tracker_demand(record.tracker_ref, producer)
+            if reason is not None:
+                return True, reason
         return (
-            record is None
-            or record.value_ref is None
-            or not self._store.values.exists(record.value_ref)
+            record.value_ref is None or not self._store.values.exists(record.value_ref),
+            None,
+        )
+
+    def _dangling_output(
+        self, branch_id: str, uid: str, version: VersionRow
+    ) -> str | None:
+        mat_id = self._store.index.baselines(branch_id).get(uid)
+        mat = self._store.index.materialization(mat_id) if mat_id else None
+        if mat is None:
+            return None
+        for name, spec in version.manifest.produces.items():
+            record = mat.outputs.get(name)
+            if spec.type != "experiment" or record is None:
+                continue
+            if record.tracker_ref is None:
+                continue
+            reason = self._tracker_demand(record.tracker_ref, version.slug)
+            if reason is not None:
+                return reason
+        return None
+
+    def _tracker_demand(self, ref: TrackerRef, producer: str) -> str | None:
+        state, sentence = self._tracker_state(ref)
+        if state == "ok":
+            return None
+        condition = "removed" if state == "missing" else "unreachable"
+        return (
+            f"`{producer}` must run because its {condition} experiment "
+            f"`{ref.experiment_id}` is needed. {sentence}"
         )
 
     def _served(self, branch_id: str, step: Step, here: dict[str, VersionRow]) -> bool:
         """Could this step be answered from the store as things stand?"""
+        if step.must_execute:
+            return False
         inputs, missing = resolve_inputs(
             self._store.index, branch_id, step.version, here
         )
@@ -556,3 +645,7 @@ def _worth_running(verdict: Verdict, version: VersionRow) -> bool:
 def _stalled(verdict: Verdict) -> bool:
     """Failed, with nothing changed since — waiting on an edit, not on a run."""
     return verdict.state == "failed" and not verdict.causes
+
+
+def _tracker_ok(_ref: TrackerRef) -> tuple[TrackerState, str]:
+    return "ok", ""

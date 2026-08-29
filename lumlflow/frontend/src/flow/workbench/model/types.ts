@@ -86,11 +86,13 @@ export interface StaleInfo {
  * identical otherwise, and that is what made auto mode read as broken.
  */
 export interface AutoDeclinedInfo {
-  reason: 'blocked' | 'never-timed' | 'too-expensive'
+  reason: 'blocked' | 'never-timed' | 'too-expensive' | 'dangling-experiment'
   /** Seconds the timed part of the closure is expected to take. */
   estimateSeconds: number
   /** Cells in the closure this flow has never run, by slug. */
   untimed: string[]
+  /** The producer and reference that made automatic refresh unsafe. */
+  detail?: string
 }
 
 export interface ActorRef {
@@ -519,6 +521,8 @@ export interface Preflight {
   /** Never timed here — seconds absent from the total rather than guessed at. */
   unknown: Slug[]
   totalSeconds: number
+  /** Why a producer that otherwise looked current must be recomputed. */
+  reasons: string[]
 }
 
 // ---------------------------------------------------------------------------

@@ -199,8 +199,9 @@ class Api:
         nobody asked for.
         """
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        session = self.hub.open(ref, actor=_actor(params))
+        session.experiment_states.clear()
         if params.get("worktree", True):
-            session = self.hub.open(ref, actor=_actor(params))
             await self.hub.quiesce(session, actor=_actor(params))
             if session.worktree.bound() is None:
                 session.worktree.checkout(actor=_actor(params))
@@ -1190,6 +1191,7 @@ def _preflight(preflight: Preflight) -> dict[str, Any]:
         "recompute": list(preflight.recompute),
         "unknown": list(preflight.unknown),
         "estimate_seconds": preflight.estimate_seconds,
+        "reasons": list(preflight.reasons),
     }
 
 

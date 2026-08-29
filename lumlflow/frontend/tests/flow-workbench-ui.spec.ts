@@ -636,6 +636,26 @@ describe('a cell reactivity left alone says so on the card', () => {
     wrapper.unmount()
   })
 
+  it('names the removed experiment that makes automatic refresh unsafe', () => {
+    const wrapper = mount(CellCard, {
+      props: {
+        cell: declined({
+          reason: 'dangling-experiment',
+          estimateSeconds: 0,
+          untimed: [],
+          detail: '`evaluate` must run because its removed experiment `exp-1` is needed.',
+        }),
+        density: 'canvas' as const,
+      },
+      global: { plugins: [ToastService] },
+    })
+
+    expect(wrapper.text()).toContain('evaluate')
+    expect(wrapper.text()).toContain('removed experiment `exp-1`')
+    expect(wrapper.text()).not.toContain('too expensive')
+    wrapper.unmount()
+  })
+
   it('renders nothing at all when reactivity has no verdict to give', () => {
     const wrapper = mount(CellCard, {
       props: { cell: declined(undefined), density: 'canvas' as const },

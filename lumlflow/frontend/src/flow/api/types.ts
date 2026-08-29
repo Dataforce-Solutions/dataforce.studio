@@ -423,11 +423,13 @@ export interface CellSummary {
  * failure below it that nothing has changed since.
  */
 export interface AutoDeclined {
-  reason: 'blocked' | 'never-timed' | 'too-expensive'
+  reason: 'blocked' | 'never-timed' | 'too-expensive' | 'dangling-experiment'
   /** The closure's estimate, over the timed cells only. */
   estimate_seconds: number
   /** Cells in the closure the flow has never run, by slug. */
   untimed: string[]
+  /** The daemon's explanation when the refusal concerns a named dependency. */
+  detail?: string
 }
 
 /**
@@ -682,6 +684,8 @@ export interface Preflight {
   /** Never run, so no recorded cost — estimated seconds exclude these. */
   unknown: string[]
   estimate_seconds: number
+  /** Why a producer that otherwise looked current must be recomputed. */
+  reasons?: string[]
 }
 
 export interface RunOutcome {

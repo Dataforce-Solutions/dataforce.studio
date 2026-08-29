@@ -243,7 +243,7 @@ class RunQueue:
             )
         hashes = {name: bound.content_hash for name, bound in inputs.items()}
         key = memo.key_for(self._store.index, step.version, hashes)
-        if not force:
+        if not force and not step.must_execute:
             if current(self._store, plan.branch_id, step, key):
                 return "pruned"
             hit = memo.lookup(

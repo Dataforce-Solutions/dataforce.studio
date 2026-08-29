@@ -17,7 +17,11 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from time import monotonic
+from typing import TYPE_CHECKING, Any, Literal
+
+from luml import __version__ as SDK_VERSION
 
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.dsl import loader, portable
@@ -32,7 +36,8 @@ from lumlflow.flow.store.index import (
     TransactionRow,
     VersionRow,
 )
-from lumlflow.flow.store.models import OutputRecord
+from lumlflow.flow.store.models import OutputRecord, TrackerRef
+from lumlflow.tracker import TrackerProvider
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import FlowSession
@@ -45,6 +50,9 @@ _RECENT_TRANSACTIONS = 8
 LISTED_UNSYNCED = 10
 _REPORTED_FAILURES = 3
 _TRACEBACK_LINES = 12
+
+EXPERIMENT_CACHE_MAX_AGE_S = 5.0
+ExperimentStateName = Literal["ok", "missing", "unreachable"]
 
 # `experiment > eval > plot > frame > note > metric > dataset > model > file >
 # checkpoint > pickle`: experiments, evals and plots are what a reader came for;
@@ -69,6 +77,80 @@ _KIND_ORDER = {
         )
     )
 }
+
+
+@dataclass(frozen=True)
+class ExperimentState:
+    state: ExperimentStateName
+    sentence: str = ""
+    record: Any | None = None
+
+
+@dataclass(frozen=True)
+class _CachedExperiment:
+    checked_at: float
+    state: ExperimentState
+
+
+class ExperimentStates:
+    def __init__(
+        self,
+        tracker: TrackerProvider,
+        *,
+        max_age_s: float = EXPERIMENT_CACHE_MAX_AGE_S,
+    ) -> None:
+        self._tracker: TrackerProvider = tracker
+        self.max_age_s: float = max_age_s
+        self._cache: dict[tuple[Path, str], _CachedExperiment] = {}
+
+    def read(self, ref: TrackerRef) -> ExperimentState:
+        store = _tracker_path(ref.store)
+        key = (store, ref.experiment_id)
+        now = monotonic()
+        cached = self._cache.get(key)
+        if cached is not None and now - cached.checked_at < self.max_age_s:
+            return cached.state
+        state = self._read(ref, store)
+        self._cache[key] = _CachedExperiment(now, state)
+        return state
+
+    def invalidate(self, experiment_id: str) -> None:
+        self._cache = {
+            key: cached
+            for key, cached in self._cache.items()
+            if key[1] != experiment_id
+        }
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+    def _read(self, ref: TrackerRef, store: Path) -> ExperimentState:
+        served = self._tracker.store_path.resolve()
+        if store != served:
+            return ExperimentState(
+                "unreachable",
+                f"experiment `{ref.experiment_id}` was recorded in a different "
+                f"tracker store (`{store}`). stop the daemon "
+                "(`lumlflow daemon stop`) and start `lumlflow ui --path "
+                f"{store}` with that store, or run the cell again here.",
+            )
+        try:
+            record = self._tracker.read_experiment(ref.experiment_id)
+        except Exception as failure:
+            sentence = str(failure) or type(failure).__name__
+            return ExperimentState(
+                "unreachable",
+                f"experiment `{ref.experiment_id}` is unreachable in tracker store "
+                f"`{served}`: {sentence}. lumlflow uses luml-sdk {SDK_VERSION}; "
+                "upgrade lumlflow to read a store written by a newer SDK.",
+            )
+        if record is None:
+            return ExperimentState(
+                "missing",
+                f"experiment `{ref.experiment_id}` was removed from tracker store "
+                f"`{served}`.",
+            )
+        return ExperimentState("ok", record=record)
 
 
 @dataclass(frozen=True)
@@ -136,6 +218,50 @@ def read(session: "FlowSession", branch: str) -> Slice:
         eager=frozenset(session.store.manifest.settings.eager),
         reactivity=lambda: session.planner.auto_verdicts(branch),
     )
+
+
+def experiment_state(session: "FlowSession", ref: TrackerRef) -> ExperimentState:
+    state = session.experiment_states.read(ref)
+    if state.state != "unreachable":
+        return state
+    warning = _sdk_version_warning(session, ref)
+    if warning is None or warning in state.sentence:
+        return state
+    return ExperimentState(
+        state.state,
+        f"{state.sentence} The recorded run reported: {warning}.",
+        state.record,
+    )
+
+
+def experiment_locations(
+    session: "FlowSession", experiment_id: str
+) -> list[tuple[str, str]]:
+    """The selected cells whose cards a tracker deletion changes."""
+    locations: set[tuple[str, str]] = set()
+    served = session.tracker.store_path.resolve()
+    index = session.store.index
+    for branch in index.branches():
+        versions = index.slice_versions(branch.branch_id)
+        for uid, mat_id in index.baselines(branch.branch_id).items():
+            version = versions.get(uid)
+            mat = index.materialization(mat_id)
+            if version is None or mat is None:
+                continue
+            output_matches = any(
+                record.tracker_ref is not None
+                and record.tracker_ref.experiment_id == experiment_id
+                and _tracker_path(record.tracker_ref.store) == served
+                for record in mat.outputs.values()
+            )
+            run_matches = (
+                mat.experiment_id == experiment_id
+                and mat.experiment_store is not None
+                and _tracker_path(mat.experiment_store) == served
+            )
+            if output_matches or run_matches:
+                locations.add((branch.name, version.slug))
+    return sorted(locations)
 
 
 def cell(here: Slice, uid: str) -> dict[str, Any]:
@@ -764,11 +890,14 @@ def _declined(here: Slice, uid: str) -> dict[str, Any] | None:
     verdict = here.auto.get(uid)
     if verdict is None or verdict.taken:
         return None
-    return {
+    declined: dict[str, Any] = {
         "reason": verdict.reason,
         "estimate_seconds": verdict.estimate_seconds,
         "untimed": list(verdict.untimed),
     }
+    if verdict.detail is not None:
+        declined["detail"] = verdict.detail
+    return declined
 
 
 def _older_env(here: Slice, mat: MaterializationRow | None) -> bool:
@@ -982,3 +1111,24 @@ def _same(bound: BranchRow | None, record: BranchRow) -> bool:
 
 def _names(names: list[str]) -> str:
     return ", ".join(f"`{name}`" for name in names)
+
+
+def _tracker_path(value: str | Path) -> Path:
+    raw = str(value)
+    if raw.startswith("sqlite://"):
+        raw = raw.removeprefix("sqlite://")
+    return Path(raw).expanduser().resolve()
+
+
+def _sdk_version_warning(session: "FlowSession", ref: TrackerRef) -> str | None:
+    index = session.store.index
+    for branch in index.branches():
+        for mat_id in index.baselines(branch.branch_id).values():
+            mat = index.materialization(mat_id)
+            if mat is None or mat.sdk_version_warning is None:
+                continue
+            if mat.experiment_id == ref.experiment_id or any(
+                output.tracker_ref == ref for output in mat.outputs.values()
+            ):
+                return mat.sdk_version_warning
+    return None

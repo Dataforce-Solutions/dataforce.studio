@@ -56,6 +56,14 @@
             <span class="text-sm font-medium">{{ formatCost(preflight.totalSeconds) }}</span>
           </div>
         </div>
+
+        <p
+          v-for="reason in preflight.reasons"
+          :key="reason"
+          class="text-sm text-muted-color"
+        >
+          {{ reason }}
+        </p>
       </template>
 
       <label class="flex items-center gap-2 text-sm cursor-pointer" :for="forceId">

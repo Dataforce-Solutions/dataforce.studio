@@ -166,6 +166,7 @@ export const evalPreflight: Preflight = {
   recompute: ['features', 'train_model', 'holdout_eval'],
   unknown: [],
   totalSeconds: 341,
+  reasons: [],
 }
 
 export const cheapPreflight: Preflight = {
@@ -173,4 +174,5 @@ export const cheapPreflight: Preflight = {
   recompute: ['roc_curve'],
   unknown: [],
   totalSeconds: 1.2,
+  reasons: [],
 }

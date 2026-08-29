@@ -17,8 +17,9 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
+from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client as daemon_client
-from lumlflow.flow.daemon import web, workspace
+from lumlflow.flow.daemon import queries, web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
@@ -51,6 +52,15 @@ class Diverged:
             "scores": {"loss": float("nan"), "auc": 0.00032},
             "baseline": {"auc": 0.75},
         }
+"""
+
+TRACKED_EXPERIMENT_CELL = """
+class Evaluate:
+    produces = {"metrics": "experiment"}
+
+    def materialize(self, ctx):
+        ctx.tracker.log_metric("rmse", 0.4)
+        return {"metrics": ctx.tracker.record}
 """
 
 
@@ -233,6 +243,66 @@ def test_delete_through_the_experiments_api_fires_the_provider_hook(
     assert response.status_code == 204, response.text
     assert deleted == [experiment_id]
     assert tracker.get_experiment_record(experiment_id) is None
+
+
+def test_deleting_a_flow_experiment_pushes_state_without_moving_the_cursor(
+    served: Served, tracker: TrackerProvider
+) -> None:
+    write_cell(served.root / "churn.flow", "evaluate", TRACKED_EXPERIMENT_CELL)
+    served.rpc("flow.open", {"flow": "churn"})
+    served.rpc("run", {"flow": "churn", "target": "evaluate"})
+    session = served.hub.session("churn")
+    branch_id = session.store.branches.get("main").branch_id
+    versions = session.store.index.slice_versions(branch_id)
+    uid = next(uid for uid, version in versions.items() if version.slug == "evaluate")
+    mat_id = session.store.index.baselines(branch_id)[uid]
+    mat = session.store.index.materialization(mat_id)
+    assert mat is not None
+    ref = mat.outputs["metrics"].tracker_ref
+    assert ref is not None
+    cursor = session.store.next_step - 1
+    journal_before = list(session.store.journal.replay())
+
+    with served.watch() as socket:
+        assert subscribe(socket, flow_address(served), cursor=cursor) == []
+        assert queries.experiment_state(session, ref).state == "ok"
+
+        response = served.http.delete(f"/api/experiments/{ref.experiment_id}")
+        frame = until(socket, lambda candidate: candidate.get("type") == "state")
+
+    assert response.status_code == 204, response.text
+    assert frame == {
+        "channel": "journal",
+        "type": "state",
+        "state": "experiment_removed",
+        "flow": flow_address(served),
+        "lane": "main",
+        "cell": "evaluate",
+        "step": cursor,
+    }
+    assert queries.experiment_state(session, ref).state == "missing"
+    assert list(session.store.journal.replay()) == journal_before
+
+    with served.watch() as reconnected:
+        replayed = subscribe(reconnected, flow_address(served), cursor=cursor)
+    assert all(candidate.get("type") != "state" for candidate in replayed)
+
+    served.rpc("run", {"flow": "churn", "target": "evaluate"})
+    replacement_id = session.store.index.baselines(branch_id)[uid]
+    replacement = session.store.index.materialization(replacement_id)
+    assert replacement is not None
+    replacement_ref = replacement.outputs["metrics"].tracker_ref
+    assert replacement_ref is not None
+    assert queries.experiment_state(session, replacement_ref).state == "ok"
+    external = ExperimentTracker(f"sqlite://{tracker.store_path}")
+    external.delete_experiment(replacement_ref.experiment_id)
+    assert queries.experiment_state(session, replacement_ref).state == "ok"
+
+    reconnect_cursor = session.store.next_step - 1
+    with served.watch() as reconnected:
+        replayed = subscribe(reconnected, flow_address(served), cursor=reconnect_cursor)
+    assert all(candidate.get("type") != "state" for candidate in replayed)
+    assert queries.experiment_state(session, replacement_ref).state == "missing"
 
 
 def test_the_store_the_ui_was_pointed_at_is_the_one_the_tracker_opens(tmp_path: Path):

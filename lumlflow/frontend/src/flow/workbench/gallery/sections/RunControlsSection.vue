@@ -161,6 +161,7 @@ const branchPreflight: Preflight = {
   recompute: ['features', 'train_model', 'holdout_eval', 'roc_curve', 'error_analysis'],
   unknown: ['error_analysis'],
   totalSeconds: 342.2,
+  reasons: [],
 }
 
 const eagerDemo = ref(false)

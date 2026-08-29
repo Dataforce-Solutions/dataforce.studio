@@ -14,13 +14,14 @@ listings. It is not a daemon boundary: sessions are keyed by each flow's
 absolute path and a flow elsewhere opens in the same hub.
 """
 
+import asyncio
 import contextlib
 import shutil
 import traceback
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import docs, envs, workspace
+from lumlflow.flow.daemon import docs, envs, queries, workspace
 from lumlflow.flow.daemon import reconcile as reconciliation
 from lumlflow.flow.daemon.kernel_proc import KernelProcess
 from lumlflow.flow.daemon.projections import Worktree
@@ -31,13 +32,14 @@ from lumlflow.flow.daemon.watcher import Watches, WatchSet
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.accept import Acceptance
 from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
-from lumlflow.flow.scheduler.planner import Planner
+from lumlflow.flow.scheduler.planner import Planner, TrackerState
 from lumlflow.flow.scheduler.queue import RunQueue
 from lumlflow.flow.store.flowstore import (
     FLOW_SUFFIX,
     FlowStore,
     store_dir,
 )
+from lumlflow.flow.store.models import TrackerRef
 from lumlflow.tracker import TrackerProvider
 
 
@@ -55,6 +57,9 @@ class FlowSession:
         self.store = store
         self.workspace_dir = workspace_dir
         self.tracker = tracker
+        self.experiment_states: queries.ExperimentStates = queries.ExperimentStates(
+            tracker
+        )
         # What a file event has to be on for this flow to care: its own cells,
         # and the shared code of the workspace it runs under. Monitoring belongs
         # to the flow — an event outside this set is not this session's news.
@@ -71,7 +76,7 @@ class FlowSession:
             fail_experiment=tracker.fail_experiment,
             on_event=self._observed if streams is not None else None,
         )
-        self.planner = Planner(store)
+        self.planner = Planner(store, tracker_state=self._tracker_state)
         self.queue = RunQueue(
             store,
             self.kernel,
@@ -87,6 +92,10 @@ class FlowSession:
         # a daemon that just started knows nothing and reads everything.
         self.accepted_files: dict[str, AcceptedFile] = {}
         self.worktree = Worktree(store)
+
+    def _tracker_state(self, ref: TrackerRef) -> tuple[TrackerState, str]:
+        state = queries.experiment_state(self, ref)
+        return state.state, state.sentence
 
     @property
     def branch(self) -> str:
@@ -143,6 +152,11 @@ class Hub:
         self._streams = streams
         self._sessions: dict[Path, FlowSession] = {}
         self._known: dict[Path, FlowRef] = {}
+        self._loop: asyncio.AbstractEventLoop | None = _running_loop()
+        self._closed: bool = False
+        self._unsubscribe_tracker = tracker.on_experiment_deleted(
+            self._experiment_deleted
+        )
         # The trees the open sessions need watched, refcounted so several flows
         # in one workspace share its watch. Moved here whether or not a watcher
         # is listening: the hub is what knows when a session begins and ends.
@@ -203,6 +217,7 @@ class Hub:
         happened to the files while no daemon was watching lands now, as the
         one coarse offline transaction it honestly is.
         """
+        self._remember_loop()
         session = self._sessions.get(ref.path)
         if session is not None:
             return session
@@ -342,6 +357,7 @@ class Hub:
         return session
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
+        self._remember_loop()
         session = FlowSession(
             ref,
             store,
@@ -371,6 +387,8 @@ class Hub:
         self.document(ref.path.parent)
 
     async def close(self) -> None:
+        self._closed = True
+        self._unsubscribe_tracker()
         for session in list(self._sessions.values()):
             self.watches.release(session.watch.root)
             try:
@@ -380,6 +398,36 @@ class Hub:
                 # rest of the workspace open.
                 traceback.print_exc()
         self._sessions.clear()
+
+    def _remember_loop(self) -> None:
+        loop = _running_loop()
+        if loop is not None:
+            self._loop = loop
+
+    def _experiment_deleted(self, experiment_id: str) -> None:
+        if self._closed:
+            return
+        loop = self._loop
+        if loop is not None and _running_loop() is loop:
+            self._apply_experiment_deleted(experiment_id)
+            return
+        if loop is not None and loop.is_running() and not loop.is_closed():
+            loop.call_soon_threadsafe(self._apply_experiment_deleted, experiment_id)
+            return
+        self._apply_experiment_deleted(experiment_id)
+
+    def _apply_experiment_deleted(self, experiment_id: str) -> None:
+        if self._closed:
+            return
+        for session in tuple(self._sessions.values()):
+            session.experiment_states.invalidate(experiment_id)
+            for lane, cell in queries.experiment_locations(session, experiment_id):
+                self.push_state(
+                    session,
+                    "experiment_removed",
+                    lane=lane,
+                    cell=cell,
+                )
 
 
 def _new_flow_ref(root: Path, name: str) -> FlowRef:
@@ -396,3 +444,10 @@ def _is_flow(path: Path) -> bool:
     return path.is_dir() and (
         store_dir(path).is_dir() or path.name.endswith(FLOW_SUFFIX)
     )
+
+
+def _running_loop() -> asyncio.AbstractEventLoop | None:
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None

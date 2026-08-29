@@ -214,6 +214,7 @@ def _subscribed(
         run_id = str(message.get("run_id") or "")
         subscription.runs.add((flow, run_id))
         return streams.tail(flow, run_id)
+    session.experiment_states.clear()
     subscription.journals.add(flow)
     caught_up: Frame = {
         "channel": "journal",

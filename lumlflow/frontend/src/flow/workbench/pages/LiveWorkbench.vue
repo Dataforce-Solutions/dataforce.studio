@@ -544,6 +544,7 @@ async function onBranchPreflight(): Promise<void> {
       recompute: answer.recompute,
       unknown: answer.unknown,
       totalSeconds: answer.estimate_seconds,
+      reasons: answer.reasons ?? [],
     }
   } catch (failure) {
     refused(failure)

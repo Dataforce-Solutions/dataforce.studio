@@ -302,6 +302,12 @@ const autoLine = computed(() => {
   if (declined.reason === 'never-timed') {
     return 'never run here, so its cost is unknown. run it once and it keeps itself fresh.'
   }
+  if (declined.reason === 'dangling-experiment') {
+    return (
+      declined.detail ??
+      'an experiment above it is no longer available. run it by hand to record it again.'
+    )
+  }
   return `too expensive to refresh on its own (~${formatCost(declined.estimateSeconds)}). run it when you want it.`
 })
 

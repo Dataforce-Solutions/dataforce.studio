@@ -436,6 +436,34 @@ describe('a run states its closure before the click', () => {
     wrapper.unmount()
   })
 
+  it('explains why a current producer has to run again', async () => {
+    const { wrapper } = await card({
+      handlers: {
+        preflight: (params) => ({
+          branch: String(params.branch),
+          target: String(params.target),
+          cached: [],
+          recompute: ['evaluate', 'features'],
+          unknown: [],
+          estimate_seconds: 20,
+          reasons: [
+            '`evaluate` must run because its removed experiment `exp-1` is needed.',
+          ],
+        }),
+      },
+    })
+
+    const run = wrapper
+      .findAll('button')
+      .find((node) => node.attributes('aria-label') === 'run')
+    await run!.trigger('click')
+    await settle()
+
+    expect(overlays()).toContain('evaluate')
+    expect(overlays()).toContain('removed experiment `exp-1`')
+    wrapper.unmount()
+  })
+
   it('turns memo hits back on for every run that did not ask to ignore them', async () => {
     const { wrapper, live } = await workbench()
 

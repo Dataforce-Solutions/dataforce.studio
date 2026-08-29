@@ -228,6 +228,7 @@ async function onPreflight(): Promise<void> {
       recompute: answer.recompute,
       unknown: answer.unknown,
       totalSeconds: answer.estimate_seconds,
+      reasons: answer.reasons ?? [],
     }
   } catch (refused) {
     notice.value = said(refused)

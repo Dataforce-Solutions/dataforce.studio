@@ -419,6 +419,7 @@ function declined(summary: CellSummary): AutoDeclinedInfo | undefined {
     reason: summary.auto_declined.reason,
     estimateSeconds: summary.auto_declined.estimate_seconds,
     untimed: summary.auto_declined.untimed,
+    detail: summary.auto_declined.detail,
   }
 }
 

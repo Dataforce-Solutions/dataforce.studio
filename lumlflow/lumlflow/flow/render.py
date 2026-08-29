@@ -255,6 +255,7 @@ def preflight(payload: dict[str, Any]) -> list[str]:
         lines.append(f"  reuses     {_names(payload['cached'])}")
     if payload["unknown"]:
         lines.append(f"  never timed {_names(payload['unknown'])}")
+    lines.extend(f"  {reason}" for reason in payload.get("reasons") or [])
     if not payload["recompute"]:
         lines.append("  nothing to do. everything it needs is current")
     elif payload["estimate_seconds"]:

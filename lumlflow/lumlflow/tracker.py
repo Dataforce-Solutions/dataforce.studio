@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -11,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 ExperimentDeleted = Callable[[str], None]
 StorePath = Callable[[], str | Path]
+
+# Each attempt already includes sqlite3's default five-second busy wait.
+TRACKER_READ_RETRIES = 1
 
 
 def _wrap_public_methods_with_lock(cls: type) -> type:
@@ -100,5 +104,35 @@ class TrackerProvider:
             except Exception:
                 logger.exception("experiment-deleted listener failed")
 
+    def read_experiment(self, experiment_id: str) -> Any | None:
+        for attempt in range(TRACKER_READ_RETRIES + 1):
+            try:
+                return self.tracker.get_experiment_record(experiment_id)
+            except Exception as failure:
+                if _is_sqlite_locked(failure) and attempt < TRACKER_READ_RETRIES:
+                    continue
+                raise
+        raise AssertionError("tracker retry loop did not return")
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self.tracker, name)
+
+
+def _is_sqlite_locked(failure: BaseException) -> bool:
+    pending = [failure]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, sqlite3.OperationalError)
+            and "locked" in str(current).casefold()
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
