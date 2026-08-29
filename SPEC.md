@@ -1197,9 +1197,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Fix the token mirror, agent-ended banner and reconnect
   - [x] Token excluded from mirrored query keys; agent-ended banner counting only `agent_end` transactions newer than the cell's last change; toast guard re-armed on reconnect; `open` marks reachable
   - [x] Specs in `flow-live-session.spec.ts`, `flow-live-workbench.spec.ts`, the banner count among them
-- [ ] Keep drafts across runs and select cards without scrolling
-  - [ ] Editor survives the running tab switch; "save to a new lane" via the dialog with the draft kept; controls on unselected cards select without scrolling or panning, the URL mirror rewriting only on a real selection change and a press on the selected card reporting nothing
-  - [ ] Specs in `flow-live-workbench.spec.ts` and the canvas/notebook specs, the press-without-scroll and the unchanged URL among them
+- [x] Keep drafts across runs and select cards without scrolling
+  - [x] Editor survives the running tab switch; "save to a new lane" via the dialog with the draft kept; controls on unselected cards select without scrolling or panning, the URL mirror rewriting only on a real selection change and a press on the selected card reporting nothing
+  - [x] Specs in `flow-live-workbench.spec.ts` and the canvas/notebook specs, the press-without-scroll and the unchanged URL among them
 - [ ] Bound kernel pages and previews
   - [ ] Page rows through an unclipped cell normaliser; a serialisation failure after the page handler returned becomes an error reply, never a timeout (`rpc.py`); page column bound and `total_columns`; per-block `_shrink` strategies
   - [ ] Frame flavor recorded in the Arrow schema metadata and honoured on deserialize

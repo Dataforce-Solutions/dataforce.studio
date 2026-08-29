@@ -35,6 +35,8 @@ import { Button, Dialog, InputText } from 'primevue'
 const props = defineProps<{
   /** The branch this forks off — the viewed one. */
   from: string
+  /** A gesture-specific suggestion, such as the cell name for a forked edit. */
+  initialName?: string
   /** The daemon's refusal, when it named one (a name already taken). */
   refusal?: string | null
   busy?: boolean
@@ -49,7 +51,7 @@ const nameInput = useTemplateRef<{ $el: HTMLElement }>('nameInput')
 
 watch(visible, async (open) => {
   if (!open) return
-  name.value = ''
+  name.value = props.initialName ?? ''
   await nextTick()
   nameInput.value?.$el.focus()
 })

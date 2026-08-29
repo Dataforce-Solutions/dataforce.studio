@@ -179,6 +179,8 @@ describe('an edit carries the version it started from', () => {
     expect(edit.slug).toBe('features')
     expect(edit.base).toBe('def-hash')
     expect(edit.source).toContain('lr = 0.1')
+    expect(labels(wrapper)).toContain('edit')
+    expect(labels(wrapper)).not.toContain('save')
     // The base is a hash: it rides with the request and appears nowhere a
     // reader can see it.
     expect(wrapper.text()).not.toContain('def-hash')
@@ -282,7 +284,7 @@ describe('an edit carries the version it started from', () => {
     wrapper.unmount()
   })
 
-  it('hands the draft up when the reader forks instead of overwriting', async () => {
+  it('opens the named-lane dialog when the reader forks instead of overwriting', async () => {
     const { wrapper, live } = await card({
       handlers: {
         'cells.edit': () => {
@@ -298,11 +300,9 @@ describe('an edit carries the version it started from', () => {
     await clickText(wrapper, 'save')
     await clickText(wrapper, 'save to a new lane')
 
-    // Forking needs a branch, which is the page's business; the card passes the
-    // draft up rather than half-doing it.
-    const forked = wrapper.emitted('fork-edit')
-    expect(forked).toHaveLength(1)
-    expect((forked![0][0] as { source: string }).source).toContain('lr = 0.1')
+    const name = document.body.querySelector<HTMLInputElement>('input[aria-label="lane name"]')
+    expect(name?.value).toBe('features-edit')
+    expect((await editorIn(wrapper)).view.state.doc.toString()).toContain('lr = 0.1')
     expect(asked(live, 'cells.edit')).toHaveLength(1)
     wrapper.unmount()
   })

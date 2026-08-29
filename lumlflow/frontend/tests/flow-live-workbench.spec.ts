@@ -11,7 +11,7 @@
  * views and URL — as the pure store read it is, with nothing checked out.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
@@ -19,8 +19,9 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { Toast } from 'primevue'
 import ToastService from 'primevue/toastservice'
 
-import type { EnvReport } from '@/flow/api/client'
+import { FlowApiError, type EnvReport } from '@/flow/api/client'
 import type { BranchRecord, CellSummary } from '@/flow/api/types'
+import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
 import AgentTaskLine from '@/flow/workbench/components/panel/AgentTaskLine.vue'
 import {
@@ -36,6 +37,7 @@ import {
   transaction,
 } from './fakes'
 import type { Attached, Handlers } from './fakes'
+import { editorIn } from './editor'
 
 // A churn flow, as the daemon reports it. `features` is not current in its own
 // right; `train_model` is current and sits under it; `holdout_eval` has never
@@ -254,6 +256,29 @@ function drawn(wrapper: VueWrapper): string[] {
   return wrapper.findAll('article h3').map((heading) => heading.text())
 }
 
+function liveCard(wrapper: VueWrapper, slug: string): VueWrapper {
+  const card = wrapper
+    .findAllComponents(LiveCellCard)
+    .find((candidate) => candidate.props('summary').slug === slug)
+  expect(card, `no live card for "${slug}"`).toBeTruthy()
+  return card!
+}
+
+async function startDraft(wrapper: VueWrapper, slug: string, source: string): Promise<void> {
+  const card = liveCard(wrapper, slug)
+  await card
+    .findAll('[role="tab"]')
+    .find((tab) => tab.text() === 'code')
+    ?.trigger('click')
+  await settle()
+  await clickText(card, 'button', 'edit')
+  const editor = await editorIn(card)
+  editor.view.dispatch({
+    changes: { from: 0, to: editor.view.state.doc.length, insert: source },
+  })
+  await settle()
+}
+
 /**
  * One inventory lens of the left panel, addressed by the label on its
  * disclosure. Every lens but `cells` starts collapsed and its rows are not
@@ -407,6 +432,170 @@ describe('canvas and notebook are two densities over one slice', () => {
       'holdout_eval',
       'alpha_scan',
     ])
+    wrapper.unmount()
+  })
+
+  for (const view of ['canvas', 'notebook'] as const) {
+    it(`${view} selects a card control once without reporting focus or rewriting its URL twice`, async () => {
+      const at =
+        view === 'notebook'
+          ? `/flow/${FLOW}?view=notebook&asset=features`
+          : `/flow/${FLOW}?asset=features`
+      const { wrapper, live } = await workbench({ at })
+      const replaceState = vi.spyOn(window.history, 'replaceState')
+      replaceState.mockClear()
+      const calls = live.daemon.calls.length
+      const card = liveCard(wrapper, 'train_model')
+      const more = card.find('button[aria-label="more"]')
+
+      await more.trigger('pointerdown')
+      await more.trigger('click')
+      await settle()
+
+      expect(window.location.search).toContain('asset=train_model')
+      expect(replaceState).toHaveBeenCalledTimes(1)
+      expect(live.daemon.calls).toHaveLength(calls)
+      expect(document.body.querySelector('[role="menu"]')).toBeTruthy()
+
+      await more.trigger('pointerdown')
+      await more.trigger('click')
+      await settle()
+
+      expect(replaceState).toHaveBeenCalledTimes(1)
+      expect(live.daemon.calls).toHaveLength(calls)
+      replaceState.mockRestore()
+      wrapper.unmount()
+    })
+  }
+})
+
+describe('drafts survive run and fork transitions', () => {
+  const draft = 'class Features:\n    """Engineer the features."""\n    threshold = 0.7\n'
+
+  it('keeps the source editor and its draft open when the cell starts running', async () => {
+    const { wrapper, live } = await workbench({ at: `/flow/${FLOW}?view=notebook` })
+    await startDraft(wrapper, 'features', draft)
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'kernel',
+      flow: FLOW,
+      event: 'started',
+      step: 15,
+      run_id: 'run-features',
+      slug: 'features',
+    })
+    await settle()
+
+    const card = liveCard(wrapper, 'features')
+    expect(card.find('[role="tab"][aria-selected="true"]').text()).toContain('code')
+    expect((await editorIn(card)).view.state.doc.toString()).toBe(draft)
+    wrapper.unmount()
+  })
+
+  it('prefills the fork dialog, accepts another name, and lands the draft there', async () => {
+    let firstEdit = true
+    const { wrapper, live } = await workbench({
+      at: `/flow/${FLOW}?view=notebook`,
+      handlers: {
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: MAIN,
+        }),
+        'cells.edit': (params) => {
+          if (firstEdit) {
+            firstEdit = false
+            throw new FlowApiError('`features` moved', { kind: 'EditConflict', status: 409 })
+          }
+          return {
+            slug: 'features',
+            branch: String(params.branch),
+            definition_hash: 'forked-hash',
+            written_to_files: true,
+            flags: [],
+          }
+        },
+        fork: (params) => {
+          if (params.name === 'features-edit') {
+            throw new FlowApiError('a lane named features-edit already exists', {
+              kind: 'BranchAlreadyExists',
+              status: 400,
+            })
+          }
+          return {
+            branch: String(params.name),
+            from_branch: String(params.from_branch),
+            forked_at_step: 14,
+            cells: MAIN.length,
+          }
+        },
+      },
+    })
+    await startDraft(wrapper, 'features', draft)
+    await clickText(liveCard(wrapper, 'features'), 'button', 'save')
+    await clickText(liveCard(wrapper, 'features'), 'button', 'save to a new lane')
+
+    const name = document.body.querySelector<HTMLInputElement>('input[aria-label="lane name"]')
+    expect(name?.value).toBe('features-edit')
+    await clickInOverlay('create lane')
+    expect(document.body.textContent).toContain('already exists')
+
+    name!.value = 'features-review'
+    name!.dispatchEvent(new Event('input', { bubbles: true }))
+    await settle()
+    await clickInOverlay('create lane')
+
+    expect(asked(live, 'fork').map((params) => params.name)).toEqual([
+      'features-edit',
+      'features-review',
+    ])
+    expect(asked(live, 'cells.edit').at(-1)).toMatchObject({
+      branch: 'features-review',
+      slug: 'features',
+      source: draft,
+    })
+    expect(window.location.search).toContain('branch=features-review')
+    wrapper.unmount()
+  })
+
+  it('shows the new lane and keeps the draft when its edit is refused', async () => {
+    let editAttempt = 0
+    const { wrapper } = await workbench({
+      at: `/flow/${FLOW}?view=notebook`,
+      handlers: {
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: MAIN,
+        }),
+        'cells.edit': () => {
+          editAttempt += 1
+          if (editAttempt === 1) {
+            throw new FlowApiError('`features` moved', { kind: 'EditConflict', status: 409 })
+          }
+          throw new FlowApiError('the forked edit was refused', {
+            kind: 'FlowError',
+            status: 400,
+          })
+        },
+        fork: (params) => ({
+          branch: String(params.name),
+          from_branch: String(params.from_branch),
+          forked_at_step: 14,
+          cells: MAIN.length,
+        }),
+      },
+    })
+    await startDraft(wrapper, 'features', draft)
+    await clickText(liveCard(wrapper, 'features'), 'button', 'save')
+    await clickText(liveCard(wrapper, 'features'), 'button', 'save to a new lane')
+    await clickInOverlay('create lane')
+
+    expect(window.location.search).toContain('branch=features-edit')
+    const card = liveCard(wrapper, 'features')
+    expect(card.text()).toContain('the forked edit was refused')
+    expect((await editorIn(card)).view.state.doc.toString()).toBe(draft)
     wrapper.unmount()
   })
 })

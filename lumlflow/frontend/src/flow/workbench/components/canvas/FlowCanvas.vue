@@ -12,7 +12,7 @@
     @pane-ready="onPaneReady"
   >
     <template #node-cell="{ data }">
-      <CellFlowNode :tinted="data.tinted">
+      <CellFlowNode :tinted="data.tinted" @press="selectFromCard(data.cell.slug)">
         <!--
           The card is the caller's: the fixture path takes the fallback below,
           a live session hands in one bound to the daemon. Either way it is the
@@ -126,6 +126,7 @@ const edges = computed<Edge[]>(() => {
 // --- focus the selected node -----------------------------------------------
 
 const instance = shallowRef<VueFlowStore | null>(null)
+let pressedSlug: string | null = null
 
 function focusSelected(animate: boolean): void {
   const slug = props.selectedSlug
@@ -143,11 +144,21 @@ function onPaneReady(store: VueFlowStore): void {
 
 watch(
   () => props.selectedSlug,
-  () => focusSelected(true),
+  (slug) => {
+    const keepStill = slug !== null && slug === pressedSlug
+    pressedSlug = null
+    if (!keepStill) focusSelected(true)
+  },
 )
 
 function onNodeClick(event: { node: { id: string } }): void {
-  emit('select', event.node.id)
+  selectFromCard(event.node.id)
+}
+
+function selectFromCard(slug: string): void {
+  if (slug === props.selectedSlug || slug === pressedSlug) return
+  pressedSlug = slug
+  emit('select', slug)
 }
 </script>
 

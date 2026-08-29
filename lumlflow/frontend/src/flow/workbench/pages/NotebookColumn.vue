@@ -7,7 +7,8 @@
         :ref="(el) => registerCard(cell.slug, el)"
         class="rounded-lg"
         :class="tintedSlugs.has(cell.slug) ? 'ring-1 ring-(--p-message-warn-color)' : ''"
-        @click="emit('select', cell.slug)"
+        @pointerdown.capture="selectFromCard(cell.slug)"
+        @click="selectFromCard(cell.slug)"
       >
         <!-- Same slot contract as the canvas: the two views cannot show
              different cards for the same cell. -->
@@ -73,6 +74,7 @@ const emit = defineEmits<{
 const ordered = computed(() => topologicalOrder(props.cells))
 
 const cards = new Map<string, HTMLElement>()
+let pressedSlug: string | null = null
 
 function registerCard(slug: string, el: Element | ComponentPublicInstance | null): void {
   if (el instanceof HTMLElement) cards.set(slug, el)
@@ -85,10 +87,20 @@ function scrollToSelected(smooth: boolean): void {
   el?.scrollIntoView?.({ behavior: smooth ? 'smooth' : 'auto', block: 'center' })
 }
 
+function selectFromCard(slug: string): void {
+  if (slug === props.selectedSlug || slug === pressedSlug) return
+  pressedSlug = slug
+  emit('select', slug)
+}
+
 onMounted(() => scrollToSelected(false))
 
 watch(
   () => props.selectedSlug,
-  () => scrollToSelected(true),
+  (slug) => {
+    const keepStill = slug !== null && slug === pressedSlug
+    pressedSlug = null
+    if (!keepStill) scrollToSelected(true)
+  },
 )
 </script>

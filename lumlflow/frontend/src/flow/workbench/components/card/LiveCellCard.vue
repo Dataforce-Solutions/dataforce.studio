@@ -1,6 +1,8 @@
 <template>
   <div class="min-w-0">
     <CellCard
+      v-model:editing="editing"
+      v-model:draft="editorDraft"
       :cell="shown"
       :density="density"
       :selected="selected"
@@ -53,11 +55,20 @@
       @page="onPage"
       @download="onDownload"
     />
+
+    <NewBranchDialog
+      v-model:visible="forking"
+      :from="branch"
+      :initial-name="`${slug}-edit`"
+      :refusal="forkRefusal"
+      :busy="forkBusy"
+      @create="onForkEdit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { Button, Dialog } from 'primevue'
 
 import { FlowApiError } from '@/flow/api/client'
@@ -68,6 +79,7 @@ import type { PageMove } from '../../live/useCell'
 import type { FlowSessionHandle } from '../../live/useFlowSession'
 import { useFlowOps } from '../../live/useFlowOps'
 import type { FlowCell, Preflight } from '../../model/types'
+import NewBranchDialog from '../branch/NewBranchDialog.vue'
 import KernelStartHint from '../session/KernelStartHint.vue'
 import CellCard from './CellCard.vue'
 import ExpandDrawer from './ExpandDrawer.vue'
@@ -81,7 +93,8 @@ import ExpandDrawer from './ExpandDrawer.vue'
  * tab is on screen, which decides what gets fetched; the expand drawer, because
  * expand is the gesture that may start a kernel; and the ops whose whole
  * context is this cell — its edit, its closure, deletion, and copied context.
- * Renaming and forking an edit still pass up because they need page state.
+ * Renaming still passes up for page state; a forked edit owns its naming dialog
+ * here and reports only the lane the page should view.
  */
 const props = defineProps<{
   session: FlowSessionHandle
@@ -102,8 +115,7 @@ const emit = defineEmits<{
   rename: []
   duplicate: []
   'add-downstream': []
-  /** The edit stands and the head moved: forking it needs a branch, not a card. */
-  'fork-edit': [payload: { source: string }]
+  'view-branch': [name: string]
   edit: [payload: { source: string }]
 }>()
 
@@ -128,6 +140,12 @@ const closure = ref<Preflight | null>(null)
 let plans = 0
 const conflict = ref(false)
 const draft = ref<string | null>(null)
+const editing = ref(false)
+const editorDraft = ref('')
+const forking = ref(false)
+const forkBusy = ref(false)
+const forkRefusal = ref<string | null>(null)
+const carryingDraftTo = ref<string | null>(null)
 /**
  * The version the open editor started from. Pinned when the editor opens, not
  * read at save: `live.base` follows the head, so an agent's edit landing while
@@ -226,15 +244,53 @@ async function onResolveConflict(choice: 'overwrite' | 'fork'): Promise<void> {
   const source = draft.value
   if (source === null) return
   if (choice === 'fork') {
-    // Forking needs a branch to fork, which is the page's business; the draft
-    // travels with the gesture so nothing has to be retyped. It also *stays*
-    // here until the fork lands — a fork the daemon refuses would otherwise
-    // take the only copy of what the reader typed with it, and the menu it was
-    // typed under is the one place left offering to overwrite instead.
-    emit('fork-edit', { source })
+    forkRefusal.value = null
+    forking.value = true
     return
   }
   await land(source, { force: true })
+}
+
+async function onForkEdit(name: string): Promise<void> {
+  if (forkBusy.value) return
+  const source = draft.value ?? editorDraft.value
+  forkBusy.value = true
+  forkRefusal.value = null
+  let branch: string
+  try {
+    branch = (await ops.fork(name, props.branch)).branch
+  } catch (refused) {
+    forkRefusal.value = said(refused)
+    forkBusy.value = false
+    return
+  }
+
+  forking.value = false
+  carryingDraftTo.value = branch
+  conflict.value = false
+  editingBase.value = null
+  emit('view-branch', branch)
+  await nextTick()
+
+  try {
+    const detail = await props.session.request('cells.show', {
+      flow: props.session.path.value,
+      branch,
+      slug: slug.value,
+    })
+    await ops.edit(slug.value, source, { branch, base: detail.definition_hash })
+    draft.value = null
+    editorDraft.value = ''
+    editing.value = false
+    notice.value = `saved on ${branch}`
+  } catch (refused) {
+    draft.value = source
+    editorDraft.value = source
+    editing.value = true
+    notice.value = said(refused)
+  } finally {
+    forkBusy.value = false
+  }
 }
 
 async function land(source: string, options: { force?: boolean }): Promise<void> {
@@ -255,6 +311,8 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
     })
     conflict.value = false
     draft.value = null
+    editorDraft.value = ''
+    editing.value = false
     editingBase.value = null
     notice.value = null
   } catch (refused) {
@@ -326,6 +384,12 @@ watch(
     conflict.value = false
     draft.value = null
     editingBase.value = null
+    if (props.branch === carryingDraftTo.value) {
+      carryingDraftTo.value = null
+      return
+    }
+    editorDraft.value = ''
+    editing.value = false
   },
 )
 </script>

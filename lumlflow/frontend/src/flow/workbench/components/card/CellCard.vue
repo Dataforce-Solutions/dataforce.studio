@@ -125,6 +125,8 @@
         </template>
         <CodeView
           v-else-if="activeTab === 'code'"
+          v-model:editing="editing"
+          v-model:draft="editorDraft"
           :cell="cell"
           :density="density"
           :disabled="!detailLoaded"
@@ -241,6 +243,9 @@ const emit = defineEmits<{
   'edit-start': []
 }>()
 
+const editing = defineModel<boolean>('editing', { default: false })
+const editorDraft = defineModel<string>('draft', { default: '' })
+
 const titleSize = computed(() => (props.density === 'canvas' ? 'text-lg' : 'text-base'))
 
 /** The unnamed title is a button that has to sit where the `h3` sat. */
@@ -349,12 +354,15 @@ function defaultTab(): string {
 
 const selectedTab = ref(defaultTab())
 
-// The live console takes focus the moment a run starts; a vanished tab
-// (console after completion, a renamed output) falls back to the default.
+// The live console takes focus when a run starts unless the source editor holds
+// a draft; a vanished tab (console after completion, a renamed output) falls
+// back to the default.
 watch(
   () => [props.cell.slug, props.cell.status, props.density] as const,
   ([, status], [, previousStatus]) => {
-    if (status === 'running' && previousStatus !== 'running') selectedTab.value = 'console'
+    if (status === 'running' && previousStatus !== 'running' && !editing.value) {
+      selectedTab.value = 'console'
+    }
   },
 )
 

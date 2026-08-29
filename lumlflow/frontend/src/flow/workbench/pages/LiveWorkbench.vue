@@ -302,6 +302,7 @@ const staleCounts = computed<StaleCounts | undefined>(() => {
 // --- selection and cross-navigation -----------------------------------------
 
 function onSelect(slug: string): void {
+  if (selection.selectedSlug.value === slug) return
   selection.selectedSlug.value = slug
 }
 
@@ -351,7 +352,7 @@ function cardEvents(slug: string) {
     rename: () => onRename(slug),
     duplicate: () => void onDuplicate(slug),
     'add-downstream': () => void onAddCell(slug),
-    'fork-edit': (payload: { source: string }) => void onForkEdit(slug, payload.source),
+    'view-branch': onViewBranch,
   }
 }
 
@@ -494,28 +495,6 @@ async function onRenameConfirm(): Promise<void> {
         ? `${renamed.rewired.join(', ')} rewired. nothing recomputes.`
         : 'nothing recomputes. references hold the identity, not the name.',
     )
-  } catch (failure) {
-    refused(failure)
-  }
-}
-
-/**
- * Fork-my-edit: the head moved under the edit, so the edit gets a branch of its
- * own rather than overwriting someone else's version. The new branch is viewed
- * straight away — the edit is on it and nowhere else.
- */
-async function onForkEdit(slug: string, source: string): Promise<void> {
-  const name = `${slug}-edit`
-  try {
-    await ops.fork(name, viewedBranch.value)
-    const detail = await session.request('cells.show', {
-      flow: session.path.value,
-      branch: name,
-      slug,
-    })
-    await ops.edit(slug, source, { branch: name, base: detail.definition_hash })
-    selection.viewedBranch.value = name
-    acknowledge(`Started ${name}`, `your edit to ${slug} landed there. it overwrote nothing.`)
   } catch (failure) {
     refused(failure)
   }

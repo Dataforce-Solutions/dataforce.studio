@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { Button } from 'primevue'
 import { Pencil } from 'lucide-vue-next'
 import type { FlowCell, ParamValue } from '../../model/types'
@@ -77,6 +77,9 @@ const emit = defineEmits<{
   'edit-start': []
 }>()
 
+const editing = defineModel<boolean>('editing', { default: false })
+const draftSource = defineModel<string>('draft', { default: '' })
+
 const sourceClass = computed(() => [
   CODE_SURFACE_CLASS,
   props.density === 'canvas' ? 'max-h-72' : 'max-h-96',
@@ -95,9 +98,6 @@ function displayOf(value: ParamValue): string {
 
 // --- source ---------------------------------------------------------------
 
-const editing = ref(false)
-const draftSource = ref('')
-
 function startEdit(): void {
   if (props.disabled) return
   draftSource.value = props.cell.source
@@ -107,7 +107,6 @@ function startEdit(): void {
 
 function saveEdit(): void {
   emit('edit', { source: draftSource.value })
-  editing.value = false
 }
 
 function cancelEdit(): void {
