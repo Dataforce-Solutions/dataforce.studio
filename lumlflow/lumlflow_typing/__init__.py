@@ -13,13 +13,28 @@ data, and a read-only member is what lets a cell's plain `{"model": "asset"}`
 satisfy it without anyone annotating a literal type.
 """
 
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
 
-__all__ = ["AssetType", "CellProtocol", "Ctx"]
+__all__ = ["AssetType", "CellProtocol", "Ctx", "Tracker"]
 
 AssetType = Literal["model", "dataset", "experiment", "asset"]
+
+
+class Tracker(Protocol):
+    def log_param(self, name: str, value: Any) -> None: ...
+
+    def log_params(self, values: Mapping[str, Any]) -> None: ...
+
+    def log_metric(self, name: str, value: float, step: int | None = None) -> None: ...
+
+    def log_metrics(
+        self, values: Mapping[str, float], step: int | None = None
+    ) -> None: ...
+
+    @property
+    def record(self) -> Mapping[str, Any]: ...
 
 
 class Ctx(Protocol):
@@ -30,12 +45,13 @@ class Ctx(Protocol):
     step: int
     workspace_dir: Path
     flow_dir: Path
+    tracker: Tracker
 
     def seed(self) -> None:
         """Apply `params["seed"]` to the random sources this process holds."""
         ...
 
-    def tempdir(self) -> Iterator[Path]:
+    def tempdir(self) -> Path:
         """A scratch directory that lives as long as the run does."""
         ...
 

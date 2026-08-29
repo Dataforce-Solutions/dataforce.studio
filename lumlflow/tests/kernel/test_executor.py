@@ -178,7 +178,7 @@ def test_outputs_that_do_not_match_the_declaration_fail_in_words(tmp_path):
         def materialize(self, ctx):
             return {"model": "m"}
         """,
-        produces={"model": "model", "run": "experiment"},
+        produces={"model": "model", "run": "asset"},
     )
     extra = run(
         kernel,
@@ -222,6 +222,7 @@ def test_a_native_output_is_staged_exactly_like_an_inline_one(tmp_path):
     """`model`, `dataset` and `experiment` say what leaves the flow, not how it
     is kept: the bytes land in the local CAS either way, so a fork, a cold
     rerun and an offline consumer all read them without a network."""
+    pytest.importorskip("luml.experiments.tracker")
     kernel, _ = make_kernel(tmp_path)
 
     record = run(

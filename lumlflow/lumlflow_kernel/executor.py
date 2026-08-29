@@ -36,6 +36,7 @@ from lumlflow_kernel.cas import Cas, canonical_json, hash_bytes
 from lumlflow_kernel.ctxobj import EXTERNAL, IDENTITY, Ctx
 from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
+from lumlflow_kernel.tracker import Tracker, open_sdk_tracker, tracker_store
 
 SCRATCH_DIRNAME = "scratch"
 NON_INTERACTIVE_HINT = "cells are non-interactive — take values via `params`"
@@ -99,6 +100,7 @@ class Executor:
         self._logs = Cas(store / "logs")
         self._scratch_root = store / "kernel" / SCRATCH_DIRNAME
         self._cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
+        self._tracker_client: tuple[Path, Any] | None = None
         self._lock = threading.Lock()
         self._active: _Active | None = None
 
@@ -119,6 +121,9 @@ class Executor:
         state = "succeeded"
         outputs: dict[str, dict[str, Any]] = {}
         error: dict[str, Any] | None = None
+        tracker: Tracker | None = None
+        tracker_close_error: str | None = None
+        identity = self._experiment_identity(request, version, ctx_info, run_id)
         with self._claim(run_id) as cell_returned:
             self._emit("started", {"run_id": run_id, "slug": version.slug})
             try:
@@ -127,10 +132,38 @@ class Executor:
                     try:
                         with capture:
                             os.chdir(self._workspace_dir)
+                            if _uses_experiment(version, declared):
+                                store = tracker_store()
+                                client = self._experiment_tracker(store)
+                                if _declares_experiment(version):
+                                    tracker = Tracker.start(
+                                        client,
+                                        name=version.slug,
+                                        group=identity["flow"],
+                                        tags=[identity["lane"], version.slug],
+                                        store=store,
+                                        params=params,
+                                    )
+                                    self._emit(
+                                        "experiment_started",
+                                        {
+                                            "run_id": run_id,
+                                            "slug": version.slug,
+                                            **tracker.event_fields,
+                                        },
+                                    )
+                                    tracker.initialize({"lumlflow": identity})
                             cell = _instantiate(version)
                             inputs = self._load_inputs(version, declared)
                             returned = cell.materialize(
-                                self._ctx(version, ctx_info, params, scratch, observed),
+                                self._ctx(
+                                    version,
+                                    ctx_info,
+                                    params,
+                                    scratch,
+                                    observed,
+                                    tracker,
+                                ),
                                 **inputs,
                             )
                             cell_returned()
@@ -148,6 +181,14 @@ class Executor:
             except BaseException as failure:  # noqa: B036 - a failure is a record
                 state = "failed"
                 error = _error(failure)
+            if tracker is not None:
+                try:
+                    if state == "succeeded":
+                        tracker.complete()
+                    else:
+                        tracker.fail()
+                except BaseException as failure:  # noqa: B036 - reported on the run
+                    tracker_close_error = str(failure) or type(failure).__name__
         record: dict[str, Any] = {
             "run_id": run_id,
             "state": state,
@@ -158,6 +199,10 @@ class Executor:
             "log_ref": self._store_log(capture.artifact()),
             "log_truncated": capture.truncated,
         }
+        if tracker is not None:
+            record.update(tracker.event_fields)
+        if tracker_close_error is not None:
+            record["experiment_close_error"] = tracker_close_error
         if error is not None:
             record["error"] = error
         self._emit("materialized" if state == "succeeded" else "failed", record)
@@ -239,6 +284,7 @@ class Executor:
         params: dict[str, Any],
         scratch: Path,
         observed: _Observed,
+        tracker: Tracker | None,
     ) -> Ctx:
         return Ctx(
             branch=str(ctx_info.get("branch", "main")),
@@ -248,7 +294,34 @@ class Executor:
             params=params,
             scratch=scratch,
             observe=lambda fact, detail: self._observe(observed, version, fact, detail),
+            tracker=tracker,
         )
+
+    def _experiment_tracker(self, store: Path) -> Any:
+        if self._tracker_client is None or self._tracker_client[0] != store:
+            self._tracker_client = (store, open_sdk_tracker(store))
+        return self._tracker_client[1]
+
+    def _experiment_identity(
+        self,
+        request: dict[str, Any],
+        version: Version,
+        ctx_info: dict[str, Any],
+        run_id: str,
+    ) -> dict[str, str]:
+        supplied = dict(request.get("identity") or {})
+        path = Path(str(supplied.get("path") or self._flow_dir)).expanduser().resolve()
+        flow = str(supplied.get("flow") or _flow_name(path))
+        return {
+            "flow": flow,
+            "flow_id": str(supplied.get("flow_id") or ""),
+            "path": str(path),
+            "slug": version.slug,
+            "uid": str(supplied.get("uid") or ""),
+            "lane": str(supplied.get("lane") or ctx_info.get("branch") or "main"),
+            "version_id": str(supplied.get("version_id") or ""),
+            "run_id": run_id,
+        }
 
     def _observe(
         self, observed: _Observed, version: Version, fact: str, detail: str
@@ -458,6 +531,20 @@ def _output_spec(spec: Any) -> OutputSpec:
         kind=str(kind) if isinstance(kind, str) else None,
         persist=bool(spec.get("persist", True)),
     )
+
+
+def _declares_experiment(version: Version) -> bool:
+    return any(spec.type == "experiment" for spec in version.produces.values())
+
+
+def _uses_experiment(version: Version, inputs: dict[str, Any]) -> bool:
+    return _declares_experiment(version) or any(
+        str((spec or {}).get("kind") or "") == "experiment" for spec in inputs.values()
+    )
+
+
+def _flow_name(path: Path) -> str:
+    return path.name.removesuffix(".flow")
 
 
 def _error(failure: BaseException) -> dict[str, Any]:

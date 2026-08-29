@@ -73,12 +73,6 @@ class Tracked:
     produces = {"run": "experiment"}
 
     def materialize(self, ctx):
-        import os
-        from luml.experiments.tracker import ExperimentTracker
-
-        tracker = ExperimentTracker(f"sqlite://{os.environ['BACKEND_STORE_URI']}")
-        experiment_id = tracker.start_experiment(name="fixture-probe", group="churn")
-        tracker.end_experiment(experiment_id)
         return {"run": ctx.tracker.record}
 """
 
@@ -377,7 +371,7 @@ async def test_an_experiment_cell_uses_the_daemons_tracker_store(
         result = await api.run({"flow": "churn", "target": "tracked"})
 
     assert result["executed"] == ["tracked"]
-    assert [record.name for record in tracker.list_experiments()] == ["fixture-probe"]
+    assert [record.name for record in tracker.list_experiments()] == ["tracked"]
     assert not unrelated.exists()
 
 

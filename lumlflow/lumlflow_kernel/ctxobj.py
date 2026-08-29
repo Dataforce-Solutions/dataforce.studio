@@ -16,22 +16,15 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from lumlflow_kernel.tracker import Tracker
+
 IDENTITY = "identity"
 EXTERNAL = "external"
 
 Observe = Callable[[str, str], None]
 
 
-class Tracker:
-    """What a cell records about its own run: the params it chose, the numbers
-    it got.
-
-    Recording is local and stays local — the record is returned as an output
-    like any other, staged into the flow's store by the kernel, and the daemon
-    is what publishes it. A cell that reaches the network to record a metric
-    would fail offline and memoize a run that had a side effect.
-    """
-
+class _LocalTracker:
     def __init__(self) -> None:
         self._params: dict[str, Any] = {}
         self._metrics: dict[str, float] = {}
@@ -43,7 +36,7 @@ class Tracker:
         for name, value in values.items():
             self.log_param(name, value)
 
-    def log_metric(self, name: str, value: float) -> None:
+    def log_metric(self, name: str, value: float, step: int | None = None) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(
                 f"`{name}` is a metric, so it takes a number — "
@@ -51,9 +44,9 @@ class Tracker:
             )
         self._metrics[str(name)] = value
 
-    def log_metrics(self, values: Mapping[str, float]) -> None:
+    def log_metrics(self, values: Mapping[str, float], step: int | None = None) -> None:
         for name, value in values.items():
-            self.log_metric(name, value)
+            self.log_metric(name, value, step=step)
 
     @property
     def record(self) -> dict[str, Any]:
@@ -72,6 +65,7 @@ class Ctx:
         params: dict[str, Any],
         scratch: Path,
         observe: Observe,
+        tracker: Tracker | None = None,
     ) -> None:
         self._branch = branch
         self._step = step
@@ -80,7 +74,7 @@ class Ctx:
         self._params = params
         self._scratch = scratch
         self._observe = observe
-        self._tracker = Tracker()
+        self._tracker = tracker or _LocalTracker()
 
     @property
     def branch(self) -> str:
@@ -103,7 +97,7 @@ class Ctx:
         return self._flow_dir
 
     @property
-    def tracker(self) -> Tracker:
+    def tracker(self) -> Tracker | _LocalTracker:
         """This run's recorder. Reading it observes nothing: it reaches no
         branch, no file outside the flow, and no network."""
         return self._tracker

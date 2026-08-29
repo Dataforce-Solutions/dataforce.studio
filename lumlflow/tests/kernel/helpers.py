@@ -68,6 +68,7 @@ def run(
     inputs: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
     ctx_info: dict[str, Any] | None = None,
+    identity: dict[str, str] | None = None,
     declarations: str = "",
 ) -> dict[str, Any]:
     return kernel.run(
@@ -81,6 +82,7 @@ def run(
             "inputs": inputs or {},
             "params": params or {},
             "ctx_info": ctx_info or {"branch": "main", "step": 7},
+            "identity": identity or {},
         }
     )
 

@@ -49,7 +49,8 @@ def test_importing_the_kernel_pulls_in_no_lumlflow_and_no_serde_libraries():
         f"import sys; {imported}; import lumlflow_kernel.kinds.builtin; "
         "print(sorted(n for n in sys.modules "
         "if n.split('.')[0] in "
-        "{'lumlflow', 'pandas', 'polars', 'pyarrow', 'numpy', 'cloudpickle'}))"
+        "{'luml', 'lumlflow', 'pandas', 'polars', 'pyarrow', 'numpy', "
+        "'cloudpickle'}))"
     )
     result = subprocess.run(
         [sys.executable, "-c", probe],
