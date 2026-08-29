@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import builtins
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import textwrap
 import threading
 import time
+from base64 import b64decode
 from collections.abc import Callable
+from importlib.metadata import version as distribution_version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,10 +26,11 @@ else:
 
 from lumlflow_kernel.kernel import Kernel
 from lumlflow_kernel.tracker import ExperimentRef, Tracker
-from tests.kernel.helpers import FakeLink, make_kernel, run, stored_value
+from tests.kernel.helpers import FakeLink, make_kernel, run, stored_log, stored_value
 
 DEADLINE_S = 20.0
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SDK_VERSION = distribution_version("luml-sdk")
 EVALUATE_CELL = (
     PROJECT_ROOT / "examples" / "churn" / "churn.flow" / "cells" / "evaluate.py"
 )
@@ -391,6 +396,265 @@ def test_a_run_without_an_experiment_never_imports_the_sdk(tmp_path: Path) -> No
     )
 
     assert result.stdout.strip() == "[]"
+
+
+def test_a_missing_sdk_fails_before_the_cell_runs(
+    tmp_path: Path, tracker_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = tmp_path / "cell-ran"
+    kernel, link = make_kernel(tmp_path)
+    real_import = builtins.__import__
+
+    def import_without_sdk(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "luml" or name.startswith("luml."):
+            raise ModuleNotFoundError("No module named 'luml'", name="luml")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_sdk)
+    record = run(
+        kernel,
+        f"""
+        def materialize(self, ctx):
+            from pathlib import Path
+            Path({str(marker)!r}).write_text("ran")
+            return {{"run": ctx.tracker.record}}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    assert record["state"] == "failed"
+    assert "luml-sdk" in record["error"]["message"]
+    assert record["outputs"] == {}
+    assert link.named("experiment_started") == []
+    assert not tracker_store.exists()
+    assert not marker.exists()
+
+
+def test_an_unwritable_tracker_store_is_named_before_the_cell_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = tmp_path / "not-a-directory"
+    store.write_text("blocked", encoding="utf-8")
+    monkeypatch.setenv("BACKEND_STORE_URI", str(store))
+    monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
+    marker = tmp_path / "cell-ran"
+    kernel, link = make_kernel(tmp_path)
+
+    record = run(
+        kernel,
+        f"""
+        def materialize(self, ctx):
+            from pathlib import Path
+            Path({str(marker)!r}).write_text("ran")
+            return {{"run": ctx.tracker.record}}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    assert record["state"] == "failed"
+    assert str(store) in record["error"]["message"]
+    assert SDK_VERSION in record["error"]["message"]
+    assert record["outputs"] == {}
+    assert link.named("experiment_started") == []
+    assert not marker.exists()
+
+
+def test_an_sdk_store_refusal_keeps_its_sentence_path_and_version(
+    tmp_path: Path, tracker_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from luml.experiments import tracker as sdk_tracker
+
+    def refuse_store(connection_string: str) -> None:
+        raise RuntimeError("store schema 41 is newer than this SDK supports")
+
+    monkeypatch.setattr(sdk_tracker, "ExperimentTracker", refuse_store)
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            raise RuntimeError("cell should not run")
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    message = record["error"]["message"]
+    assert record["state"] == "failed"
+    assert "store schema 41 is newer than this SDK supports" in message
+    assert str(tracker_store) in message
+    assert SDK_VERSION in message
+
+
+def test_an_sdk_write_refusal_keeps_its_sentence_path_and_version(
+    tmp_path: Path, tracker_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from luml.experiments import tracker as sdk_tracker
+
+    def refuse_write(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("this SDK refuses the metric write")
+
+    monkeypatch.setattr(sdk_tracker.ExperimentTracker, "log_dynamic", refuse_write)
+    marker = tmp_path / "cell-continued"
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        f"""
+        def materialize(self, ctx):
+            from pathlib import Path
+            ctx.tracker.log_metric("auc", 0.91)
+            Path({str(marker)!r}).write_text("continued")
+            return {{"run": ctx.tracker.record}}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    message = record["error"]["message"]
+    experiment = _only_experiment(ExperimentTracker(f"sqlite://{tracker_store}"))
+    assert record["state"] == "failed"
+    assert "this SDK refuses the metric write" in message
+    assert str(tracker_store) in message
+    assert SDK_VERSION in message
+    assert experiment.status == "error"
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("release_after_timeout", [True, False])
+def test_a_locked_tracker_store_is_retried_then_named(
+    tmp_path: Path,
+    tracker_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    release_after_timeout: bool,
+) -> None:
+    from luml.experiments import tracker as sdk_tracker
+    from luml.experiments.backends import sqlite as sdk_sqlite
+
+    seed = ExperimentTracker(f"sqlite://{tracker_store}")
+    seed.backend.pool.close_all()
+    lock = sqlite3.connect(tracker_store / "meta.db")
+    lock.execute("BEGIN IMMEDIATE")
+    real_connection = sqlite3.Connection
+    second_attempt = threading.Event()
+    starts = 0
+    real_start = sdk_tracker.ExperimentTracker.start_experiment
+
+    def short_wait_connection(database: str, **kwargs: Any) -> sqlite3.Connection:
+        return real_connection(database, timeout=0.05, **kwargs)
+
+    def counted_start(client: Any, **kwargs: Any) -> str:
+        nonlocal starts
+        starts += 1
+        if starts == 2:
+            second_attempt.set()
+        return str(real_start(client, **kwargs))
+
+    monkeypatch.setattr(sdk_sqlite.sqlite3, "Connection", short_wait_connection)
+    monkeypatch.setattr(
+        sdk_tracker.ExperimentTracker, "start_experiment", counted_start
+    )
+    marker = tmp_path / "cell-ran"
+    kernel, _ = make_kernel(tmp_path)
+    finished: list[dict[str, Any]] = []
+    worker = threading.Thread(
+        target=lambda: finished.append(
+            run(
+                kernel,
+                f"""
+                def materialize(self, ctx):
+                    from pathlib import Path
+                    Path({str(marker)!r}).write_text("ran")
+                    return {{"run": ctx.tracker.record}}
+                """,
+                produces={"run": "experiment"},
+                identity=_identity(kernel),
+            )
+        )
+    )
+    worker.start()
+    try:
+        assert second_attempt.wait(DEADLINE_S)
+        if release_after_timeout:
+            lock.commit()
+        worker.join(timeout=DEADLINE_S)
+    finally:
+        if lock.in_transaction:
+            lock.rollback()
+        lock.close()
+        worker.join(timeout=DEADLINE_S)
+
+    assert not worker.is_alive()
+    assert starts == 2
+    experiments = ExperimentTracker(f"sqlite://{tracker_store}").list_experiments()
+    if release_after_timeout:
+        assert finished[0]["state"] == "succeeded", (
+            finished[0].get("error"),
+            finished[0].get("experiment_id"),
+            finished[0].get("experiment_close_error"),
+        )
+        assert marker.exists()
+        assert len(experiments) == 1
+        assert experiments[0].status == "completed"
+    else:
+        assert finished[0]["state"] == "failed"
+        assert str(tracker_store) in finished[0]["error"]["message"]
+        assert not marker.exists()
+        assert experiments == []
+
+
+@pytest.mark.parametrize(
+    "daemon_version,mismatch", [("999.0.0", True), (SDK_VERSION, False)]
+)
+def test_sdk_version_skew_warns_once_and_proceeds(
+    tmp_path: Path,
+    tracker_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    daemon_version: str,
+    mismatch: bool,
+) -> None:
+    monkeypatch.setenv("LUMLFLOW_DAEMON_SDK_VERSION", daemon_version)
+    kernel, link = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            ctx.tracker.log_metric("auc", 0.91)
+            return {"run": ctx.tracker.record}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    live_console = b"".join(
+        b64decode(event["bytes"])
+        for event in link.named("log")
+        if event["stream"] == "stderr"
+    ).decode("utf-8")
+    log = stored_log(kernel, record).decode("utf-8")
+    experiment = _only_experiment(ExperimentTracker(f"sqlite://{tracker_store}"))
+    assert record["state"] == "succeeded"
+    assert experiment.status == "completed"
+    if mismatch:
+        warning = record["sdk_version_warning"]
+        assert SDK_VERSION in warning
+        assert daemon_version in warning
+        assert str(Path(sys.executable).absolute()) in warning
+        assert live_console.count(warning) == 1
+        assert log.count(warning) == 1
+        assert link.named("experiment_started")[0]["sdk_version_warning"] == warning
+        assert link.named("materialized")[-1]["sdk_version_warning"] == warning
+    else:
+        assert "sdk_version_warning" not in record
+        assert "luml-sdk version mismatch" not in live_console
+        assert "luml-sdk version mismatch" not in log
 
 
 def test_the_churn_evaluate_cell_runs_unchanged_and_logs_alpha(

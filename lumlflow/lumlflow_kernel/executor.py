@@ -38,8 +38,12 @@ from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
 from lumlflow_kernel.tracker import (
     ExperimentRef,
+    SdkTrackerClient,
     Tracker,
+    TrackerError,
+    daemon_sdk_version,
     open_sdk_tracker,
+    sdk_version_warning,
     tracker_store,
 )
 
@@ -105,7 +109,7 @@ class Executor:
         self._logs = Cas(store / "logs")
         self._scratch_root = store / "kernel" / SCRATCH_DIRNAME
         self._cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
-        self._tracker_client: tuple[Path, Any] | None = None
+        self._tracker_client: tuple[Path, SdkTrackerClient] | None = None
         self._lock = threading.Lock()
         self._active: _Active | None = None
 
@@ -128,6 +132,7 @@ class Executor:
         error: dict[str, Any] | None = None
         tracker: Tracker | None = None
         tracker_close_error: str | None = None
+        tracker_sdk_warning: str | None = None
         identity = self._experiment_identity(request, version, ctx_info, run_id)
         with self._claim(run_id) as cell_returned:
             self._emit("started", {"run_id": run_id, "slug": version.slug})
@@ -139,7 +144,9 @@ class Executor:
                             os.chdir(self._workspace_dir)
                             if _uses_experiment(version, declared):
                                 store = tracker_store()
-                                client = self._experiment_tracker(store)
+                                client, tracker_sdk_warning = self._experiment_tracker(
+                                    store, self._warn_sdk_version
+                                )
                                 if _declares_experiment(version):
                                     tracker = Tracker.start(
                                         client,
@@ -149,14 +156,16 @@ class Executor:
                                         store=store,
                                         params=params,
                                     )
-                                    self._emit(
-                                        "experiment_started",
-                                        {
-                                            "run_id": run_id,
-                                            "slug": version.slug,
-                                            **tracker.event_fields,
-                                        },
-                                    )
+                                    event = {
+                                        "run_id": run_id,
+                                        "slug": version.slug,
+                                        **tracker.event_fields,
+                                    }
+                                    if tracker_sdk_warning is not None:
+                                        event["sdk_version_warning"] = (
+                                            tracker_sdk_warning
+                                        )
+                                    self._emit("experiment_started", event)
                                     tracker.initialize({"lumlflow": identity})
                             cell = _instantiate(version)
                             inputs = self._load_inputs(version, declared)
@@ -208,6 +217,8 @@ class Executor:
             record.update(tracker.event_fields)
         if tracker_close_error is not None:
             record["experiment_close_error"] = tracker_close_error
+        if tracker_sdk_warning is not None:
+            record["sdk_version_warning"] = tracker_sdk_warning
         if error is not None:
             record["error"] = error
         self._emit("materialized" if state == "succeeded" else "failed", record)
@@ -302,10 +313,23 @@ class Executor:
             tracker=tracker,
         )
 
-    def _experiment_tracker(self, store: Path) -> Any:
+    def _experiment_tracker(
+        self, store: Path, warn: Callable[[str], None]
+    ) -> tuple[SdkTrackerClient, str | None]:
+        daemon_version = daemon_sdk_version()
         if self._tracker_client is None or self._tracker_client[0] != store:
-            self._tracker_client = (store, open_sdk_tracker(store))
-        return self._tracker_client[1]
+            client = open_sdk_tracker(store, daemon_version=daemon_version, warn=warn)
+            self._tracker_client = (store, client)
+        else:
+            client = self._tracker_client[1]
+            warning = sdk_version_warning(client.sdk_version, daemon_version)
+            if warning is not None:
+                warn(warning)
+        return client, sdk_version_warning(client.sdk_version, daemon_version)
+
+    @staticmethod
+    def _warn_sdk_version(message: str) -> None:
+        print(f"warning: {message}", file=sys.stderr, flush=True)
 
     def _experiment_identity(
         self,
@@ -562,7 +586,7 @@ def _error(failure: BaseException) -> dict[str, Any]:
         "type": type(failure).__name__,
         "message": str(failure) or type(failure).__name__,
     }
-    if not isinstance(failure, CellError):
+    if not isinstance(failure, CellError | TrackerError):
         # Drop this module's own frame: the traceback the author reads should
         # start at their code.
         tb = failure.__traceback__
