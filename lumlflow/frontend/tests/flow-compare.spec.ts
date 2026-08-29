@@ -193,6 +193,41 @@ function asked(live: Attached, method: string): Record<string, unknown>[] {
 }
 
 describe('the comparison collapses a wide sweep', () => {
+  it('addresses a same-named flow by its absolute path', async () => {
+    const path = '/workspace/a/sales.flow'
+    const live = await attach({
+      status: flowStatus({ flow: 'sales', path }),
+      handlers: {
+        diff: () => sweepDiff(),
+        tree: () => ({ flow: 'sales', branch: 'main', branches: branchRecords() }),
+        'asset.preview': (params) => ({
+          flow: 'sales',
+          branch: String(params.branch),
+          slug: String(params.target),
+          output: 'scores',
+          state: 'synced',
+          kind: 'metric',
+          size: 32,
+          persisted: true,
+          preview: storedPreview('metric', [{ block: 'kv', entries: { auc: 0.84 } }]),
+        }),
+      },
+    })
+    const router = testRouter()
+    await router.push(`/flow/${encodeURIComponent(path)}/compare?branch=main&compare=main,exp/lr-3e4`)
+    await router.isReady()
+    const wrapper = mount(LiveCompare, {
+      props: { session: live.session },
+      global: { plugins: [router, ToastService] },
+    })
+    await settle()
+
+    expect(asked(live, 'diff')[0].flow).toBe(path)
+    expect(asked(live, 'tree')[0].flow).toBe(path)
+    expect(asked(live, 'asset.preview').every((params) => params.flow === path)).toBe(true)
+    wrapper.unmount()
+  })
+
   it('renders the edit once and everything below it one row per asset', async () => {
     const { wrapper, live } = await compare()
 

@@ -197,7 +197,7 @@ export interface EnvReport {
  */
 export interface FlowMethods {
   ping: Method<Record<string, never>, PingResult>
-  status: Method<FlowScoped, WorkspaceStatus>
+  status: Method<FlowScoped & { directory?: string }, WorkspaceStatus>
   context: Method<BranchScoped, ContextBrief>
   tree: Method<FlowScoped, BranchTree>
   /** 2–5 branches; the daemon refuses fewer and more, and names how many. */
@@ -206,7 +206,7 @@ export interface FlowMethods {
   export: Method<BranchScoped, FlowExport>
   'workspace.list': Method<{ path?: string }, WorkspaceListing>
   /** Scaffolds the flow unbound; the checkout below is what `init here` adds. */
-  'flow.init': Method<{ name: string }, FlowBrief & { warnings: string[] }>
+  'flow.init': Method<{ name: string; directory?: string }, FlowBrief & { warnings: string[] }>
   'flow.checkout': Method<Intentful, Projected & FlowBrief>
   'flow.open': Method<FlowScoped & { worktree?: boolean }, FlowStatus>
   'cells.list': Method<BranchScoped & { unsynced?: boolean }, CellsPage>

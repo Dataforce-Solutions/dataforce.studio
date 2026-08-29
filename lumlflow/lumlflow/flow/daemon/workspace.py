@@ -45,11 +45,15 @@ EntryKind = Literal["flow", "dir", "file"]
 
 @dataclass(frozen=True)
 class FlowRef:
-    """A flow as verbs address it: by name, or by path when names collide."""
+    """A discovered flow and its path relative to the directory searched."""
 
     name: str
     path: Path
     relpath: str
+
+    @property
+    def address(self) -> str:
+        return str(self.path)
 
     @property
     def has_store(self) -> bool:
@@ -116,6 +120,9 @@ def select_flow(
     """
     if name is not None:
         return _addressed(root, name)
+    standing = _standing_flow(cwd or root)
+    if standing is not None:
+        return standing
     flows = find_flows(root)
     inside = _containing_flow(flows, cwd) if cwd is not None else None
     if inside is not None:
@@ -129,7 +136,7 @@ def select_flow(
 
 def flow_here(root: Path, cwd: Path) -> FlowRef | None:
     """The flow a caller is standing in — how a verb addresses one unasked."""
-    return _containing_flow(find_flows(root), cwd)
+    return _standing_flow(cwd) or _containing_flow(find_flows(root), cwd)
 
 
 def listing(root: Path, relative: str = "") -> dict[str, Any]:
@@ -412,8 +419,19 @@ def _addressed(root: Path, name: str) -> FlowRef:
     """
     asked = Path(name)
     if not asked.is_absolute():
+        standing = _standing_flow(root)
+        if standing is not None and name.removesuffix(FLOW_SUFFIX) == standing.name:
+            return standing
         return _named(find_flows(root), name)
     path = asked.resolve()
+    if path == root and path.name.endswith(FLOW_SUFFIX):
+        if not path.is_dir():
+            raise FlowNotFound(f"there is no flow at `{path}`")
+        return FlowRef(
+            name=path.name[: -len(FLOW_SUFFIX)],
+            path=path,
+            relpath=path.name,
+        )
     if path.is_relative_to(root):
         return _named(find_flows(root), path.relative_to(root).as_posix())
     return _outside_flow(path)
@@ -428,17 +446,45 @@ def _outside_flow(path: Path) -> FlowRef:
     )
 
 
+def _standing_flow(directory: Path) -> FlowRef | None:
+    here = directory.resolve()
+    path = next(
+        (
+            candidate
+            for candidate in (here, *here.parents)
+            if candidate.name.endswith(FLOW_SUFFIX) and candidate.is_dir()
+        ),
+        None,
+    )
+    if path is None:
+        return None
+    return FlowRef(
+        name=path.name[: -len(FLOW_SUFFIX)],
+        path=path,
+        relpath=path.name,
+    )
+
+
 def _entry(path: Path, root: Path) -> Entry:
     # The workspace itself is one of the entries a listing above it holds, and
     # it spells itself the way its neighbours do rather than as an empty path.
+    if path.is_dir():
+        kind: EntryKind = "flow" if path.name.endswith(FLOW_SUFFIX) else "dir"
+        relative = (
+            str(path.resolve())
+            if kind == "flow"
+            else (
+                path.relative_to(root).as_posix()
+                if path.is_relative_to(root) and path != root
+                else str(path)
+            )
+        )
+        return Entry(name=path.name, path=relative, kind=kind)
     relative = (
         path.relative_to(root).as_posix()
         if path.is_relative_to(root) and path != root
         else str(path)
     )
-    if path.is_dir():
-        kind: EntryKind = "flow" if path.name.endswith(FLOW_SUFFIX) else "dir"
-        return Entry(name=path.name, path=relative, kind=kind)
     try:
         size = path.stat().st_size
     except OSError:
@@ -447,8 +493,8 @@ def _entry(path: Path, root: Path) -> Entry:
 
 
 def _candidates(flows: list[FlowRef]) -> str:
-    return ", ".join(f"`{flow.name}`" for flow in flows)
+    return ", ".join(f"`{flow.name}` (`{flow.address}`)" for flow in flows)
 
 
 def _paths(flows: list[FlowRef]) -> str:
-    return ", ".join(f"`{flow.relpath}`" for flow in flows)
+    return ", ".join(f"`{flow.address}`" for flow in flows)

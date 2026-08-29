@@ -172,6 +172,44 @@ def test_a_cwd_inside_a_flow_addresses_it_and_ambiguity_names_the_candidates(
     assert "score" in named.output
 
 
+def test_status_and_init_take_a_directory(
+    cli: Invoke, workspace: Path, tmp_path: Path
+) -> None:
+    requested = make_workspace(tmp_path / "requested", flows=("sales",))
+
+    status = cli("status", str(requested), "--json")
+    created = cli("init", "sweep", str(requested), "--json")
+
+    assert status.exit_code == 0, status.output
+    assert [flow["path"] for flow in json.loads(status.output)["flows"]] == [
+        str(requested / "sales.flow")
+    ]
+    assert created.exit_code == 0, created.output
+    assert json.loads(created.output)["path"] == str(requested / "sweep.flow")
+    assert (requested / "sweep.flow").is_dir()
+
+
+def test_status_from_each_cwd_reaches_one_daemon_and_lists_only_that_directory(
+    cli: Invoke, workspace: Path, tmp_path: Path
+) -> None:
+    subdirectory = workspace / "sub"
+    subdirectory.mkdir()
+    other = make_workspace(tmp_path / "other", flows=("sales",))
+
+    from_subdirectory = cli("status", "--json", cwd=subdirectory)
+    from_other = cli("status", "--json", cwd=other)
+
+    assert from_subdirectory.exit_code == 0, from_subdirectory.output
+    assert from_other.exit_code == 0, from_other.output
+    empty = json.loads(from_subdirectory.output)
+    sales = json.loads(from_other.output)
+    assert empty["pid"] == sales["pid"]
+    assert empty["workspace"] == str(subdirectory)
+    assert empty["flows"] == []
+    assert sales["workspace"] == str(other)
+    assert [flow["path"] for flow in sales["flows"]] == [str(other / "sales.flow")]
+
+
 def test_cells_new_after_prefills_the_wiring_and_the_signature(
     cli: Invoke, workspace: Path
 ):

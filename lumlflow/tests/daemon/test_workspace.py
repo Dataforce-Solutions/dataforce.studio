@@ -43,10 +43,30 @@ def test_flow_selection_answers_or_names_the_candidates(tmp_path: Path):
     assert "`churn`" in str(ambiguous.value) and "`sales`" in str(ambiguous.value)
 
 
+def test_a_bare_duplicate_name_is_refused_with_both_absolute_paths(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=())
+    first = make_workspace(root / "a", flows=("sales",)) / "sales.flow"
+    second = make_workspace(root / "b", flows=("sales",)) / "sales.flow"
+
+    with pytest.raises(FlowAmbiguous) as ambiguous:
+        workspace.select_flow(root, name="sales")
+
+    assert str(first) in str(ambiguous.value)
+    assert str(second) in str(ambiguous.value)
+
+
 def test_a_single_flow_workspace_needs_no_flow_argument(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
 
     assert workspace.select_flow(root, cwd=root).name == "churn"
+
+
+def test_a_caller_standing_inside_a_flow_needs_no_search_root(tmp_path: Path):
+    root = make_workspace(tmp_path / "project")
+    cells = root / "churn.flow" / CELLS_DIRNAME
+
+    assert workspace.select_flow(cells).path == root / "churn.flow"
+    assert workspace.select_flow(cells, name="churn").path == root / "churn.flow"
 
 
 def test_an_unknown_flow_name_lists_what_there_is(tmp_path: Path):
@@ -72,6 +92,7 @@ def test_the_browser_lists_a_flow_as_one_entry(tmp_path: Path):
         ("data", "dir"),
         ("helpers.py", "file"),
     ]
+    assert entries[0]["path"] == str(root / "churn.flow")
     assert next(entry for entry in entries if entry["kind"] == "file")["size"] == len(
         b"VALUE = 1\n"
     )

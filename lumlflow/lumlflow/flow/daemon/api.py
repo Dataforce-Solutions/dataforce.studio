@@ -118,14 +118,15 @@ class Api:
 
     async def status(self, params: dict[str, Any]) -> dict[str, Any]:
         """The workspace, its flows, and what is unsynced in each."""
-        interpreter = envs.describe(self.directory)
+        directory = self._directory(params)
+        interpreter = envs.describe(directory)
         refs = (
-            [self.resolve(_flow_name(params))]
+            [self.resolve(_flow_name(params), directory=directory)]
             if params.get("flow")
-            else workspace.find_flows(self.directory)
+            else workspace.find_flows(directory)
         )
         return {
-            "workspace": str(self.directory),
+            "workspace": str(directory),
             "pid": os.getpid(),
             "python": {
                 "path": str(interpreter.python),
@@ -167,8 +168,8 @@ class Api:
         return workspace.listing(self.directory, str(params.get("path") or ""))
 
     async def flow_init(self, params: dict[str, Any]) -> dict[str, Any]:
-        name = params.get("name") or params.get("path") or ""
-        session = self.hub.init_flow(self.directory, str(name))
+        name = str(params.get("name") or "")
+        session = self.hub.init_flow(self._directory(params), name)
         return await self._flow_brief(session) | {
             "warnings": list(session.store.warnings)
         }
@@ -182,7 +183,7 @@ class Api:
         under a session that only calls the API would invent a file plane
         nobody asked for.
         """
-        ref = self.resolve(_flow_name(params))
+        ref = self.resolve(_flow_name(params), directory=self._directory(params))
         if params.get("worktree", True):
             session = self.hub.open(ref, actor=_actor(params))
             await self.hub.quiesce(session, actor=_actor(params))
@@ -193,7 +194,7 @@ class Api:
     async def flow_checkout(self, params: dict[str, Any]) -> dict[str, Any]:
         """Bind the flow root to a branch and project it — what `init` adds."""
         actor = _actor(params)
-        session = self._session(_flow_name(params), actor=actor)
+        session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             params.get("branch"),
@@ -204,9 +205,9 @@ class Api:
         return await self._flow_brief(session) | _projection(projection)
 
     async def flow_delete(self, params: dict[str, Any]) -> dict[str, Any]:
-        ref = self.resolve(_flow_name(params))
+        ref = self.resolve(_flow_name(params), directory=self._directory(params))
         await self.hub.delete_flow(ref)
-        return {"deleted": ref.name, "path": ref.relpath}
+        return {"deleted": ref.name, "path": ref.address}
 
     async def cells_list(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)
@@ -309,7 +310,7 @@ class Api:
         source = str(params.get("source") or "")
         if not source.strip():
             raise FlowError(f"`{slug}` cannot be edited with empty source")
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         branch = _branch(session, params)
         head = queries.head(session, branch, slug)
@@ -498,7 +499,7 @@ class Api:
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
         """Check a branch out: rebind the worktree and project its slice."""
         actor = _actor(params)
-        session = self._session(_flow_name(params), actor=actor)
+        session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             str(params.get("branch") or ""),
@@ -511,7 +512,7 @@ class Api:
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
         """Restore a branch to a step. Instant, and the files follow."""
         actor = _actor(params)
-        session = self._session(_flow_name(params), actor=actor)
+        session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         branch = _branch(session, params)
         result = session.store.branches.rewind(
@@ -551,7 +552,7 @@ class Api:
     async def adopt(self, params: dict[str, Any]) -> dict[str, Any]:
         """Take one asset's version from another branch onto this one."""
         actor = _actor(params)
-        session = self._session(_flow_name(params), actor=actor)
+        session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         branch = _branch(session, params)
         force = bool(params.get("force"))
@@ -584,7 +585,7 @@ class Api:
         that connection does, whether or not anybody got to say so. A caller
         that connects per call — every CLI verb — must not ask for one.
         """
-        session = self._session(_flow_name(params))
+        session = self._session(params)
         label = str(params.get("label") or params.get("actor") or "agent")
         actor = str(params.get("actor") or label)
         # Open the bracket over a settled file plane: edits made before the
@@ -596,6 +597,7 @@ class Api:
             actor=actor,
         )
         return {
+            "flow": session.ref.address,
             "actor": actor,
             "label": label,
             "leased": bool(params.get("lease")),
@@ -605,7 +607,8 @@ class Api:
         """Close the bracket — and with it the transaction its edits group into."""
         actor = str(params.get("actor") or "")
         session = self._session(
-            _flow_name(params), actor=actor if actor not in {"", "user"} else None
+            params,
+            actor=actor if actor not in {"", "user"} else None,
         )
         sessions = session.store.index.agent_sessions()
         registered = next(
@@ -620,7 +623,11 @@ class Api:
             intent=params.get("intent") or f"{registered.label} finished",
             actor=registered.actor,
         )
-        return {"actor": registered.actor, "label": registered.label}
+        return {
+            "flow": session.ref.address,
+            "actor": registered.actor,
+            "label": registered.label,
+        }
 
     async def agent_connect(self, params: dict[str, Any]) -> dict[str, Any]:
         """The prompt that pairs an agent with this flow, whatever harness it is.
@@ -634,7 +641,7 @@ class Api:
         plane to answer "how do I connect" would make opening a popover cost
         what running a verb costs.
         """
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         return connect.prompt(session, workspace_dir=session.workspace_dir)
 
     async def agent_payload(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -653,7 +660,7 @@ class Api:
         are journaled nowhere — the same reason `cells eager` is not a
         transaction. Anything absent from the call is left alone.
         """
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         settings = session.store.manifest.settings
         if params.get("reactivity") is not None:
             settings.reactivity = _one_of(
@@ -732,7 +739,7 @@ class Api:
         walking away. The report says which happened rather than letting a
         surface claim the run stopped.
         """
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         branch = _branch(session, params)
         left = session.queue.abandon(branch)
         return {
@@ -743,7 +750,7 @@ class Api:
         }
 
     async def kernel_restart(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         handshake = await session.kernel.restart()
         return {
             "flow": session.ref.name,
@@ -758,7 +765,7 @@ class Api:
         holds no cursor asks from 0 and gets the flow's whole history — which
         is what makes a reconnect indistinguishable from a first load.
         """
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         entries = [
             entry.model_dump(mode="json")
             for entry in session.store.journal.since(
@@ -767,7 +774,7 @@ class Api:
         ]
         return {
             "flow": session.ref.name,
-            "path": session.ref.relpath,
+            "path": session.ref.address,
             "cursor": session.store.next_step - 1,
             "transactions": entries,
         }
@@ -777,16 +784,29 @@ class Api:
             self._stop()
         return {"stopping": True}
 
-    def resolve(self, name: str | None) -> FlowRef:
-        return workspace.select_flow(self.directory, name=name)
+    def resolve(self, name: str | None, *, directory: Path | None = None) -> FlowRef:
+        return workspace.select_flow(directory or self.directory, name=name)
 
-    def _session(self, name: str | None, *, actor: str | None = None) -> FlowSession:
-        return self.hub.open(self.resolve(name), actor=actor)
+    def _session(
+        self,
+        params: dict[str, Any],
+        *,
+        actor: str | None = None,
+    ) -> FlowSession:
+        ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        return self.hub.open(ref, actor=actor)
+
+    def _directory(self, params: dict[str, Any]) -> Path:
+        asked = params.get("directory")
+        directory = Path(str(asked)).expanduser().resolve() if asked else self.directory
+        if not directory.is_dir():
+            raise FlowError(f"there is no directory `{directory}`")
+        return directory
 
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
         """The pre-op contract in one line: no version resolves against a stale
         file plane. Every verb that names a cell or a branch starts here."""
-        session = self._session(_flow_name(params), actor=_actor(params))
+        session = self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         return session, _branch(session, params)
 
@@ -804,7 +824,7 @@ class Api:
         settings = session.store.manifest.settings
         return {
             "flow": session.ref.name,
-            "path": session.ref.relpath,
+            "path": session.ref.address,
             "branch": session.branch,
             "checked_out": session.worktree.bound() is not None,
             "agent": sessions[0].label if sessions else None,

@@ -494,7 +494,7 @@ def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) ->
     if not actor:
         return
     if method == "agent.begin" and result.get("leased"):
-        flow = params.get("flow")
+        flow = result.get("flow") or params.get("flow")
         label = str(result.get("label") or actor)
         leased.add((str(flow) if flow else None, actor, label))
     elif method == "agent.end":

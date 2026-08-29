@@ -88,11 +88,18 @@ def init(
     name: str | None = typer.Argument(
         None, help="The flow's name. Defaults to this directory's."
     ),
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory in which to create the flow. Defaults to the current one.",
+    ),
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
     """Scaffold a flow here and put `main` on disk."""
-    with _daemon(as_json) as daemon:
+    with _daemon(as_json, directory=directory) as daemon:
         workspace_root = daemon.root
         created = daemon.call(
             "flow.init", {"name": name or workspace_root.name}, scoped=False
@@ -114,9 +121,27 @@ def init(
     )
 
 
-def status(flow: str | None = _FLOW, as_json: bool = _JSON) -> None:
+def status(
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory whose flows to list. Defaults to the current one.",
+    ),
+    flow: str | None = _FLOW,
+    as_json: bool = _JSON,
+) -> None:
     """The workspace, its flows, and what is stale in each."""
-    result = _call("status", flow=flow, as_json=as_json)
+    requested = (directory or Path.cwd()).resolve()
+    result = _call(
+        "status",
+        {"directory": str(requested)},
+        flow=flow,
+        as_json=as_json,
+        scoped=flow is not None,
+        directory=requested,
+    )
     _emit(result, as_json, render.status)
 
 
@@ -709,7 +734,7 @@ def flow_delete(
         typer.confirm(
             f"delete `{name}` and everything it recorded?", abort=True, default=False
         )
-    result = _call("flow.delete", {"flow": name}, as_json=as_json, scoped=False)
+    result = _call("flow.delete", flow=name, as_json=as_json)
     _emit(result, as_json, [f"deleted `{result['deleted']}` ({result['path']})"])
 
 
@@ -780,12 +805,17 @@ class _Daemon:
         }
         if scoped and self.flow is not None:
             payload.setdefault("flow", self.flow)
+        payload.setdefault("directory", str(self.root))
         payload.setdefault("actor", os.environ.get(ACTOR_ENV) or "user")
         return self.live.call(method, payload)
 
 
 @contextlib.contextmanager
-def _daemon(as_json: bool, flow: str | None = None) -> Iterator[_Daemon]:
+def _daemon(
+    as_json: bool,
+    flow: str | None = None,
+    directory: Path | None = None,
+) -> Iterator[_Daemon]:
     """The per-user daemon, started in this directory if none answers.
 
     Every failure the flow runtime raises lands here, where it becomes a
@@ -795,7 +825,7 @@ def _daemon(as_json: bool, flow: str | None = None) -> Iterator[_Daemon]:
     from lumlflow.flow.daemon import client
 
     try:
-        resolved = Path.cwd().resolve()
+        resolved = (directory or Path.cwd()).resolve()
         here = _flow_here(resolved, flow)
         with client.connect(resolved) as live:
             yield _Daemon(live, resolved, here)
@@ -810,8 +840,9 @@ def _call(
     flow: str | None = None,
     as_json: bool = False,
     scoped: bool = True,
+    directory: Path | None = None,
 ) -> Any:
-    with _daemon(as_json, flow=flow) as daemon:
+    with _daemon(as_json, flow=flow, directory=directory) as daemon:
         return daemon.call(method, params, scoped=scoped)
 
 
@@ -844,8 +875,8 @@ def _flow_here(root: Path, explicit: str | None) -> str | None:
     from lumlflow.flow.daemon import workspace
 
     if explicit:
-        return explicit
-    here = Path.cwd().resolve()
+        return workspace.select_flow(root, name=explicit).address
+    here = root.resolve()
     containing = next(
         (
             candidate
@@ -855,9 +886,8 @@ def _flow_here(root: Path, explicit: str | None) -> str | None:
         None,
     )
     if containing is not None:
-        return containing.name.removesuffix(".flow")
-    inside = workspace.flow_here(root, Path.cwd())
-    return inside.relpath if inside is not None else None
+        return str(containing.resolve())
+    return None
 
 
 def _edited(result: dict[str, Any], *, verb: str) -> list[str]:

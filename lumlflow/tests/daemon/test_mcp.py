@@ -15,6 +15,7 @@ import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pytest
 from lumlflow.flow.daemon import client, mcp
@@ -357,6 +358,68 @@ def test_a_named_branch_that_is_not_there_fails_the_tool_not_the_session(
     assert answered(answers, 4)["flows"][0]["flow"] == "churn"
 
 
+def test_two_same_named_flows_stay_distinct_in_one_mcp_session(
+    talk: Talk, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = make_workspace(workspace / "a", flows=("sales",)) / "sales.flow"
+    second = make_workspace(workspace / "b", flows=("sales",)) / "sales.flow"
+    addressed: list[str] = []
+    context = talk.api.methods["context"]
+
+    async def record_path(params: dict[str, Any]) -> Any:
+        addressed.append(str(params.get("flow")))
+        return await context(params)
+
+    monkeypatch.setitem(talk.api.methods, "context", record_path)
+
+    answers = talk(
+        hello(),
+        tool(1, "context", {"flow": str(first)}),
+        tool(2, "context", {"flow": str(second)}),
+        tool(3, "context", {"flow": str(first)}),
+    )
+
+    assert [answered(answers, request_id)["flow"] for request_id in (1, 2, 3)] == [
+        "sales",
+        "sales",
+        "sales",
+    ]
+    assert addressed == [str(first), str(second), str(first)]
+    assert talk.hub.session(str(first)) is not talk.hub.session(str(second))
+
+
+def test_a_bare_duplicate_name_is_refused_with_both_paths_over_mcp(
+    talk: Talk, workspace: Path
+) -> None:
+    first = make_workspace(workspace / "a", flows=("sales",)) / "sales.flow"
+    second = make_workspace(workspace / "b", flows=("sales",)) / "sales.flow"
+
+    answers = talk(hello(), tool(1, "context", {"flow": "sales"}))
+    refusal = failed(answers, 1)
+
+    assert str(first) in refusal
+    assert str(second) in refusal
+
+
+def test_status_and_init_flow_take_an_optional_directory(
+    talk: Talk, workspace: Path
+) -> None:
+    requested = make_workspace(workspace.parent / "requested", flows=("sales",))
+    relative = requested.relative_to(workspace, walk_up=True)
+
+    answers = talk(
+        hello(),
+        tool(1, "status", {"directory": str(relative)}),
+        tool(2, "init-flow", {"name": "sweep", "directory": str(relative)}),
+    )
+
+    status = answered(answers, 1)
+    created = answered(answers, 2)
+    assert [flow["path"] for flow in status["flows"]] == [str(requested / "sales.flow")]
+    assert created["path"] == str(requested / "sweep.flow")
+    assert (requested / "sweep.flow").is_dir()
+
+
 def test_a_tool_missing_an_argument_says_which_one(talk: Talk):
     answers = talk(
         hello(),
@@ -367,17 +430,21 @@ def test_a_tool_missing_an_argument_says_which_one(talk: Talk):
     assert "`source`" in failed(answers, 2)
 
 
-def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(talk: Talk):
+def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
+    talk: Talk, workspace: Path
+):
     """The read-only half: what the flow holds, without invoking anything."""
+    address = quote(str(workspace / "churn.flow"), safe="")
+    root = f"flow://{address}"
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
         tool(2, "new-cell", {"slug": "score", "source": SCORE_CELL, "intent": "score"}),
         tool(3, "run", {"target": "score"}),
         request(4, "resources/list"),
-        request(5, "resources/read", {"uri": "flow://churn/manifest"}),
-        request(6, "resources/read", {"uri": "flow://churn/cells/score"}),
-        request(7, "resources/read", {"uri": "flow://churn/previews/score.summary"}),
+        request(5, "resources/read", {"uri": f"{root}/manifest"}),
+        request(6, "resources/read", {"uri": f"{root}/cells/score"}),
+        request(7, "resources/read", {"uri": f"{root}/previews/score.summary"}),
         request(8, "resources/read", {"uri": "session://focus"}),
         request(9, "resources/read", {"uri": "flow://churn/cells/nowhere"}),
     )
@@ -388,9 +455,9 @@ def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(talk: T
     preview = read(answers, 7)
 
     assert listed == {
-        "flow://churn/manifest",
-        "flow://churn/cells/score",
-        "flow://churn/previews/score.summary",
+        f"{root}/manifest",
+        f"{root}/cells/score",
+        f"{root}/previews/score.summary",
     }
     assert [cell["slug"] for cell in manifest["cells"]] == ["score"]
     assert source["mimeType"] == "text/x-python"
@@ -423,6 +490,8 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert set(tools) == {tool.name for tool in mcp.TOOLS}
     assert tools["edit-cell"]["inputSchema"]["required"] == ["slug", "source", "intent"]
     assert "lane" in tools["run"]["inputSchema"]["properties"]
+    assert "directory" in tools["status"]["inputSchema"]["properties"]
+    assert "directory" in tools["init-flow"]["inputSchema"]["properties"]
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND
 
 

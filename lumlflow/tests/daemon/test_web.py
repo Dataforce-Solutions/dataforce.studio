@@ -136,6 +136,10 @@ def until(socket: WebSocketTestSession, wanted: Callable[[Any], bool]) -> Any:
     raise AssertionError("no frame matched")
 
 
+def flow_address(served: Served, name: str = "churn") -> str:
+    return str(served.root / f"{name}.flow")
+
+
 def test_the_spa_and_the_tracker_share_the_port_with_the_flow_api(served: Served):
     """Experiments and Workspace are one product on one port — and the static
     fallback answers everything, so it must not answer for the API."""
@@ -323,12 +327,12 @@ def test_a_subscriber_is_caught_up_and_then_kept_up(served: Served):
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as socket:
-        replayed = subscribe(socket, "churn.flow")
+        replayed = subscribe(socket, flow_address(served))
         served.rpc("cells.new", {"flow": "churn", "slug": "report", "after": "score"})
         live = until(socket, lambda frame: frame.get("type") == "transaction")
 
     assert [frame["step"] for frame in replayed] == list(range(1, len(replayed) + 1))
-    assert live["flow"] == "churn.flow"
+    assert live["flow"] == flow_address(served)
     assert live["step"] > replayed[-1]["step"]
     assert live["transaction"]["intent"] == "added report"
 
@@ -338,15 +342,15 @@ def test_a_reconnect_replays_to_what_a_fresh_load_sees(served: Served):
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as first:
-        early = subscribe(first, "churn.flow")
+        early = subscribe(first, flow_address(served))
     cursor = early[-1]["step"]
 
     served.rpc("cells.new", {"flow": "churn", "slug": "report", "after": "score"})
 
     with served.watch() as second:
-        caught_up = subscribe(second, "churn.flow", cursor=cursor)
+        caught_up = subscribe(second, flow_address(served), cursor=cursor)
     with served.watch() as fresh:
-        whole = subscribe(fresh, "churn.flow")
+        whole = subscribe(fresh, flow_address(served))
 
     assert [frame["step"] for frame in caught_up] == [
         step for step in range(cursor + 1, whole[-1]["step"] + 1)
@@ -359,12 +363,12 @@ def test_two_flows_on_one_daemon_stream_separately(served: Served):
     served.rpc("flow.open", {"flow": "sweep"})
 
     with served.watch() as socket:
-        subscribe(socket, "churn.flow")
+        subscribe(socket, flow_address(served))
         served.rpc("cells.new", {"flow": "sweep", "slug": "probe"})
         served.rpc("cells.new", {"flow": "churn", "slug": "report", "after": "score"})
         frame = until(socket, lambda seen: seen.get("type") == "transaction")
 
-    assert frame["flow"] == "churn.flow"
+    assert frame["flow"] == flow_address(served)
     assert frame["transaction"]["intent"] == "added report"
 
 
@@ -375,13 +379,17 @@ def test_a_late_joiner_gets_the_tail_of_a_run_it_missed(served: Served):
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as socket:
-        subscribe(socket, "churn.flow")
+        subscribe(socket, flow_address(served))
         outcome = served.rpc("run", {"flow": "churn", "target": "chatty"})
         started = until(socket, lambda frame: frame.get("event") == "started")
 
         # Only now — the run is over and its chunks are long off the wire.
         socket.send_json(
-            {"subscribe": "logs", "flow": "churn", "run_id": started["run_id"]}
+            {
+                "subscribe": "logs",
+                "flow": flow_address(served),
+                "run_id": started["run_id"],
+            }
         )
         chunk = until(socket, lambda frame: frame.get("channel") == "logs")
 
@@ -400,7 +408,7 @@ def test_a_catch_up_says_what_is_running_as_well_as_where_it_got_to(
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as socket:
-        marker = catch_up(socket, "churn.flow")
+        marker = catch_up(socket, flow_address(served))
 
     assert marker["running"] == []
 
@@ -412,10 +420,14 @@ def test_a_cursor_the_client_garbled_costs_it_a_replay_not_the_connection(
 
     with served.watch() as socket:
         socket.send_json(
-            {"subscribe": "journal", "flow": "churn", "cursor": "yesterday"}
+            {
+                "subscribe": "journal",
+                "flow": flow_address(served),
+                "cursor": "yesterday",
+            }
         )
         replayed = until(socket, lambda frame: frame.get("type") == "caught_up")
-        whole = subscribe(socket, "churn.flow")
+        whole = subscribe(socket, flow_address(served))
 
     # Read as no cursor at all: over-delivering is what every frame's `step`
     # makes harmless, and it is the catch-up such a client needs anyway.
@@ -426,7 +438,7 @@ def test_a_tab_that_goes_away_stops_being_fanned_out_to(served: Served):
     """A browser closes without a word, and a quiet flow sends nothing to
     notice it by — so the connection's halves have to end each other."""
     with served.watch() as socket:
-        subscribe(socket, "churn.flow")
+        subscribe(socket, flow_address(served))
         assert served.streams.watchers == 1
 
     assert served.streams.watchers == 0
@@ -437,7 +449,7 @@ def test_naming_a_flow_that_is_not_here_does_not_end_the_connection(served: Serv
         socket.send_json({"subscribe": "journal", "flow": "nowhere"})
         refused = until(socket, lambda frame: frame.get("type") == "error")
 
-        subscribe(socket, "churn.flow")
+        subscribe(socket, flow_address(served))
 
     assert "`nowhere`" in refused["message"]
 
@@ -454,6 +466,7 @@ def test_journal_since_answers_the_same_history_over_plain_rpc(served: Served):
     )
     assert rest["transactions"] == whole["transactions"][1:]
     assert whole["flow"] == "churn"
+    assert whole["path"] == flow_address(served)
 
 
 def test_the_address_ui_prints_is_one_this_endpoint_takes(
@@ -491,4 +504,4 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
     with served.http.websocket_connect(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"
     ) as socket:
-        assert catch_up(socket, "churn.flow")["flow"] == "churn.flow"
+        assert catch_up(socket, flow_address(served))["flow"] == flow_address(served)

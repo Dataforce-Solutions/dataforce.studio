@@ -200,7 +200,7 @@ async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path:
         bound = api.hub.session("churn").store.branches.bound_branch()
 
     assert created["flow"] == "churn"
-    assert created["path"] == "churn.flow"
+    assert created["path"] == str(root / "churn.flow")
     assert created["branch"] == "main"
     assert _kernel_state(created) == ("stopped", False, [])
     assert store_dir(root / "churn.flow").is_dir()
@@ -210,6 +210,18 @@ async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path:
         ("AGENTS.md", "file"),
     ]
     assert bound is None
+
+
+async def test_flow_init_creates_in_the_directory_the_caller_names(tmp_path: Path):
+    launch = make_workspace(tmp_path / "launch", flows=())
+    destination = make_workspace(tmp_path / "destination", flows=())
+
+    async with daemon_api(launch) as api:
+        created = await api.flow_init({"name": "sales", "directory": str(destination)})
+
+    assert created["path"] == str(destination / "sales.flow")
+    assert store_dir(destination / "sales.flow").is_dir()
+    assert not (launch / "sales.flow").exists()
 
 
 async def test_a_flow_with_cells_opens_on_them_unmaterialized(tmp_path: Path):
@@ -277,6 +289,19 @@ async def test_status_covers_every_flow_and_names_the_interpreter(tmp_path: Path
     assert status["python"]["source"] == "lumlflow"
     assert slugs(flow_named(status, "churn")) == ["score"]
     assert slugs(flow_named(status, "sales")) == []
+
+
+async def test_status_lists_only_flows_beneath_the_requested_directory(
+    tmp_path: Path,
+):
+    launch = make_workspace(tmp_path / "launch", flows=("launch",))
+    requested = make_workspace(tmp_path / "requested", flows=("sales",))
+
+    async with daemon_api(launch) as api:
+        status = await api.status({"directory": str(requested)})
+
+    assert status["workspace"] == str(requested)
+    assert [flow["path"] for flow in status["flows"]] == [str(requested / "sales.flow")]
 
 
 async def test_a_run_crosses_daemon_kernel_and_store_in_two_flows(tmp_path: Path):
@@ -858,7 +883,7 @@ async def test_deleting_a_flow_takes_its_store_with_it(tmp_path: Path):
         deleted = await api.flow_delete({"flow": "churn"})
         left = await api.workspace_list({})
 
-    assert deleted == {"deleted": "churn", "path": "churn.flow"}
+    assert deleted == {"deleted": "churn", "path": str(root / "churn.flow")}
     assert not (root / "churn.flow").exists()
     assert [entry["name"] for entry in left["entries"]] == ["sales.flow", "AGENTS.md"]
 

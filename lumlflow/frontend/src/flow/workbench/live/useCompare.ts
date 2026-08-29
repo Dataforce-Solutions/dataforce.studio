@@ -112,7 +112,7 @@ export function useCompare(
     }
     loading.value = true
     try {
-      const flow = session.brief.value?.flow
+      const flow = session.brief.value?.path
       const [compared, tree] = await Promise.all([
         session.request('diff', { flow, branches: [...branches.value] }),
         session.request('tree', { flow }),
@@ -145,7 +145,7 @@ export function useCompare(
       shown.value = null
       return
     }
-    const flow = session.brief.value?.flow
+    const flow = session.brief.value?.path
     const answers = await Promise.all(
       branches.value.map(async (branch) => {
         try {

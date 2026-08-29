@@ -28,7 +28,7 @@ import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TextIO
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from lumlflow import __version__
 from lumlflow.flow.daemon import client
@@ -114,6 +114,12 @@ class _Tool:
 
 
 _FLOW = _Arg("flow", "string", "Which flow, when the workspace holds several.")
+_DIRECTORY = _Arg(
+    "directory",
+    "string",
+    "Directory whose flows to list or where the new flow is created. Defaults "
+    "to the server's spawn directory.",
+)
 _BRANCH = _Arg("lane", "string", "Which lane. Defaults to the one you are on.")
 _INTENT = _Arg(
     "intent",
@@ -151,7 +157,10 @@ TOOLS: tuple[_Tool, ...] = (
         "status",
         "status",
         "The workspace, the flows in it, and what is stale in each.",
-        (_Arg("flow", "string", "Narrow the answer to one flow."),),
+        (
+            _Arg("flow", "string", "Narrow the answer to one flow."),
+            _DIRECTORY,
+        ),
         scope="workspace",
     ),
     _Tool(
@@ -166,6 +175,7 @@ TOOLS: tuple[_Tool, ...] = (
                 "What to call it. The directory becomes `<name>.flow`.",
                 required=True,
             ),
+            _DIRECTORY,
         ),
         scope="workspace",
     ),
@@ -311,6 +321,7 @@ class _Flow:
     """A flow this session addresses, and the branch it is working on."""
 
     name: str
+    path: str
     branch: str
 
 
@@ -367,9 +378,9 @@ class Server:
         necessity: a daemon that has already gone cannot be told anything, and
         the session has ended either way.
         """
-        for name in sorted(self._registered):
+        for path in sorted(self._registered):
             with contextlib.suppress(FlowError, OSError):
-                self._call("agent.end", {"flow": name, "actor": self.actor})
+                self._call("agent.end", {"flow": path, "actor": self.actor})
         self._registered.clear()
         if self._daemon is not None:
             self._daemon.close()
@@ -450,7 +461,7 @@ class Server:
         if tool.scope == "workspace":
             return self._call(tool.method, _as_wire(params))
         flow = self._touch(params.get("flow"))
-        params["flow"] = flow.name
+        params["flow"] = flow.path
         if tool.name == "use-lane":
             return self._use(flow, str(params["lane"]))
         if tool.scope == "branch":
@@ -466,7 +477,7 @@ class Server:
         """
         known = [
             str(row["branch"])
-            for row in self._call("tree", {"flow": flow.name})["branches"]
+            for row in self._call("tree", {"flow": flow.path})["branches"]
         ]
         if wanted not in known:
             raise BranchNotFound(
@@ -492,7 +503,7 @@ class Server:
                 }
             )
             for cell in self._call(
-                "cells.list", {"flow": flow.name, "branch": flow.branch}
+                "cells.list", {"flow": flow.path, "branch": flow.branch}
             )["cells"]:
                 slug = str(cell["slug"])
                 listed.append(
@@ -526,8 +537,8 @@ class Server:
             raise _Refused(RESOURCE_NOT_FOUND, f"nothing is served at `{uri}`")
         route = parts.path.strip("/").split("/")
         try:
-            flow = self._flow(parts.netloc)
-            scoped = {"flow": flow.name, "branch": flow.branch}
+            flow = self._flow(unquote(parts.netloc))
+            scoped = {"flow": flow.path, "branch": flow.branch}
             if route == ["manifest"]:
                 return _json_content(uri, self._call("cells.list", scoped))
             if len(route) == 2 and route[0] == "cells":
@@ -547,7 +558,7 @@ class Server:
 
     def _all_flows(self) -> list[_Flow]:
         return [
-            self._flow(str(flow["flow"])) for flow in self._call("status", {})["flows"]
+            self._flow(str(flow["path"])) for flow in self._call("status", {})["flows"]
         ]
 
     def _touch(self, named: Any) -> _Flow:
@@ -562,13 +573,13 @@ class Server:
         agent session on the flow. It never takes or blocks the files.
         """
         flow = self._flow(named)
-        if flow.name not in self._registered:
+        if flow.path not in self._registered:
             # Recorded only once the journal holds it. A begin that did not
             # land leaves nothing named after this session, and the end it
             # would be owed resolves to whoever *is* registered — the agent
             # working in the files, told to stop by a session it never knew.
             self._register(flow)
-            self._registered.add(flow.name)
+            self._registered.add(flow.path)
         return flow
 
     def _register(self, flow: _Flow) -> None:
@@ -581,7 +592,7 @@ class Server:
         self._call(
             "agent.begin",
             {
-                "flow": flow.name,
+                "flow": flow.path,
                 "actor": self.actor,
                 "label": self.label,
                 "lease": True,
@@ -601,19 +612,21 @@ class Server:
         one is created rather than being asked which it meant halfway through.
         """
         key = str(named) if named else ""
-        name = self._named.get(key)
-        if name is None:
+        path = self._named.get(key)
+        if path is None:
             opened = self._call("flow.open", {"flow": named, "worktree": False})
-            name = str(opened["flow"])
-            self._named[key] = name
+            path = str(opened["path"])
+            self._named[key] = path
+            self._named[path] = path
             self._flows.setdefault(
-                name,
+                path,
                 _Flow(
-                    name=name,
+                    name=str(opened["flow"]),
+                    path=path,
                     branch=str(opened["branch"]),
                 ),
             )
-        return self._flows[name]
+        return self._flows[path]
 
     def _call(self, method: str, params: dict[str, Any]) -> Any:
         """One daemon call, over a connection this session keeps open.
@@ -630,8 +643,14 @@ class Server:
         daemon = self._daemon
         if daemon is None:
             daemon = self._daemon = client.connect(self.directory)
+        payload = {"actor": self.actor, "directory": str(self.directory)} | params
+        if "directory" in params:
+            asked = Path(str(params["directory"])).expanduser()
+            if not asked.is_absolute():
+                asked = self.directory / asked
+            payload["directory"] = str(asked.resolve())
         try:
-            return daemon.call(method, {"actor": self.actor} | params)
+            return daemon.call(method, payload)
         except ServerError:
             self._daemon = None
             self._registered.clear()
@@ -704,7 +723,7 @@ def _json_content(uri: str, body: Any) -> dict[str, Any]:
 
 
 def _uri(flow: _Flow, *route: str) -> str:
-    return f"{_FLOW_SCHEME}://{flow.name}/{'/'.join(route)}"
+    return f"{_FLOW_SCHEME}://{quote(flow.path, safe='')}/{'/'.join(route)}"
 
 
 def _failed(request_id: Any, code: int, message: str) -> dict[str, Any]:

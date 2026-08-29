@@ -59,7 +59,7 @@ class FlowSession:
         self.streams = streams
         if streams is not None:
             store.listeners.append(
-                lambda entry: streams.transaction(ref.relpath, entry)
+                lambda entry: streams.transaction(ref.address, entry)
             )
         self.kernel = KernelProcess(
             flow_dir=ref.path,
@@ -104,7 +104,7 @@ class FlowSession:
         """
         if self.streams is not None:
             self.streams.kernel(
-                self.ref.relpath, event, params, step=self.store.next_step - 1
+                self.ref.address, event, params, step=self.store.next_step - 1
             )
 
     def reconcile(
@@ -246,7 +246,7 @@ class Hub:
         if self._streams is None:
             return 0
         return sum(
-            len(self._streams.running(session.ref.relpath))
+            len(self._streams.running(session.ref.address))
             for session in self._sessions.values()
         )
 
