@@ -134,6 +134,7 @@ def record_run(
     content: bytes = b"rows",
     inputs: dict[str, InputRef] | None = None,
     state: MaterializationState = "succeeded",
+    memo_key: str | None = None,
 ) -> RunRecorded:
     """Stage the value in the CAS, then journal the run — the store's ordering."""
     store.values.put(content)
@@ -144,6 +145,7 @@ def record_run(
         branch_id=branch_id,
         state=state,
         inputs=inputs,
+        memo_key=memo_key,
         outputs={"data": output_record(content)},
     )
     store.commit([run], intent=f"ran {accepted.slug}", actor="user", branch=branch_id)

@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 from lumlflow.flow.ids import new_ulid
-from lumlflow.flow.scheduler import staleness
+from lumlflow.flow.scheduler import memo, staleness
+from lumlflow.flow.scheduler.planner import Planner
 from lumlflow.flow.scheduler.staleness import Verdict
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import FlowStore
@@ -125,6 +126,53 @@ class TestCauses:
         verdict = verdicts(store)["features"]
         assert verdict.state == "unsynced"
         assert causes(verdict) == [("workspace-code-changed", "`helpers.py` changed")]
+
+    def test_reverting_workspace_code_to_the_run_tree_clears_staleness(
+        self, store: FlowStore
+    ) -> None:
+        tree_a = "a" * 64
+        tree_b = "b" * 64
+        store.commit(
+            [WorkspaceCodeChanged(tree_hash=tree_a, changed_paths=["helpers.py"])],
+            intent="shared code discovered",
+            actor="system",
+        )
+        features = accept(store, "features")
+        version = store.index.version(features.version_id)
+        assert version is not None
+        record_run(store, features, memo_key=memo.key_for(store.index, version, {}))
+        store.commit(
+            [
+                WorkspaceCodeChanged(
+                    tree_hash=tree_b,
+                    previous_tree_hash=tree_a,
+                    changed_paths=["helpers.py"],
+                )
+            ],
+            intent="shared code changed",
+            actor="system",
+        )
+
+        changed = verdicts(store)["features"]
+        assert changed.state == "unsynced"
+        assert causes(changed) == [("workspace-code-changed", "`helpers.py` changed")]
+        assert Planner(store).auto_targets(MAIN_BRANCH) == ["features"]
+
+        store.commit(
+            [
+                WorkspaceCodeChanged(
+                    tree_hash=tree_a,
+                    previous_tree_hash=tree_b,
+                    changed_paths=["helpers.py"],
+                )
+            ],
+            intent="shared code restored",
+            actor="system",
+        )
+
+        restored = verdicts(store)["features"]
+        assert (restored.state, restored.causes) == ("synced", ())
+        assert Planner(store).auto_targets(MAIN_BRANCH) == []
 
     def test_a_parent_with_no_baseline_raises_no_cause_of_its_own(
         self, store: FlowStore

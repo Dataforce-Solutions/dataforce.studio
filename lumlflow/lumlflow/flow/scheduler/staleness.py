@@ -16,6 +16,7 @@ direct view calls it synced and the transitive view says what it sits below.
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from lumlflow.flow.scheduler import memo
 from lumlflow.flow.store.index import (
     Index,
     MaterializationRow,
@@ -159,13 +160,17 @@ class _Derivation:
         return tuple(dict.fromkeys(causes))
 
     def _workspace_causes(self, mat: MaterializationRow) -> tuple[Cause, ...]:
-        """Shared code the run imported has changed since it started.
-
-        Anything that *started* before the change counts: modules are evicted
-        before the next materialization, never under a running one.
-        """
-        if self.tree is None or mat.started_step >= self.tree.changed_step:
+        """Shared code differs from the tree encoded in the run's memo key."""
+        if self.tree is None:
             return ()
+        ran = self.index.version(mat.version_id)
+        if ran is not None:
+            behavior = memo.behavior_hash(ran.definition_hash, self.tree.tree_hash)
+            inputs = {name: ref.content_hash for name, ref in mat.inputs.items()}
+            env = mat.env_lock_hash if ran.manifest.env_sensitive else None
+            current_key = memo.memo_key(behavior, inputs, env_lock_hash=env)
+            if current_key == mat.memo_key:
+                return ()
         return (Cause("workspace-code-changed", _changed_files(self.tree)),)
 
 

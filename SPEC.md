@@ -1162,9 +1162,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Fix scheduler stop, replan and force
   - [x] A stop that arrives while the kernel is starting ends the run `cancelled` (`kernel_proc.py`, `queue.py`); a step whose selected version moved mid-plan is re-planned or abandoned, never run from the superseded version; `force` never joins another lane's flight
   - [x] Tests in `tests/flow/test_queue.py` and `tests/daemon/test_api.py`: stop during kernel start, edit mid-plan, force never joins another lane's run
-- [ ] Derive the workspace-code cause from the tree hash
-  - [ ] The workspace-code staleness cause (`staleness.py`) derives from the tree hash the materialization ran under, not from steps
-  - [ ] Tests in `test_staleness.py`: A→B→A leaves nothing stale
+- [x] Derive the workspace-code cause from the tree hash
+  - [x] The workspace-code staleness cause (`staleness.py`) derives from the tree hash the materialization ran under, not from steps
+  - [x] Tests in `test_staleness.py`: A→B→A leaves nothing stale
 - [ ] Move the churn demo beside its own pyproject
   - [ ] Move `churn.flow` to `lumlflow/examples/churn/` beside a `pyproject.toml` declaring its dependencies (scikit-learn, matplotlib, pandas, pyarrow, luml-sdk); exclude `/examples` from the sdist; the demo's cells either pass `ruff` or `examples/` is excluded from its scan (`mypy` and `pytest` already take explicit paths); confirm the nested `pyproject.toml` is not picked up as a `uv` workspace member
   - [ ] Tests: the built sdist and wheel hold no `examples/` entry; every reference to the old path (tests, docs, the README) points at the new one
