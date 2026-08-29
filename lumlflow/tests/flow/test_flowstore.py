@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -271,6 +272,41 @@ class TestCommit:
 
 
 class TestCrashPoints:
+    def test_a_failed_fsync_restores_the_journal_before_the_next_commit(
+        self, flow_dir: Path, store: FlowStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        before = store.journal.path.read_bytes()
+        real_fsync = os.fsync
+        fail_next = True
+
+        def fail_after_sync(fd: int) -> None:
+            nonlocal fail_next
+            real_fsync(fd)
+            if fail_next:
+                fail_next = False
+                raise OSError("fsync failed")
+
+        monkeypatch.setattr(os, "fsync", fail_after_sync)
+
+        with pytest.raises(OSError, match="fsync failed"):
+            store.commit(
+                [cell_accepted(slug="features")], intent="accept", actor="user"
+            )
+
+        assert store.journal.path.read_bytes() == before
+
+        committed = store.commit(
+            [cell_accepted(slug="metrics")], intent="accept", actor="user"
+        )
+        assert committed.step == 2
+        store.close()
+
+        reopened = FlowStore.open(flow_dir)
+
+        assert [entry.step for entry in reopened.journal.replay()] == [1, 2]
+        assert reopened.next_step == 3
+        assert _version_slugs(reopened) == ["metrics"]
+
     def test_a_lost_index_update_is_caught_up_on_the_next_open(
         self, flow_dir: Path, store: FlowStore, monkeypatch: pytest.MonkeyPatch
     ) -> None:

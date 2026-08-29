@@ -31,10 +31,21 @@ class Journal:
             fsync_dir(self.path.parent)
 
     def append(self, transaction: Transaction) -> None:
-        with self.path.open("ab") as handle:
-            handle.write(transaction.to_line())
-            handle.flush()
-            os.fsync(handle.fileno())
+        line = transaction.to_line()
+        with self.path.open("ab", buffering=0) as handle:
+            handle.seek(0, os.SEEK_END)
+            original_size = handle.tell()
+            try:
+                written = handle.write(line)
+                if written != len(line):
+                    raise OSError(
+                        f"journal append wrote {written} of {len(line)} bytes"
+                    )
+                os.fsync(handle.fileno())
+            except BaseException:
+                handle.truncate(original_size)
+                os.fsync(handle.fileno())
+                raise
 
     def replay(self) -> Iterator[Transaction]:
         if not self.path.exists():

@@ -1143,9 +1143,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Harden reconciliation against unreadable files
   - [x] `accept_path` / `scan_workspace`: ignore `.#*` and `._*`, skip dangling symlinks and unreadable files, decode undecodable cells with an `invalid` flag naming the encoding; accept a UTF-8 BOM; fix the header-line-class uid insert
   - [x] Tests: Latin-1 cell, dangling symlink, permission-denied file in the tree, one-line class, BOM
-- [ ] Truncate a failed journal append
-  - [ ] `journal.append` leaves the file as it was on failure; `commit` re-derives the next step after a failed append
-  - [ ] Test with a monkey-patched fsync; the flow reopens
+- [x] Truncate a failed journal append
+  - [x] `journal.append` leaves the file as it was on failure; `commit` re-derives the next step after a failed append
+  - [x] Test with a monkey-patched fsync; the flow reopens
 - [ ] Evict workspace modules before the next run
   - [ ] Module eviction becomes an evict-before-next-run flag, never queued behind a running cell
   - [ ] Test: 60 s run + helper edit, `cells.list` answers while the cell is still running

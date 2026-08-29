@@ -157,7 +157,11 @@ class FlowStore:
                     ops=list(ops),
                 )
             )
-            self.journal.append(transaction)
+            try:
+                self.journal.append(transaction)
+            except BaseException:
+                self._next_step = self.journal.last_step() + 1
+                raise
             self._next_step += 1
             try:
                 self.index.apply(transaction)
