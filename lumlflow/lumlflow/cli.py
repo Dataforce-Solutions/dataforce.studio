@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import webbrowser
 from pathlib import Path
@@ -10,7 +11,11 @@ from lumlflow.flow import cli as flow_cli
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.workspace import DaemonRecord
 
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5000
+NON_LOOPBACK_WARNING = (
+    "The tracker API on this port is unauthenticated on a non-loopback bind."
+)
 
 app = typer.Typer(
     name="lumlflow",
@@ -27,6 +32,11 @@ def ui(
         "--path",
         help="Backend store URI (e.g. sqlite://./experiments)",
     ),
+    host: str = typer.Option(
+        DEFAULT_HOST,
+        "--host",
+        help=f"Host to serve on. {NON_LOOPBACK_WARNING}",
+    ),
     port: int = typer.Option(DEFAULT_PORT, "--port", "-p", help="Port to serve on."),
     no_browser: bool = typer.Option(
         False, "--no-browser", help="Do not open the browser."
@@ -34,9 +44,9 @@ def ui(
 ) -> None:
     """Start lumlflow: Experiments, and this workspace's flows.
 
-    It serves http://127.0.0.1:5000, or the port `--port` names. It keeps
-    running until you stop it with Ctrl+C. Start a second one in the same
-    workspace and it opens the browser on the one already serving.
+    It serves http://127.0.0.1:5000 by default. It keeps running until you stop
+    it with Ctrl+C. Start a second one in the same workspace and it opens the
+    browser on the one already serving.
     """
     from lumlflow.flow.daemon import client, workspace
     from lumlflow.flow.daemon import main as server
@@ -55,6 +65,7 @@ def ui(
             return
         code = server.serve_here(
             root,
+            web_host=host,
             web_port=port,
             announce=lambda record: _serving(record, no_browser=no_browser),
         )
@@ -67,6 +78,7 @@ def ui(
 
 def _serving(record: "DaemonRecord", *, no_browser: bool) -> None:
     """Said once this process is answering, from inside its own event loop."""
+    _warn_if_non_loopback(record.web_host)
     typer.echo(f"workspace: {record.workspace}")
     typer.echo(f"lumlflow at {_url(record)}")
     typer.echo("press Ctrl+C to stop")
@@ -88,6 +100,7 @@ def _attach(record: "DaemonRecord", *, port: int, no_browser: bool) -> None:
             err=True,
         )
         raise typer.Exit(1)
+    _warn_if_non_loopback(record.web_host)
     typer.echo(f"workspace: {record.workspace}")
     typer.echo(f"lumlflow already at {_url(record)}")
     if record.web_port != port:
@@ -100,7 +113,21 @@ def _url(record: "DaemonRecord") -> str:
     """The authenticated address: the flow API asks every caller for the
     workspace's token, and the SPA is the one caller with no other way to
     have it."""
-    return f"http://127.0.0.1:{record.web_port}/?token={record.token}"
+    return f"http://{record.web_host}:{record.web_port}/?token={record.token}"
+
+
+def _warn_if_non_loopback(host: str) -> None:
+    if not _is_loopback(host):
+        typer.echo(f"warning: {NON_LOOPBACK_WARNING}")
+
+
+def _is_loopback(host: str) -> bool:
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 @app.command(

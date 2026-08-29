@@ -60,10 +60,10 @@ def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
 ) -> None:
     """5000 is the address the product has; asking for another is a gesture."""
     root = make_workspace(tmp_path / "project", flows=())
-    asked: list[int] = []
+    asked: list[tuple[str, int]] = []
 
-    def note(root: Path, *, web_port: int, announce: Any) -> int:
-        asked.append(web_port)
+    def note(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
+        asked.append((web_host, web_port))
         return 0
 
     monkeypatch.setattr(server, "serve_here", note)
@@ -75,7 +75,12 @@ def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
     runner.invoke(app, ["ui", "--no-browser", "--port", "5173"])
     runner.invoke(app, ["ui", "--no-browser", "-p", "8080"])
 
-    assert asked == [top_cli.DEFAULT_PORT, 5173, 8080]
+    assert asked == [
+        (top_cli.DEFAULT_HOST, top_cli.DEFAULT_PORT),
+        (top_cli.DEFAULT_HOST, 5173),
+        (top_cli.DEFAULT_HOST, 8080),
+    ]
+    assert top_cli.DEFAULT_HOST == "127.0.0.1"
     assert top_cli.DEFAULT_PORT == 5000
 
 
@@ -92,7 +97,7 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     record = _record(foreground=True)
     opened = _opens(monkeypatch)
 
-    def announcing(root: Path, *, web_port: int, announce: Any) -> int:
+    def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
         announce(record)
         return 0
 
@@ -105,6 +110,78 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     runner.invoke(app, ["ui", "--no-browser"])
 
     assert opened == [f"http://127.0.0.1:{record.web_port}/?token={record.token}"]
+
+
+@pytest.mark.parametrize(
+    ("host", "warned"),
+    [("127.0.0.1", False), ("localhost", False), ("0.0.0.0", True)],
+)
+def test_ui_warns_only_for_a_non_loopback_bind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    host: str,
+    warned: bool,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+
+    def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
+        announce(
+            DaemonRecord(
+                workspace=str(root),
+                pid=1,
+                port=1,
+                token="t",
+                started="now",
+                web_host=web_host,
+                web_port=web_port,
+                foreground=True,
+            )
+        )
+        return 0
+
+    monkeypatch.setattr(server, "serve_here", announcing)
+    monkeypatch.setattr(client, "live_record", lambda _: None)
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(
+        app, ["ui", "--no-browser", "--host", host, "--port", "7777"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (top_cli.NON_LOOPBACK_WARNING in result.output) is warned
+
+
+def test_a_non_loopback_host_is_bound_recorded_and_still_requires_the_token(
+    tmp_path: Path, serve: Serve
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    port = _free_port()
+
+    running = serve(root, "--host", "0.0.0.0", "--port", str(port))
+    record = _served(root, port)
+    unauthorized = httpx.post(
+        f"http://127.0.0.1:{port}{web.RPC_PATH}",
+        json={"method": "status", "params": {}},
+        timeout=30.0,
+    )
+    authorized = _rpc(record)
+    assert client.stop(record, timeout=_STOP_TIMEOUT_S)
+    printed, errors = running.communicate(timeout=_STOP_TIMEOUT_S)
+
+    assert record.web_host == "0.0.0.0"
+    assert unauthorized.status_code == web.UNAUTHORIZED
+    assert authorized["result"]["workspace"] == str(root)
+    assert f"http://0.0.0.0:{port}/?token={record.token}" in printed
+    assert top_cli.NON_LOOPBACK_WARNING in printed
+    assert errors == ""
+
+
+def test_the_web_listener_binds_the_requested_non_loopback_host() -> None:
+    listener = server._bind_exactly("0.0.0.0", 0)
+    try:
+        assert listener.getsockname()[0] == "0.0.0.0"
+    finally:
+        listener.close()
 
 
 def test_a_second_ui_opens_the_browser_on_the_one_already_serving(

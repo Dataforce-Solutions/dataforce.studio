@@ -949,6 +949,14 @@ def test_no_visible_help_speaks_the_vocabulary_git_owns():
         no_git_words(result.output, f"`lumlflow {' '.join(path)} --help`")
 
 
+def test_ui_help_warns_about_an_unauthenticated_tracker_on_non_loopback() -> None:
+    result = CliRunner().invoke(app, ["ui", "--help"])
+
+    assert result.exit_code == 0, result.output
+    for phrase in ("tracker API", "unauthenticated", "non-loopback bind"):
+        assert phrase in result.output
+
+
 def test_no_verb_prints_the_vocabulary_git_owns(cli: Invoke, workspace: Path):
     """The same sweep over what the verbs actually say, not what they promise."""
     cli("init", "churn")

@@ -73,6 +73,7 @@ class DaemonRecord:
     started: str
     # Where a browser reaches this workspace. Zero when the daemon serves the
     # socket alone — a port nothing listens on is worse than none.
+    web_host: str = "127.0.0.1"
     web_port: int = 0
     # Whether a person is watching this one in a terminal. `lumlflow ui` may
     # restart the background plumbing to take its port; a process the user
@@ -295,6 +296,7 @@ def new_record(
     *,
     port: int,
     token: str,
+    web_host: str = "127.0.0.1",
     web_port: int = 0,
     foreground: bool = False,
 ) -> DaemonRecord:
@@ -304,6 +306,7 @@ def new_record(
         port=port,
         token=token,
         started=datetime.now(UTC).isoformat(),
+        web_host=web_host,
         web_port=web_port,
         foreground=foreground,
     )

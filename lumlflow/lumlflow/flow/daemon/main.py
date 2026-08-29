@@ -52,6 +52,7 @@ _WEB_GRACE_S = 3.0
 # How long a foreground start waits out the predecessor it just asked to stop:
 # the record is surrendered a moment before the lock behind it is.
 _HANDOVER_S = 10.0
+_DEFAULT_WEB_HOST = "127.0.0.1"
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -71,6 +72,7 @@ class Daemon:
         self.watcher = Watcher(self.hub)
         self.token = secrets.token_hex(16)
         self.port = 0
+        self.web_host = _DEFAULT_WEB_HOST
         self.web_port = 0
         self._lock = workspace.WorkspaceLock(self.root)
         self._server: asyncio.AbstractServer | None = None
@@ -88,6 +90,7 @@ class Daemon:
         self,
         *,
         port: int = 0,
+        web_host: str = _DEFAULT_WEB_HOST,
         web_port: int = 0,
         web_listener: socket.socket | None = None,
         foreground: bool = False,
@@ -118,12 +121,18 @@ class Daemon:
         self.port = int(self._server.sockets[0].getsockname()[1])
         # Bound before the record is written, because the record is where a
         # browser reads the port from.
-        listener = web_listener if web_listener is not None else _bind_web(web_port)
+        self.web_host = web_host
+        listener = (
+            web_listener
+            if web_listener is not None
+            else _bind_web(self.web_host, web_port)
+        )
         self.web_port = _port_of(listener)
         record = workspace.new_record(
             self.root,
             port=self.port,
             token=self.token,
+            web_host=self.web_host,
             web_port=self.web_port,
             foreground=foreground,
         )
@@ -200,7 +209,7 @@ class Daemon:
         token, and the token is what makes this port the workspace's rather
         than anything else's on the machine.
         """
-        self.api.web = f"http://127.0.0.1:{self.web_port}"
+        self.api.web = f"http://{self.web_host}:{self.web_port}"
         self._web = _WebServer(
             uvicorn.Config(
                 web.build_app(self.hub, self.api, self.streams, token=self.token),
@@ -416,7 +425,7 @@ class _WebServer(uvicorn.Server):
         yield
 
 
-def serve_here(root: Path, *, web_port: int, announce: Announce) -> int:
+def serve_here(root: Path, *, web_host: str, web_port: int, announce: Announce) -> int:
     """Serve this workspace in *this* process, until a signal stops it.
 
     What `lumlflow ui` is: the port is bound first, so one somebody else holds
@@ -424,10 +433,11 @@ def serve_here(root: Path, *, web_port: int, announce: Announce) -> int:
     and the whole workspace — kernels, locks, the discovery record — belongs to
     a process the user can see and end with Ctrl-C.
     """
-    listener = _bind_exactly(web_port)
+    listener = _bind_exactly(web_host, web_port)
     try:
         return asyncio.run(
             Daemon(root).serve(
+                web_host=web_host,
                 web_listener=listener,
                 foreground=True,
                 announce=announce,
@@ -438,13 +448,13 @@ def serve_here(root: Path, *, web_port: int, announce: Announce) -> int:
         listener.close()
 
 
-def _bind_exactly(port: int) -> socket.socket:
+def _bind_exactly(host: str, port: int) -> socket.socket:
     """The port asked for, or a refusal naming it. Never a different one."""
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if sys.platform != "win32":
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        listener.bind(("127.0.0.1", port))
+        listener.bind((host, port))
         listener.listen(_BACKLOG)
     except OSError as taken:
         listener.close()
@@ -454,8 +464,8 @@ def _bind_exactly(port: int) -> socket.socket:
     return listener
 
 
-def _bind_web(port: int) -> socket.socket | None:
-    """Loopback, on the port asked for or on whichever one is free.
+def _bind_web(host: str, port: int) -> socket.socket | None:
+    """The requested host, on the requested port or whichever one is free.
 
     A port somebody else holds is not a reason to refuse to be a daemon: every
     verb in the workspace goes through this process, and they all work without
@@ -469,7 +479,7 @@ def _bind_web(port: int) -> socket.socket | None:
             # lets another process bind the port this one is serving on.
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            listener.bind(("127.0.0.1", wanted))
+            listener.bind((host, wanted))
             listener.listen(_BACKLOG)
         except OSError as taken:
             listener.close()
@@ -558,7 +568,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.workspace
         else workspace.resolve_root(Path.cwd())
     )
-    return asyncio.run(Daemon(root).serve(port=args.port, web_port=args.web_port))
+    return asyncio.run(
+        Daemon(root).serve(
+            port=args.port, web_host=args.web_host, web_port=args.web_port
+        )
+    )
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
@@ -566,8 +580,9 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--workspace", default=None, help="workspace root")
     parser.add_argument("--port", type=int, default=0, help="loopback port")
     parser.add_argument(
-        "--web-port", type=int, default=0, help="loopback port for the browser"
+        "--web-host", default=_DEFAULT_WEB_HOST, help="host for the browser"
     )
+    parser.add_argument("--web-port", type=int, default=0, help="port for the browser")
     return parser.parse_args(argv)
 
 
