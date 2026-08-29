@@ -105,7 +105,7 @@ def _snippet(root: str) -> list[str]:
     over five lines, and a snippet is read as much as it is pasted.
     """
     command = json.dumps(executable())
-    args = ", ".join(json.dumps(word) for word in ("mcp", "--workspace", root))
+    args = json.dumps("mcp")
     return [
         "```json",
         "{",

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from lumlflow.flow import render
+from lumlflow.flow.daemon import workspace
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher
 from lumlflow.flow.dsl import tree as workspace_tree
@@ -97,7 +98,7 @@ async def test_cold_start_lands_offline_edits_as_one_coarse_transaction(
     write_cell(flow, "extra", SCORE_CELL.replace("Score", "Extra"))
 
     async with daemon_api(root) as api:
-        session = api.hub.open(api.hub.select("churn"))
+        session = api.hub.open(workspace.select_flow(root, name="churn"))
         landed = transactions(session)[steps:]
         after = {
             slug: version.uid for slug, version in slice_of(session, "main").items()

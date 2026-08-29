@@ -77,8 +77,8 @@ def workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def cli(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Invoke]:
     loop = asyncio.new_event_loop()
-    hub = Hub(workspace)
-    api = Api(hub)
+    hub = Hub()
+    api = Api(hub, directory=workspace)
     monkeypatch.setattr(
         client, "connect", lambda root, **kwargs: LocalDaemon(api, loop)
     )
@@ -636,12 +636,15 @@ def test_agent_session_help_describes_attribution_not_file_ownership(
     assert "releasing the files" not in ended.output
 
 
-def test_root_and_daemon_status_answer_without_a_flow(cli: Invoke, workspace: Path):
+def test_root_is_gone_and_daemon_status_answers_without_a_flow(
+    cli: Invoke, workspace: Path
+) -> None:
     where = cli("root")
     daemon = cli("daemon", "status")
 
-    assert where.output.strip() == str(workspace)
-    assert "not running" in daemon.output
+    assert where.exit_code != 0
+    assert "No such command 'root'" in where.output
+    assert "daemon is not running" in daemon.output
 
 
 def test_status_says_what_the_flow_costs_on_disk(cli: Invoke, workspace: Path):

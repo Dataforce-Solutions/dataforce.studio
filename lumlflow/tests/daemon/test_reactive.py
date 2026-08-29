@@ -9,7 +9,7 @@ agent actually uses: the edit verb, or the file plane the watcher reconciles.
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import queries
+from lumlflow.flow.daemon import queries, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.reactive import AUTO_ACTOR
 from lumlflow.flow.store.models import RunRecorded
@@ -236,7 +236,7 @@ async def test_reading_a_slice_does_not_ask_reactivity_anything(tmp_path: Path):
     write_cell(root / "churn.flow", "report", REPORT_CELL)
 
     async with daemon_api(root) as api:
-        session = api.hub.session("churn")
+        session = api.hub.open(workspace.select_flow(root, name="churn"))
         asked = 0
         verdicts = session.planner.auto_verdicts
 

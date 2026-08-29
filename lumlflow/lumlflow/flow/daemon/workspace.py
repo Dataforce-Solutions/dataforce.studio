@@ -1,25 +1,11 @@
-"""Which directory owns the flows, and which daemon owns that directory.
-
-A workspace is the directory lumlflow was launched from — one venv, one
-`AGENTS.md`, one daemon, and every flow beneath it. Resolution walks up from
-the caller's cwd, because agents run verbs from wherever they happen to be: the
-nearest ancestor holding a `.flow` directory is the workspace, an ancestor some
-daemon already registered is the workspace, and a bare directory is its own
-workspace — which is what makes launching in an empty folder work.
-
-The daemon's `{pid, port, token}` record lives in the user's state directory
-keyed by the canonical workspace path, never in the user's repo: a checkout is
-no place for a token, and a workspace that is not a repo has nowhere to put one
-anyway. The record says who to call; the lock beside it says who is allowed to
-write, and only one process can hold that.
-"""
+"""Flow discovery and the one per-user daemon record."""
 
 import json
 import os
 import platform
+import re
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -28,15 +14,31 @@ if sys.platform == "win32":
 else:
     import fcntl
 
+from lumlflow import __version__
 from lumlflow.flow.atomic import atomic_write_bytes
 from lumlflow.flow.dsl.tree import EXCLUDED_DIRS
 from lumlflow.flow.errors import FlowAmbiguous, FlowNotFound
-from lumlflow.flow.hashing import hash_bytes
 from lumlflow.flow.store.flowstore import FLOW_SUFFIX, store_dir
 
 STATE_DIR_ENV = "LUMLFLOW_STATE_DIR"
-RECORDS_DIRNAME = "daemons"
 LOGS_DIRNAME = "logs"
+RECORD_NAME = "daemon.json"
+LOCK_NAME = "daemon.lock"
+LOG_NAME = "daemon.log"
+
+_NETWORK_FILESYSTEMS = frozenset(
+    {
+        "9p",
+        "afs",
+        "cifs",
+        "fuse.sshfs",
+        "ncpfs",
+        "nfs",
+        "nfs4",
+        "smbfs",
+    }
+)
+_MOUNT_ESCAPE = re.compile(r"\\([0-7]{3})")
 
 EntryKind = Literal["flow", "dir", "file"]
 
@@ -66,32 +68,17 @@ class Entry:
 
 @dataclass(frozen=True)
 class DaemonRecord:
-    workspace: str
     pid: int
+    instance_id: str
     port: int
     token: str
-    started: str
-    # Where a browser reaches this workspace. Zero when the daemon serves the
-    # socket alone — a port nothing listens on is worse than none.
-    web_host: str = "127.0.0.1"
-    web_port: int = 0
-    # Whether a person is watching this one in a terminal. `lumlflow ui` may
-    # restart the background plumbing to take its port; a process the user
-    # started and can see is never taken out from under them.
-    foreground: bool = False
+    web_host: str
+    web_port: int
+    tracker_store: str
+    version: str
 
     def to_json(self) -> bytes:
         return json.dumps(self.__dict__, sort_keys=True).encode("utf-8")
-
-
-def resolve_root(start: Path) -> Path:
-    """The workspace root for a cwd: nearest ancestor with a flow, else itself."""
-    here = start.resolve()
-    registered = registered_roots()
-    for candidate in (here, *here.parents):
-        if candidate in registered or _holds_flow(candidate):
-            return candidate
-    return here
 
 
 def find_flows(root: Path) -> list[FlowRef]:
@@ -178,22 +165,16 @@ def listing(root: Path, relative: str = "") -> dict[str, Any]:
 
 
 class WorkspaceLock:
-    """Exclusive write ownership of everything under one workspace.
+    """The OS-released lock held by the daemon for its entire lifetime."""
 
-    The record can go stale — a machine reboots, a daemon is killed — and a
-    stale record is why two daemons could otherwise decide, at the same
-    instant, that the workspace is theirs to take over. Two of them appending
-    to one journal is corruption, so the decision is made by the OS instead:
-    this lock cannot outlive its holder, however that holder dies.
-    """
-
-    def __init__(self, root: Path) -> None:
-        self.path = record_path(root).with_suffix(".lock")
+    def __init__(self) -> None:
+        self.path = lock_path()
         self._handle: int | None = None
 
     def acquire(self) -> bool:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         handle = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.set_inheritable(handle, False)
         if not _lock(handle):
             os.close(handle)
             return False
@@ -222,20 +203,21 @@ def state_dir() -> Path:
     return Path(base).expanduser() / "lumlflow"
 
 
-def record_path(root: Path) -> Path:
-    """Keyed by the canonical path: two spellings of one workspace are one
-    daemon, and no workspace can name the file another workspace uses."""
-    key = hash_bytes(str(root.resolve()).encode("utf-8"))[:16]
-    return state_dir() / RECORDS_DIRNAME / f"{key}.json"
+def record_path() -> Path:
+    return state_dir() / RECORD_NAME
 
 
-def log_path(root: Path) -> Path:
-    return state_dir() / LOGS_DIRNAME / f"{record_path(root).stem}.log"
+def lock_path() -> Path:
+    return state_dir() / LOCK_NAME
 
 
-def read_record(root: Path) -> DaemonRecord | None:
-    """The daemon registered for this workspace, if the record is readable."""
-    path = record_path(root)
+def log_path() -> Path:
+    return state_dir() / LOGS_DIRNAME / LOG_NAME
+
+
+def read_record() -> DaemonRecord | None:
+    """The daemon registered for this user, if the record is readable."""
+    path = record_path()
     try:
         body = json.loads(path.read_bytes())
         return DaemonRecord(**body)
@@ -243,73 +225,90 @@ def read_record(root: Path) -> DaemonRecord | None:
         return None
 
 
-def claim_record(record: DaemonRecord) -> DaemonRecord | None:
-    """Register as this workspace's daemon. The holder is returned if taken.
-
-    The exclusive create is what makes the singleton hold when two verbs start
-    a daemon at the same instant: one lands, the other is handed the record it
-    lost to and steps aside.
-    """
-    path = record_path(Path(record.workspace))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError:
-        holder = read_record(Path(record.workspace))
-        if holder is not None:
-            return holder
-        # An unreadable record names no daemon anyone could reach.
-        write_record(record)
-        return None
-    with os.fdopen(handle, "wb") as file:
-        file.write(record.to_json())
-    return None
-
-
 def write_record(record: DaemonRecord) -> None:
-    """Register unconditionally — the caller has established nothing answers."""
-    atomic_write_bytes(record_path(Path(record.workspace)), record.to_json())
+    atomic_write_bytes(record_path(), record.to_json())
+    record_path().chmod(0o600)
 
 
-def clear_record(root: Path, *, pid: int) -> None:
-    """Deregister, but only our own row — never a successor's."""
-    record = read_record(root)
-    if record is not None and record.pid == pid:
-        record_path(root).unlink(missing_ok=True)
-
-
-def registered_roots() -> set[Path]:
-    directory = state_dir() / RECORDS_DIRNAME
-    if not directory.is_dir():
-        return set()
-    roots = set()
-    for path in directory.glob("*.json"):
-        try:
-            roots.add(Path(json.loads(path.read_bytes())["workspace"]))
-        except (OSError, ValueError, KeyError, TypeError):
-            continue
-    return roots
+def clear_record(*, instance_id: str | None = None) -> None:
+    """Deregister only the daemon instance that asked, or a known stale row."""
+    record = read_record()
+    if record is None or instance_id is None or record.instance_id == instance_id:
+        record_path().unlink(missing_ok=True)
 
 
 def new_record(
-    root: Path,
     *,
+    instance_id: str,
     port: int,
     token: str,
-    web_host: str = "127.0.0.1",
-    web_port: int = 0,
-    foreground: bool = False,
+    web_host: str,
+    web_port: int,
+    tracker_store: str,
 ) -> DaemonRecord:
     return DaemonRecord(
-        workspace=str(root.resolve()),
         pid=os.getpid(),
+        instance_id=instance_id,
         port=port,
         token=token,
-        started=datetime.now(UTC).isoformat(),
         web_host=web_host,
         web_port=web_port,
-        foreground=foreground,
+        tracker_store=tracker_store,
+        version=__version__,
     )
+
+
+def lock_held() -> bool:
+    """Whether the OS says a daemon owns the singleton lock."""
+    probe = WorkspaceLock()
+    if not probe.acquire():
+        return True
+    probe.release()
+    return False
+
+
+def state_dir_is_local(directory: Path | None = None) -> bool:
+    path = (directory or state_dir()).expanduser()
+    path.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32" and str(path.resolve()).startswith("\\\\"):
+        return False
+    filesystem = _filesystem_type(path.resolve())
+    return filesystem is None or filesystem.casefold() not in _NETWORK_FILESYSTEMS
+
+
+def network_filesystem_warning(directory: Path | None = None) -> str | None:
+    path = (directory or state_dir()).expanduser().resolve()
+    if state_dir_is_local(path):
+        return None
+    return (
+        f"warning: {path} is on a network filesystem; file locks are unreliable there"
+    )
+
+
+def _filesystem_type(path: Path) -> str | None:
+    """The Linux mount type for a path; unknown platforms are treated as local."""
+    mountinfo = Path("/proc/self/mountinfo")
+    try:
+        lines = mountinfo.read_text("utf-8").splitlines()
+    except OSError:
+        return None
+    matches: list[tuple[int, str]] = []
+    for line in lines:
+        before, separator, after = line.partition(" - ")
+        if not separator:
+            continue
+        fields = before.split()
+        trailing = after.split()
+        if len(fields) < 5 or not trailing:
+            continue
+        mount = Path(_unescape_mount(fields[4]))
+        if path == mount or path.is_relative_to(mount):
+            matches.append((len(mount.parts), trailing[0]))
+    return max(matches, default=(0, None))[1]
+
+
+def _unescape_mount(value: str) -> str:
+    return _MOUNT_ESCAPE.sub(lambda match: chr(int(match.group(1), 8)), value)
 
 
 def _lock(handle: int) -> bool:
@@ -332,16 +331,6 @@ def _unlock(handle: int) -> None:
             fcntl.flock(handle, fcntl.LOCK_UN)
     except OSError:
         pass
-
-
-def _holds_flow(directory: Path) -> bool:
-    try:
-        return any(
-            child.name.endswith(FLOW_SUFFIX) and child.is_dir()
-            for child in directory.iterdir()
-        )
-    except OSError:
-        return False
 
 
 def _named(flows: list[FlowRef], name: str) -> FlowRef:

@@ -6,15 +6,14 @@ for as long as the machine is up.
 """
 
 import contextlib
-import json
 import os
 import signal
 import subprocess
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import client
-from lumlflow.flow.daemon.workspace import RECORDS_DIRNAME, DaemonRecord
+from lumlflow.flow.daemon import client, workspace
+from lumlflow.flow.daemon.workspace import DaemonRecord
 
 # Windows has no SIGKILL; there, terminating is already the hard kind.
 _HARD_KILL = getattr(signal, "SIGKILL", signal.SIGTERM)
@@ -27,10 +26,9 @@ def stop_recorded(state_dir: Path) -> None:
     Reads the discovery record rather than tracking handles, so it reaches the
     servers a verb started three layers down inside a CLI subprocess.
     """
-    for path in sorted((state_dir / RECORDS_DIRNAME).glob("*.json")):
-        record = _read(path)
-        if record is not None:
-            _end(record)
+    record = workspace.read_record()
+    if record is not None:
+        _end(record)
 
 
 def reap(child: "subprocess.Popen[Any]") -> None:
@@ -46,13 +44,6 @@ def reap(child: "subprocess.Popen[Any]") -> None:
     for stream in (child.stdin, child.stdout, child.stderr):
         if stream is not None:
             stream.close()
-
-
-def _read(path: Path) -> DaemonRecord | None:
-    try:
-        return DaemonRecord(**json.loads(path.read_bytes()))
-    except (OSError, ValueError, TypeError):
-        return None
 
 
 def _end(record: DaemonRecord) -> None:

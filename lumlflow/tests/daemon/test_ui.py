@@ -19,6 +19,7 @@ from typing import Any
 
 import httpx
 import pytest
+from lumlflow import __version__
 from lumlflow import cli as top_cli
 from lumlflow.cli import app
 from lumlflow.flow.daemon import client, web, workspace
@@ -67,7 +68,7 @@ def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
         return 0
 
     monkeypatch.setattr(server, "serve_here", note)
-    monkeypatch.setattr(client, "live_record", lambda _: None)
+    monkeypatch.setattr(client, "discover", lambda: None)
     monkeypatch.chdir(root)
     runner = CliRunner()
 
@@ -94,7 +95,7 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     printed address in full — never the bare port.
     """
     root = make_workspace(tmp_path / "project", flows=())
-    record = _record(foreground=True)
+    record = _record()
     opened = _opens(monkeypatch)
 
     def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
@@ -102,7 +103,7 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
         return 0
 
     monkeypatch.setattr(server, "serve_here", announcing)
-    monkeypatch.setattr(client, "live_record", lambda _: None)
+    monkeypatch.setattr(client, "discover", lambda: None)
     monkeypatch.chdir(root)
     runner = CliRunner()
 
@@ -127,20 +128,20 @@ def test_ui_warns_only_for_a_non_loopback_bind(
     def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
         announce(
             DaemonRecord(
-                workspace=str(root),
                 pid=1,
+                instance_id="instance",
                 port=1,
                 token="t",
-                started="now",
                 web_host=web_host,
                 web_port=web_port,
-                foreground=True,
+                tracker_store="/tmp/experiments",
+                version=__version__,
             )
         )
         return 0
 
     monkeypatch.setattr(server, "serve_here", announcing)
-    monkeypatch.setattr(client, "live_record", lambda _: None)
+    monkeypatch.setattr(client, "discover", lambda: None)
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(
@@ -149,6 +150,29 @@ def test_ui_warns_only_for_a_non_loopback_bind(
 
     assert result.exit_code == 0, result.output
     assert (top_cli.NON_LOOPBACK_WARNING in result.output) is warned
+
+
+def test_ui_warns_but_starts_on_a_network_state_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    started: list[Path] = []
+
+    def start(directory: Path, **_: Any) -> int:
+        started.append(directory)
+        return 0
+
+    monkeypatch.setattr(client, "discover", lambda: None)
+    monkeypatch.setattr(workspace, "state_dir_is_local", lambda _: False)
+    monkeypatch.setattr(server, "serve_here", start)
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(app, ["ui", "--no-browser"])
+
+    assert result.exit_code == 0
+    assert str(workspace.state_dir()) in result.output
+    assert "file locks are unreliable" in result.output
+    assert started == [root]
 
 
 def test_a_non_loopback_host_is_bound_recorded_and_still_requires_the_token(
@@ -190,12 +214,11 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     """Attaching is a way to reach the first, so it owes the same address —
     with the key the server that is actually serving minted, not a new one."""
     root = make_workspace(tmp_path / "project", flows=())
-    record = _record(foreground=True)
+    record = _record()
     opened = _opens(monkeypatch)
     started: list[Path] = []
 
-    monkeypatch.setattr(client, "live_record", lambda _: record)
-    monkeypatch.setattr(client, "stand_down", lambda _: False)
+    monkeypatch.setattr(client, "discover", lambda: record)
     monkeypatch.setattr(server, "serve_here", lambda root, **_: started.append(root))
     monkeypatch.chdir(root)
     runner = CliRunner()
@@ -241,8 +264,8 @@ def test_ctrl_c_ends_it_and_everything_it_was_holding(
     assert "Ctrl+C" in printed
     assert "Traceback" not in printed
     # Deregistered, unlocked, and the port handed back: nothing left behind.
-    assert workspace.read_record(root) is None
-    lock = workspace.WorkspaceLock(root)
+    assert workspace.read_record() is None
+    lock = workspace.WorkspaceLock()
     assert lock.acquire()
     lock.release()
     _rebindable(port)
@@ -287,7 +310,7 @@ def test_a_terminating_signal_lets_go_the_same_way(
     running.communicate(timeout=_STOP_TIMEOUT_S)
 
     assert running.returncode == 0
-    assert workspace.read_record(root) is None
+    assert workspace.read_record() is None
 
 
 def test_a_port_somebody_else_holds_is_a_refusal_that_names_it(
@@ -311,22 +334,22 @@ def test_a_port_somebody_else_holds_is_a_refusal_that_names_it(
     assert "--port" in refused
     assert printed == ""
     # It refused before taking anything: no workspace was claimed on the way.
-    assert workspace.read_record(root) is None
+    assert workspace.read_record() is None
 
 
-def test_a_second_ui_here_opens_the_one_already_serving(
+def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """Two terminals, one workspace. The second is a way to reach the first,
-    not a rival for the same stores — and it says which port answered."""
+    """The launch directory does not select a second daemon."""
     root = make_workspace(tmp_path / "project", flows=())
+    other = make_workspace(tmp_path / "other", flows=())
     port, wanted = _free_port(), _free_port()
 
     serve(root, "--port", str(port))
     record = _served(root, port)
     second = subprocess.run(
         [sys.executable, "-m", "lumlflow.cli", "ui", "--no-browser", "-p", str(wanted)],
-        cwd=root,
+        cwd=other,
         capture_output=True,
         text=True,
         timeout=_STOP_TIMEOUT_S,
@@ -336,24 +359,7 @@ def test_a_second_ui_here_opens_the_one_already_serving(
     assert f"http://127.0.0.1:{port}/?token={record.token}" in second.stdout
     assert f"it is serving port {port}, not {wanted}" in second.stdout
     # The first is untouched, and no second server took the workspace.
-    assert workspace.read_record(root) == record
-
-
-def test_two_workspaces_serve_at_once_on_their_own_ports(
-    tmp_path: Path, serve: Serve
-) -> None:
-    """The normal case: a project per terminal, each with its own `ui`."""
-    roots = [make_workspace(tmp_path / name, flows=()) for name in ("one", "two")]
-    ports = [_free_port(), _free_port()]
-
-    for root, port in zip(roots, ports, strict=True):
-        serve(root, "--port", str(port))
-    records = [_served(root, port) for root, port in zip(roots, ports, strict=True)]
-
-    assert [record.web_port for record in records] == ports
-    assert [_rpc(record)["result"]["workspace"] for record in records] == [
-        str(root) for root in roots
-    ]
+    assert workspace.read_record() == record
 
 
 def test_a_verb_still_starts_a_server_behind_the_user(tmp_path: Path) -> None:
@@ -368,74 +374,86 @@ def test_a_verb_still_starts_a_server_behind_the_user(tmp_path: Path) -> None:
         text=True,
         timeout=_STOP_TIMEOUT_S,
     )
-    record = workspace.read_record(root)
+    record = workspace.read_record()
 
     assert done.returncode == 0
     assert "daemon" not in (done.stdout + done.stderr).lower()
-    assert record is not None and not record.foreground
+    assert record is not None
+    assert record.web_host == top_cli.DEFAULT_HOST
+    assert record.web_port == top_cli.DEFAULT_PORT
     assert client.is_alive(record)
 
 
-def test_ui_takes_over_the_background_server_a_verb_left_behind(
-    tmp_path: Path, serve: Serve
+def test_a_background_daemon_uses_an_ephemeral_port_when_5000_is_taken(
+    tmp_path: Path,
 ) -> None:
-    """Idle plumbing is replaceable, and `ui` is what asks for the port."""
     root = make_workspace(tmp_path / "project", flows=())
-    port = _free_port()
-    with client.connect(root) as background:
-        behind = background.record
-        assert not behind.foreground
+    held = socket.socket()
+    try:
+        held.bind((top_cli.DEFAULT_HOST, top_cli.DEFAULT_PORT))
+    except OSError:
+        held.close()
+        pytest.skip("port 5000 is already occupied outside this test")
+    held.listen(1)
+    try:
+        done = subprocess.run(
+            [sys.executable, "-m", "lumlflow.cli", "status"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=_STOP_TIMEOUT_S,
+        )
+    finally:
+        held.close()
 
-    serve(root, "--port", str(port))
-    record = _served(root, port)
-
-    assert record.foreground
-    assert record.pid != behind.pid
-    assert not client.is_alive(behind)
+    record = workspace.read_record()
+    assert done.returncode == 0
+    assert record is not None and record.web_port > 0
+    assert record.web_port != top_cli.DEFAULT_PORT
 
 
-def test_a_server_carrying_a_run_keeps_the_workspace(
-    monkeypatch: pytest.MonkeyPatch,
+def test_a_background_daemon_records_the_store_from_its_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A port is never worth someone else's half-finished job."""
-    asked: list[str] = []
-    monkeypatch.setattr(client, "attach", _answering({"running": 1}, asked))
+    root = make_workspace(tmp_path / "project", flows=())
+    tracker_store = tmp_path / "tracker"
+    monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
+    monkeypatch.setenv("BACKEND_STORE_URI", str(tracker_store))
 
-    assert client.stand_down(_record(foreground=False)) is False
-    assert asked == ["ping"]
+    done = subprocess.run(
+        [sys.executable, "-m", "lumlflow.cli", "status"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=_STOP_TIMEOUT_S,
+    )
+
+    record = workspace.read_record()
+    assert done.returncode == 0
+    assert record is not None
+    assert record.tracker_store == str(tracker_store.resolve())
 
 
-def test_a_server_a_person_is_watching_keeps_the_workspace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Restarting one would take a terminal somebody is looking at out from
-    under them — so the second `ui` attaches to it instead."""
-    asked: list[str] = []
-    monkeypatch.setattr(client, "attach", _answering({"running": 0}, asked))
-
-    assert client.stand_down(_record(foreground=True)) is False
-    assert asked == []
-
-
-def test_no_help_the_product_offers_says_daemon() -> None:
-    """The background process is not a thing the user is asked to know about.
-
-    The `daemon` group survives for tests and power users, hidden: it is not
-    on any page the product hands out.
-    """
+def test_daemon_stop_and_status_are_visible_but_start_is_hidden() -> None:
     runner = CliRunner()
     root = runner.invoke(app, ["--help"])
+    daemon = runner.invoke(app, ["daemon", "--help"])
+    commands = set(_command_paths())
 
-    pages = {
-        path: runner.invoke(app, [*path, "--help"]).output
-        for path in _command_paths()
-        if path[:1] != ("daemon",)
-    }
-
-    assert "daemon" not in root.output.lower()
-    assert [path for path, text in pages.items() if "daemon" in text.lower()] == []
-    # Hidden, not removed.
-    assert ("daemon", "stop") in set(_command_paths())
+    assert "daemon" in root.output
+    assert "status" in daemon.output and "stop" in daemon.output
+    assert "start" not in daemon.output
+    assert {("daemon", "start"), ("daemon", "status"), ("daemon", "stop")} <= commands
+    assert ("root",) not in commands
+    assert "--workspace" not in runner.invoke(app, ["mcp", "--help"]).output
+    module = subprocess.run(
+        [sys.executable, "-m", "lumlflow.flow.daemon", "--help"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert module.returncode == 0
+    assert "--workspace" not in module.stdout
 
 
 def _command_paths() -> list[tuple[str, ...]]:
@@ -450,40 +468,24 @@ def _command_paths() -> list[tuple[str, ...]]:
     return walk(get_command(app), ())
 
 
-def _record(*, foreground: bool) -> DaemonRecord:
+def _record() -> DaemonRecord:
     return DaemonRecord(
-        workspace="/nowhere",
         pid=1,
+        instance_id="instance",
         port=1,
         token="t",
-        started="now",
+        web_host="127.0.0.1",
         web_port=2,
-        foreground=foreground,
+        tracker_store="/tmp/experiments",
+        version=__version__,
     )
-
-
-def _answering(payload: dict[str, Any], asked: list[str]) -> Any:
-    """A stand-in connection: records what it was asked, answers one thing."""
-
-    class Connection:
-        def __enter__(self) -> "Connection":
-            return self
-
-        def __exit__(self, *_: object) -> None:
-            return None
-
-        def call(self, method: str, params: Any = None) -> Any:
-            asked.append(method)
-            return payload
-
-    return lambda record, **kwargs: Connection()
 
 
 def _served(root: Path, port: int) -> DaemonRecord:
     """The record of a `ui` that has come up, or the reason it never did."""
     deadline = time.monotonic() + _READY_TIMEOUT_S
     while time.monotonic() < deadline:
-        record = workspace.read_record(root)
+        record = workspace.read_record()
         if record is not None and record.web_port == port and client.is_alive(record):
             return record
         time.sleep(0.05)

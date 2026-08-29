@@ -1,14 +1,4 @@
-"""The workspace daemon: one process, one workspace, every flow beneath it.
-
-A per-flow daemon cannot own what is workspace-scoped without racing itself —
-the watched tree, the generated docs, the env, the web port are all singletons
-per workspace — so one process hosts N flows, each with its own store, journal
-and kernel.
-
-Singleton-ness is enforced where it is observable: the discovery record is
-created exclusively, and a daemon that finds the record already taken asks
-whoever holds it to answer before deciding it is stale.
-"""
+"""The one per-user daemon, serving every flow opened by path."""
 
 import argparse
 import asyncio
@@ -18,7 +8,6 @@ import secrets
 import signal
 import socket
 import sys
-import time
 import traceback
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -26,7 +15,7 @@ from typing import Any
 
 import uvicorn
 
-from lumlflow.flow.daemon import client, web, workspace
+from lumlflow.flow.daemon import web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.framing import (
     STREAM_LIMIT_BYTES,
@@ -46,13 +35,11 @@ Leases = set[tuple[str | None, str]]
 
 _AUTH_TIMEOUT_S = 10.0
 _BACKLOG = 64
-_LOCK_POLL_S = 0.05
 # How long the browser endpoint is given to close its connections politely.
 _WEB_GRACE_S = 3.0
-# How long a foreground start waits out the predecessor it just asked to stop:
-# the record is surrendered a moment before the lock behind it is.
-_HANDOVER_S = 10.0
 _DEFAULT_WEB_HOST = "127.0.0.1"
+DEFAULT_WEB_PORT = 5000
+ALREADY_RUNNING = 75
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -62,19 +49,25 @@ FLOW_ERROR = -32000
 
 
 class Daemon:
-    def __init__(self, root: Path) -> None:
-        self.root = root.resolve()
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory.resolve()
+        self.instance_id = secrets.token_hex(16)
         # Everything a browser watches goes through here, and a session that is
         # opened before it would announce its commits to nobody.
         self.streams = Streams()
-        self.hub = Hub(self.root, streams=self.streams)
-        self.api = Api(self.hub, stop=self.stop)
+        self.hub = Hub(streams=self.streams)
+        self.api = Api(
+            self.hub,
+            directory=self.directory,
+            stop=self.stop,
+            instance_id=self.instance_id,
+        )
         self.watcher = Watcher(self.hub)
         self.token = secrets.token_hex(16)
         self.port = 0
         self.web_host = _DEFAULT_WEB_HOST
         self.web_port = 0
-        self._lock = workspace.WorkspaceLock(self.root)
+        self._lock = workspace.WorkspaceLock()
         self._server: asyncio.AbstractServer | None = None
         self._web: uvicorn.Server | None = None
         self._web_task: asyncio.Task[None] | None = None
@@ -91,116 +84,60 @@ class Daemon:
         *,
         port: int = 0,
         web_host: str = _DEFAULT_WEB_HOST,
-        web_port: int = 0,
-        web_listener: socket.socket | None = None,
-        foreground: bool = False,
+        web_port: int = DEFAULT_WEB_PORT,
+        exact_web_port: bool = False,
         announce: Announce | None = None,
-        lock_timeout: float = 0.0,
     ) -> int:
-        """Own the workspace until something stops this process.
-
-        `web_listener` is a port the caller already bound — how `lumlflow ui`
-        turns "that port is taken" into a sentence before any of this starts,
-        rather than into a quiet move to another port.
-        """
+        """Hold the singleton lock and serve until this process is stopped."""
         # The signals before the lock: a Ctrl-C during startup is an answer,
         # not a traceback over a workspace half taken.
         _install_signals(self.stop)
         # The lock before anything else: whoever holds it owns the stores, and
         # nothing this process does afterwards may touch them without it.
-        if not await self._acquire(lock_timeout):
-            print(
-                f"another lumlflow server holds {self.root}",
-                file=sys.stderr,
-                flush=True,
+        if not self._lock.acquire():
+            print("another lumlflow daemon is already running", file=sys.stderr)
+            return ALREADY_RUNNING
+        listener: socket.socket | None = None
+        try:
+            self._server = await asyncio.start_server(
+                self._session, "127.0.0.1", port, limit=STREAM_LIMIT_BYTES
             )
-            return 1
-        self._server = await asyncio.start_server(
-            self._session, "127.0.0.1", port, limit=STREAM_LIMIT_BYTES
-        )
-        self.port = int(self._server.sockets[0].getsockname()[1])
-        # Bound before the record is written, because the record is where a
-        # browser reads the port from.
-        self.web_host = web_host
-        listener = (
-            web_listener
-            if web_listener is not None
-            else _bind_web(self.web_host, web_port)
-        )
-        self.web_port = _port_of(listener)
-        record = workspace.new_record(
-            self.root,
-            port=self.port,
-            token=self.token,
-            web_host=self.web_host,
-            web_port=self.web_port,
-            foreground=foreground,
-        )
-        if not await self._register(record):
-            self._server.close()
-            if listener is not None:
-                listener.close()
-            self._lock.release()
-            return 1
-        self._record = record
-        if listener is not None:
+            self.port = int(self._server.sockets[0].getsockname()[1])
+            self.web_host = web_host
+            listener = (
+                _bind_exactly(self.web_host, web_port)
+                if exact_web_port
+                else _bind_web(self.web_host, web_port)
+            )
+            self.web_port = _port_of(listener)
+            record = workspace.new_record(
+                instance_id=self.instance_id,
+                port=self.port,
+                token=self.token,
+                web_host=self.web_host,
+                web_port=self.web_port,
+                tracker_store=_tracker_store(),
+            )
+            workspace.write_record(record)
+            self._record = record
             self._serve_web(listener)
-        # Watching is a latency optimization the daemon can live without: a
-        # platform that refuses to notify still reconciles on every verb. The
-        # trees themselves are scheduled per flow as sessions open, so this only
-        # fails where the observer itself cannot be started at all.
-        try:
-            self.watcher.start()
-        except OSError as unwatchable:
-            print(f"not watching {self.root}: {unwatchable}", file=sys.stderr)
-        (announce or self._announce)(record)
-        try:
+            try:
+                self.watcher.start()
+            except OSError as unwatchable:
+                print(f"not watching flows: {unwatchable}", file=sys.stderr)
+            (announce or self._announce)(record)
             await self._stopped.wait()
         finally:
+            if listener is not None and self._web_task is None:
+                listener.close()
             await self._close()
         return 0
 
-    async def _acquire(self, timeout: float) -> bool:
-        """The workspace lock, waited out for `timeout` before giving up.
-
-        A predecessor asked to stop clears its record a moment before it lets
-        go of the lock behind it, so a successor that only read the record can
-        arrive while the workspace is still, briefly, owned.
-        """
-        deadline = time.monotonic() + timeout
-        while True:
-            if self._lock.acquire():
-                return True
-            if time.monotonic() >= deadline:
-                return False
-            await asyncio.sleep(_LOCK_POLL_S)
-
     def _announce(self, record: DaemonRecord) -> None:
         """The log line a background process leaves for whoever reads its log."""
-        print(f"lumlflow on 127.0.0.1:{self.port} for {self.root}", flush=True)
+        print(f"lumlflow daemon on 127.0.0.1:{self.port}", flush=True)
         if self.web_port:
             print(f"workbench on {self.api.web}", flush=True)
-
-    async def _register(self, record: DaemonRecord) -> bool:
-        """Register as the daemon to call. The lock already says we may write.
-
-        A record we do not recognise is answered before it is replaced: on a
-        platform whose locks did not hold, a live daemon is still a live daemon
-        and this one steps aside.
-        """
-        holder = workspace.claim_record(record)
-        if holder is None:
-            return True
-        if await asyncio.to_thread(client.is_alive, holder):
-            print(
-                f"a lumlflow server already owns {self.root} (pid {holder.pid})",
-                file=sys.stderr,
-                flush=True,
-            )
-            return False
-        # The record outlived its process — a crash, or a machine that rebooted.
-        workspace.write_record(record)
-        return True
 
     def _serve_web(self, listener: socket.socket) -> None:
         """Put the browser's surface on the port that was just bound.
@@ -231,7 +168,7 @@ class Daemon:
         await self.watcher.stop()
         await self.hub.close()
         if self._record is not None:
-            workspace.clear_record(self.root, pid=self._record.pid)
+            workspace.clear_record(instance_id=self._record.instance_id)
         self._lock.release()
 
     async def _stop_web(self) -> None:
@@ -425,27 +362,18 @@ class _WebServer(uvicorn.Server):
         yield
 
 
-def serve_here(root: Path, *, web_host: str, web_port: int, announce: Announce) -> int:
-    """Serve this workspace in *this* process, until a signal stops it.
-
-    What `lumlflow ui` is: the port is bound first, so one somebody else holds
-    is a sentence the caller can act on rather than a silent move elsewhere,
-    and the whole workspace — kernels, locks, the discovery record — belongs to
-    a process the user can see and end with Ctrl-C.
-    """
-    listener = _bind_exactly(web_host, web_port)
-    try:
-        return asyncio.run(
-            Daemon(root).serve(
-                web_host=web_host,
-                web_listener=listener,
-                foreground=True,
-                announce=announce,
-                lock_timeout=_HANDOVER_S,
-            )
+def serve_here(
+    directory: Path, *, web_host: str, web_port: int, announce: Announce
+) -> int:
+    """Run the daemon role in the visible `ui` process."""
+    return asyncio.run(
+        Daemon(directory).serve(
+            web_host=web_host,
+            web_port=web_port,
+            exact_web_port=True,
+            announce=announce,
         )
-    finally:
-        listener.close()
+    )
 
 
 def _bind_exactly(host: str, port: int) -> socket.socket:
@@ -464,7 +392,7 @@ def _bind_exactly(host: str, port: int) -> socket.socket:
     return listener
 
 
-def _bind_web(host: str, port: int) -> socket.socket | None:
+def _bind_web(host: str, port: int) -> socket.socket:
     """The requested host, on the requested port or whichever one is free.
 
     A port somebody else holds is not a reason to refuse to be a daemon: every
@@ -486,11 +414,17 @@ def _bind_web(host: str, port: int) -> socket.socket | None:
             print(f"port {wanted} is not available: {taken}", file=sys.stderr)
             continue
         return listener
-    return None
+    raise FlowError(f"web port {port} could not be bound. choose another with `--port`")
 
 
 def _port_of(listener: socket.socket | None) -> int:
     return int(listener.getsockname()[1]) if listener is not None else 0
+
+
+def _tracker_store() -> str:
+    from lumlflow.settings import Settings
+
+    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
 
 
 def _install_signals(stop: Any) -> None:
@@ -563,13 +497,8 @@ def _error(code: int, message: str, *, data: Any = None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse(argv)
-    root = (
-        Path(args.workspace).resolve()
-        if args.workspace
-        else workspace.resolve_root(Path.cwd())
-    )
     return asyncio.run(
-        Daemon(root).serve(
+        Daemon(Path.cwd()).serve(
             port=args.port, web_host=args.web_host, web_port=args.web_port
         )
     )
@@ -577,12 +506,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="lumlflow-daemon")
-    parser.add_argument("--workspace", default=None, help="workspace root")
     parser.add_argument("--port", type=int, default=0, help="loopback port")
     parser.add_argument(
         "--web-host", default=_DEFAULT_WEB_HOST, help="host for the browser"
     )
-    parser.add_argument("--web-port", type=int, default=0, help="port for the browser")
+    parser.add_argument(
+        "--web-port", type=int, default=DEFAULT_WEB_PORT, help="port for the browser"
+    )
     return parser.parse_args(argv)
 
 

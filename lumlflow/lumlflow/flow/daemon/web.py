@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Frame, Streams, Subscription
-from lumlflow.flow.errors import FlowError
+from lumlflow.flow.errors import FlowError, FlowNotFound
 
 TOKEN_HEADER = "x-lumlflow-token"
 TOKEN_PARAM = "token"
@@ -124,7 +124,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             return
         subscription = streams.subscribe()
         halves = {
-            asyncio.create_task(_read(socket, hub, streams, subscription)),
+            asyncio.create_task(_read(socket, hub, api, streams, subscription)),
             asyncio.create_task(_write(socket, subscription)),
         }
         for half in halves:
@@ -167,7 +167,11 @@ async def _write(socket: WebSocket, subscription: Subscription) -> None:
 
 
 async def _read(
-    socket: WebSocket, hub: Hub, streams: Streams, subscription: Subscription
+    socket: WebSocket,
+    hub: Hub,
+    api: Api,
+    streams: Streams,
+    subscription: Subscription,
 ) -> None:
     """What the client asks to watch, and the catch-up each ask deserves."""
     while True:
@@ -178,7 +182,7 @@ async def _read(
         if not isinstance(message, dict):
             continue
         try:
-            subscription.replay(_subscribed(hub, streams, subscription, message))
+            subscription.replay(_subscribed(hub, api, streams, subscription, message))
         except FlowError as failure:
             # Naming a flow that is not here is the client's mistake to fix,
             # not this connection's death: everything else it watches stands.
@@ -186,7 +190,11 @@ async def _read(
 
 
 def _subscribed(
-    hub: Hub, streams: Streams, subscription: Subscription, message: dict[str, Any]
+    hub: Hub,
+    api: Api,
+    streams: Streams,
+    subscription: Subscription,
+    message: dict[str, Any],
 ) -> list[Frame]:
     """Attach a channel and answer with what the client missed on it.
 
@@ -198,7 +206,11 @@ def _subscribed(
     channel = str(message.get("subscribe") or "")
     if channel not in ("journal", "logs"):
         return []
-    session = hub.session(str(message["flow"]) if message.get("flow") else None)
+    named = str(message["flow"]) if message.get("flow") else None
+    try:
+        session = hub.session(named)
+    except FlowNotFound:
+        session = hub.open(api.resolve(named))
     flow = session.ref.relpath
     if channel == "logs":
         run_id = str(message.get("run_id") or "")

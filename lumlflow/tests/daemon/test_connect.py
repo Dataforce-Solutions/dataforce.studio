@@ -75,7 +75,7 @@ async def test_the_snippet_registers_a_stdio_server_any_harness_can_spawn(
     assert list(config) == ["mcpServers"]
     assert server["command"] == prompt["command"]
     assert Path(server["command"]).exists()
-    assert server["args"] == ["mcp", "--workspace", str(root)]
+    assert server["args"] == ["mcp"]
 
 
 async def test_the_prompt_says_how_to_be_called_something_else(tmp_path: Path):
@@ -155,7 +155,7 @@ async def test_the_prompt_is_short_enough_to_be_read_and_wrapped_to_be_pasted(
 
 def test_the_command_the_snippet_names_serves_mcp(tmp_path: Path):
     """The cross-check the prompt exists to survive: the exact command line it
-    prints is run, from a directory that is not the workspace, and answers."""
+    prints is run from the directory the harness is working in, and answers."""
     root = make_workspace(tmp_path / "project")
     command = connect.executable()
     if not Path(command).exists():
@@ -172,11 +172,11 @@ def test_the_command_the_snippet_names_serves_mcp(tmp_path: Path):
         },
     }
     answered = subprocess.run(
-        [command, "mcp", "--workspace", str(root)],
+        [command, "mcp"],
         input=json.dumps(handshake) + "\n",
         capture_output=True,
         text=True,
-        cwd=tmp_path,
+        cwd=root,
         timeout=60,
     )
     hello = json.loads(answered.stdout.splitlines()[0])

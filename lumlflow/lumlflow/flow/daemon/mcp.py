@@ -31,7 +31,7 @@ from typing import Any, Literal, TextIO
 from urllib.parse import urlsplit
 
 from lumlflow import __version__
-from lumlflow.flow.daemon import client, workspace
+from lumlflow.flow.daemon import client
 from lumlflow.flow.daemon.client import DaemonClient
 from lumlflow.flow.errors import (
     BranchNotFound,
@@ -315,8 +315,8 @@ class _Flow:
 
 
 class Server:
-    def __init__(self, root: Path, *, label: str | None = None) -> None:
-        self.root = root
+    def __init__(self, directory: Path, *, label: str | None = None) -> None:
+        self.directory = directory.resolve()
         # Named by whoever started this process, when they said — a harness
         # that spawns MCP servers under a generic name is told apart from the
         # next one by the `--label` its configuration carries, not by luck.
@@ -629,7 +629,7 @@ class Server:
         """
         daemon = self._daemon
         if daemon is None:
-            daemon = self._daemon = client.connect(self.root)
+            daemon = self._daemon = client.connect(self.directory)
         try:
             return daemon.call(method, {"actor": self.actor} | params)
         except ServerError:
@@ -641,7 +641,7 @@ class Server:
 def serve(
     stdin: TextIO | None = None,
     stdout: TextIO | None = None,
-    root: Path | None = None,
+    directory: Path | None = None,
     label: str | None = None,
 ) -> int:
     """Answer MCP over stdio until the client hangs up."""
@@ -649,9 +649,7 @@ def serve(
     writer = stdout if stdout is not None else sys.stdout
     _as_utf8(reader)
     _as_utf8(writer, newline="\n")
-    server = Server(
-        root if root is not None else workspace.resolve_root(Path.cwd()), label=label
-    )
+    server = Server(directory or Path.cwd(), label=label)
     try:
         while line := reader.readline():
             if not line.strip():

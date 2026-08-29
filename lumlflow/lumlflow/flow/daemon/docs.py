@@ -97,8 +97,8 @@ Address a cell by name (`features`), an output as `cell.output`, and a lane
 by name. Nothing else is an address. There are no ids and no hashes.
 
 If your harness is not connected yet, the workbench hands out the configuration
-under *pair an agent*. The server behind it is `lumlflow mcp --workspace <dir>`
-on stdio.
+under *pair an agent*. The server behind it is `lumlflow mcp` on stdio and uses
+the directory the harness launches it in.
 
 ## The same, as verbs
 

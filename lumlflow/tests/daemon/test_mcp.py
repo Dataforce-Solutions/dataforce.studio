@@ -54,15 +54,18 @@ class Talk:
     `agent_end` is part of every script whether or not a test asks about it.
     """
 
-    def __init__(self, hub: Hub, api: Api, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(
+        self, hub: Hub, api: Api, loop: asyncio.AbstractEventLoop, directory: Path
+    ) -> None:
         self.hub = hub
         self.api = api
         self._loop = loop
+        self.directory = directory
 
     def __call__(self, *messages: dict[str, Any]) -> Answers:
         written = "".join(json.dumps(message) + "\n" for message in messages)
         answered = io.StringIO()
-        mcp.serve(io.StringIO(written), answered, root=self.hub.root)
+        mcp.serve(io.StringIO(written), answered, directory=self.directory)
         return {
             int(answer["id"]): answer
             for answer in map(json.loads, answered.getvalue().splitlines())
@@ -73,7 +76,7 @@ class Talk:
 
     def held(self, *, label: str | None = None) -> "Held":
         """A session kept open, for the questions only a live one answers."""
-        return Held(self.hub.root, label=label)
+        return Held(self.directory, label=label)
 
 
 class Held:
@@ -107,13 +110,13 @@ def workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def talk(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Talk]:
     loop = asyncio.new_event_loop()
-    hub = Hub(workspace)
-    api = Api(hub)
+    hub = Hub()
+    api = Api(hub, directory=workspace)
     monkeypatch.setattr(
         client, "connect", lambda root, **kwargs: LocalDaemon(api, loop)
     )
     try:
-        yield Talk(hub, api, loop)
+        yield Talk(hub, api, loop, workspace)
     finally:
         loop.run_until_complete(hub.close())
         loop.close()
@@ -450,7 +453,7 @@ def checked_out(talk: Talk, name: str, *, branch: str) -> FlowSession:
     one is telling the bound branch from the default rather than agreeing with
     both at once.
     """
-    live = talk.hub.init_flow(name)
+    live = talk.hub.init_flow(talk.directory, name)
     live.worktree.checkout(actor="user")
     live.acceptance.accept_source(
         "score", SCORE_CELL, branch="main", actor="user", intent="scored", fresh=True

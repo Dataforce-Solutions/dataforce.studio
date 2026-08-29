@@ -57,18 +57,28 @@ def ui(
         # serve; one already serving keeps the store it was started with.
         os.environ["BACKEND_STORE_URI"] = path
 
-    root = workspace.resolve_root(Path.cwd())
+    directory = Path.cwd().resolve()
+    warning = workspace.network_filesystem_warning()
+    if warning is not None:
+        typer.echo(warning)
     try:
-        serving = client.live_record(root)
-        if serving is not None and not client.stand_down(serving):
+        serving = client.discover()
+        if serving is not None:
             _attach(serving, port=port, no_browser=no_browser)
             return
         code = server.serve_here(
-            root,
+            directory,
             web_host=host,
             web_port=port,
-            announce=lambda record: _serving(record, no_browser=no_browser),
+            announce=lambda record: _serving(
+                record, directory=directory, no_browser=no_browser
+            ),
         )
+        if code == server.ALREADY_RUNNING:
+            serving = client.discover()
+            if serving is not None:
+                _attach(serving, port=port, no_browser=no_browser)
+                return
     except FlowError as failure:
         typer.echo(str(failure), err=True)
         raise typer.Exit(1) from failure
@@ -76,10 +86,10 @@ def ui(
         raise typer.Exit(code)
 
 
-def _serving(record: "DaemonRecord", *, no_browser: bool) -> None:
+def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> None:
     """Said once this process is answering, from inside its own event loop."""
     _warn_if_non_loopback(record.web_host)
-    typer.echo(f"workspace: {record.workspace}")
+    typer.echo(f"directory: {directory}")
     typer.echo(f"lumlflow at {_url(record)}")
     typer.echo("press Ctrl+C to stop")
     if not no_browser:
@@ -87,7 +97,7 @@ def _serving(record: "DaemonRecord", *, no_browser: bool) -> None:
 
 
 def _attach(record: "DaemonRecord", *, port: int, no_browser: bool) -> None:
-    """Point the browser at what is already serving this workspace.
+    """Point the browser at the daemon that is already serving.
 
     A port belongs to the process that bound it, so one that answers on
     another is said plainly rather than papered over — and never taken from
@@ -95,13 +105,11 @@ def _attach(record: "DaemonRecord", *, port: int, no_browser: bool) -> None:
     """
     if not record.web_port:
         typer.echo(
-            f"lumlflow is already running for {record.workspace}. it is not "
-            "serving a browser endpoint",
+            "lumlflow is already running without a browser endpoint",
             err=True,
         )
         raise typer.Exit(1)
     _warn_if_non_loopback(record.web_host)
-    typer.echo(f"workspace: {record.workspace}")
     typer.echo(f"lumlflow already at {_url(record)}")
     if record.web_port != port:
         typer.echo(f"it is serving port {record.web_port}, not {port}")

@@ -1,16 +1,8 @@
-"""Finding, starting, and calling the server that owns a workspace.
+"""Discover, start, and call the one per-user daemon."""
 
-Every verb goes through here: resolve the workspace root, read the record, and
-call. Starting is not a gesture the product offers — there is no connect verb
-anywhere — so a verb that finds nobody home starts one in the background and
-carries on.
-
-The transport is line-delimited JSON-RPC over loopback, the token from the
-record proving the caller is not just some process that reached the port.
-"""
-
-import contextlib
 import json
+import os
+import signal
 import socket
 import subprocess
 import sys
@@ -27,10 +19,11 @@ from lumlflow.flow.errors import FlowError, ServerError
 START_TIMEOUT_S = 30.0
 STOP_TIMEOUT_S = 30.0
 _CONNECT_TIMEOUT_S = 5.0
-_PING_TIMEOUT_S = 2.0
+_PING_TIMEOUT_S = 0.5
 _POLL_S = 0.05
 _START_ATTEMPTS = 2
 _STEP_ASIDE_GRACE_S = 3.0
+_HELD_RETRY_S = 3.0
 _LOG_TAIL_CHARS = 2000
 
 
@@ -46,7 +39,7 @@ class DaemonClient:
             )
         except OSError as unreachable:
             raise ServerError(
-                f"nothing is answering for {record.workspace}"
+                "nothing is answering for the lumlflow daemon"
             ) from unreachable
         self._sock.settimeout(timeout)
         self._reader = self._sock.makefile("rb")
@@ -118,73 +111,74 @@ def attach(record: DaemonRecord, *, timeout: float | None = None) -> DaemonClien
 
 
 def is_alive(record: DaemonRecord) -> bool:
-    """Does the recorded process still answer? A pid is not an answer."""
+    """The record's exact daemon answers; a reused pid or port is not enough."""
     try:
         with attach(record, timeout=_PING_TIMEOUT_S) as live:
-            return bool(live.call("ping"))
+            answer = live.call("ping")
+            return (
+                isinstance(answer, dict)
+                and answer.get("instance_id") == record.instance_id
+            )
     except (ServerError, OSError, ValueError):
         return False
 
 
-def live_record(root: Path) -> DaemonRecord | None:
-    """Whoever is serving this workspace right now, if anybody is."""
-    record = workspace.read_record(root.resolve())
-    return record if record is not None and is_alive(record) else None
+def discover(*, timeout: float = _HELD_RETRY_S) -> DaemonRecord | None:
+    """Return the answering daemon, clean a stale row, or name a hung holder."""
+    deadline = time.monotonic() + timeout
+    while True:
+        record = workspace.read_record()
+        if record is not None and is_alive(record):
+            return record
+        if not workspace.lock_held():
+            if record is not None:
+                workspace.clear_record(instance_id=record.instance_id)
+            return None
+        if time.monotonic() >= deadline:
+            raise ServerError(
+                "the lumlflow daemon holds its lock but is not answering. "
+                f"see {workspace.log_path()} or run `lumlflow daemon stop`"
+            )
+        time.sleep(_POLL_S)
 
 
-def connect(root: Path, *, start: bool = True) -> DaemonClient:
-    """The server for this workspace, started in the background if none answers."""
-    root = root.resolve()
-    record = live_record(root)
+def connect(directory: Path | None = None, *, start: bool = True) -> DaemonClient:
+    """Attach to the daemon, starting it in the caller's directory if absent."""
+    record = discover()
     if record is not None:
         return attach(record)
     if not start:
-        raise ServerError(f"nothing is serving {root}")
-    return attach(start_daemon(root))
+        raise ServerError("the lumlflow daemon is not running")
+    return attach(start_daemon((directory or Path.cwd()).resolve()))
 
 
 def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
-    """Ask a server to let go of its workspace, and wait until it has.
-
-    The record is surrendered last, after the kernels and stores are closed, so
-    its disappearance — not the answer to the call — is what says the workspace
-    is free for a successor.
-    """
-    with contextlib.suppress(FlowError, OSError):
-        with attach(record, timeout=_PING_TIMEOUT_S) as live:
-            live.call("shutdown")
-    root = Path(record.workspace)
+    """Signal the recorded pid only while the singleton lock proves it is live."""
+    if not workspace.lock_held():
+        workspace.clear_record(instance_id=record.instance_id)
+        return False
+    current = workspace.read_record()
+    if current is None or current.instance_id != record.instance_id:
+        return False
+    try:
+        os.kill(record.pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        return False
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        current = workspace.read_record(root)
-        if current is None or current.pid != record.pid:
+        current = workspace.read_record()
+        if current is not None and current.instance_id != record.instance_id:
+            return True
+        if not workspace.lock_held():
+            if current is not None and current.instance_id == record.instance_id:
+                workspace.clear_record(instance_id=record.instance_id)
             return True
         time.sleep(_POLL_S)
     return False
 
 
-def stand_down(record: DaemonRecord) -> bool:
-    """Give up the workspace so a foreground server can take it — if that is free.
-
-    Background plumbing with nothing in flight is replaceable and says so. A
-    server a person is watching in a terminal, or one carrying a run, is not:
-    a port is never worth someone else's session or half a training job.
-    """
-    if record.foreground or not _idle(record):
-        return False
-    return stop(record)
-
-
-def _idle(record: DaemonRecord) -> bool:
-    try:
-        with attach(record, timeout=_PING_TIMEOUT_S) as live:
-            return not live.call("ping").get("running")
-    except (FlowError, OSError, ValueError):
-        return False
-
-
-def start_daemon(root: Path, *, timeout: float = START_TIMEOUT_S) -> DaemonRecord:
-    """Spawn a background server and wait for one registered for this workspace.
+def start_daemon(directory: Path, *, timeout: float = START_TIMEOUT_S) -> DaemonRecord:
+    """Spawn a background server and wait for the singleton that wins the lock.
 
     Not necessarily the one spawned here: two verbs firing at once each start a
     daemon, and the one that loses the workspace steps aside within
@@ -197,48 +191,52 @@ def start_daemon(root: Path, *, timeout: float = START_TIMEOUT_S) -> DaemonRecor
     is detached from the caller's session, and its output goes to a log in the
     state directory rather than into the caller's terminal.
     """
-    log = workspace.log_path(root)
+    directory = directory.resolve()
+    log = workspace.log_path()
     log.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout
     for _ in range(_START_ATTEMPTS):
-        record = _await_registration(root, _spawn(root, log), deadline)
+        record = _await_registration(_spawn(directory, log), deadline)
         if record is not None:
             return record
         if time.monotonic() >= deadline:
-            raise ServerError(f"lumlflow did not start within {int(timeout)}s")
+            break
+    if workspace.lock_held():
+        raise ServerError(
+            "the lumlflow daemon holds its lock but is not answering. "
+            f"see {log} or run `lumlflow daemon stop`"
+        )
     raise ServerError(f"lumlflow could not start:\n{_tail(log)}")
 
 
-def _spawn(root: Path, log: Path) -> "subprocess.Popen[bytes]":
+def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
     with log.open("ab") as output:
         return subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "lumlflow.flow.daemon",
-                "--workspace",
-                str(root),
-            ],
+            [sys.executable, "-m", "lumlflow.flow.daemon"],
             stdin=subprocess.DEVNULL,
             stdout=output,
             stderr=output,
-            cwd=str(root),
+            cwd=str(directory),
             **_detached(),
         )
 
 
 def _await_registration(
-    root: Path, process: "subprocess.Popen[bytes]", deadline: float
+    process: "subprocess.Popen[bytes]", deadline: float
 ) -> DaemonRecord | None:
-    """The workspace's daemon once one answers, or None to try again."""
+    """The daemon once one answers, or None when a loser leaves no winner."""
+    exited_at: float | None = None
     while time.monotonic() < deadline:
-        record = workspace.read_record(root)
+        record = workspace.read_record()
         if record is not None and is_alive(record):
             return record
         if process.poll() is not None:
-            # It stepped aside, or it never got going: either way the daemon
-            # that owns the workspace has a moment to register before we retry.
-            deadline = min(deadline, time.monotonic() + _STEP_ASIDE_GRACE_S)
+            exited_at = exited_at or time.monotonic()
+            if (
+                not workspace.lock_held()
+                and time.monotonic() - exited_at >= _STEP_ASIDE_GRACE_S
+            ):
+                return None
         time.sleep(_POLL_S)
     return None
 

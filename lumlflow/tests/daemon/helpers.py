@@ -219,9 +219,9 @@ class LocalDaemon:
 @contextlib.asynccontextmanager
 async def daemon_api(root: Path) -> AsyncIterator[Api]:
     """An API over a hub, closed — kernels and all — when the test ends."""
-    hub = Hub(root)
+    hub = Hub()
     try:
-        yield Api(hub)
+        yield Api(hub, directory=root)
     finally:
         await hub.close()
 

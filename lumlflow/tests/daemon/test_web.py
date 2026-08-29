@@ -81,8 +81,8 @@ def served(tmp_path: Path, static: Path) -> Iterator[Served]:
     root = make_workspace(tmp_path / "project", flows=("churn", "sweep"))
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     streams = Streams()
-    hub = Hub(root, streams=streams)
-    api = Api(hub)
+    hub = Hub(streams=streams)
+    api = Api(hub, directory=root)
     app = web.build_app(hub, api, streams, token=TOKEN, static=static)
     with TestClient(app) as http:
         try:
@@ -467,10 +467,14 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
     from lumlflow.cli import app
 
     record = workspace.new_record(
-        served.root, port=1, token=TOKEN, web_port=7777, foreground=True
+        instance_id="served",
+        port=1,
+        token=TOKEN,
+        web_host="127.0.0.1",
+        web_port=7777,
+        tracker_store="/tmp/experiments",
     )
-    monkeypatch.setattr(daemon_client, "live_record", lambda root: record)
-    monkeypatch.setattr(workspace, "resolve_root", lambda start: served.root)
+    monkeypatch.setattr(daemon_client, "discover", lambda: record)
 
     result = CliRunner().invoke(app, ["ui", "--no-browser"])
     printed = next(
@@ -482,7 +486,6 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
 
     assert result.exit_code == 0, result.output
     assert printed == f"http://127.0.0.1:7777/?token={TOKEN}"
-    assert str(served.root) in result.output
     with served.http.websocket_connect(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"
     ) as socket:

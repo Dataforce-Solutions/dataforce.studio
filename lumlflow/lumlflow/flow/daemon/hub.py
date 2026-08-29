@@ -1,4 +1,4 @@
-"""The daemon's object graph: one launch directory, N flows, one kernel each.
+"""The daemon's path-keyed flow sessions, one kernel each.
 
 A flow session is opened once and kept. The daemon is the single writer of
 every `.lumlflow/` store beneath the workspace, and two sessions over one store
@@ -9,9 +9,9 @@ Nothing here survives a restart, and nothing needs to: the store is the state.
 A session is a store handle, a planner, a queue, and a kernel that has not been
 spawned yet.
 
-The launch directory still owns daemon discovery. Each flow runs under the
-directory that contains it, so its environment, shared code and watch follow
-the flow even when it is nested beneath or outside that launch directory.
+The current API still carries a launch directory for name resolution and
+listings. It is not a daemon boundary: sessions are keyed by each flow's
+absolute path and a flow elsewhere opens in the same hub.
 """
 
 import contextlib
@@ -126,28 +126,63 @@ class Hub:
 
     def __init__(
         self,
-        root: Path,
         *,
         streams: Streams | None = None,
     ) -> None:
-        self.root = root.resolve()
         self._streams = streams
         self._sessions: dict[Path, FlowSession] = {}
+        self._known: dict[Path, FlowRef] = {}
         # The trees the open sessions need watched, refcounted so several flows
         # in one workspace share its watch. Moved here whether or not a watcher
         # is listening: the hub is what knows when a session begins and ends.
         self.watches = Watches()
 
     def flows(self) -> list[FlowRef]:
-        return workspace.find_flows(self.root)
+        return sorted(
+            self._known.values(),
+            key=lambda ref: str(ref.path),
+        )
 
-    def select(self, name: str | None = None) -> FlowRef:
-        return workspace.select_flow(self.root, name=name)
-
-    def session(
-        self, name: str | None = None, *, actor: str | None = None
-    ) -> FlowSession:
-        return self.open(self.select(name), actor=actor)
+    def session(self, name: str | None = None) -> FlowSession:
+        sessions = list(self._sessions.values())
+        if name is None:
+            if len(sessions) == 1:
+                return sessions[0]
+            raise FlowNotFound("no open flow was named")
+        asked = Path(name)
+        matches = [
+            session
+            for session in sessions
+            if (
+                (asked.is_absolute() and session.ref.path == asked.resolve())
+                or name
+                in {
+                    session.ref.name,
+                    session.ref.relpath,
+                    f"{session.ref.name}{FLOW_SUFFIX}",
+                }
+            )
+        ]
+        if not matches:
+            refs = [
+                ref
+                for ref in self._known.values()
+                if (
+                    (asked.is_absolute() and ref.path == asked.resolve())
+                    or name in {ref.name, ref.relpath, f"{ref.name}{FLOW_SUFFIX}"}
+                )
+            ]
+            if len(refs) == 1:
+                return self.open(refs[0])
+            if len(refs) > 1:
+                paths = ", ".join(f"`{ref.path}`" for ref in refs)
+                raise FlowError(f"`{name}` names more than one known flow: {paths}")
+        if not matches:
+            raise FlowNotFound(f"no open flow called `{name}`")
+        if len(matches) > 1:
+            paths = ", ".join(f"`{session.ref.path}`" for session in matches)
+            raise FlowError(f"`{name}` names more than one open flow: {paths}")
+        return matches[0]
 
     def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         """Attach to a flow. A clone carries `flow.yaml` but no store; opening
@@ -169,7 +204,7 @@ class Hub:
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])
         session.reconcile(tier="cold", actor=actor)
-        self.document()
+        self.document(ref.path.parent)
         # Opening is where reactivity catches up on a workspace nobody was
         # watching: the offline edits have just landed, and cells left unsynced
         # by the last session are unsynced still. Armed whatever the cold start
@@ -187,7 +222,9 @@ class Hub:
         """
         return self._sessions.get(path)
 
-    def opened(self, *, here: bool = False) -> list[FlowSession]:
+    def opened(
+        self, *, here: bool = False, directory: Path | None = None
+    ) -> list[FlowSession]:
         """The flows this daemon currently holds open — the ones with a kernel.
 
         `here` narrows to the ones this workspace's env governs: a flow opened
@@ -197,7 +234,7 @@ class Hub:
         return [
             session
             for session in self._sessions.values()
-            if not here or session.workspace_dir == self.root
+            if not here or session.workspace_dir == directory
         ]
 
     def running(self) -> int:
@@ -239,31 +276,39 @@ class Hub:
             # file. Whichever door it came through, reactivity's question has a
             # new answer.
             session.reactor.arm()
-        self.document()
+        self.document(session.workspace_dir)
 
-    def document(self) -> None:
+    def document(self, directory: Path | None = None) -> None:
         """Keep the generated workspace guide current.
 
         A workspace nobody can write to is not a reason to refuse the op that
         asked; the guide is a convenience over facts the store already holds.
         """
-        with contextlib.suppress(OSError):
-            docs.refresh_workspace(self.root, [ref.name for ref in self.flows()])
+        directories = (
+            {directory.resolve()}
+            if directory is not None
+            else {session.workspace_dir for session in self._sessions.values()}
+        )
+        for current in directories:
+            with contextlib.suppress(OSError):
+                docs.refresh_workspace(
+                    current, [ref.name for ref in workspace.find_flows(current)]
+                )
 
-    def init_flow(self, name: str) -> FlowSession:
+    def init_flow(self, directory: Path, name: str) -> FlowSession:
         """Scaffold a new flow in the workspace, unbound.
 
         Binding the worktree and projecting `main` into `cells/` is the
         checkout, which `lumlflow init` and the browser's init-here gesture
         perform on top of this; the API path leaves the flow unbound.
         """
-        ref = _new_flow_ref(self.root, name)
+        ref = _new_flow_ref(directory.resolve(), name)
         if ref.path.exists():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
-        self.document()
+        self.document(directory)
         return session
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
@@ -274,6 +319,7 @@ class Hub:
             streams=self._streams,
         )
         self._sessions[ref.path] = session
+        self._known[ref.path] = ref
         self.watches.hold(session.watch.root)
         return session
 
@@ -286,11 +332,12 @@ class Hub:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         session = self._sessions.pop(ref.path, None)
+        self._known.pop(ref.path, None)
         if session is not None:
             self.watches.release(session.watch.root)
             await session.close()
         shutil.rmtree(ref.path)
-        self.document()
+        self.document(ref.path.parent)
 
     async def close(self) -> None:
         for session in list(self._sessions.values()):

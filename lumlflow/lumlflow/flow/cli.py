@@ -43,10 +43,8 @@ agent_app = typer.Typer(
 )
 env_app = typer.Typer(help="The workspace's packages.", no_args_is_help=True)
 flow_app = typer.Typer(help="Manage flows in this workspace.", no_args_is_help=True)
-# Plumbing, kept reachable for tests and power users and shown to nobody: the
-# product has no background process the user is asked to know about.
 daemon_app = typer.Typer(
-    help="The background server for this workspace.", no_args_is_help=True
+    help="Inspect or stop the lumlflow daemon.", no_args_is_help=True
 )
 
 _JSON = typer.Option(False, "--json", help="Answer as JSON, verbatim.")
@@ -71,7 +69,6 @@ def register(app: typer.Typer) -> None:
         diff,
         rename,
         export,
-        root,
         mcp,
     ):
         app.command()(command)
@@ -84,7 +81,7 @@ def register(app: typer.Typer) -> None:
     app.add_typer(agent_app, name="agent")
     app.add_typer(env_app, name="env")
     app.add_typer(flow_app, name="flow")
-    app.add_typer(daemon_app, name="daemon", hidden=True)
+    app.add_typer(daemon_app, name="daemon")
 
 
 def init(
@@ -442,38 +439,26 @@ def import_cells(
     )
 
 
-def root(as_json: bool = _JSON) -> None:
-    """The workspace this directory belongs to."""
-    from lumlflow.flow.daemon import workspace
-
-    resolved = workspace.resolve_root(Path.cwd())
-    _emit({"workspace": str(resolved)}, as_json, [str(resolved)])
-
-
 def mcp(
-    workspace: Path | None = typer.Option(
-        None, "--workspace", help="The workspace to serve. Defaults to this one."
-    ),
     label: str | None = typer.Option(
         None, "--label", help="What to call the session. Defaults to the client's name."
     ),
 ) -> None:
-    """Serve this workspace to an agent over MCP, on stdio.
+    """Serve lumlflow to an agent over MCP, on stdio.
 
     Do not run this verb by hand. An MCP client spawns it and speaks the
     protocol down its stdin. Every tool it offers goes where the verbs go. An
     agent working this way and one running verbs reach the same store.
 
-    `--workspace` is what makes a configuration portable. An MCP client spawns
-    its servers from whatever directory it is in. A workspace inferred from
-    that directory is a workspace that moves.
+    The server keeps its spawn directory for name resolution. Every call reaches
+    the same per-user daemon, wherever another client was launched.
     """
     from lumlflow.flow.daemon import mcp as server
 
     # Nothing is echoed here, ever — stdout is the protocol.
     raise typer.Exit(
         server.serve(
-            root=Path(workspace).expanduser().resolve() if workspace else None,
+            directory=Path.cwd().resolve(),
             label=label or os.environ.get(ACTOR_ENV),
         )
     )
@@ -728,53 +713,55 @@ def flow_delete(
     _emit(result, as_json, [f"deleted `{result['deleted']}` ({result['path']})"])
 
 
-@daemon_app.command("start")
+@daemon_app.command("start", hidden=True)
 def daemon_start(as_json: bool = _JSON) -> None:
-    """Start the server for this workspace, if one is not answering."""
+    """Start the daemon, if one is not answering."""
     result = _call("ping", as_json=as_json, scoped=False)
-    _emit(result, as_json, [f"lumlflow running for {result['workspace']}"])
+    _emit(result, as_json, ["lumlflow daemon is running"])
 
 
 @daemon_app.command("status")
 def daemon_status(as_json: bool = _JSON) -> None:
-    """Is a server answering for this workspace?"""
-    from lumlflow.flow.daemon import client, workspace
+    """Show whether the daemon is answering."""
+    from lumlflow.flow.daemon import client
 
-    resolved = workspace.resolve_root(Path.cwd())
-    running = client.live_record(resolved) is not None
+    try:
+        record = client.discover()
+    except FlowError as failure:
+        _fail(failure, as_json)
+    running = record is not None
     _emit(
-        {"workspace": str(resolved), "running": running},
+        {
+            "running": running,
+            "record": record.__dict__ if record is not None else None,
+        },
         as_json,
         [
-            f"lumlflow {'running' if running else 'not running'} for {resolved}"
-            + ("" if running else ". any verb starts one")
+            "lumlflow daemon is running"
+            if running
+            else "lumlflow daemon is not running. any verb starts it"
         ],
     )
 
 
 @daemon_app.command("stop")
 def daemon_stop(as_json: bool = _JSON) -> None:
-    """Stop this workspace's server. Nothing recorded is lost."""
+    """Stop the daemon. Nothing recorded is lost."""
     from lumlflow.flow.daemon import client, workspace
 
-    resolved = workspace.resolve_root(Path.cwd())
-    record = client.live_record(resolved)
-    if record is None:
+    record = workspace.read_record()
+    if record is None or not workspace.lock_held():
+        if record is not None:
+            workspace.clear_record(instance_id=record.instance_id)
         _emit(
-            {"workspace": str(resolved), "stopped": False},
+            {"stopped": False},
             as_json,
-            ["nothing running here"],
+            ["no daemon was running"],
         )
         return
-    try:
-        # One that died between the check and the call has already done what
-        # was asked; a socket that drops mid-shutdown has too. Neither is a
-        # traceback the caller can act on.
-        with client.attach(record) as live:
-            live.call("shutdown")
-    except FlowError as unreachable:
-        _fail(unreachable, as_json)
-    _emit({"workspace": str(resolved), "stopped": True}, as_json, ["lumlflow stopped"])
+    if not client.stop(record):
+        _fail(FlowError("the lumlflow daemon did not stop"), as_json)
+    _emit({"stopped": True}, as_json, ["lumlflow daemon stopped"])
 
 
 class _Daemon:
@@ -799,16 +786,16 @@ class _Daemon:
 
 @contextlib.contextmanager
 def _daemon(as_json: bool, flow: str | None = None) -> Iterator[_Daemon]:
-    """The daemon for this directory's workspace, started if none answers.
+    """The per-user daemon, started in this directory if none answers.
 
     Every failure the flow runtime raises lands here, where it becomes a
     sentence and an exit code rather than a traceback: an agent reading a
     Python stack to find out that a branch name was wrong is a Tier-0 failure.
     """
-    from lumlflow.flow.daemon import client, workspace
+    from lumlflow.flow.daemon import client
 
     try:
-        resolved = workspace.resolve_root(Path.cwd())
+        resolved = Path.cwd().resolve()
         here = _flow_here(resolved, flow)
         with client.connect(resolved) as live:
             yield _Daemon(live, resolved, here)
@@ -858,6 +845,17 @@ def _flow_here(root: Path, explicit: str | None) -> str | None:
 
     if explicit:
         return explicit
+    here = Path.cwd().resolve()
+    containing = next(
+        (
+            candidate
+            for candidate in (here, *here.parents)
+            if candidate.name.endswith(".flow") and candidate.is_dir()
+        ),
+        None,
+    )
+    if containing is not None:
+        return containing.name.removesuffix(".flow")
     inside = workspace.flow_here(root, Path.cwd())
     return inside.relpath if inside is not None else None
 

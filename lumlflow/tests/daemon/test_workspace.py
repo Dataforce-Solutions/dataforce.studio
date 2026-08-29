@@ -1,39 +1,19 @@
 """Which directory is the workspace, which flow a verb means, what a browser
 sees, and who holds the daemon record."""
 
+import json
 import os
 import sys
 from pathlib import Path
 
 import pytest
+from lumlflow import __version__
 from lumlflow.flow.daemon import workspace
+from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowAmbiguous, FlowNotFound
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, STORE_DIRNAME
 
 from tests.daemon.helpers import make_workspace, write_file
-
-
-def test_the_workspace_is_the_nearest_ancestor_holding_a_flow(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    inside = root / "churn.flow" / CELLS_DIRNAME
-
-    assert workspace.resolve_root(inside) == root
-    assert workspace.resolve_root(root / "churn.flow") == root
-
-
-def test_a_directory_with_no_flow_is_its_own_workspace(tmp_path: Path):
-    bare = tmp_path / "empty"
-    bare.mkdir()
-
-    assert workspace.resolve_root(bare) == bare
-
-
-def test_a_registered_ancestor_is_the_workspace_even_without_a_flow(tmp_path: Path):
-    root = tmp_path / "registered"
-    (root / "notes").mkdir(parents=True)
-    workspace.write_record(workspace.new_record(root, port=1, token="t"))
-
-    assert workspace.resolve_root(root / "notes") == root
 
 
 def test_flows_are_found_nested_and_never_descended_into(tmp_path: Path):
@@ -200,35 +180,54 @@ def test_a_flow_outside_the_workspace_is_addressed_by_its_own_path(tmp_path: Pat
         workspace.select_flow(root, name=str(tmp_path / "nowhere.flow"))
 
 
-def test_the_record_is_claimed_exclusively(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    first = workspace.new_record(root, port=1234, token="first")
-
-    assert workspace.claim_record(first) is None
-    holder = workspace.claim_record(workspace.new_record(root, port=9999, token="two"))
-
-    assert holder is not None
-    assert (holder.port, holder.token) == (1234, "first")
-    assert workspace.read_record(root) == first
-
-
-def test_only_the_daemon_that_registered_clears_the_record(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    record = workspace.new_record(root, port=1234, token="t")
+def test_only_the_daemon_instance_that_registered_clears_the_record() -> None:
+    record = _record("first")
     workspace.write_record(record)
 
-    workspace.clear_record(root, pid=record.pid + 1)
-    assert workspace.read_record(root) == record
+    workspace.clear_record(instance_id="successor")
+    assert workspace.read_record() == record
 
-    workspace.clear_record(root, pid=record.pid)
-    assert workspace.read_record(root) is None
+    workspace.clear_record(instance_id=record.instance_id)
+    assert workspace.read_record() is None
 
 
-def test_one_workspace_has_one_record_however_it_is_spelled(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    spelled = root / "churn.flow" / ".."
+def test_the_daemon_uses_one_unkeyed_record() -> None:
+    record = _record("singleton")
 
-    assert workspace.record_path(spelled) == workspace.record_path(root)
-    assert workspace.registered_roots() == set()
-    workspace.write_record(workspace.new_record(spelled, port=1, token="t"))
-    assert workspace.registered_roots() == {root}
+    assert workspace.record_path() == workspace.state_dir() / workspace.RECORD_NAME
+    assert workspace.log_path() == (
+        workspace.state_dir() / workspace.LOGS_DIRNAME / workspace.LOG_NAME
+    )
+    workspace.write_record(record)
+
+    assert workspace.read_record() == record
+    assert set(json.loads(workspace.record_path().read_text())) == {
+        "instance_id",
+        "pid",
+        "port",
+        "token",
+        "tracker_store",
+        "version",
+        "web_host",
+        "web_port",
+    }
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="no POSIX modes there")
+def test_the_daemon_record_is_private() -> None:
+    workspace.write_record(_record("private"))
+
+    assert workspace.record_path().stat().st_mode & 0o777 == 0o600
+
+
+def _record(instance_id: str) -> DaemonRecord:
+    return DaemonRecord(
+        pid=os.getpid(),
+        instance_id=instance_id,
+        port=1234,
+        token="token",
+        web_host="127.0.0.1",
+        web_port=5000,
+        tracker_store="/tmp/experiments",
+        version=__version__,
+    )

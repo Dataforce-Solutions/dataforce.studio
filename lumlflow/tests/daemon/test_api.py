@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from lumlflow.flow.daemon import envs, queries
+from lumlflow.flow.daemon import envs, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession
 from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowError, FlowNotFound
@@ -149,7 +149,10 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
     async with daemon_api(root) as api:
         ran = await api.run({"flow": str(other / "sales.flow"), "target": "where"})
         session = api.hub.session(str(other / "sales.flow"))
-        hosted = {ref.name: api.hub.open(ref).workspace_dir for ref in api.hub.flows()}
+        hosted = {
+            ref.name: api.hub.open(ref).workspace_dir
+            for ref in workspace.find_flows(root)
+        }
 
     assert ran["executed"] == ["where"]
     assert session.workspace_dir == other
@@ -442,7 +445,7 @@ async def test_cancelling_during_kernel_start_never_runs_the_cell(
     )
 
     async with daemon_api(root) as api:
-        session = api.hub.session("churn")
+        session = api.hub.open(workspace.select_flow(root, name="churn"))
         ensure_started = session.kernel.ensure_started
         starting = asyncio.Event()
         resume = asyncio.Event()

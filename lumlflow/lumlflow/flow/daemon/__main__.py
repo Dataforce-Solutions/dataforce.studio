@@ -1,4 +1,4 @@
-"""`python -m lumlflow.flow.daemon --workspace <path>` — how a verb starts one."""
+"""The detached daemon role spawned by the first caller."""
 
 from lumlflow.flow.daemon.main import main
 

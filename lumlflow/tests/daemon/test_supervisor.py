@@ -22,10 +22,13 @@ import httpx
 import pytest
 import websockets.exceptions
 import websockets.sync.client
+from lumlflow import __version__
+from lumlflow.cli import app
 from lumlflow.flow.daemon import client, connect, web, workspace
-from lumlflow.flow.daemon.main import INVALID_REQUEST
+from lumlflow.flow.daemon.main import ALREADY_RUNNING, INVALID_REQUEST
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowNotFound, ServerError
+from typer.testing import CliRunner
 
 from tests.daemon.conftest import Reap
 from tests.daemon.helpers import SCORE_CELL, make_workspace, write_cell
@@ -131,7 +134,7 @@ def _wait_until_deregistered(root: Path, timeout: float = 30.0) -> None:
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if workspace.read_record(root) is None:
+        if workspace.read_record() is None:
             return
         time.sleep(0.05)
     raise AssertionError("the daemon is still registered")
@@ -143,12 +146,15 @@ def test_a_verb_that_finds_no_daemon_starts_one(tmp_path: Path, start: Starter):
     with start(root) as live:
         status = live.call("status")
 
-        record = workspace.read_record(root)
+        record = workspace.read_record()
         assert record is not None
-        assert record.workspace == str(root)
         assert record.port > 0 and record.token
+        assert record.instance_id
+        assert record.web_host == "127.0.0.1" and record.web_port > 0
+        assert record.tracker_store and record.version == __version__
         assert status["workspace"] == str(root)
         assert status["pid"] == record.pid
+        assert live.call("ping")["instance_id"] == record.instance_id
         assert [flow["flow"] for flow in status["flows"]] == ["churn"]
 
 
@@ -162,7 +168,7 @@ def test_the_daemon_serves_the_workbench_on_the_port_it_recorded(
     root = make_workspace(tmp_path / "project")
 
     with start(root) as live:
-        record = workspace.read_record(root)
+        record = workspace.read_record()
         assert record is not None and record.web_port > 0
         assert live.call("ping")["web"] == f"http://127.0.0.1:{record.web_port}"
 
@@ -290,14 +296,14 @@ def test_two_verbs_starting_at_once_end_up_at_the_same_daemon(tmp_path: Path):
         assert records[0] == records[1]
         assert client.is_alive(records[0])
     finally:
-        _kill(workspace.read_record(root))
+        _kill(workspace.read_record())
 
 
 def test_a_verb_waits_out_a_workspace_that_is_briefly_held(tmp_path: Path):
     """A daemon that finds the workspace taken exits at once. The verb that
     started it still needs a daemon, so it tries again rather than failing."""
     root = make_workspace(tmp_path / "project")
-    lock = workspace.WorkspaceLock(root)
+    lock = workspace.WorkspaceLock()
     assert lock.acquire()
 
     try:
@@ -310,58 +316,86 @@ def test_a_verb_waits_out_a_workspace_that_is_briefly_held(tmp_path: Path):
         assert client.is_alive(record)
     finally:
         lock.release()
-        _kill(workspace.read_record(root))
+        _kill(workspace.read_record())
+
+
+def test_a_held_lock_that_does_not_answer_names_the_log_and_stop(
+    tmp_path: Path, servers: Reap
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    script = "\n".join(
+        [
+            "import os, time",
+            "from lumlflow import __version__",
+            "from lumlflow.flow.daemon import workspace",
+            "from lumlflow.flow.daemon.workspace import DaemonRecord",
+            "lock = workspace.WorkspaceLock()",
+            "assert lock.acquire()",
+            "workspace.write_record(DaemonRecord(",
+            "    pid=os.getpid(), instance_id='hung', port=9, token='t',",
+            "    web_host='127.0.0.1', web_port=5000,",
+            "    tracker_store='/tmp/experiments', version=__version__,",
+            "))",
+            "print('ready', flush=True)",
+            "time.sleep(60)",
+        ]
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", script],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    servers(holder)
+    assert holder.stdout is not None and holder.stdout.readline().strip() == "ready"
+
+    with pytest.raises(ServerError) as refused:
+        client.connect(root)
+
+    assert str(workspace.log_path()) in str(refused.value)
+    assert "lumlflow daemon stop" in str(refused.value)
+    assert holder.poll() is None
+    assert workspace.read_record() is not None
+
+    stopped = CliRunner().invoke(app, ["daemon", "stop"])
+    assert stopped.exit_code == 0, stopped.output
+    assert "daemon stopped" in stopped.output
 
 
 def test_a_second_verb_reuses_the_daemon_that_is_already_there(
     tmp_path: Path, start: Starter
 ):
     root = make_workspace(tmp_path / "project")
+    other = make_workspace(tmp_path / "other", flows=("sales",))
 
-    with start(root) as first, client.connect(root) as second:
+    with start(root) as first, client.connect(other) as second:
         assert first.call("ping") == second.call("ping")
         assert second.record.port == first.record.port
+        opened = second.call("flow.open", {"flow": str(other / "sales.flow")})
+
+    assert opened["flow"] == "sales"
+    assert opened["path"] == str(other / "sales.flow")
 
 
-def test_a_second_daemon_for_one_workspace_steps_aside(tmp_path: Path, start: Starter):
+def test_a_second_daemon_process_steps_aside(tmp_path: Path, start: Starter):
     root = make_workspace(tmp_path / "project")
+    other = make_workspace(tmp_path / "other", flows=())
 
     with start(root) as live:
         held = live.call("ping")
         rival = subprocess.run(
-            [sys.executable, "-m", "lumlflow.flow.daemon", "--workspace", str(root)],
+            [sys.executable, "-m", "lumlflow.flow.daemon"],
+            cwd=other,
             capture_output=True,
             text=True,
             timeout=60,
         )
 
-        assert rival.returncode == 1
-        assert rival.stderr.strip() == f"another lumlflow server holds {root}"
+        assert rival.returncode == ALREADY_RUNNING
+        assert rival.stderr.strip() == "another lumlflow daemon is already running"
         assert live.call("ping") == held
-        assert workspace.read_record(root) == live.record
-
-
-def test_a_daemon_defers_to_a_live_record_when_the_lock_does_not_hold(
-    tmp_path: Path, start: Starter
-):
-    """Not every filesystem honours an advisory lock, so the record is the
-    second line of defense: a daemon that answers is a daemon that owns."""
-    root = make_workspace(tmp_path / "project")
-
-    with start(root) as live:
-        held = live.call("ping")
-        workspace.record_path(root).with_suffix(".lock").unlink()
-
-        rival = subprocess.run(
-            [sys.executable, "-m", "lumlflow.flow.daemon", "--workspace", str(root)],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-
-        assert rival.returncode == 1
-        assert f"already owns {root} (pid {held['pid']})" in rival.stderr
-        assert live.call("ping") == held
+        assert workspace.read_record() == live.record
 
 
 def test_a_rival_steps_aside_even_with_no_record_to_read(
@@ -377,25 +411,25 @@ def test_a_rival_steps_aside_even_with_no_record_to_read(
 
     with start(root) as live:
         held = live.call("ping")
-        workspace.record_path(root).unlink()
+        workspace.record_path().unlink()
 
         rival = subprocess.run(
-            [sys.executable, "-m", "lumlflow.flow.daemon", "--workspace", str(root)],
+            [sys.executable, "-m", "lumlflow.flow.daemon"],
+            cwd=tmp_path,
             capture_output=True,
             text=True,
             timeout=60,
         )
 
         # The lock is what turned it away: there was no record left to read.
-        assert rival.returncode == 1
-        assert rival.stderr.strip() == f"another lumlflow server holds {root}"
+        assert rival.returncode == ALREADY_RUNNING
+        assert rival.stderr.strip() == "another lumlflow daemon is already running"
         assert live.call("ping") == held
 
 
-def test_the_workspace_lock_is_held_by_one_holder_at_a_time(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    held = workspace.WorkspaceLock(root)
-    rival = workspace.WorkspaceLock(root)
+def test_the_daemon_lock_is_held_by_one_holder_at_a_time() -> None:
+    held = workspace.WorkspaceLock()
+    rival = workspace.WorkspaceLock()
 
     assert held.acquire()
     try:
@@ -418,8 +452,105 @@ def test_a_record_whose_daemon_died_is_taken_over(tmp_path: Path, start: Starter
 
     with client.connect(root) as fresh:
         assert fresh.record.pid != dead.pid
-        assert workspace.read_record(root) == fresh.record
+        assert fresh.record.instance_id != dead.instance_id
+        assert workspace.read_record() == fresh.record
         _kill(fresh.record)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requires kill -9 and /proc")
+def test_a_kernel_outliving_a_dead_daemon_does_not_hold_the_lock(
+    tmp_path: Path, start: Starter
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "gated", GATED_CELL)
+
+    with start(root) as live, client.attach(live.record) as runner:
+        live.call("flow.open", {"flow": "churn"})
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            running = pool.submit(
+                runner.call, "run", {"flow": "churn", "target": "gated"}
+            )
+            kernel_pid = _wait_for_kernel(root)
+            lock_target = str(workspace.lock_path().resolve())
+            inherited = {
+                Path(fd).resolve()
+                for fd in Path(f"/proc/{kernel_pid}/fd").glob("*")
+                if Path(fd).exists()
+            }
+            assert Path(lock_target) not in inherited
+
+            os.kill(live.record.pid, HARD_KILL)
+            _wait_until_gone(live.record)
+            assert Path(f"/proc/{kernel_pid}").exists()
+
+            with client.connect(root) as successor:
+                assert successor.record.instance_id != live.record.instance_id
+                assert workspace.lock_held()
+                _kill(successor.record)
+
+            (root / "go").write_text("", encoding="utf-8")
+            with contextlib.suppress(Exception):
+                running.result(timeout=30)
+
+
+def test_daemon_stop_never_signals_a_pid_from_a_stale_record(
+    tmp_path: Path, start: Starter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    with start(root) as live:
+        stale = live.record
+        os.kill(stale.pid, HARD_KILL)
+        _wait_until_gone(stale)
+
+    signalled: list[tuple[int, signal.Signals]] = []
+    monkeypatch.setattr(
+        client.os,
+        "kill",
+        lambda pid, sent: signalled.append((pid, sent)),
+    )
+    result = CliRunner().invoke(app, ["daemon", "stop"])
+
+    assert result.exit_code == 0
+    assert "no daemon was running" in result.output
+    assert signalled == []
+    assert workspace.read_record() is None
+
+
+def test_daemon_stop_never_signals_a_record_replaced_by_a_successor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale = DaemonRecord(
+        pid=101,
+        instance_id="stale",
+        port=1,
+        token="old",
+        web_host="127.0.0.1",
+        web_port=5000,
+        tracker_store="/tmp/experiments",
+        version=__version__,
+    )
+    successor = DaemonRecord(
+        pid=202,
+        instance_id="successor",
+        port=2,
+        token="new",
+        web_host="127.0.0.1",
+        web_port=5000,
+        tracker_store="/tmp/experiments",
+        version=__version__,
+    )
+    signalled: list[tuple[int, signal.Signals]] = []
+    monkeypatch.setattr(workspace, "lock_held", lambda: True)
+    monkeypatch.setattr(workspace, "read_record", lambda: successor)
+    monkeypatch.setattr(
+        client.os,
+        "kill",
+        lambda pid, sent: signalled.append((pid, sent)),
+    )
+
+    assert not client.stop(stale, timeout=0)
+    assert signalled == []
 
 
 def test_the_daemon_refuses_a_caller_without_its_token(tmp_path: Path, start: Starter):
@@ -427,16 +558,30 @@ def test_the_daemon_refuses_a_caller_without_its_token(tmp_path: Path, start: St
 
     with start(root) as live:
         forged = DaemonRecord(
-            workspace=live.record.workspace,
             pid=live.record.pid,
+            instance_id=live.record.instance_id,
             port=live.record.port,
             token="not-the-token",
-            started=live.record.started,
+            web_host=live.record.web_host,
+            web_port=live.record.web_port,
+            tracker_store=live.record.tracker_store,
+            version=live.record.version,
+        )
+        wrong_instance = DaemonRecord(
+            pid=live.record.pid,
+            instance_id="another-daemon",
+            port=live.record.port,
+            token=live.record.token,
+            web_host=live.record.web_host,
+            web_port=live.record.web_port,
+            tracker_store=live.record.tracker_store,
+            version=live.record.version,
         )
 
         with pytest.raises(ServerError):
             with client.attach(forged, timeout=5) as intruder:
                 intruder.call("ping")
+        assert not client.is_alive(wrong_instance)
 
 
 def test_shutdown_deregisters_and_a_restart_carries_the_store_forward(
@@ -487,7 +632,7 @@ def test_shutdown_lets_go_of_the_workspace_with_a_client_still_attached(
         idle.close()
 
     # Deregistered means let go: the next verb's daemon can take the workspace.
-    successor = workspace.WorkspaceLock(root)
+    successor = workspace.WorkspaceLock()
     assert successor.acquire()
     successor.release()
 
@@ -583,7 +728,7 @@ def test_no_daemon_is_started_when_the_caller_says_not_to(tmp_path: Path):
     with pytest.raises(ServerError):
         client.connect(root, start=False)
 
-    assert workspace.read_record(root) is None
+    assert workspace.read_record() is None
 
 
 def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
@@ -607,10 +752,10 @@ def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
     with start(root) as live:
         live.call("flow.open", {"flow": "churn"})
         paired = subprocess.Popen(
-            [command, "mcp", "--workspace", str(root), "--label", "pair-1"],
+            [command, "mcp", "--label", "pair-1"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            cwd=str(tmp_path),
+            cwd=str(root),
         )
         servers(paired)
         _say(paired, _hello())
@@ -678,3 +823,17 @@ def _until_unpaired(live: client.DaemonClient, timeout: float = 30.0) -> str | N
             return None
         time.sleep(0.05)
     raise AssertionError("the flow is still paired")
+
+
+def _wait_for_kernel(root: Path, timeout: float = 30.0) -> int:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        listed = subprocess.run(
+            ["ps", "-eo", "pid=,args="], capture_output=True, text=True
+        )
+        for line in listed.stdout.splitlines():
+            pid, _, command = line.strip().partition(" ")
+            if pid.isdigit() and "lumlflow_kernel" in command and str(root) in command:
+                return int(pid)
+        time.sleep(0.05)
+    raise AssertionError("the kernel did not start")
