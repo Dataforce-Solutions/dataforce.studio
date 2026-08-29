@@ -7,13 +7,17 @@ build hook's decisions and the pyproject config that carries the bundle.
 """
 
 import subprocess
+import tarfile
 import tomllib
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from hatch_build import SKIP_ENV_VAR, WORKSPACE_BUILD_ORDER, FrontendBuildHook
+from hatchling.builders.sdist import SdistBuilder
+from hatchling.builders.wheel import WheelBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -210,5 +214,42 @@ def test_pyproject_carries_static_into_every_target() -> None:
     # Target-level `artifacts` would shadow the global list for that target.
     assert "artifacts" not in build["targets"]["sdist"]
     assert "artifacts" not in build["targets"]["wheel"]
-    assert build["targets"]["sdist"]["exclude"] == ["/frontend", "/node_modules"]
+    assert build["targets"]["sdist"]["exclude"] == [
+        "/frontend",
+        "/node_modules",
+        "/examples",
+    ]
     assert build["hooks"]["custom"]["path"] == "hatch_build.py"
+
+
+def test_churn_demo_has_an_isolated_project() -> None:
+    example = REPO_ROOT / "examples" / "churn"
+
+    assert not (REPO_ROOT / "churn.flow").exists()
+    assert (example / "churn.flow").is_dir()
+    with (example / "pyproject.toml").open("rb") as f:
+        config = tomllib.load(f)
+
+    assert set(config["project"]["dependencies"]) == {
+        "luml-sdk>=0.2.0,<0.3.0",
+        "matplotlib>=3.11.1",
+        "pandas>=3.0.5",
+        "pyarrow>=25.0.1",
+        "scikit-learn>=1.9.0",
+    }
+
+
+def test_distributions_exclude_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(SKIP_ENV_VAR, "1")
+    sdist = Path(next(SdistBuilder(str(REPO_ROOT)).build(directory=str(tmp_path))))
+    wheel = Path(next(WheelBuilder(str(REPO_ROOT)).build(directory=str(tmp_path))))
+
+    with tarfile.open(sdist) as archive:
+        sdist_names = archive.getnames()
+    with zipfile.ZipFile(wheel) as archive:
+        wheel_names = archive.namelist()
+
+    assert all("examples" not in Path(name).parts for name in sdist_names)
+    assert all("examples" not in Path(name).parts for name in wheel_names)

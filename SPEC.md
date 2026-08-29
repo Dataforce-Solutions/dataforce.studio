@@ -1165,9 +1165,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Derive the workspace-code cause from the tree hash
   - [x] The workspace-code staleness cause (`staleness.py`) derives from the tree hash the materialization ran under, not from steps
   - [x] Tests in `test_staleness.py`: A→B→A leaves nothing stale
-- [ ] Move the churn demo beside its own pyproject
-  - [ ] Move `churn.flow` to `lumlflow/examples/churn/` beside a `pyproject.toml` declaring its dependencies (scikit-learn, matplotlib, pandas, pyarrow, luml-sdk); exclude `/examples` from the sdist; the demo's cells either pass `ruff` or `examples/` is excluded from its scan (`mypy` and `pytest` already take explicit paths); confirm the nested `pyproject.toml` is not picked up as a `uv` workspace member
-  - [ ] Tests: the built sdist and wheel hold no `examples/` entry; every reference to the old path (tests, docs, the README) points at the new one
+- [x] Move the churn demo beside its own pyproject
+  - [x] Move `churn.flow` to `lumlflow/examples/churn/` beside a `pyproject.toml` declaring its dependencies (scikit-learn, matplotlib, pandas, pyarrow, luml-sdk); exclude `/examples` from the sdist; the demo's cells either pass `ruff` or `examples/` is excluded from its scan (`mypy` and `pytest` already take explicit paths); confirm the nested `pyproject.toml` is not picked up as a `uv` workspace member
+  - [x] Tests: the built sdist and wheel hold no `examples/` entry; every reference to the old path (tests, docs, the README) points at the new one
 - [ ] Root each flow in its containing directory
   - [ ] A flow's workspace is its parent directory: `ctx.workspace_dir`, run cwd (scratch only for `tempdir()`/staging), scan and watcher root; `hub._workspace_of` answers the containing directory for every flow — its branch on the daemon's root and the outside-the-launch-directory special case go here, while the root itself still serves daemon discovery until the one-daemon task — the `Watches` registry stays; interpreter resolution walks up from the flow's directory, an existing `.venv` never synced
   - [ ] `EXCLUDED_DIRS` extended (pyvenv.cfg, site-packages, env/venv/.tox/build/dist, `.gitignore`)

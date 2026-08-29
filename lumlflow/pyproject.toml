@@ -69,7 +69,7 @@ artifacts = ["/lumlflow/static/**"]
 # The bundle above already makes the sdist self-contained, so it ships no
 # frontend sources: a source install has no npm workspace root to compile them
 # with, and their presence would only push the build hook onto its error path.
-exclude = ["/frontend", "/node_modules"]
+exclude = ["/frontend", "/node_modules", "/examples"]
 
 [tool.hatch.build.targets.wheel]
 # The kernel is a separate top-level package in the same wheel: the daemon
