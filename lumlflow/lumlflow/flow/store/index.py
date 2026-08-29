@@ -45,7 +45,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 9
+INDEX_SCHEMA_VERSION = 10
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -114,6 +114,9 @@ CREATE TABLE materializations (
     env_lock_hash TEXT,
     cost_seconds REAL,
     log_ref TEXT,
+    experiment_id TEXT,
+    experiment_store TEXT,
+    sdk_version_warning TEXT,
     started_step INTEGER NOT NULL,
     finished_step INTEGER
 );
@@ -258,6 +261,9 @@ class MaterializationRow:
     env_lock_hash: str | None
     cost_seconds: float | None
     log_ref: str | None
+    experiment_id: str | None
+    experiment_store: str | None
+    sdk_version_warning: str | None
     started_step: int
     finished_step: int | None
 
@@ -916,8 +922,9 @@ class Index:
             "INSERT OR REPLACE INTO materializations "
             "(mat_id, uid, version_id, branch_id, memo_key, state, inputs, outputs, "
             "identity_dependent, external, env_lock_hash, cost_seconds, log_ref, "
-            "started_step, finished_step) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "experiment_id, experiment_store, sdk_version_warning, started_step, "
+            "finished_step) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 op.mat_id,
                 op.uid,
@@ -942,6 +949,9 @@ class Index:
                 op.env_lock_hash,
                 op.cost_seconds,
                 op.log_ref,
+                op.experiment_id,
+                op.experiment_store,
+                op.sdk_version_warning,
                 op.started_step,
                 op.finished_step,
             ),
@@ -1045,6 +1055,9 @@ def _materialization(row: sqlite3.Row) -> MaterializationRow:
         env_lock_hash=row["env_lock_hash"],
         cost_seconds=row["cost_seconds"],
         log_ref=row["log_ref"],
+        experiment_id=row["experiment_id"],
+        experiment_store=row["experiment_store"],
+        sdk_version_warning=row["sdk_version_warning"],
         started_step=row["started_step"],
         finished_step=row["finished_step"],
     )

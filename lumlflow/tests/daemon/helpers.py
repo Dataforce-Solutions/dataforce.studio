@@ -178,6 +178,9 @@ def run_request(
     """What the queue hands a kernel, built by hand."""
     return RunRequest(
         run_id=run_id,
+        flow="churn",
+        flow_id="01J000000000000000000000FL",
+        flow_path="",
         branch="main",
         step=1,
         uid="01J000000000000000000000UI",

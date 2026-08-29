@@ -234,6 +234,8 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
             for name, spec in version.manifest.produces.items()
         },
         "materialized": _outputs(mat, version),
+        "tracker": _run_tracker(mat),
+        "sdk_version_warning": (mat.sdk_version_warning if mat is not None else None),
         "error": failure(session, mat),
         # Who wrote the version that broke, which need not be whoever wrote the
         # one on screen: an edit after a failure moves the head and leaves the
@@ -804,6 +806,12 @@ def _outputs(
         }
         for name, record in sorted(mat.outputs.items())
     ]
+
+
+def _run_tracker(mat: MaterializationRow | None) -> dict[str, str] | None:
+    if mat is None or mat.experiment_id is None or mat.experiment_store is None:
+        return None
+    return {"id": mat.experiment_id, "store": mat.experiment_store}
 
 
 def _failures(

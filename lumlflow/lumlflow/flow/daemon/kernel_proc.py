@@ -20,8 +20,11 @@ import socket
 import traceback
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from luml import __version__ as DAEMON_SDK_VERSION
 
 import lumlflow_kernel
 from lumlflow.flow.atomic import atomic_write_bytes
@@ -57,6 +60,14 @@ KernelState = Literal["stopped", "running"]
 # "stopped" and stays wrong for the rest of the tab's life without this.
 KERNEL_STATE_EVENT = "kernel_state"
 OnEvent = Callable[[str, dict[str, Any]], None]
+FailExperiment = Callable[[str], None]
+
+
+@dataclass(frozen=True)
+class _TrackedExperiment:
+    experiment_id: str
+    store: str
+    sdk_version_warning: str | None = None
 
 
 class _KernelProtocolError(KernelError):
@@ -72,11 +83,13 @@ class KernelProcess:
         flow_dir: Path,
         workspace_dir: Path,
         tracker_store: Path | None = None,
+        fail_experiment: FailExperiment | None = None,
         on_event: OnEvent | None = None,
     ) -> None:
         self.flow_dir = flow_dir
         self.workspace_dir = workspace_dir
         self.tracker_store = tracker_store.resolve() if tracker_store else None
+        self._fail_experiment = fail_experiment
         self.handshake: dict[str, Any] | None = None
         self.interpreter: envs.Interpreter | None = None
         # The env as it stood when this process started. Within a kernel's
@@ -101,6 +114,7 @@ class KernelProcess:
         self._evict_before_next_run: bool = False
         self._active_runs: set[str] = set()
         self._cancelled_runs: set[str] = set()
+        self._tracked_runs: dict[str, _TrackedExperiment] = {}
 
     @property
     def state(self) -> KernelState:
@@ -136,6 +150,7 @@ class KernelProcess:
 
     async def run(self, request: RunRequest) -> RunResult:
         self._active_runs.add(request.run_id)
+        self._tracked_runs.pop(request.run_id, None)
         try:
             await self.ensure_started()
             try:
@@ -152,15 +167,26 @@ class KernelProcess:
             except _KernelProtocolError:
                 raise
             except KernelError as death:
-                # Nothing recorded is lost: the kernel holds no state the store does
-                # not, so the next run starts a fresh one.
-                raise KernelError(
-                    f"the kernel stopped while `{request.slug}` was running: {death}"
-                ) from death
-            return self._result(record)
+                tracked = self._tracked_runs.pop(request.run_id, None)
+                if tracked is None or self._fail_experiment is None:
+                    raise KernelError(
+                        f"the kernel stopped while `{request.slug}` was running: "
+                        f"{death}"
+                    ) from death
+                close_error: Exception | None = None
+                try:
+                    await asyncio.to_thread(
+                        self._fail_experiment, tracked.experiment_id
+                    )
+                except Exception as failure:
+                    close_error = failure
+                return self._died_result(request, death, tracked, close_error)
+            tracked = self._tracked_runs.pop(request.run_id, None)
+            return self._result(record, tracked)
         finally:
             self._active_runs.discard(request.run_id)
             self._cancelled_runs.discard(request.run_id)
+            self._tracked_runs.pop(request.run_id, None)
 
     async def page(
         self, value_ref: str, kind: str, query: dict[str, Any]
@@ -394,7 +420,26 @@ class KernelProcess:
         if method is None:
             self._answer(message)
         elif "id" not in message and self._on_event is not None:
-            self._emit(str(method), message.get("params") or {})
+            params = message.get("params") or {}
+            self._remember_experiment(str(method), params)
+            self._emit(str(method), params)
+        elif "id" not in message:
+            self._remember_experiment(str(method), message.get("params") or {})
+
+    def _remember_experiment(self, event: str, params: dict[str, Any]) -> None:
+        if event != "experiment_started":
+            return
+        run_id = str(params.get("run_id") or "")
+        experiment_id = str(params.get("experiment_id") or "")
+        store = str(params.get("store") or "")
+        if not run_id or not experiment_id or not store:
+            return
+        warning = params.get("sdk_version_warning")
+        self._tracked_runs[run_id] = _TrackedExperiment(
+            experiment_id=experiment_id,
+            store=store,
+            sdk_version_warning=str(warning) if warning is not None else None,
+        )
 
     def _emit(self, event: str, params: dict[str, Any]) -> None:
         """A subscriber that throws loses its event, not the run.
@@ -539,9 +584,20 @@ class KernelProcess:
         await _settled(task, _DRAIN_TIMEOUT_S)
         task.cancel()
 
-    def _result(self, record: dict[str, Any]) -> RunResult:
+    def _result(
+        self,
+        record: dict[str, Any],
+        started: _TrackedExperiment | None,
+    ) -> RunResult:
         if not isinstance(record, dict) or "state" not in record:
             raise KernelError("the kernel answered a run with no result")
+        experiment_id = str(record.get("experiment_id") or "") or (
+            started.experiment_id if started is not None else None
+        )
+        experiment_store = str(record.get("store") or "") or (
+            started.store if started is not None else None
+        )
+        warning = record.get("sdk_version_warning")
         return RunResult(
             state=record["state"],
             outputs={
@@ -552,6 +608,38 @@ class KernelProcess:
             external=bool(record.get("external")),
             cost_seconds=record.get("cost_seconds"),
             log_ref=self._log_ref(record),
+            experiment_id=experiment_id,
+            experiment_store=experiment_store,
+            experiment_close_error=record.get("experiment_close_error"),
+            sdk_version_warning=(
+                str(warning)
+                if warning is not None
+                else (started.sdk_version_warning if started is not None else None)
+            ),
+        )
+
+    def _died_result(
+        self,
+        request: RunRequest,
+        death: KernelError,
+        tracked: _TrackedExperiment,
+        close_error: Exception | None,
+    ) -> RunResult:
+        message = f"the kernel stopped while `{request.slug}` was running: {death}"
+        unclosed = None
+        if close_error is not None:
+            unclosed = (
+                f"could not fail orphaned experiment `{tracked.experiment_id}` in "
+                f"tracker store `{tracked.store}`: {close_error}"
+            )
+            message = f"{message}\n{unclosed}"
+        return RunResult(
+            state="failed",
+            log_ref=self._logs.put(f"\nKernelError: {message}\n".encode()),
+            experiment_id=tracked.experiment_id,
+            experiment_store=tracked.store,
+            experiment_close_error=unclosed,
+            sdk_version_warning=tracked.sdk_version_warning,
         )
 
     def _log_ref(self, record: dict[str, Any]) -> str | None:
@@ -587,6 +675,7 @@ def spawn_environment(
         **os.environ,
         "PYTHONPATH": os.pathsep.join([*roots, *filter(None, [existing])]),
         "PYTHONUNBUFFERED": "1",
+        "LUMLFLOW_DAEMON_SDK_VERSION": DAEMON_SDK_VERSION,
     }
     if tracker_store is not None:
         store = str(tracker_store.resolve())
@@ -615,6 +704,16 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
         },
         "params": request.params,
         "ctx_info": {"branch": request.branch, "step": request.step},
+        "identity": {
+            "flow": request.flow,
+            "flow_id": request.flow_id,
+            "path": request.flow_path,
+            "slug": request.slug,
+            "uid": request.uid,
+            "lane": request.branch,
+            "version_id": request.version_id,
+            "run_id": request.run_id,
+        },
     }
 
 

@@ -68,6 +68,7 @@ class FlowSession:
             flow_dir=ref.path,
             workspace_dir=workspace_dir,
             tracker_store=tracker.store_path,
+            fail_experiment=tracker.fail_experiment,
             on_event=self._observed if streams is not None else None,
         )
         self.planner = Planner(store)

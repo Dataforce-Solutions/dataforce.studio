@@ -77,6 +77,11 @@ class InputRef(_Frozen):
     mat_id: str
 
 
+class TrackerRef(_Frozen):
+    experiment_id: str
+    store: str
+
+
 class OutputRecord(_Frozen):
     content_hash: str
     kind: str
@@ -85,6 +90,7 @@ class OutputRecord(_Frozen):
     preview_ref: str | None = None
     value_ref: str | None = None
     persisted: bool = True
+    tracker_ref: TrackerRef | None = None
 
 
 class FlowInit(_Frozen):
@@ -196,6 +202,9 @@ class RunRecorded(_Frozen):
     env_lock_hash: str | None = None
     cost_seconds: float | None = None
     log_ref: str | None = None
+    experiment_id: str | None = None
+    experiment_store: str | None = None
+    sdk_version_warning: str | None = None
     started_step: int = 0
     finished_step: int | None = None
 

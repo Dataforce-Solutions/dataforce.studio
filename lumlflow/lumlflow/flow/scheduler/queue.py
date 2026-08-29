@@ -23,7 +23,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-from lumlflow.flow.errors import InputUnavailable
+from lumlflow.flow.errors import FlowError, InputUnavailable
 from lumlflow.flow.ids import new_ulid
 from lumlflow.flow.scheduler import memo
 from lumlflow.flow.scheduler.planner import (
@@ -36,12 +36,14 @@ from lumlflow.flow.scheduler.planner import (
 )
 from lumlflow.flow.store.flowstore import FlowStore
 from lumlflow.flow.store.models import (
+    CellNoted,
     InputRef,
     MaterializationState,
     MemoHit,
     OutputRecord,
     OutputSpec,
     RunRecorded,
+    TrackerRef,
 )
 
 StepOutcome = Literal["pruned", "cached", "executed", "failed", "abandoned"]
@@ -52,6 +54,9 @@ class RunRequest:
     """What a kernel needs to run one cell. No store handles cross this line."""
 
     run_id: str
+    flow: str
+    flow_id: str
+    flow_path: str
     branch: str
     step: int
     uid: str
@@ -71,6 +76,10 @@ class RunResult:
     external: bool = False
     cost_seconds: float | None = None
     log_ref: str | None = None
+    experiment_id: str | None = None
+    experiment_store: str | None = None
+    experiment_close_error: str | None = None
+    sdk_version_warning: str | None = None
 
 
 class Executor(Protocol):
@@ -164,6 +173,7 @@ class RunQueue:
         re-runs the closure the request is about, not the whole flow.
         """
         plan = self._planner.plan(target, branch=branch)
+        _validate_experiment_outputs(plan)
         done: dict[str, list[str]] = {"executed": [], "cached": [], "pruned": []}
         failed: str | None = None
         abandoned = False
@@ -388,6 +398,9 @@ class RunQueue:
     ) -> RunRequest:
         return RunRequest(
             run_id=run_id,
+            flow=self._store.manifest.name,
+            flow_id=self._store.manifest.flow_id,
+            flow_path=str(self._store.flow_dir.resolve()),
             branch=plan.branch,
             step=self._store.next_step,
             uid=step.uid,
@@ -424,6 +437,7 @@ class RunQueue:
                 if record.value_ref
             ],
         )
+        outputs = _recorded_outputs(step, result)
         self._store.commit(
             [
                 RunRecorded(
@@ -442,12 +456,15 @@ class RunQueue:
                         )
                         for name, bound in inputs.items()
                     },
-                    outputs=dict(result.outputs),
+                    outputs=outputs,
                     identity_dependent=result.identity_dependent,
                     external=result.external,
                     env_lock_hash=env_lock_hash,
                     cost_seconds=result.cost_seconds,
                     log_ref=result.log_ref,
+                    experiment_id=result.experiment_id,
+                    experiment_store=result.experiment_store,
+                    sdk_version_warning=result.sdk_version_warning,
                     started_step=started_step,
                     finished_step=self._store.next_step,
                 )
@@ -456,7 +473,26 @@ class RunQueue:
             actor=actor,
             branch=plan.branch_id,
         )
+        if result.experiment_close_error is not None:
+            self._record_unclosed_experiment(plan, step, result.experiment_close_error)
         return mat_id
+
+    def _record_unclosed_experiment(
+        self, plan: Plan, step: Step, sentence: str
+    ) -> None:
+        self._store.commit(
+            [
+                CellNoted(
+                    uid=step.uid,
+                    kind="experiment_unclosed",
+                    sentence=sentence,
+                    version_id=step.version.version_id,
+                )
+            ],
+            intent=sentence,
+            actor="system",
+            branch=plan.branch_id,
+        )
 
     def _record_hit(
         self, plan: Plan, step: Step, key: str, mat_id: str, *, actor: str
@@ -543,6 +579,36 @@ class RunQueue:
 def _awaiting(flight: _Flight) -> int:
     """Distinct branches awaiting this run — a branch counts once, not per ask."""
     return len({waiter.branch for waiter in flight.waiters if not waiter.abandoned})
+
+
+def _validate_experiment_outputs(plan: Plan) -> None:
+    for step in plan.steps:
+        outputs = [
+            name
+            for name, spec in step.version.manifest.produces.items()
+            if spec.type == "experiment"
+        ]
+        if len(outputs) > 1:
+            raise FlowError(
+                f"`{step.slug}` declares {len(outputs)} `experiment` outputs; "
+                "a cell must declare exactly one `experiment` output"
+            )
+
+
+def _recorded_outputs(step: Step, result: RunResult) -> dict[str, OutputRecord]:
+    records = dict(result.outputs)
+    if result.experiment_id is None or result.experiment_store is None:
+        return records
+    tracker_ref = TrackerRef(
+        experiment_id=result.experiment_id,
+        store=result.experiment_store,
+    )
+    for name, spec in step.version.manifest.produces.items():
+        if spec.type == "experiment" and name in records:
+            records[name] = records[name].model_copy(
+                update={"tracker_ref": tracker_ref}
+            )
+    return records
 
 
 def _run_intent(slug: str, state: MaterializationState) -> str:
