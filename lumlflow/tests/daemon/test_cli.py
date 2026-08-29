@@ -261,6 +261,25 @@ def test_force_spends_the_cost_the_store_would_have_saved(cli: Invoke, workspace
     _no_internals(forced)
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("cells", "delete", "score", "--force"),
+        ("import", "carried.py", "--force"),
+        ("rename", "score", "headline", "--force"),
+        ("rewind", "1", "--force"),
+        ("lane", "use", "sweep", "--force"),
+    ],
+)
+def test_lock_only_force_options_are_unknown(
+    cli: Invoke, command: tuple[str, ...]
+) -> None:
+    refused = cli(*command)
+
+    assert refused.exit_code == 2
+    assert "No such option: --force" in refused.output
+
+
 def test_leaving_a_run_nobody_is_waiting_on_says_that(cli: Invoke, workspace: Path):
     """Cancel never claims a stop it did not perform — including the case where
     there was nothing to stop."""

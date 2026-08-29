@@ -1126,9 +1126,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Scope projection completion to the lane and note it
   - [x] `_complete_projections` completes a projection only when the older version the file matches is on the same lane's lineage (D2); bytes matching another lane's version land as an offline edit; each completion is journaled as a *projection completed* `CellNoted` under `system` naming the cell and the restored version
   - [x] Tests: cross-lane bytes land as an offline edit on this lane with one transaction; a same-lane hand revert is completed, journaled as a cell note under `system`, and rewinding restores the older version
-- [ ] Remove lock-only force flags from the CLI and MCP
-  - [ ] Drop the `--force` options of `cells delete`, `import`, `rename`, `rewind` and the lane checkout verb, and the matching MCP tool arguments; `adopt --force`, `cells edit --force` and `run --force` stay; the CLI download's `--force` (D4.4) does not exist yet and is added by the slug-and-download task below
-  - [ ] Update `test_cli.py` / `test_mcp.py`: the flags are unknown options and the tools no longer declare the argument
+- [x] Remove lock-only force flags from the CLI and MCP
+  - [x] Drop the `--force` options of `cells delete`, `import`, `rename`, `rewind` and the lane checkout verb, and the matching MCP tool arguments; `adopt --force`, `cells edit --force` and `run --force` stay; the CLI download's `--force` (D4.4) does not exist yet and is added by the slug-and-download task below
+  - [x] Update `test_cli.py` / `test_mcp.py`: the flags are unknown options and the tools no longer declare the argument
 - [ ] Remove lock state from the workbench
   - [ ] Delete `WorktreeLockNotice.vue`, the `pending`/`pendingProjection` state and the *saved · not yet written to files* wording in `LiveCellCard`/`CodeView`, and the `FlowBrief.unwritten` field of `api/types.ts`; confirm no `WorktreeLocked` reference remains anywhere in `lumlflow/` or `frontend/src`
   - [ ] Update `flow-live-card.spec.ts` and `flow-workbench-editing.spec.ts`

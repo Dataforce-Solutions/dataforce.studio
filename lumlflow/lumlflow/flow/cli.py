@@ -53,9 +53,6 @@ _JSON = typer.Option(False, "--json", help="Answer as JSON, verbatim.")
 _FLOW = typer.Option(None, "--flow", help="Which flow, when the workspace has several.")
 _LANE = typer.Option(None, "--lane", help="Which lane. Defaults to the one on disk.")
 _INTENT = typer.Option(None, "-m", "--intent", help="Why. Recorded in the journal.")
-_FORCE = typer.Option(
-    False, "--force", help="Proceed even if an agent holds the files."
-)
 
 
 def register(app: typer.Typer) -> None:
@@ -254,11 +251,10 @@ def lane_use(
     lane: str = typer.Argument(..., help="The lane to put on disk."),
     flow: str | None = _FLOW,
     intent: str | None = _INTENT,
-    force: bool = _FORCE,
     as_json: bool = _JSON,
 ) -> None:
     """Put a lane's cells on disk. The files rebind to its selection."""
-    params = {"branch": lane, "intent": intent, "force": force}
+    params = {"branch": lane, "intent": intent}
     result = _call("switch", params, flow=flow, as_json=as_json)
     _emit(result, as_json, [f"on `{result['branch']}`", *_projected(result)])
 
@@ -268,7 +264,6 @@ def rewind(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     intent: str | None = _INTENT,
-    force: bool = _FORCE,
     as_json: bool = _JSON,
 ) -> None:
     """Restore a lane to a step. This is instant. Nothing recomputes."""
@@ -276,7 +271,6 @@ def rewind(
         "to_step": to_step,
         "branch": lane,
         "intent": intent,
-        "force": force,
     }
     result = _call("rewind", params, flow=flow, as_json=as_json)
     _emit(
@@ -354,7 +348,6 @@ def rename(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     intent: str | None = _INTENT,
-    force: bool = _FORCE,
     as_json: bool = _JSON,
 ) -> None:
     """Rename a cell. References bind to identity, so this costs nothing."""
@@ -363,7 +356,6 @@ def rename(
         "to": to,
         "branch": lane,
         "intent": intent,
-        "force": force,
     }
     result = _call("rename", params, flow=flow, as_json=as_json)
     rewired = result.get("rewired") or []
@@ -412,7 +404,6 @@ def import_cells(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     intent: str | None = _INTENT,
-    force: bool = _FORCE,
     as_json: bool = _JSON,
 ) -> None:
     """Read an exported file back into a lane, cell for cell.
@@ -427,7 +418,6 @@ def import_cells(
                 "source": _read_export(Path(source)),
                 "branch": lane,
                 "intent": intent,
-                "force": force,
             },
         )
     imported = result.get("cells") or []
@@ -578,7 +568,6 @@ def cells_delete(
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     intent: str | None = _INTENT,
-    force: bool = _FORCE,
     as_json: bool = _JSON,
 ) -> None:
     """Drop a cell from this lane. Every other lane keeps its own."""
@@ -586,7 +575,6 @@ def cells_delete(
         "slug": slug,
         "branch": lane,
         "intent": intent,
-        "force": force,
     }
     result = _call("cells.delete", params, flow=flow, as_json=as_json)
     dangling = result.get("dangling") or []

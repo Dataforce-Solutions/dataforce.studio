@@ -185,6 +185,56 @@ async def test_an_agent_session_does_not_block_a_checkout(tmp_path: Path):
     assert "0.77" in source_of(flow, "score")
 
 
+async def test_lock_only_force_params_are_ignored_under_an_agent(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.agent_begin({"flow": "churn", "label": "claude-1"})
+        forked = await api.fork({"flow": "churn", "name": "sweep"})
+        exported = await api.export({"flow": "churn", "branch": "sweep"})
+
+        switched = await api.switch(
+            {"flow": "churn", "branch": "sweep", "force": False}
+        )
+        renamed = await api.rename(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "to": "headline",
+                "force": False,
+            }
+        )
+        deleted = await api.cells_delete(
+            {"flow": "churn", "slug": "headline", "force": False}
+        )
+        imported = await api.import_cells(
+            {"flow": "churn", "source": exported["source"], "force": False}
+        )
+        rewound = await api.rewind(
+            {
+                "flow": "churn",
+                "to_step": forked["forked_at_step"],
+                "force": False,
+            }
+        )
+        checked_out = await api.flow_checkout(
+            {"flow": "churn", "branch": "main", "force": False}
+        )
+
+    assert switched["branch"] == "sweep"
+    assert renamed["slug"] == "headline"
+    assert deleted["slug"] == "headline"
+    assert [cell["slug"] for cell in imported["cells"]] == ["score"]
+    assert rewound["branch"] == "sweep"
+    assert checked_out["branch"] == "main"
+    assert "0.91" in source_of(flow, "score")
+
+
 async def test_cells_created_under_an_agent_are_written_and_not_reconciled_away(
     tmp_path: Path,
 ) -> None:

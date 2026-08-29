@@ -423,6 +423,14 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND
 
 
+def test_only_conflict_resolution_tools_declare_force() -> None:
+    tools_with_force = {
+        tool.name for tool in mcp.TOOLS if "force" in tool.schema["properties"]
+    }
+
+    assert tools_with_force == {"adopt", "edit-cell"}
+
+
 def test_a_notification_is_not_answered(talk: Talk):
     """Ids identify answers; a message without one gets none."""
     answers = talk(
