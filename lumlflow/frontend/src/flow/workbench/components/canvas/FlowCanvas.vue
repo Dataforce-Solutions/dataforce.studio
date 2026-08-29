@@ -6,9 +6,9 @@
     :nodes-connectable="false"
     :min-zoom="0.12"
     :max-zoom="1.25"
-    fit-view-on-init
     class="h-full"
     @node-click="onNodeClick"
+    @nodes-initialized="onNodesInitialized"
     @pane-ready="onPaneReady"
   >
     <template #node-cell="{ data }">
@@ -38,12 +38,18 @@
       </CellFlowNode>
     </template>
     <Background :gap="26" pattern-color="var(--p-surface-300)" />
-    <Controls :show-interactive="false" position="bottom-right" />
+    <Controls :show-interactive="false" position="bottom-right">
+      <ControlButton aria-label="tidy layout" title="tidy layout" @click="tidy">
+        <LayoutGrid :size="14" />
+      </ControlButton>
+    </Controls>
   </VueFlow>
 </template>
 
 <script lang="ts">
+import type { ViewportTransform } from '@vue-flow/core'
 import type { FlowCell, Preflight } from '../../model/types'
+import type { CanvasLayout } from './canvasLayout'
 
 /** What a node carries: the cell it draws and how this view stands to it. */
 export interface CellNodeData {
@@ -53,20 +59,33 @@ export interface CellNodeData {
   tinted: boolean
   preflight?: Preflight
 }
+
+export interface CanvasSessionState {
+  layout: CanvasLayout
+  fitted: boolean
+  viewport?: ViewportTransform
+}
 </script>
 
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { VueFlow, type Edge, type Node, type VueFlowStore } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
+import { ControlButton, Controls } from '@vue-flow/controls'
+import { LayoutGrid } from 'lucide-vue-next'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import { sliceEdges } from '../../model/registry'
 import CellCard from '../card/CellCard.vue'
 import CellFlowNode from './CellFlowNode.vue'
-import { layoutSlice, NODE_WIDTH } from './canvasLayout'
+import {
+  cellIdentity,
+  createCanvasLayout,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  updateCanvasLayout,
+} from './canvasLayout'
 
 /**
  * The canvas view: the branch slice as a left-to-right DAG whose edges are the
@@ -79,9 +98,11 @@ const props = defineProps<{
   selectedSlug: string | null
   tintedSlugs: Set<string>
   preflights: Record<string, Preflight | undefined>
+  state?: CanvasSessionState | null
 }>()
 
 const emit = defineEmits<{
+  'update:state': [state: CanvasSessionState]
   select: [slug: string]
   expand: [slug: string]
   run: [slug: string, payload: { force: boolean }]
@@ -94,13 +115,39 @@ const emit = defineEmits<{
   edit: [slug: string, payload: { source: string }]
 }>()
 
-const positions = computed(() => layoutSlice(props.cells))
+const layout = shallowRef(
+  props.state
+    ? updateCanvasLayout(props.state.layout, props.cells)
+    : createCanvasLayout(props.cells),
+)
+let fitted = props.state?.fitted ?? false
+let viewport = props.state?.viewport
+
+function updateState(): void {
+  emit('update:state', { layout: layout.value, fitted, viewport })
+}
+
+function setLayout(next: CanvasLayout): void {
+  layout.value = next
+  updateState()
+}
+
+watch(
+  () => props.cells,
+  (cells) => {
+    setLayout(updateCanvasLayout(layout.value, cells))
+  },
+)
+
+function tidy(): void {
+  setLayout(createCanvasLayout(props.cells))
+}
 
 const nodes = computed<Node<CellNodeData>[]>(() =>
   props.cells.map((cell) => ({
-    id: cell.slug,
+    id: cellIdentity(cell),
     type: 'cell',
-    position: positions.value[cell.slug] ?? { x: 0, y: 0 },
+    position: layout.value.positions[cellIdentity(cell)] ?? { x: 0, y: 0 },
     style: { width: `${NODE_WIDTH}px` },
     data: {
       cell,
@@ -113,46 +160,88 @@ const nodes = computed<Node<CellNodeData>[]>(() =>
 
 const edges = computed<Edge[]>(() => {
   const bySlug = new Map(props.cells.map((cell) => [cell.slug, cell]))
-  return sliceEdges(props.cells).map(({ from, to }) => ({
-    id: `${from}->${to}`,
-    source: from,
-    target: to,
+  return sliceEdges(props.cells).map(({ from, to, input }) => ({
+    id: `${cellIdentity(bySlug.get(from)!)}->${cellIdentity(bySlug.get(to)!)}:${input}`,
+    source: cellIdentity(bySlug.get(from)!),
+    target: cellIdentity(bySlug.get(to)!),
     type: 'smoothstep',
     animated: bySlug.get(to)?.status === 'running',
     style: { strokeWidth: 1.5, opacity: 0.55 },
   }))
 })
 
-// --- focus the selected node -----------------------------------------------
-
 const instance = shallowRef<VueFlowStore | null>(null)
 let pressedSlug: string | null = null
+let nodesReady = false
+let viewportInitialized = false
+const VIEWPORT_PADDING = 24
 
-function focusSelected(animate: boolean): void {
+function panSelectedIntoView(): void {
   const slug = props.selectedSlug
   const store = instance.value
-  if (!slug || !store || !props.cells.some((cell) => cell.slug === slug)) return
-  void store
-    .fitView({ nodes: [slug], padding: 0.4, maxZoom: 0.9, duration: animate ? 400 : 0 })
-    .catch(() => undefined)
+  const cell = props.cells.find((candidate) => candidate.slug === slug)
+  if (!cell || !store) return
+  const position = layout.value.positions[cellIdentity(cell)]
+  const { width, height } = store.dimensions.value
+  if (!position || width <= 0 || height <= 0) return
+
+  const { x, y, zoom } = store.getViewport()
+  const node = store.findNode(cellIdentity(cell))
+  const nodeWidth = node?.dimensions.width || NODE_WIDTH
+  const nodeHeight = node?.dimensions.height || NODE_HEIGHT
+  const left = x + position.x * zoom
+  const right = left + nodeWidth * zoom
+  const top = y + position.y * zoom
+  const bottom = top + nodeHeight * zoom
+  if (right > 0 && left < width && bottom > 0 && top < height) return
+
+  const deltaX =
+    right <= 0 ? VIEWPORT_PADDING - right : left >= width ? width - VIEWPORT_PADDING - left : 0
+  const deltaY =
+    bottom <= 0 ? VIEWPORT_PADDING - bottom : top >= height ? height - VIEWPORT_PADDING - top : 0
+  store.panBy({ x: deltaX, y: deltaY })
 }
 
 function onPaneReady(store: VueFlowStore): void {
   instance.value = store
-  focusSelected(false)
+  initializeViewport()
 }
+
+function onNodesInitialized(): void {
+  nodesReady = true
+  initializeViewport()
+}
+
+function initializeViewport(): void {
+  const store = instance.value
+  if (viewportInitialized || !nodesReady || !store) return
+  viewportInitialized = true
+  if (fitted) {
+    if (viewport) void store.setViewport(viewport).catch(() => undefined)
+    return
+  }
+  fitted = true
+  updateState()
+  void store.fitView({ padding: 0.08, maxZoom: 0.9 }).catch(() => undefined)
+}
+
+onBeforeUnmount(() => {
+  const store = instance.value
+  if (store) viewport = store.getViewport()
+  updateState()
+})
 
 watch(
   () => props.selectedSlug,
   (slug) => {
     const keepStill = slug !== null && slug === pressedSlug
     pressedSlug = null
-    if (!keepStill) focusSelected(true)
+    if (!keepStill) panSelectedIntoView()
   },
 )
 
-function onNodeClick(event: { node: { id: string } }): void {
-  selectFromCard(event.node.id)
+function onNodeClick(event: { node: { data: CellNodeData } }): void {
+  selectFromCard(event.node.data.cell.slug)
 }
 
 function selectFromCard(slug: string): void {

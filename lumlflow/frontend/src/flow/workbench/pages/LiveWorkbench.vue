@@ -101,6 +101,7 @@
           />
           <FlowCanvas
             v-else-if="selection.view.value === 'canvas'"
+            v-model:state="canvasState"
             class="h-full rounded-lg border border-surface-200 dark:border-surface-700"
             :cells="cells"
             :branch="viewedBranch"
@@ -184,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button, Dialog, InputText } from 'primevue'
 import { useToast } from 'primevue/usetoast'
@@ -194,7 +195,7 @@ import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
 import type { CellSummary } from '@/flow/api/types'
 import NewBranchDialog from '../components/branch/NewBranchDialog.vue'
-import FlowCanvas from '../components/canvas/FlowCanvas.vue'
+import FlowCanvas, { type CanvasSessionState } from '../components/canvas/FlowCanvas.vue'
 import AgentEndedBanner from '../components/card/AgentEndedBanner.vue'
 import KernelDeathBanner from '../components/card/KernelDeathBanner.vue'
 import LiveCellCard from '../components/card/LiveCellCard.vue'
@@ -246,6 +247,7 @@ const selection = useSelection(route, {
 
 const viewedBranch = computed(() => selection.viewedBranch.value)
 const slice = useSlice(session, viewedBranch)
+const canvasState = shallowRef<CanvasSessionState | null>(null)
 
 // --- the transitive filter --------------------------------------------------
 

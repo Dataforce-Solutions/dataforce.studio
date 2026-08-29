@@ -189,6 +189,7 @@ async def test_a_cell_summary_names_its_kinds_its_steps_and_what_it_reads(
     assert cells["train"]["kinds"] == {"model": "model", "run": "experiment"}
     assert cells["load"]["kinds"] == {"rows": "frame"}
     assert cells["score"]["kinds"] == {"summary": "asset"}
+    assert len({cell["uid"] for cell in cells.values()}) == len(cells)
     # Mint order, not the alphabet: `score` was written first and stays first.
     assert cells["score"]["created_step"] < cells["load"]["created_step"]
     assert cells["score"]["changed_step"] > cells["score"]["created_step"]

@@ -375,6 +375,8 @@ export type StaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'
 
 /** One card's worth of facts. Causes are sentences, never bare enum values. */
 export interface CellSummary {
+  /** Stable identity on cell queries; workspace status keeps internals out. */
+  uid?: string
   slug: string
   state: StaleState
   causes: string[]

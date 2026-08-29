@@ -1,80 +1,179 @@
-import { authored, sliceEdges } from '../../model/registry'
-import type { FlowCell, Slug } from '../../model/types'
-
-/**
- * Layered left-to-right DAG layout over the declared wiring: a cell's layer is
- * its longest path from a root, so a card always sits right of everything it
- * reads. Within a layer, cells pack vertically ordered by the barycenter of
- * their parents (authoring step as the tiebreak), which keeps edges short
- * without a full crossing-minimization pass.
- */
+import {
+  compareOrder,
+  effectiveOrder,
+  producerOf,
+  sliceEdges,
+  topologicalOrder,
+} from '../../model/registry'
+import type { FlowCell } from '../../model/types'
 
 export const NODE_WIDTH = 460
-const NODE_SLOT_HEIGHT = 560
+export const NODE_HEIGHT = 560
 const COLUMN_GAP = 140
 const ROW_GAP = 56
+const SLOT = NODE_HEIGHT + ROW_GAP
 
 export interface CanvasPosition {
   x: number
   y: number
 }
 
-export function layoutSlice(cells: FlowCell[]): Record<Slug, CanvasPosition> {
-  const parentsOf = new Map<Slug, Slug[]>()
-  for (const cell of cells) parentsOf.set(cell.slug, [])
-  for (const edge of sliceEdges(cells)) parentsOf.get(edge.to)?.push(edge.from)
+export interface CanvasLayout {
+  positions: Record<string, CanvasPosition>
+  orders: Record<string, string>
+  wiring: Record<string, string>
+}
 
-  const depth = new Map<Slug, number>()
-  const visiting = new Set<Slug>()
-  const resolve = (slug: Slug): number => {
-    const known = depth.get(slug)
-    if (known !== undefined) return known
-    if (visiting.has(slug)) return 0
-    visiting.add(slug)
-    const parents = parentsOf.get(slug) ?? []
-    const value = parents.length ? Math.max(...parents.map(resolve)) + 1 : 0
-    visiting.delete(slug)
-    depth.set(slug, value)
-    return value
+export function cellIdentity(cell: FlowCell): string {
+  return cell.uid || cell.slug
+}
+
+export function createCanvasLayout(cells: FlowCell[]): CanvasLayout {
+  const description = describe(cells)
+  return { ...description, positions: positionsFor(cells) }
+}
+
+export function updateCanvasLayout(previous: CanvasLayout, cells: FlowCell[]): CanvasLayout {
+  const description = describe(cells)
+  const retained = Object.keys(description.wiring).filter((uid) => uid in previous.wiring)
+  if (retained.some((uid) => description.wiring[uid] !== previous.wiring[uid])) {
+    return createCanvasLayout(cells)
   }
-  for (const cell of cells) resolve(cell.slug)
+
+  const ideal = positionsFor(cells)
+  const positions: Record<string, CanvasPosition> = {}
+  const toPlace: string[] = []
+  for (const cell of cells) {
+    const uid = cellIdentity(cell)
+    if (previous.positions[uid] && previous.orders[uid] === description.orders[uid]) {
+      positions[uid] = previous.positions[uid]
+    } else {
+      toPlace.push(uid)
+    }
+  }
+
+  toPlace.sort((left, right) => {
+    const a = ideal[left] ?? { x: 0, y: 0 }
+    const b = ideal[right] ?? { x: 0, y: 0 }
+    return (
+      a.x - b.x || a.y - b.y || compareOrder(description.orders[left], description.orders[right])
+    )
+  })
+  for (const uid of toPlace) {
+    const movedUp =
+      previous.orders[uid] !== undefined &&
+      compareOrder(description.orders[uid], previous.orders[uid]) < 0
+    positions[uid] = firstOpenSlot(ideal[uid] ?? { x: 0, y: 0 }, positions, movedUp ? -1 : 1)
+  }
+
+  return { ...description, positions }
+}
+
+function describe(cells: FlowCell[]): Omit<CanvasLayout, 'positions'> {
+  const bySlug = new Map(cells.map((cell) => [cell.slug, cell]))
+  const orders: Record<string, string> = {}
+  const wiring: Record<string, string> = {}
+  for (const cell of cells) {
+    const uid = cellIdentity(cell)
+    orders[uid] = effectiveOrder(cell)
+    const consumed = cell.consumesByInput
+      ? Object.entries(cell.consumesByInput)
+      : cell.consumes.map((reference, index) => [String(index), reference] as const)
+    wiring[uid] = JSON.stringify(
+      consumed
+        .map(([input, reference]) => [input, stableReference(reference, bySlug)] as const)
+        .sort(([left], [right]) => left.localeCompare(right)),
+    )
+  }
+  return { orders, wiring }
+}
+
+function stableReference(reference: string, bySlug: Map<string, FlowCell>): string {
+  const producer = producerOf(reference)
+  const output = reference.includes('.') ? reference.slice(reference.indexOf('.') + 1) : ''
+  const parent = bySlug.get(producer)
+  return `${parent ? `uid:${cellIdentity(parent)}` : `slug:${producer}`}.${output}`
+}
+
+function positionsFor(cells: FlowCell[]): Record<string, CanvasPosition> {
+  const parents = new Map(cells.map((cell) => [cell.slug, new Set<string>()]))
+  for (const edge of sliceEdges(cells)) parents.get(edge.to)?.add(edge.from)
+
+  const ordered = topologicalOrder(cells)
+  const columns = new Map<string, number>()
+  const preceding = new Map<string, string>()
+  let previous: FlowCell | undefined
+  for (const cell of ordered) {
+    const cellParents = [...(parents.get(cell.slug) ?? [])]
+    if (cellParents.length > 0) {
+      const parentColumns = cellParents
+        .map((slug) => columns.get(slug))
+        .filter((column): column is number => column !== undefined)
+      columns.set(cell.slug, parentColumns.length > 0 ? Math.max(...parentColumns) + 1 : 0)
+    } else if (previous) {
+      columns.set(cell.slug, columns.get(previous.slug) ?? 0)
+      preceding.set(cell.slug, previous.slug)
+    } else {
+      columns.set(cell.slug, 0)
+    }
+    previous = cell
+  }
 
   const layers = new Map<number, FlowCell[]>()
   for (const cell of cells) {
-    const layer = depth.get(cell.slug) ?? 0
-    const bucket = layers.get(layer) ?? []
+    const column = columns.get(cell.slug) ?? 0
+    const bucket = layers.get(column) ?? []
     bucket.push(cell)
-    layers.set(layer, bucket)
+    layers.set(column, bucket)
   }
 
-  const layerIndices = [...layers.keys()].sort((a, b) => a - b)
-  const rowIndex = new Map<Slug, number>()
-  for (const layer of layerIndices) {
-    const bucket = layers.get(layer) ?? []
-    const barycenter = (cell: FlowCell): number => {
-      const rows = (parentsOf.get(cell.slug) ?? [])
-        .map((parent) => rowIndex.get(parent))
+  const rows = new Map<string, number>()
+  const barycenters = new Map<string, number>()
+  const positions: Record<string, CanvasPosition> = {}
+  for (const column of [...layers.keys()].sort((left, right) => left - right)) {
+    const bucket = layers.get(column) ?? []
+    bucket.sort((left, right) => compareOrder(effectiveOrder(left), effectiveOrder(right)))
+    for (const cell of bucket) {
+      const cellParents = [...(parents.get(cell.slug) ?? [])]
+      const parentRows = cellParents
+        .map((slug) => rows.get(slug))
         .filter((row): row is number => row !== undefined)
-      if (rows.length === 0) return Number.MAX_SAFE_INTEGER
-      return rows.reduce((sum, row) => sum + row, 0) / rows.length
+      if (parentRows.length > 0) {
+        barycenters.set(
+          cell.slug,
+          parentRows.reduce((total, row) => total + row, 0) / parentRows.length,
+        )
+      } else {
+        const anchor = preceding.get(cell.slug)
+        barycenters.set(cell.slug, anchor ? (barycenters.get(anchor) ?? 0) : 0)
+      }
     }
-    bucket.sort((a, b) => barycenter(a) - barycenter(b) || authored(a) - authored(b))
-    bucket.forEach((cell, index) => rowIndex.set(cell.slug, index))
-  }
-
-  const slot = NODE_SLOT_HEIGHT + ROW_GAP
-  const tallest = Math.max(1, ...layerIndices.map((layer) => layers.get(layer)?.length ?? 0))
-
-  const positions: Record<Slug, CanvasPosition> = {}
-  for (const layer of layerIndices) {
-    const bucket = layers.get(layer) ?? []
-    const offset = ((tallest - bucket.length) * slot) / 2
-    bucket.forEach((cell, index) => {
-      positions[cell.slug] = {
-        x: layer * (NODE_WIDTH + COLUMN_GAP),
-        y: offset + index * slot,
+    bucket.sort((left, right) => {
+      const barycenter = (barycenters.get(left.slug) ?? 0) - (barycenters.get(right.slug) ?? 0)
+      return barycenter || compareOrder(effectiveOrder(left), effectiveOrder(right))
+    })
+    bucket.forEach((cell, row) => {
+      rows.set(cell.slug, row)
+      positions[cellIdentity(cell)] = {
+        x: column * (NODE_WIDTH + COLUMN_GAP),
+        y: row * SLOT,
       }
     })
   }
   return positions
+}
+
+function firstOpenSlot(
+  candidate: CanvasPosition,
+  positions: Record<string, CanvasPosition>,
+  direction: -1 | 1,
+): CanvasPosition {
+  let y = candidate.y
+  const occupied = Object.values(positions)
+  while (
+    occupied.some((position) => position.x === candidate.x && Math.abs(position.y - y) < SLOT)
+  ) {
+    y += direction * SLOT
+  }
+  return { x: candidate.x, y }
 }

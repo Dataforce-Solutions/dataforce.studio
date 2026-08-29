@@ -343,9 +343,11 @@ export function build(facts: CellFacts): FlowCell {
   const { summary, detail } = facts
   const doc = detail?.doc ?? ''
   return {
+    uid: summary.uid,
     slug: summary.slug,
     doc: doc.split('\n')[0] ?? '',
     consumes: Object.values(summary.consumes),
+    consumesByInput: summary.consumes,
     params: params(detail),
     source: detail?.source ?? '',
     outputs: outputs(facts, doc),

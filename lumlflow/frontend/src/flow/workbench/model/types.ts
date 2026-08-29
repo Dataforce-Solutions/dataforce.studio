@@ -342,11 +342,15 @@ export interface CellOutput {
 }
 
 export interface FlowCell {
+  /** Stable store identity used to retain canvas placement across renames. */
+  uid?: string
   slug: Slug
   /** First line of the class docstring. */
   doc: string
   /** Reference strings exactly as authored: 'features.train_split'. */
   consumes: string[]
+  /** The same references keyed by the cell argument that consumes them. */
+  consumesByInput?: Record<string, string>
   params: Record<string, ParamValue>
   source: string
   outputs: CellOutput[]

@@ -1223,9 +1223,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Order the notebook by the key
   - [x] Priority = effective key in `topologicalOrder`; *move up* / *move down* menu items gated by topology, calling `cells.reorder`; the issuing tab applies the reply's `order` at once and every tab refetches its slice on an `order_changed` state frame; the UI passes the selection as `anchor`
   - [x] `flow-workbench-model.spec.ts` (order, insertion never reflow) and a session spec for the refetch on `order_changed`
-- [ ] Make the canvas layout incremental
-  - [ ] Top-aligned columns, (barycenter, key) rows, parentless placement under the preceding cell, incremental positions with a **tidy** control that alone recomputes the whole layout, `fitView` on first load only, input-name edge ids, minimal viewport pan
-  - [ ] A canvas layout spec (no existing node moves on add; blank add lands under the selection; tidy recomputes; `fitView` once on load and not on an add)
+- [x] Make the canvas layout incremental
+  - [x] Top-aligned columns, (barycenter, key) rows, parentless placement under the preceding cell, incremental positions with a **tidy** control that alone recomputes the whole layout, `fitView` on first load only, input-name edge ids, minimal viewport pan
+  - [x] A canvas layout spec (no existing node moves on add; blank add lands under the selection; tidy recomputes; `fitView` once on load and not on an add)
 - [ ] Wire one output downstream and clean the slug index
   - [ ] `cells.new` after → the first non-`experiment` output by the primary ranking, the experiment itself when it is the only output; `primary_output` unchanged; `outputs: all` / `--all-outputs` / `all_outputs` for everything; duplicate toast wording
   - [ ] Drop deleted slugs from `flow.yaml` when no lane selects the uid; placeholder numbering from the largest ever minted; a rewind that re-selects a dropped uid re-adds its slug; remove the five ghosts from `examples/churn/churn.flow/flow.yaml`

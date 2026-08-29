@@ -107,8 +107,8 @@ describe('primary output ranking', () => {
 describe('slice wiring', () => {
   it('derives edges from declared consumes references', () => {
     const edges = sliceEdges(mainCells)
-    expect(edges).toContainEqual({ from: 'features', to: 'train_model' })
-    expect(edges).toContainEqual({ from: 'train_model', to: 'holdout_eval' })
+    expect(edges).toContainEqual({ from: 'features', to: 'train_model', input: '0' })
+    expect(edges).toContainEqual({ from: 'train_model', to: 'holdout_eval', input: '0' })
   })
 
   it('orders dependencies before consumers with effective-key priority', () => {

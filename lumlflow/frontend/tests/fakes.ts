@@ -122,6 +122,7 @@ export function flowStatus(overrides: Partial<FlowStatus> = {}): FlowStatus {
 
 export function cellSummary(slug: string, overrides: Partial<CellSummary> = {}): CellSummary {
   return {
+    uid: slug,
     slug,
     state: 'synced',
     causes: [],

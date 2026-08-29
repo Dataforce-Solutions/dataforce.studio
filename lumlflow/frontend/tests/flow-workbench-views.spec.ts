@@ -45,7 +45,10 @@ describe('card selection keeps the current viewport still', () => {
   it('does not pan the canvas when the selection came from a card control', async () => {
     const wrapper = mount(FlowCanvas, { props, slots: { card: cardSlot } })
     const fitView = vi.fn().mockResolvedValue(true)
-    wrapper.findComponent(VueFlow).vm.$emit('paneReady', { fitView } as unknown as VueFlowStore)
+    wrapper.findComponent(VueFlow).vm.$emit('paneReady', {
+      fitView,
+      getViewport: () => ({ x: 0, y: 0, zoom: 1 }),
+    } as unknown as VueFlowStore)
     await nextTick()
     fitView.mockClear()
 

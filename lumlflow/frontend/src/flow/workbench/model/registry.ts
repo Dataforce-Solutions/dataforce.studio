@@ -63,14 +63,23 @@ export function producerOf(reference: string): string {
   return dot === -1 ? reference : reference.slice(0, dot)
 }
 
-/** Edges of a branch slice, derived from declared wiring. */
-export function sliceEdges(cells: FlowCell[]): { from: string; to: string }[] {
+export interface SliceEdge {
+  from: string
+  to: string
+  input: string
+}
+
+/** Edges of a branch slice, including the consumer input that distinguishes them. */
+export function sliceEdges(cells: FlowCell[]): SliceEdge[] {
   const slugs = new Set(cells.map((cell) => cell.slug))
-  const edges: { from: string; to: string }[] = []
+  const edges: SliceEdge[] = []
   for (const cell of cells) {
-    for (const reference of cell.consumes) {
+    const consumed = cell.consumesByInput
+      ? Object.entries(cell.consumesByInput)
+      : cell.consumes.map((reference, index) => [String(index), reference] as const)
+    for (const [input, reference] of consumed) {
       const from = producerOf(reference)
-      if (slugs.has(from) && from !== cell.slug) edges.push({ from, to: cell.slug })
+      if (slugs.has(from) && from !== cell.slug) edges.push({ from, to: cell.slug, input })
     }
   }
   return edges
@@ -113,7 +122,7 @@ function compareMagnitude(left: DecimalParts, right: DecimalParts): number {
   return left.fraction.padEnd(width, '0').localeCompare(right.fraction.padEnd(width, '0'))
 }
 
-function compareOrder(left: string, right: string): number {
+export function compareOrder(left: string, right: string): number {
   const a = decimalParts(left)
   const b = decimalParts(right)
   if (a.negative !== b.negative) return a.negative ? -1 : 1
@@ -195,7 +204,8 @@ function canPlaceBeside(
     .map((slug) => bySlug.get(slug))
     .filter((cell): cell is FlowCell => cell !== undefined && cell.slug !== moved.slug)
   const consumers = cells.filter(
-    (cell) => cell.slug !== moved.slug && cell.consumes.some((ref) => producerOf(ref) === moved.slug),
+    (cell) =>
+      cell.slug !== moved.slug && cell.consumes.some((ref) => producerOf(ref) === moved.slug),
   )
   const boundary = effectiveOrder(neighbour)
   if (side === 'before') {

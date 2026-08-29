@@ -22,6 +22,7 @@ import ToastService from 'primevue/toastservice'
 import { FlowApiError, type EnvReport } from '@/flow/api/client'
 import type { BranchRecord, CellSummary } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
+import FlowCanvas from '@/flow/workbench/components/canvas/FlowCanvas.vue'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
 import AgentTaskLine from '@/flow/workbench/components/panel/AgentTaskLine.vue'
 import {
@@ -433,6 +434,23 @@ describe('canvas and notebook are two densities over one slice', () => {
       'holdout_eval',
       'alpha_scan',
     ])
+    wrapper.unmount()
+  })
+
+  it('keeps the canvas layout for the session across view switches', async () => {
+    const { wrapper } = await workbench()
+    const firstCanvas = wrapper.getComponent(FlowCanvas).element
+
+    await clickText(wrapper, '[role="group"][aria-label="view"] button', 'notebook')
+    await clickText(wrapper, '[role="group"][aria-label="view"] button', 'canvas')
+
+    const restored = wrapper.getComponent(FlowCanvas)
+    const state = restored.props('state')
+    expect(restored.element).not.toBe(firstCanvas)
+    expect(state).toBeDefined()
+    expect(Object.keys(state!.layout.positions)).toEqual(
+      expect.arrayContaining(MAIN.map((cell) => cell.slug)),
+    )
     wrapper.unmount()
   })
 

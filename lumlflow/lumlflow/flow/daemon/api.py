@@ -226,7 +226,12 @@ class Api:
 
     async def cells_list(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)
-        return queries.cells(session, branch, unsynced=bool(params.get("unsynced")))
+        return queries.cells(
+            session,
+            branch,
+            unsynced=bool(params.get("unsynced")),
+            include_uid=True,
+        )
 
     async def cells_show(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)

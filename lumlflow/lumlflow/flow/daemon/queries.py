@@ -191,14 +191,18 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
 
 
 def cells(
-    session: "FlowSession", branch: str, *, unsynced: bool = False
+    session: "FlowSession",
+    branch: str,
+    *,
+    unsynced: bool = False,
+    include_uid: bool = False,
 ) -> dict[str, Any]:
     here = read(session, branch)
     return {
         "flow": session.ref.name,
         "branch": branch,
         "cells": [
-            cell(here, uid)
+            cell(here, uid) | ({"uid": uid} if include_uid else {})
             for uid in here.ordered()
             if not unsynced or not here.verdicts[uid].synced
         ],
@@ -213,6 +217,7 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
     mat = here.mats.get(uid)
     source = session.store.objects.get(version.raw_source_ref).decode("utf-8")
     return cell(here, uid) | {
+        "uid": uid,
         "branch": branch,
         # The version an editor started from, handed back with `cells edit
         # --base` to take the optimistic lock. Nothing prints it.
