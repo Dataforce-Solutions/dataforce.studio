@@ -9,10 +9,12 @@ Serialization is asserted byte-for-byte because content hashes decide whether
 downstream cells rerun; the preview envelope is asserted against its cap
 because it is the UI contract and the only kernel-free tier.
 
-pandas, pyarrow and numpy are skipped into, not imported: these tests also run
-under the venv floor, which holds nothing but the stdlib and pytest.
+pandas, polars, pyarrow and numpy are skipped into, not imported: these tests
+also run under the venv floor, which holds nothing but the stdlib and pytest.
 """
 
+import base64
+import io
 import math
 import sys
 from collections.abc import Iterator
@@ -459,6 +461,21 @@ def test_a_frame_comes_back_equal_from_its_arrow_blob(
     assert round_trip(kinds.get(builtin.FRAME), frame, tmp_path).equals(frame)
 
 
+def test_a_polars_frame_stays_polars_when_pandas_is_also_installed(
+    kinds: registry.Registry, tmp_path: Path
+) -> None:
+    pytest.importorskip("pandas")
+    polars = pytest.importorskip("polars")
+    pytest.importorskip("pyarrow")
+    frame = polars.DataFrame({"step": [1, 2, 3], "label": ["a", "b", "c"]})
+
+    restored = round_trip(kinds.get(builtin.FRAME), frame, tmp_path)
+
+    assert "pandas" in sys.modules
+    assert isinstance(restored, polars.DataFrame)
+    assert restored.to_dict(as_series=False) == frame.to_dict(as_series=False)
+
+
 def test_a_checkpoint_comes_back_array_for_array(
     kinds: registry.Registry, tmp_path: Path
 ) -> None:
@@ -551,6 +568,49 @@ def test_a_frame_preview_holds_head_rows_and_the_true_total(
     assert block["total_rows"] == rows
 
 
+def test_a_wide_frame_preview_and_page_share_the_column_bound_and_normalizer(
+    kinds: registry.Registry,
+) -> None:
+    pandas = pytest.importorskip("pandas")
+    long_text = "x" * 200
+    columns: dict[str, list[Any]] = {
+        "loss": [float("nan")],
+        "when": [pandas.Timestamp("2026-08-29T12:30:00")],
+        "detail": [long_text],
+    }
+    columns.update({f"column_{index}": [index] for index in range(197)})
+    frame = pandas.DataFrame(columns)
+    asset_type = kinds.get(builtin.FRAME)
+
+    head = asset_type.preview(frame)[0]
+    page = asset_type.page(frame, {"offset": 0, "limit": 10})
+
+    assert len(head["columns"]) == 40
+    assert head["total_columns"] == 200
+    assert len(page["columns"]) == 40
+    assert len(page["dtypes"]) == 40
+    assert page["total_columns"] == 200
+    assert page["rows"][0][0] is None
+    assert isinstance(page["rows"][0][1], str)
+    assert page["rows"][0][2] == long_text
+    canonical_json(page)
+
+
+def test_an_eval_page_normalizes_cells_and_bounds_columns(
+    kinds: registry.Registry,
+) -> None:
+    row: dict[str, Any] = {"loss": float("inf")}
+    row.update({f"column_{index}": index for index in range(44)})
+
+    page = kinds.get(builtin.EVAL).page([row], {"offset": 0})
+
+    assert len(page["columns"]) == 40
+    assert len(page["rows"][0]) == 40
+    assert page["total_columns"] == 45
+    assert page["rows"][0][0] is None
+    canonical_json(page)
+
+
 def test_a_preview_over_the_cap_comes_back_under_it_and_says_so() -> None:
     columns = [f"c{index}" for index in range(30)]
     rows = [["y" * 200] * len(columns) for _ in range(preview.HEAD_ROWS)]
@@ -564,15 +624,54 @@ def test_a_preview_over_the_cap_comes_back_under_it_and_says_so() -> None:
     assert block["total_rows"] == 5000
 
 
-def test_a_preview_that_cannot_shrink_says_so_in_one_line() -> None:
+def test_an_oversized_text_preview_is_clipped_with_a_marker() -> None:
     envelope = preview.envelope(
         "note", [preview.markdown("x" * (4 * preview.MAX_PREVIEW_BYTES))]
     )
     assert len(canonical_json(envelope)) <= preview.MAX_PREVIEW_BYTES
     assert envelope["truncated"] is True
-    assert envelope["blocks"] == [
-        {"block": "kv", "entries": {"preview": "too large to show"}}
-    ]
+    block = envelope["blocks"][0]
+    assert block["block"] == "markdown"
+    assert "truncated" in block["text"]
+
+
+def test_an_oversized_key_value_preview_keeps_its_first_entries() -> None:
+    entries = {f"key_{index}": index for index in range(10_000)}
+
+    envelope = preview.envelope("metric", [preview.kv(entries)])
+
+    assert len(canonical_json(envelope)) <= preview.MAX_PREVIEW_BYTES
+    assert envelope["truncated"] is True
+    kept = envelope["blocks"][0]
+    assert kept["block"] == "kv"
+    assert 0 < len(kept["entries"]) < len(entries)
+    assert list(kept["entries"]) == list(entries)[: len(kept["entries"])]
+
+
+def test_an_oversized_figure_preview_keeps_a_downscaled_image(
+    kinds: registry.Registry,
+) -> None:
+    image_module = pytest.importorskip("PIL.Image")
+    figure_module = pytest.importorskip("matplotlib.figure")
+    numpy = pytest.importorskip("numpy")
+    figure = figure_module.Figure(figsize=(12, 8))
+    axes = figure.subplots()
+    axes.imshow(numpy.random.default_rng(7).random((600, 900, 3)))
+    axes.set_axis_off()
+    original = kinds.get(builtin.PLOT).preview(figure)[0]
+    assert len(base64.b64decode(original["data"])) > preview.MAX_PREVIEW_BYTES
+
+    envelope = preview.envelope(builtin.PLOT, [original])
+
+    assert len(canonical_json(envelope)) <= preview.MAX_PREVIEW_BYTES
+    assert envelope["truncated"] is True
+    downscaled = envelope["blocks"][0]
+    assert downscaled["block"] == "image"
+    with image_module.open(io.BytesIO(base64.b64decode(original["data"]))) as before:
+        original_size = before.size
+    with image_module.open(io.BytesIO(base64.b64decode(downscaled["data"]))) as after:
+        assert after.width < original_size[0]
+        assert after.height < original_size[1]
 
 
 @pytest.mark.parametrize("total", [preview.MAX_POINTS + 1, 2000, 5000])

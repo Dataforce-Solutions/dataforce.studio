@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from lumlflow_kernel.rpc import METHOD_NOT_FOUND, Connection, connect
+from lumlflow_kernel.rpc import INTERNAL_ERROR, METHOD_NOT_FOUND, Connection, connect
 
 _TIMEOUT_S = 5.0
 
@@ -167,6 +167,32 @@ def test_a_handler_that_raises_is_answered_and_serve_keeps_going(wire: _Wire) ->
 
     assert answer["error"]["message"] == "the handler blew up"
     assert "ValueError" in answer["error"]["data"]
+    assert wire.daemon.read() == {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {"still": "here"},
+    }
+
+
+def test_an_unserializable_result_is_answered_and_serve_keeps_going(
+    wire: _Wire,
+) -> None:
+    wire.serve(
+        _Handler(
+            {
+                "bad": lambda params: {"value": object()},
+                "echo": lambda params: params,
+            }
+        )
+    )
+
+    wire.daemon.call(1, "bad")
+    answer = wire.daemon.read()
+    wire.daemon.call(2, "echo", {"still": "here"})
+
+    assert answer["id"] == 1
+    assert answer["error"]["code"] == INTERNAL_ERROR
+    assert "JSON serializable" in answer["error"]["message"]
     assert wire.daemon.read() == {
         "jsonrpc": "2.0",
         "id": 2,

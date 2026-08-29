@@ -1200,10 +1200,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Keep drafts across runs and select cards without scrolling
   - [x] Editor survives the running tab switch; "save to a new lane" via the dialog with the draft kept; controls on unselected cards select without scrolling or panning, the URL mirror rewriting only on a real selection change and a press on the selected card reporting nothing
   - [x] Specs in `flow-live-workbench.spec.ts` and the canvas/notebook specs, the press-without-scroll and the unchanged URL among them
-- [ ] Bound kernel pages and previews
-  - [ ] Page rows through an unclipped cell normaliser; a serialisation failure after the page handler returned becomes an error reply, never a timeout (`rpc.py`); page column bound and `total_columns`; per-block `_shrink` strategies
-  - [ ] Frame flavor recorded in the Arrow schema metadata and honoured on deserialize
-  - [ ] Tests in `tests/kernel/test_kinds.py` and `test_rpc.py`, including a polars round-trip with pandas installed
+- [x] Bound kernel pages and previews
+  - [x] Page rows through an unclipped cell normaliser; a serialisation failure after the page handler returned becomes an error reply, never a timeout (`rpc.py`); page column bound and `total_columns`; per-block `_shrink` strategies
+  - [x] Frame flavor recorded in the Arrow schema metadata and honoured on deserialize
+  - [x] Tests in `tests/kernel/test_kinds.py` and `test_rpc.py`, including a polars round-trip with pandas installed
 - [ ] Fix console, frame footer and metric rendering
   - [ ] Frame footer with column totals; ANSI/`\r` handling and a bounded console buffer; non-finite metric values carried in the preview as the strings `"nan"`/`"inf"`/`"-inf"` (kernel preview side) and rendered as such, distinct from absent; scientific `formatMetric`; paging from row 0
   - [ ] Renderer specs; a kernel preview test that a NaN metric survives the HTTP door as a string

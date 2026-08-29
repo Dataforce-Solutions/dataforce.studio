@@ -49,6 +49,7 @@ dev = [
     "types-pyyaml>=6.0.12.20260724",
     "pandas>=3.0.5",
     "pyarrow>=25.0.1",
+    "polars>=1.0.0,<2.0.0",
 ]
 
 [project.scripts]

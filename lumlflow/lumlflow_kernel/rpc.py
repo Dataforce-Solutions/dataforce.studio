@@ -154,6 +154,8 @@ class Connection:
             return
         try:
             result = call(message.get("params") or {})
+            if request_id is not None:
+                self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
         except RpcError as error:
             self._send_error(request_id, error)
         except Exception as error:
@@ -163,9 +165,6 @@ class Connection:
                     str(error) or type(error).__name__, data=traceback.format_exc()
                 ),
             )
-        else:
-            if request_id is not None:
-                self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
     def _send_error(self, request_id: Any, error: RpcError) -> None:
         # Nothing to answer: a notification carries no id, and a line that did

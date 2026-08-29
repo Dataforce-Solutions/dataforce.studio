@@ -39,6 +39,7 @@ _PICKLE_PROTOCOL = 4
 _PLOT_DPI = 72
 _VEGA_MARKS = ("mark", "marks", "layer")
 _EXPERIMENT_SECTIONS = ("params", "metrics")
+_FRAME_FLAVOR_METADATA = b"lumlflow.frame_flavor"
 
 
 def asset_types() -> list[Any]:
@@ -89,7 +90,13 @@ class FrameKind:
     def serialize(self, value: Any) -> bytes | Path:
         import pyarrow as pa
 
+        flavor = _frame_flavor(value)
+        if flavor is None:
+            raise TypeError("a frame value must be a pandas or polars DataFrame")
         table = _arrow_table(value)
+        metadata = dict(table.schema.metadata or {})
+        metadata[_FRAME_FLAVOR_METADATA] = flavor.encode("ascii")
+        table = table.replace_schema_metadata(metadata)
         sink = pa.BufferOutputStream()
         with pa.ipc.new_file(sink, table.schema) as writer:
             writer.write_table(table)
@@ -100,6 +107,13 @@ class FrameKind:
 
         with pa.OSFile(str(source), "rb") as handle:
             table = pa.ipc.open_file(handle).read_all()
+        flavor = (table.schema.metadata or {}).get(_FRAME_FLAVOR_METADATA)
+        if flavor == b"polars":
+            import polars
+
+            return polars.from_arrow(table)
+        if flavor == b"pandas":
+            return table.to_pandas()
         if "pandas" in sys.modules or _importable("pandas"):
             return table.to_pandas()
         if "polars" in sys.modules or _importable("polars"):
@@ -117,13 +131,13 @@ class FrameKind:
         offset = max(int(query.get("offset", 0)), 0)
         limit = max(min(int(query.get("limit", 100)), 1000), 1)
         columns, dtypes = _frame_schema(value)
-        return {
-            "columns": columns,
-            "dtypes": dtypes,
-            "rows": _frame_rows(value, offset, limit),
-            "offset": offset,
-            "total_rows": len(value),
-        }
+        return preview.page(
+            columns,
+            dtypes,
+            _frame_rows(value, offset, limit),
+            len(value),
+            offset,
+        )
 
 
 class CheckpointKind:
@@ -275,13 +289,8 @@ class EvalKind:
         limit = max(min(int(query.get("limit", 100)), 1000), 1)
         columns = list(value[0])
         window = value[offset : offset + limit]
-        return {
-            "columns": columns,
-            "dtypes": [""] * len(columns),
-            "rows": [[row.get(column) for column in columns] for row in window],
-            "offset": offset,
-            "total_rows": len(value),
-        }
+        rows = [[row.get(column) for column in columns] for row in window]
+        return preview.page(columns, [""] * len(columns), rows, len(value), offset)
 
 
 class PlotKind:
