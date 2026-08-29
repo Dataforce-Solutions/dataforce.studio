@@ -23,7 +23,13 @@ from lumlflow.flow.dsl import loader, normalize
 from lumlflow.flow.dsl.accept import CELL_SUFFIX, AcceptedCell, Batch
 from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.hashing import hash_bytes
-from lumlflow.flow.store.models import CellRemoved, FlagSet, Op, WorkspaceCodeChanged
+from lumlflow.flow.store.models import (
+    CellNoted,
+    CellRemoved,
+    FlagSet,
+    Op,
+    WorkspaceCodeChanged,
+)
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import FlowSession
@@ -389,12 +395,11 @@ def _accept_removals(
 def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
     """Sort out the files a store-side edit got ahead of.
 
-    A file that diverged from the head but holds bytes some *known* version of
-    that same cell was accepted under is not an edit — it is the projection of
-    a store-side edit that has not landed yet, and accepting it would write the
-    old version back over the new one. So the store wins and the file catches
-    up. The reading comes off the files alone, which is what a daemon restarted
-    between the commit and projection has to work from.
+    A file that diverged from the head but holds bytes from a version this lane
+    selected before is not an edit — it is the projection of a store-side edit
+    that has not landed yet, and accepting it would write the old version back
+    over the new one. So the store wins and the file catches up. A version seen
+    only on another lane is an ordinary file edit on this one.
 
     Only a version *older* than the head can be one of these: a projection is
     the store having got ahead of the files, so the bytes left behind are the
@@ -406,7 +411,8 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
     A file an author reverted by hand to an older version reads the same way,
     and is completed too: content cannot tell the two apart, and of the two
     readings only this one can lose nothing — every version is still in the
-    store, and the revert is one edit away from being made again.
+    store, and the revert is one rewind away from being made again. The note
+    makes that completion visible and names the rewind escape hatch.
     """
     store = session.store
     here = store.index.slice_versions(branch_id)
@@ -419,10 +425,31 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
         held = path.read_bytes()
         if held == source:
             continue
-        older = store.index.version_by_source(uid, hash_bytes(held))
+        older = store.index.version_by_source(
+            uid,
+            hash_bytes(held),
+            version_ids=store.branches.selected_versions(branch_id, uid),
+        )
         if older is None or older.created_step >= version.created_step:
             continue
         atomic_write_bytes(path, source)
+        sentence = (
+            f"projection completed for `{version.slug}`: restored version "
+            f"`{version.version_id}`; use `rewind` to keep the file's bytes instead"
+        )
+        store.commit(
+            [
+                CellNoted(
+                    uid=uid,
+                    kind="projection_completed",
+                    sentence=sentence,
+                    version_id=version.version_id,
+                )
+            ],
+            intent=sentence,
+            actor="system",
+            branch=branch_id,
+        )
         completed.append(version.slug)
     return completed
 

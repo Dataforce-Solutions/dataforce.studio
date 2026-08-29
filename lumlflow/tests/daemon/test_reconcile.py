@@ -14,6 +14,7 @@ from lumlflow.flow.daemon.watcher import Watcher
 from lumlflow.flow.dsl.accept import Acceptance
 from lumlflow.flow.store.models import (
     CellAccepted,
+    CellNoted,
     CellRemoved,
     FlagSet,
     Renamed,
@@ -165,6 +166,113 @@ async def test_re_applying_an_edit_a_rewind_took_back_keeps_it(tmp_path: Path):
     assert "0.91" in rewound
     assert "0.93" in on_disk
     assert "0.93" in stored
+
+
+async def test_an_older_version_from_another_lane_lands_as_an_offline_edit(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        await api.fork({"flow": "churn", "name": "exp"})
+        await api.switch({"flow": "churn", "branch": "exp"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+            }
+        )
+        exp_version = slice_of(session, "exp")["score"]
+        exp_source = session.store.objects.get(exp_version.raw_source_ref)
+
+        await api.switch({"flow": "churn", "branch": "main"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+            }
+        )
+        main_before = slice_of(session, "main")["score"]
+        landed_at = len(transactions(session))
+
+        (flow / "cells" / "score.py").write_bytes(exp_source)
+        await api.status({"flow": "churn"})
+
+        main_after = slice_of(session, "main")["score"]
+        landed = transactions(session)[landed_at:]
+
+    assert len(landed) == 1
+    assert landed[0].actor == "user"
+    assert not any(isinstance(op, CellNoted) for op in landed[0].ops)
+    assert main_after.version_id != main_before.version_id
+    assert main_after.parent_version_id == main_before.version_id
+    assert main_after.raw_source_ref == exp_version.raw_source_ref
+    assert source_of(flow, "score").encode() == exp_source
+
+
+async def test_a_same_lane_hand_revert_is_completed_noted_and_rewindable(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        older = slice_of(session, "main")["score"]
+        older_source = session.store.objects.get(older.raw_source_ref)
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+            }
+        )
+        selected = slice_of(session, "main")["score"]
+        selected_source = session.store.objects.get(selected.raw_source_ref)
+        main_branch_id = session.store.branches.get("main").branch_id
+        landed_at = len(transactions(session))
+
+        (flow / "cells" / "score.py").write_bytes(older_source)
+        await api.status({"flow": "churn"})
+
+        landed = transactions(session)[landed_at:]
+        head = slice_of(session, "main")["score"]
+        completed_source = (flow / "cells" / "score.py").read_bytes()
+        brief = await api.context({"flow": "churn"})
+
+        await api.rewind({"flow": "churn", "to_step": older.created_step})
+        rewound = slice_of(session, "main")["score"]
+        rewound_source = (flow / "cells" / "score.py").read_bytes()
+
+    assert len(landed) == 1
+    (noted,) = landed
+    assert (noted.actor, noted.branch) == ("system", main_branch_id)
+    assert len(noted.ops) == 1
+    note = noted.ops[0]
+    assert isinstance(note, CellNoted)
+    assert (note.uid, note.kind, note.version_id) == (
+        selected.uid,
+        "projection_completed",
+        selected.version_id,
+    )
+    assert "score" in note.sentence
+    assert selected.version_id in note.sentence
+    assert "rewind" in note.sentence
+    assert noted.intent == note.sentence
+    assert head.version_id == selected.version_id
+    assert completed_source == selected_source
+    assert brief["recent"][0]["step"] == noted.step
+    assert brief["recent"][0]["intent"] == note.sentence
+    assert rewound.version_id == older.version_id
+    assert rewound_source == older_source
 
 
 async def test_a_file_moved_onto_another_cells_name_settles_once(tmp_path: Path):

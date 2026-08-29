@@ -9,7 +9,7 @@ latency problem.
 import json
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -556,14 +556,23 @@ class Index:
         ).fetchone()
         return _version(row) if row is not None else None
 
-    def version_by_source(self, uid: str, raw_source_ref: str) -> VersionRow | None:
-        """A version of that cell whose file bytes these are, newest first."""
-        row = self._conn.execute(
+    def version_by_source(
+        self,
+        uid: str,
+        raw_source_ref: str,
+        *,
+        version_ids: Collection[str],
+    ) -> VersionRow | None:
+        """The newest matching version among the supplied version ids."""
+        rows = self._conn.execute(
             "SELECT * FROM asset_versions WHERE uid = ? AND raw_source_ref = ? "
-            "ORDER BY created_step DESC, version_id DESC LIMIT 1",
+            "ORDER BY created_step DESC, version_id DESC",
             (uid, raw_source_ref),
-        ).fetchone()
-        return _version(row) if row is not None else None
+        )
+        for row in rows:
+            if row["version_id"] in version_ids:
+                return _version(row)
+        return None
 
     def env_lock_hash(self) -> str | None:
         row = self._conn.execute(

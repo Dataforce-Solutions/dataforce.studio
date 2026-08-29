@@ -94,6 +94,10 @@ class Branches:
         record = self.get(branch)
         return _resolve(self._index.slice_versions(record.branch_id), slug, branch)
 
+    def selected_versions(self, branch_id: str, uid: str) -> set[str]:
+        """Every version of a cell this lane has selected, including at fork."""
+        return self._selection_history(uid).get(branch_id, set())
+
     def bound_branch(self) -> BranchRow | None:
         """The branch the worktree projects, or None while nothing is bound."""
         branch_id = self._index.worktree_branch(str(self._store.flow_dir))
