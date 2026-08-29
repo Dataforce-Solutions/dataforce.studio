@@ -76,6 +76,8 @@ import { computed, useTemplateRef } from 'vue'
 import { Button, Menu, Popover } from 'primevue'
 import type { MenuItem } from 'primevue/menuitem'
 import {
+  ArrowDown,
+  ArrowUp,
   ClipboardCopy,
   Copy,
   EllipsisVertical,
@@ -103,6 +105,8 @@ const props = defineProps<{
   density: 'canvas' | 'notebook'
   awaiters?: number
   preflight?: Preflight | null
+  canMoveUp?: boolean
+  canMoveDown?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -116,6 +120,8 @@ const emit = defineEmits<{
   delete: []
   duplicate: []
   'add-downstream': []
+  'move-up': []
+  'move-down': []
   eager: [on: boolean]
 }>()
 
@@ -142,13 +148,25 @@ const stopTooltip = computed(() => {
  * no consumers", "materialize and download · ~2.4s") were the reason this one
  * could not be. `download` is not among them: `expand` is the item above, and
  * the drawer it opens carries the download for the output on screen, with the
- * same materialize-first wording. Six is the ceiling and a note cell sees four.
+ * same materialize-first wording. Eight is the ceiling.
  */
 const menuItems = computed<CellMenuItem[]>(() => {
   const items: CellMenuItem[] = [
     { label: 'expand', glyph: Maximize2, command: () => emit('expand') },
     { separator: true },
     { label: 'rename', glyph: TextCursorInput, command: () => emit('rename') },
+    {
+      label: 'move up',
+      glyph: ArrowUp,
+      disabled: !props.canMoveUp,
+      command: () => emit('move-up'),
+    },
+    {
+      label: 'move down',
+      glyph: ArrowDown,
+      disabled: !props.canMoveDown,
+      command: () => emit('move-down'),
+    },
   ]
   if (!props.cell.isNote) {
     items.push({ label: 'add cell downstream', glyph: Plus, command: () => emit('add-downstream') })

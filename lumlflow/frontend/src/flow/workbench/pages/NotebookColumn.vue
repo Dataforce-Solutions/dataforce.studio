@@ -47,7 +47,7 @@ import CellCard from '../components/card/CellCard.vue'
 
 /**
  * The notebook view: the same branch slice and the same cards as the canvas,
- * one centered column, code accented. Order is topological with authoring-step
+ * one centered column, code accented. Order is topological with effective-key
  * tiebreaks, so cards never reorder when an unrelated cell lands.
  */
 const props = defineProps<{

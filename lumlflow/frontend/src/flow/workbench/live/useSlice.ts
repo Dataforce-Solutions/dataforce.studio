@@ -17,7 +17,7 @@
  * cost one read rather than one per transaction in them.
  */
 
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { CellSummary } from '@/flow/api/types'
@@ -32,6 +32,7 @@ export interface SliceHandle {
   loading: Ref<boolean>
   error: Ref<string | null>
   refresh: () => Promise<void>
+  applyOrder: (slug: string, order: string) => void
 }
 
 export function useSlice(
@@ -71,6 +72,24 @@ export function useSlice(
     if (name) await load(name, true)
   }
 
+  function applyOrder(slug: string, order: string): void {
+    const name = branch.value
+    if (!name) return
+    const page = cached.get(name) ?? cells.value
+    const updated = page.map((cell) => (cell.slug === slug ? { ...cell, order } : cell))
+    cached.clear()
+    cached.set(name, updated)
+    cells.value = updated
+  }
+
+  const stopState = session.onState((frame) => {
+    if (frame.state !== 'order_changed') return
+    cached.clear()
+    const name = branch.value
+    if (name) void load(name, true)
+  })
+  if (getCurrentScope()) onScopeDispose(stopState)
+
   watch(
     [branch, session.revision],
     ([name, revision]) => {
@@ -95,5 +114,6 @@ export function useSlice(
     loading,
     error,
     refresh,
+    applyOrder,
   }
 }

@@ -8,6 +8,8 @@
       :selected="selected"
       :preflight="preflight ?? closure"
       :awaiters="awaiters"
+      :can-move-up="canMoveUp"
+      :can-move-down="canMoveDown"
       :detail-loaded="live.detailLoaded.value"
       @copy-context="onCopyContext"
       @tab="live.showing.value = $event"
@@ -19,6 +21,8 @@
       @delete="onDelete"
       @duplicate="emit('duplicate')"
       @add-downstream="emit('add-downstream')"
+      @move-up="emit('move-up')"
+      @move-down="emit('move-down')"
       @eager="onEager"
       @resolve-conflict="onResolveConflict"
       @edit="onEdit"
@@ -105,6 +109,8 @@ const props = defineProps<{
   selected?: boolean
   preflight?: Preflight
   awaiters?: number
+  canMoveUp?: boolean
+  canMoveDown?: boolean
   /** The name this cell answered to before the rename that just landed. */
   renamedFrom?: string
 }>()
@@ -115,6 +121,8 @@ const emit = defineEmits<{
   rename: []
   duplicate: []
   'add-downstream': []
+  'move-up': []
+  'move-down': []
   'view-branch': [name: string]
   edit: [payload: { source: string }]
 }>()

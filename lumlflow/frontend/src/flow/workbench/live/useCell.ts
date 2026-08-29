@@ -353,6 +353,7 @@ export function build(facts: CellFacts): FlowCell {
     status: status(summary, facts.running),
     stale: stale(summary),
     authoredStep: summary.created_step,
+    order: summary.order,
     provenance: provenance(detail),
     timing: timing(summary),
     logs: facts.logs ?? undefined,

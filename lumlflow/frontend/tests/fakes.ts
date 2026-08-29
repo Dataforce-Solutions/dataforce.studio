@@ -138,6 +138,7 @@ export function cellSummary(slug: string, overrides: Partial<CellSummary> = {}):
     older_env: false,
     reused: false,
     created_step: 1,
+    order: String(overrides.created_step ?? 1),
     changed_step: 1,
     eager: false,
     auto_declined: null,

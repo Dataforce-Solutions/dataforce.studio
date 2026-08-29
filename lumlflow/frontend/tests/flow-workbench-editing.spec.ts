@@ -556,7 +556,7 @@ interface Bench {
   live: Attached
 }
 
-async function workbench(options: { handlers?: Handlers } = {}): Promise<Bench> {
+async function workbench(options: { handlers?: Handlers; notebook?: boolean } = {}): Promise<Bench> {
   const live = await attach({
     status: flowStatus({ cells: SLICE }),
     handlers: reads({
@@ -571,7 +571,7 @@ async function workbench(options: { handlers?: Handlers } = {}): Promise<Bench> 
     }),
   })
   const router = testRouter()
-  await router.push(`/flow/${FLOW}`)
+  await router.push(`/flow/${FLOW}${options.notebook ? '?view=notebook' : ''}`)
   await router.isReady()
   // The app shell owns the toast outlet; a workbench mounted without one would
   // let every acknowledgement assertion pass by finding nothing.
@@ -1028,7 +1028,38 @@ describe('an unexpected HTTP failure stays actionable', () => {
 })
 
 describe('adding, renaming and deleting a cell', () => {
-  it('adds one downstream of the cell the gesture came from', async () => {
+  it('anchors a downstream add on the card the gesture came from', async () => {
+    const { wrapper, live } = await workbench({
+      notebook: true,
+      handlers: {
+        'cells.new': (params) => ({
+          slug: 'untitled_1',
+          branch: String(params.branch),
+          definition_hash: 'def-new',
+          written_to_files: true,
+          flags: [{ code: 'placeholder_slug', detail: 'name it' }],
+        }),
+      },
+    })
+
+    const more = cardFor(wrapper, 'features')
+      .findAll('button')
+      .find((node) => node.attributes('aria-label') === 'more')
+    await more!.trigger('click')
+    await settle()
+    await clickInBody('add cell downstream')
+
+    expect(asked(live, 'cells.new')).toEqual([
+      expect.objectContaining({
+        after: 'features',
+        anchor: 'features',
+        intent: 'added a cell downstream of features',
+      }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('anchors a blank add on the selected cell', async () => {
     const { wrapper, live } = await workbench({
       handlers: {
         'cells.new': (params) => ({
@@ -1041,11 +1072,85 @@ describe('adding, renaming and deleting a cell', () => {
       },
     })
 
+    await cardFor(wrapper, 'features').trigger('click')
+    await settle()
     await clickText(wrapper, 'add a cell')
 
     expect(asked(live, 'cells.new')).toHaveLength(1)
     expect(asked(live, 'cells.new')[0].intent).toBe('added a cell')
+    expect(asked(live, 'cells.new')[0].anchor).toBe('features')
     expect(toasts()).toContain('Added untitled_1')
+    wrapper.unmount()
+  })
+
+  it('moves a legal neighbour and applies the reply before any journal change', async () => {
+    const orderedSlice = [
+      cellSummary('features', { created_step: 4, order: '4' }),
+      cellSummary('notes', {
+        note: true,
+        outputs: [],
+        kinds: {},
+        primary: null,
+        created_step: 5,
+        order: '5',
+      }),
+      cellSummary('train_model', {
+        consumes: { train: 'features.train_split' },
+        created_step: 6,
+        order: '6',
+      }),
+    ]
+    const { wrapper, live } = await workbench({
+      notebook: true,
+      handlers: {
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: orderedSlice,
+        }),
+        'cells.reorder': (params) => ({
+          slug: String(params.slug),
+          uid: 'uid-notes',
+          branch: String(params.branch),
+          order: '7',
+        }),
+      },
+    })
+
+    const more = cardFor(wrapper, 'notes')
+      .findAll('button')
+      .find((node) => node.attributes('aria-label') === 'more')
+    await more!.trigger('click')
+    await settle()
+    await clickInBody('move down')
+
+    expect(asked(live, 'cells.reorder')).toEqual([
+      expect.objectContaining({ slug: 'notes', branch: 'main', after: 'train_model' }),
+    ])
+    expect(wrapper.findAll('article').map((card) => card.find('h3').text())).toEqual([
+      'features',
+      'train_model',
+      'notes',
+    ])
+    expect(live.session.head.value).toBe(10)
+    wrapper.unmount()
+  })
+
+  it('disables moving a consumer above its producer', async () => {
+    const { wrapper, live } = await workbench({ notebook: true })
+    const more = cardFor(wrapper, 'train_model')
+      .findAll('button')
+      .find((node) => node.attributes('aria-label') === 'more')
+    await more!.trigger('click')
+    await settle()
+
+    const moveUp = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
+      (node) => node.textContent?.trim() === 'move up',
+    )
+    expect(moveUp?.getAttribute('aria-disabled')).toBe('true')
+    ;(moveUp as HTMLElement).click()
+    await settle()
+    expect(asked(live, 'cells.reorder')).toEqual([])
     wrapper.unmount()
   })
 

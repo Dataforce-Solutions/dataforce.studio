@@ -150,6 +150,14 @@ export interface EditedCell {
   flags: { code: FlagCode; detail: string | null }[]
 }
 
+export interface ReorderedCell {
+  slug: string
+  uid: string
+  branch: string
+  /** Decimal text: converting this to a number can collapse adjacent midpoints. */
+  order: string
+}
+
 /**
  * What leaving a run did. `stopped` is false when other branches were still
  * waiting on it — this branch left, the run keeps going, and no surface gets to
@@ -205,8 +213,18 @@ export interface FlowMethods {
   >
   'asset.download': Method<BranchScoped & { target: string; to?: string }, AssetDownload>
   'cells.new': Method<
-    Intentful & { slug?: string; after?: string; docstring?: string; source?: string },
+    Intentful & {
+      slug?: string
+      after?: string
+      anchor?: string
+      docstring?: string
+      source?: string
+    },
     EditedCell
+  >
+  'cells.reorder': Method<
+    BranchScoped & { slug: string; before?: string; after?: string },
+    ReorderedCell
   >
   'cells.edit': Method<
     Intentful & { slug: string; source: string; base: string; force?: boolean },

@@ -38,8 +38,13 @@ export interface FlowOps {
     branch: string
     slug?: string
     after?: string
+    anchor?: string
     source?: string
   }) => Promise<EditedCell>
+  reorder: (
+    slug: string,
+    options: { branch: string; before?: string; after?: string },
+  ) => Result<'cells.reorder'>
   deleteCell: (slug: string, options: { branch: string }) => Result<'cells.delete'>
   setEager: (slug: string, on: boolean, branch: string) => Result<'cells.eager'>
   rename: (slug: string, to: string, options: { branch: string }) => Result<'rename'>
@@ -115,14 +120,24 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         intent: force ? `overwrote ${slug}` : `edited ${slug}`,
       }),
 
-    addCell: ({ branch, slug, after, source }) =>
+    addCell: ({ branch, slug, after, anchor, source }) =>
       session.request('cells.new', {
         flow: flow(),
         branch,
         slug,
         after,
+        anchor,
         source,
         intent: intentFor({ slug, after, source }),
+      }),
+
+    reorder: (slug, { branch, before, after }) =>
+      session.request('cells.reorder', {
+        flow: flow(),
+        branch,
+        slug,
+        before,
+        after,
       }),
 
     deleteCell: (slug, { branch }) =>

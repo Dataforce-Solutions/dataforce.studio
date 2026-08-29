@@ -76,25 +76,60 @@ export function sliceEdges(cells: FlowCell[]): { from: string; to: string }[] {
   return edges
 }
 
-/**
- * The step a cell was minted at, which breaks ordering ties — a fact that
- * never moves, so neither an edit nor a rename can reorder the column. A card
- * with neither that nor an authorship read yet sorts last rather than first: it
- * would otherwise jump to the top of the column and then move once it loads.
- */
+/** The immutable mint step used when a flow has no explicit order key. */
 export function authored(cell: FlowCell): number {
   return cell.authoredStep ?? cell.provenance?.step ?? Number.MAX_SAFE_INTEGER
 }
 
+/** Decimal text is the wire format because repeated midpoints can exceed JS precision. */
+export function effectiveOrder(cell: FlowCell): string {
+  return cell.order ?? String(authored(cell))
+}
+
+interface DecimalParts {
+  negative: boolean
+  whole: string
+  fraction: string
+}
+
+function decimalParts(value: string): DecimalParts {
+  const negative = value.startsWith('-')
+  const unsigned = value.replace(/^[+-]/, '')
+  const [wholePart = '0', fractionPart = ''] = unsigned.split('.', 2)
+  const whole = wholePart.replace(/^0+/, '') || '0'
+  const fraction = fractionPart.replace(/0+$/, '')
+  return {
+    negative: negative && (whole !== '0' || fraction !== ''),
+    whole,
+    fraction,
+  }
+}
+
+function compareMagnitude(left: DecimalParts, right: DecimalParts): number {
+  if (left.whole.length !== right.whole.length) return left.whole.length - right.whole.length
+  const whole = left.whole.localeCompare(right.whole)
+  if (whole !== 0) return whole
+  const width = Math.max(left.fraction.length, right.fraction.length)
+  return left.fraction.padEnd(width, '0').localeCompare(right.fraction.padEnd(width, '0'))
+}
+
+function compareOrder(left: string, right: string): number {
+  const a = decimalParts(left)
+  const b = decimalParts(right)
+  if (a.negative !== b.negative) return a.negative ? -1 : 1
+  const magnitude = compareMagnitude(a, b)
+  return a.negative ? -magnitude : magnitude
+}
+
 /**
  * Stable topological order for the notebook view: dependencies first, and among
- * the cells no dependency separates, the earlier-minted one reads first.
+ * the cells no dependency separates, the lower effective key reads first.
  *
  * The pick is one cell at a time rather than a whole ready layer, and that is
  * the part that keeps the promise. A layer would emit every parentless cell
  * before anything downstream, so a root written last would land above cells
  * minted long before it — a new card appearing mid-column, which is the reorder
- * the mint-order tiebreak exists to prevent.
+ * the effective-key priority exists to prevent.
  */
 export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
   const bySlug = new Map(cells.map((cell) => [cell.slug, cell]))
@@ -103,9 +138,10 @@ export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
   for (const cell of cells) incoming.set(cell.slug, new Set())
   for (const edge of edges) incoming.get(edge.to)?.add(edge.from)
 
-  const byMintOrder = (a: FlowCell, b: FlowCell): number => authored(a) - authored(b)
+  const byEffectiveOrder = (a: FlowCell, b: FlowCell): number =>
+    compareOrder(effectiveOrder(a), effectiveOrder(b))
   const held = (slugs: Iterable<string>): FlowCell[] =>
-    [...slugs].map((slug) => bySlug.get(slug) as FlowCell).sort(byMintOrder)
+    [...slugs].map((slug) => bySlug.get(slug) as FlowCell).sort(byEffectiveOrder)
 
   const ordered: FlowCell[] = []
   while (incoming.size > 0) {
@@ -122,4 +158,54 @@ export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
     for (const deps of incoming.values()) deps.delete(next.slug)
   }
   return ordered
+}
+
+export interface ReorderNeighbours {
+  up: string | null
+  down: string | null
+}
+
+/** Adjacent notebook moves that preserve this lane's producer ordering. */
+export function reorderNeighbours(cells: FlowCell[]): Map<string, ReorderNeighbours> {
+  const ordered = topologicalOrder(cells)
+  return new Map(
+    ordered.map((cell, index) => {
+      const previous = ordered[index - 1]
+      const next = ordered[index + 1]
+      return [
+        cell.slug,
+        {
+          up: previous && canPlaceBeside(cells, cell, previous, 'before') ? previous.slug : null,
+          down: next && canPlaceBeside(cells, cell, next, 'after') ? next.slug : null,
+        },
+      ]
+    }),
+  )
+}
+
+function canPlaceBeside(
+  cells: FlowCell[],
+  moved: FlowCell,
+  neighbour: FlowCell,
+  side: 'before' | 'after',
+): boolean {
+  const bySlug = new Map(cells.map((cell) => [cell.slug, cell]))
+  const producers = moved.consumes
+    .map(producerOf)
+    .map((slug) => bySlug.get(slug))
+    .filter((cell): cell is FlowCell => cell !== undefined && cell.slug !== moved.slug)
+  const consumers = cells.filter(
+    (cell) => cell.slug !== moved.slug && cell.consumes.some((ref) => producerOf(ref) === moved.slug),
+  )
+  const boundary = effectiveOrder(neighbour)
+  if (side === 'before') {
+    return (
+      producers.every((cell) => compareOrder(effectiveOrder(cell), boundary) < 0) &&
+      consumers.every((cell) => compareOrder(effectiveOrder(cell), boundary) >= 0)
+    )
+  }
+  return (
+    producers.every((cell) => compareOrder(effectiveOrder(cell), boundary) <= 0) &&
+    consumers.every((cell) => compareOrder(effectiveOrder(cell), boundary) > 0)
+  )
 }

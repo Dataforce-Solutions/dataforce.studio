@@ -755,6 +755,79 @@ describe('a burst of transactions is one movement to re-read after', () => {
 describe('the viewed slice', () => {
   const cell = cellSummary
 
+  it('refetches on an order change without moving the journal cursor', async () => {
+    let order = '4'
+    const { session, socket, daemon, stream } = await attach({
+      handlers: {
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: [cell('features', { created_step: 4, order })],
+        }),
+      },
+    })
+    socket.deliver({ channel: 'journal', type: 'caught_up', flow: FLOW, step: 7, running: [] })
+    const branch = ref<string | null>('main')
+    const scope = effectScope()
+    const slice = scope.run(() => useSlice(session, branch))!
+    await settle()
+
+    const before = daemon.calls.filter((call) => call.method === 'cells.list').length
+    order = '2.5'
+    socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      state: 'order_changed',
+      flow: FLOW,
+      step: 99,
+    })
+    await settle()
+
+    expect(daemon.calls.filter((call) => call.method === 'cells.list')).toHaveLength(before + 1)
+    expect(slice.cells.value[0].order).toBe('2.5')
+    expect(stream.cursor(FLOW)).toBe(7)
+    expect(session.head.value).toBe(7)
+    expect(session.revision.value).toBe(7)
+    scope.stop()
+  })
+
+  it('invalidates other cached lanes when applying a flow-wide order reply', async () => {
+    const orders: Record<string, string> = { main: '4', sweep: '4' }
+    const { session, daemon } = await attach({
+      handlers: {
+        'cells.list': (params) => {
+          const name = String(params.branch)
+          return {
+            flow: 'churn',
+            branch: name,
+            cells: [cell('features', { created_step: 4, order: orders[name] })],
+          }
+        },
+      },
+    })
+    const branch = ref<string | null>('main')
+    const scope = effectScope()
+    const slice = scope.run(() => useSlice(session, branch))!
+    await settle()
+
+    branch.value = 'sweep'
+    await settle()
+    branch.value = 'main'
+    await settle()
+    const before = daemon.calls.filter((call) => call.method === 'cells.list').length
+
+    orders.main = '2.5'
+    orders.sweep = '2.5'
+    slice.applyOrder('features', '2.5')
+    expect(slice.cells.value[0].order).toBe('2.5')
+
+    branch.value = 'sweep'
+    await settle()
+    expect(daemon.calls.filter((call) => call.method === 'cells.list')).toHaveLength(before + 1)
+    expect(slice.cells.value[0].order).toBe('2.5')
+    scope.stop()
+  })
+
   it('caches per branch, and refetches every branch once the journal moves', async () => {
     const slices: Record<string, CellSummary[]> = {
       main: [cell('features', { state: 'unsynced', causes: ['`helpers.py` changed'] })],

@@ -1220,9 +1220,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Add cells.reorder with its CLI and MCP verbs
   - [x] `cells.reorder` (slug, lane, `before`/`after`) with the topology check against the called lane — refusing a position that would leave any cell there before one of its producers, the moved cell or a consumer of it — and a refusal for a cell the lane does not select, its reply carrying the cell's slug, uid and new `order`, and an `order_changed` state frame pushed on the journal channel; CLI `cells move --before/--after`; MCP `move-cell`
   - [x] Tests: `tests/daemon/test_api.py` (per-lane reorder refusal, reorder on an archived lane, the frame pushed with no transaction and the cursor unmoved), `test_cli.py` (`cells move`), `test_mcp.py` (`move-cell`)
-- [ ] Order the notebook by the key
-  - [ ] Priority = effective key in `topologicalOrder`; *move up* / *move down* menu items gated by topology, calling `cells.reorder`; the issuing tab applies the reply's `order` at once and every tab refetches its slice on an `order_changed` state frame; the UI passes the selection as `anchor`
-  - [ ] `flow-workbench-model.spec.ts` (order, insertion never reflow) and a session spec for the refetch on `order_changed`
+- [x] Order the notebook by the key
+  - [x] Priority = effective key in `topologicalOrder`; *move up* / *move down* menu items gated by topology, calling `cells.reorder`; the issuing tab applies the reply's `order` at once and every tab refetches its slice on an `order_changed` state frame; the UI passes the selection as `anchor`
+  - [x] `flow-workbench-model.spec.ts` (order, insertion never reflow) and a session spec for the refetch on `order_changed`
 - [ ] Make the canvas layout incremental
   - [ ] Top-aligned columns, (barycenter, key) rows, parentless placement under the preceding cell, incremental positions with a **tidy** control that alone recomputes the whole layout, `fitView` on first load only, input-name edge ids, minimal viewport pan
   - [ ] A canvas layout spec (no existing node moves on add; blank add lands under the selection; tidy recomputes; `fitView` once on load and not on an add)

@@ -398,8 +398,10 @@ export interface CellSummary {
   older_env: boolean
   /** Computed on another branch and read here — nothing ran for this one. */
   reused: boolean
-  /** The step the cell was minted at — the notebook column's tiebreak. */
+  /** The step the cell was minted at — the fallback when no order key is mapped. */
   created_step: number
+  /** Effective decimal order key, kept as text so repeated midpoints stay exact. */
+  order: string
   /** The step the current selected version was accepted at. */
   changed_step: number
   /** Opted out of the cost threshold: rematerializes on change regardless. */

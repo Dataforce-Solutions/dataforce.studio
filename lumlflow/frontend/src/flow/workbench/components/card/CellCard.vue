@@ -169,6 +169,8 @@
         :density="density"
         :awaiters="awaiters"
         :preflight="preflight"
+        :can-move-up="canMoveUp"
+        :can-move-down="canMoveDown"
         @run="emit('run', $event)"
         @preflight="emit('preflight')"
         @stop="emit('stop')"
@@ -178,6 +180,8 @@
         @delete="emit('delete')"
         @duplicate="emit('duplicate')"
         @add-downstream="emit('add-downstream')"
+        @move-up="emit('move-up')"
+        @move-down="emit('move-down')"
         @eager="emit('eager', $event)"
       />
     </footer>
@@ -218,6 +222,8 @@ const props = withDefaults(
     awaiters?: number
     /** The daemon-served run closure; null while it is still being asked for. */
     preflight?: Preflight | null
+    canMoveUp?: boolean
+    canMoveDown?: boolean
     detailLoaded?: boolean
   }>(),
   { detailLoaded: true },
@@ -235,6 +241,8 @@ const emit = defineEmits<{
   delete: []
   duplicate: []
   'add-downstream': []
+  'move-up': []
+  'move-down': []
   eager: [on: boolean]
   'copy-context': []
   'resolve-conflict': [choice: 'overwrite' | 'fork']

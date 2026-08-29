@@ -355,10 +355,12 @@ export interface FlowCell {
   status: CellStatus
   stale?: StaleInfo
   /**
-   * The step the cell was minted at — what breaks ties in the notebook column.
-   * The mint order never moves, so a rename or an edit cannot reorder cards.
+   * The step the cell was minted at — the fallback effective key for flows
+   * whose manifest has no explicit order map.
    */
   authoredStep?: number
+  /** Effective decimal order key. Text preserves arbitrarily precise midpoints. */
+  order?: string
   /** Absent until authorship has been read — never a placeholder shaped like one. */
   provenance?: ProvenanceInfo
   timing?: TimingInfo

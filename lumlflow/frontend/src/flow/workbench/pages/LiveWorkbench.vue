@@ -204,6 +204,7 @@ import ReplPanel from '../components/repl/ReplPanel.vue'
 import SessionBanners from '../components/session/SessionBanners.vue'
 import { coalesceTransactions } from '../live/toasts'
 import { formatCount } from '../model/format'
+import { reorderNeighbours } from '../model/registry'
 import { summarized } from '../live/useCell'
 import { useFlowOps } from '../live/useFlowOps'
 import type { FlowSessionHandle } from '../live/useFlowSession'
@@ -280,6 +281,8 @@ const cells = computed(() =>
   shown.value.map((summary) => summarized(summary, running.value.has(summary.slug))),
 )
 
+const moveNeighbours = computed(() => reorderNeighbours(cells.value))
+
 const tintedSlugs = computed(
   () => new Set(showTint.value ? transitive.value.map((cell) => cell.slug) : []),
 )
@@ -319,6 +322,7 @@ watch(shownBySlug, (bySlug) => {
  * bindings out twice is how the two densities start to differ by accident.
  */
 function cardProps(slug: string, selected: boolean, density: 'canvas' | 'notebook') {
+  const moves = moveNeighbours.value.get(slug)
   return {
     session,
     stream: props.stream,
@@ -330,6 +334,8 @@ function cardProps(slug: string, selected: boolean, density: 'canvas' | 'noteboo
     // leaving rather than as cancelling.
     awaiters: Math.max(0, (inFlight.value.get(slug)?.awaiting ?? 1) - 1),
     renamedFrom: justRenamed.value.get(slug),
+    canMoveUp: moves !== undefined && moves.up !== null,
+    canMoveDown: moves !== undefined && moves.down !== null,
   }
 }
 
@@ -352,6 +358,8 @@ function cardEvents(slug: string) {
     rename: () => onRename(slug),
     duplicate: () => void onDuplicate(slug),
     'add-downstream': () => void onAddCell(slug),
+    'move-up': () => void onMove(slug, 'up'),
+    'move-down': () => void onMove(slug, 'down'),
     'view-branch': onViewBranch,
   }
 }
@@ -438,12 +446,27 @@ async function onStop(): Promise<void> {
 
 async function onAddCell(after?: string): Promise<void> {
   try {
-    const added = await ops.addCell({ branch: viewedBranch.value, after })
+    const anchor = after ?? selection.selectedSlug.value ?? undefined
+    const added = await ops.addCell({ branch: viewedBranch.value, after, anchor })
     selection.selectedSlug.value = added.slug
     acknowledge(
       `Added ${added.slug}`,
       after ? `consumes ${after}. name it and write its materialize.` : 'name it and write it',
     )
+  } catch (failure) {
+    refused(failure)
+  }
+}
+
+async function onMove(slug: string, direction: 'up' | 'down'): Promise<void> {
+  const neighbour = moveNeighbours.value.get(slug)?.[direction]
+  if (!neighbour) return
+  try {
+    const moved = await ops.reorder(slug, {
+      branch: viewedBranch.value,
+      ...(direction === 'up' ? { before: neighbour } : { after: neighbour }),
+    })
+    slice.applyOrder(moved.slug, moved.order)
   } catch (failure) {
     refused(failure)
   }

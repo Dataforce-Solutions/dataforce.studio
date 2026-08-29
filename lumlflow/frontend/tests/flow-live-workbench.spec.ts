@@ -6,7 +6,7 @@
  * below it stays counted and one toggle away, and `unmaterialized` is neither
  * of those: no baseline exists to claim a change against. The canvas and the
  * notebook are **two densities over one slice**, so a cell on one is a cell on
- * the other and the notebook's column is pinned by mint order rather than by
+ * the other and the notebook's column is pinned by effective order rather than by
  * name. And viewing another branch **re-scopes the whole screen** — panel,
  * views and URL — as the pure store read it is, with nothing checked out.
  */
@@ -42,7 +42,7 @@ import { editorIn } from './editor'
 // A churn flow, as the daemon reports it. `features` is not current in its own
 // right; `train_model` is current and sits under it; `holdout_eval` has never
 // run anywhere. `alpha_scan` is a second root written last — its name sorts it
-// first and its mint step does not.
+// first and its effective key does not.
 const MAIN: CellSummary[] = [
   cellSummary('load_customers', {
     outputs: ['customers'],
@@ -392,7 +392,7 @@ describe('staleness leads with the direct cause', () => {
 })
 
 describe('canvas and notebook are two densities over one slice', () => {
-  it('draws the same cells either way, in mint order down the notebook', async () => {
+  it('draws the same cells either way, in effective order down the notebook', async () => {
     const { wrapper } = await workbench()
 
     const canvas = drawn(wrapper)
@@ -404,7 +404,8 @@ describe('canvas and notebook are two densities over one slice', () => {
     // Topological: a producer is above its consumer.
     expect(column.indexOf('features')).toBeLessThan(column.indexOf('train_model'))
     expect(column.indexOf('train_model')).toBeLessThan(column.indexOf('holdout_eval'))
-    // Ties break on the mint step, so the cell written last stays last — the
+    // With no explicit map, effective order falls back to creation step, so the
+    // cell written last stays last — the
     // alphabet would have put `alpha_scan` at the top of the column, and a
     // layered walk would have hoisted it over everything with a parent.
     expect(column[column.length - 1]).toBe('alpha_scan')

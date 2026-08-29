@@ -12,12 +12,13 @@ import {
   primaryOutput,
   producerOf,
   rankOf,
+  reorderNeighbours,
   sliceEdges,
   topologicalOrder,
 } from '@/flow/workbench/model/registry'
 import type { AssetKind, FlowCell } from '@/flow/workbench/model/types'
 
-/** A cell carrying only what the notebook's order reads: wiring and mint step. */
+/** A cell carrying only what the notebook's order reads: wiring and effective key. */
 function authoredCell(slug: string, authoredStep: number, ...consumes: string[]): FlowCell {
   return {
     slug,
@@ -28,6 +29,7 @@ function authoredCell(slug: string, authoredStep: number, ...consumes: string[])
     outputs: [],
     status: 'materialized',
     authoredStep,
+    order: String(authoredStep),
   }
 }
 
@@ -109,13 +111,70 @@ describe('slice wiring', () => {
     expect(edges).toContainEqual({ from: 'train_model', to: 'holdout_eval' })
   })
 
-  it('orders dependencies before consumers with authoring-step tiebreak', () => {
+  it('orders dependencies before consumers with effective-key priority', () => {
     const order = topologicalOrder(mainCells).map((cell) => cell.slug)
     expect(order.indexOf('features')).toBeLessThan(order.indexOf('train_model'))
     expect(order.indexOf('train_model')).toBeLessThan(order.indexOf('holdout_eval'))
     expect(order.indexOf('holdout_eval')).toBeLessThan(order.indexOf('roc_curve'))
     // Deterministic: same input, same order.
     expect(topologicalOrder(mainCells).map((cell) => cell.slug)).toEqual(order)
+  })
+
+  it('inserts an anchored downstream cell without reflowing existing cards', () => {
+    const chain = [
+      authoredCell('load_data', 2),
+      authoredCell('eda', 4, 'load_data.rows'),
+      authoredCell('split', 6, 'eda.frame'),
+      authoredCell('train', 8, 'split.train'),
+    ]
+    const before = topologicalOrder(chain).map((cell) => cell.slug)
+    const inserted = {
+      ...authoredCell('untitled_1', 10, 'eda.frame'),
+      order: '5',
+    }
+
+    expect(topologicalOrder([...chain, inserted]).map((cell) => cell.slug)).toEqual([
+      'load_data',
+      'eda',
+      'untitled_1',
+      'split',
+      'train',
+    ])
+    expect(
+      topologicalOrder([...chain, inserted])
+        .filter((cell) => cell.slug !== inserted.slug)
+        .map((cell) => cell.slug),
+    ).toEqual(before)
+  })
+
+  it('compares midpoint keys without losing decimal precision', () => {
+    const later = {
+      ...authoredCell('later', 2),
+      order: '4.0000000000000000000000000000000000002',
+    }
+    const earlier = {
+      ...authoredCell('earlier', 3),
+      order: '4.0000000000000000000000000000000000001',
+    }
+
+    expect(topologicalOrder([later, earlier]).map((cell) => cell.slug)).toEqual([
+      'earlier',
+      'later',
+    ])
+  })
+
+  it('disables an adjacent move that would cross a producer or consumer', () => {
+    const cells = [
+      authoredCell('load', 2),
+      authoredCell('train_model', 4, 'load.rows'),
+      authoredCell('evaluate', 6, 'train_model.model'),
+      authoredCell('notes', 8),
+    ]
+    const neighbours = reorderNeighbours(cells)
+
+    expect(neighbours.get('evaluate')).toEqual({ up: null, down: 'notes' })
+    expect(neighbours.get('train_model')?.down).toBeNull()
+    expect(neighbours.get('notes')?.up).toBe('evaluate')
   })
 
   it('keeps the column pinned when an unrelated cell lands', () => {
@@ -128,9 +187,9 @@ describe('slice wiring', () => {
     const before = topologicalOrder(chain).map((cell) => cell.slug)
     expect(before).toEqual(['load', 'features', 'train_model', 'holdout_eval'])
 
-    // A root nobody reads, minted last: it belongs at the bottom, where it was
+    // A root nobody reads, ordered last: it belongs at the bottom, where it was
     // written. Landing it above cells minted before it would move every card
-    // under it down a slot — the reorder the mint-order tiebreak rules out.
+    // under it down a slot — the effective-key priority rules out.
     const after = topologicalOrder([...chain, authoredCell('alpha_scan', 12)])
     expect(after.map((cell) => cell.slug)).toEqual([...before, 'alpha_scan'])
   })
