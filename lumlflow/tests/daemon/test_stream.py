@@ -8,9 +8,11 @@ promise made to a tab opened halfway through one.
 
 import asyncio
 from base64 import b64encode
+from pathlib import Path
 from typing import Any
 
 import pytest
+from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import QUEUE_DEPTH, Streams, Subscription
 from lumlflow.flow.store.models import Transaction
 
@@ -75,6 +77,67 @@ async def test_two_flows_on_one_daemon_do_not_cross():
     frame = await watching.next()
     assert (frame["flow"], frame["step"]) == ("churn.flow", 2)
     await quiet(watching)
+
+
+async def test_a_state_frame_reaches_only_the_flow_watching_it() -> None:
+    streams = Streams()
+    watching = streams.subscribe()
+    watching.journals.add("churn.flow")
+    elsewhere = streams.subscribe()
+    elsewhere.journals.add("sweep.flow")
+
+    streams.state(
+        "churn.flow",
+        "order_changed",
+        step=7,
+        lane="main",
+        cell="score",
+    )
+
+    assert await watching.next() == {
+        "channel": "journal",
+        "type": "state",
+        "state": "order_changed",
+        "flow": "churn.flow",
+        "lane": "main",
+        "cell": "score",
+        "step": 7,
+    }
+    await quiet(elsewhere)
+
+
+async def test_the_hub_stamps_state_without_journaling_it(tmp_path: Path) -> None:
+    streams = Streams()
+    hub = Hub(streams=streams)
+    try:
+        session = hub.init_flow(tmp_path, "churn")
+        watching = streams.subscribe()
+        watching.journals.add(session.ref.address)
+        journal_before = list(session.store.journal.replay())
+
+        hub.push_state(session, "experiment_removed", lane="main", cell="evaluate")
+
+        frame = await watching.next()
+        assert frame["step"] == session.store.next_step - 1
+        assert frame["state"] == "experiment_removed"
+        assert list(session.store.journal.replay()) == journal_before
+    finally:
+        await hub.close()
+
+
+async def test_a_state_frame_is_not_replayed_after_reconnect() -> None:
+    streams = Streams()
+    first = streams.subscribe()
+    first.journals.add("churn.flow")
+    streams.state("churn.flow", "refreshing", step=4, cell="score")
+    assert (await first.next())["state"] == "refreshing"
+    first.close()
+    streams.state("churn.flow", "refreshing", step=5, cell="score")
+
+    reconnected = streams.subscribe()
+    reconnected.journals.add("churn.flow")
+
+    await quiet(reconnected)
 
 
 async def test_a_late_joiner_is_served_the_tail_of_a_run():

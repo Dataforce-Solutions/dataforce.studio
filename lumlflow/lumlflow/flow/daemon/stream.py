@@ -1,10 +1,9 @@
 """The two channels a browser watches a workspace through.
 
 *Channel 1 is the journal*: every transaction a hosted flow commits, plus the
-kernel's run lifecycle, each stamped with the flow-global `step`. A client
-holds that step as its cursor, so catching up is replay from it — a reconnect,
-or a laptop opened the next morning, is a latency event and never a data one.
-Frames carry their step precisely so a client can ignore what it already has.
+kernel's run lifecycle and ephemeral state hints. Frames are stamped with the
+flow-global `step`; transaction and kernel frames advance a client's replay
+cursor, while state hints leave it unmoved and are never replayed.
 
 *Channel 2 is ephemeral*: the fd-captured chunks of a live run, keyed by
 `run_id`. Nothing here is durable — the journal never records chunk streams,
@@ -23,11 +22,12 @@ import asyncio
 from base64 import b64decode
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Literal
 
 from lumlflow.flow.store.models import Transaction
 
 Frame = dict[str, Any]
+StateName = Literal["experiment_removed", "refreshing", "order_changed"]
 
 # Chunks held per run, and runs whose tail is still worth holding. A late
 # joiner gets the tail of what it missed, never the whole run — that is the
@@ -168,6 +168,29 @@ class Streams:
             lambda subscription: flow in subscription.journals,
             self.journal_frame(flow, transaction),
         )
+
+    def state(
+        self,
+        flow: str,
+        state: StateName,
+        *,
+        step: int,
+        lane: str | None = None,
+        cell: str | None = None,
+    ) -> None:
+        """Push a live state hint to this flow's connected journal watchers."""
+        frame: Frame = {
+            "channel": "journal",
+            "type": "state",
+            "state": state,
+            "flow": flow,
+            "step": step,
+        }
+        if lane is not None:
+            frame["lane"] = lane
+        if cell is not None:
+            frame["cell"] = cell
+        self._deliver(lambda subscription: flow in subscription.journals, frame)
 
     def kernel(
         self, flow: str, event: str, params: dict[str, Any], *, step: int

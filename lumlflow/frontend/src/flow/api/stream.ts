@@ -170,6 +170,10 @@ export class FlowStream {
         this.deliver(frame)
         return
       }
+      if (frame.type === 'state') {
+        this.deliver(frame)
+        return
+      }
       this.cursors.set(frame.flow, Math.max(this.cursor(frame.flow), frame.step))
     } else if ('channel' in frame && frame.channel === 'logs') {
       // A re-delivered tail is dropped here rather than at the console, so

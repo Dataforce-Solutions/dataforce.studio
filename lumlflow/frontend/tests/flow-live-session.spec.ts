@@ -17,7 +17,7 @@ import { DaemonUnreachable, FlowApi } from '@/flow/api/client'
 import { LogRing, RING_CHUNKS } from '@/flow/api/logs'
 import { FlowStream, WS_UNAUTHORIZED } from '@/flow/api/stream'
 import { browserToken, resolveToken, TOKEN_STORAGE_KEY, tokenRejected } from '@/flow/api/token'
-import type { CellSummary, LogFrame } from '@/flow/api/types'
+import type { CellSummary, LogFrame, StateFrame } from '@/flow/api/types'
 import SessionBanners from '@/flow/workbench/components/session/SessionBanners.vue'
 import { cursorKey, readCursor, writeCursor } from '@/flow/workbench/live/cursor'
 import type { CursorStorage } from '@/flow/workbench/live/cursor'
@@ -136,6 +136,83 @@ describe('cursor handling', () => {
     // The remedy the daemon names for a lagged client is the replay it holds a
     // cursor for — asking again from zero would re-deliver the whole journal.
     expect(socket.messages).toEqual([{ subscribe: 'journal', flow: FLOW, cursor: 6 }])
+  })
+})
+
+describe('ephemeral state frames', () => {
+  it('delivers this flow to subscribers without moving any journal state', async () => {
+    const { socket, session, stream } = await attach()
+    const received: StateFrame[] = []
+    session.onState((frame) => received.push(frame))
+    socket.deliver({
+      channel: 'journal',
+      type: 'caught_up',
+      flow: FLOW,
+      step: 7,
+      running: [],
+    })
+
+    socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      state: 'order_changed',
+      flow: FLOW,
+      lane: 'main',
+      cell: 'score',
+      step: 99,
+    })
+    socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      state: 'refreshing',
+      flow: 'sweep.flow',
+      cell: 'train',
+      step: 99,
+    })
+
+    expect(received).toEqual([
+      {
+        channel: 'journal',
+        type: 'state',
+        state: 'order_changed',
+        flow: FLOW,
+        lane: 'main',
+        cell: 'score',
+        step: 99,
+      },
+    ])
+    expect(stream.cursor(FLOW)).toBe(7)
+    expect(session.head.value).toBe(7)
+    expect(session.revision.value).toBe(7)
+    expect(session.transactions.value).toEqual([])
+  })
+
+  it('does not deliver a state frame again after reconnect', async () => {
+    const { socket, sockets, session, reconnects } = await attach()
+    const received: StateFrame[] = []
+    session.onState((frame) => received.push(frame))
+    socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      state: 'experiment_removed',
+      flow: FLOW,
+      lane: 'main',
+      cell: 'evaluate',
+      step: 4,
+    })
+
+    socket.drop()
+    reconnects[0]()
+    sockets[1].open()
+    sockets[1].deliver({
+      channel: 'journal',
+      type: 'caught_up',
+      flow: FLOW,
+      step: 4,
+      running: [],
+    })
+
+    expect(received).toHaveLength(1)
   })
 })
 

@@ -26,7 +26,7 @@ from lumlflow.flow.daemon.kernel_proc import KernelProcess
 from lumlflow.flow.daemon.projections import Worktree
 from lumlflow.flow.daemon.reactive import Reactor
 from lumlflow.flow.daemon.reconcile import AcceptedFile, Reconciliation, Tier
-from lumlflow.flow.daemon.stream import Streams
+from lumlflow.flow.daemon.stream import StateName, Streams
 from lumlflow.flow.daemon.watcher import Watches, WatchSet
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.accept import Acceptance
@@ -248,6 +248,25 @@ class Hub:
         return sum(
             len(self._streams.running(session.ref.address))
             for session in self._sessions.values()
+        )
+
+    def push_state(
+        self,
+        session: FlowSession,
+        state: StateName,
+        *,
+        lane: str | None = None,
+        cell: str | None = None,
+    ) -> None:
+        """Push an ephemeral state hint at this flow's current journal step."""
+        if self._streams is None:
+            return
+        self._streams.state(
+            session.ref.address,
+            state,
+            step=session.store.next_step - 1,
+            lane=lane,
+            cell=cell,
         )
 
     async def quiesce(

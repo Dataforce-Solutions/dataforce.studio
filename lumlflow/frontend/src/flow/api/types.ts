@@ -311,6 +311,19 @@ export interface KernelFrame {
   kernel?: 'running' | 'stopped'
 }
 
+export type StateName = 'experiment_removed' | 'refreshing' | 'order_changed'
+
+/** A live hint that changes no flow history and is never replayed. */
+export interface StateFrame {
+  channel: 'journal'
+  type: 'state'
+  state: StateName
+  flow: string
+  step: number
+  lane?: string
+  cell?: string
+}
+
 /**
  * The end of a catch-up. `running` is how a tab that opened mid-run learns
  * which console it can still ask for — an event it was not there for.
@@ -347,6 +360,7 @@ export interface StreamErrorFrame {
 export type StreamFrame =
   | TransactionFrame
   | KernelFrame
+  | StateFrame
   | CaughtUpFrame
   | LaggedFrame
   | LogFrame

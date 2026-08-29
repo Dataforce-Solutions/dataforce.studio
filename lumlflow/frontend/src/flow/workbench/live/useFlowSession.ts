@@ -26,7 +26,7 @@ import type { FlowMethod, FlowMethods } from '@/flow/api/client'
 import { FlowStream } from '@/flow/api/stream'
 import type { StreamStatus } from '@/flow/api/stream'
 import { rejectToken } from '@/flow/api/token'
-import type { FlowStatus, StreamFrame, Transaction } from '@/flow/api/types'
+import type { FlowStatus, StateFrame, StreamFrame, Transaction } from '@/flow/api/types'
 import type { FlowState } from '../model/types'
 import { degradedStates, flowState } from './degraded'
 import type { DegradedKind, SessionFacts } from './degraded'
@@ -107,6 +107,8 @@ export interface FlowSessionHandle {
    * names it — two flows can be called `sales` and only one is in here.
    */
   path: ComputedRef<string>
+  /** Subscribe to live-only state hints for this flow. */
+  onState: (handler: (frame: StateFrame) => void) => () => void
   attach: () => Promise<void>
   detach: () => void
   markSeen: () => void
@@ -131,6 +133,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
   const running = ref<RunningCell[]>([])
   const attempts = ref<Record<string, number>>({})
   const agent = ref<RegisteredAgent | null>(null)
+  const stateSubscribers = new Set<(frame: StateFrame) => void>()
   let reachabilityEpoch = 0
 
   const path = computed(() => brief.value?.path ?? '')
@@ -227,6 +230,10 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     if (!('channel' in frame) || frame.channel !== 'journal') return
     if (frame.type === 'lagged') return
     if (frame.flow !== path.value) return
+    if (frame.type === 'state') {
+      for (const subscriber of [...stateSubscribers]) subscriber(frame)
+      return
+    }
     head.value = Math.max(head.value, frame.step)
     settle()
     if (frame.type === 'transaction') {
@@ -341,6 +348,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
 
   function detach(): void {
     for (const stop of unlisten.splice(0)) stop()
+    stateSubscribers.clear()
     if (settling !== null) clearTimeout(settling)
     settling = null
     options.stream.close()
@@ -375,6 +383,12 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     state: computed(() => flowState(facts.value)),
     degraded: computed(() => degradedStates(facts.value)),
     path,
+    onState: (handler) => {
+      stateSubscribers.add(handler)
+      return () => {
+        stateSubscribers.delete(handler)
+      }
+    },
     attach,
     detach,
     markSeen: () => {
