@@ -7,7 +7,7 @@ facts its rows need, nothing is inferred from surrounding lines.
 
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lumlflow.flow.hashing import canonical_json
 
@@ -341,4 +341,14 @@ class FlowManifest(BaseModel):
     name: str
     language: Literal["python"] = "python"
     cells: dict[str, str] = Field(default_factory=dict)
+    order: dict[str, object] | None = None
     settings: FlowSettings = Field(default_factory=FlowSettings)
+
+    @field_validator("order", mode="before")
+    @classmethod
+    def tolerate_a_malformed_order_map(cls, value: object) -> dict[str, object] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return None
+        return {str(uid): key for uid, key in value.items()}

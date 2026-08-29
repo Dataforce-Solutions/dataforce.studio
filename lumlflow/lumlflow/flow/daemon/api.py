@@ -27,6 +27,7 @@ from lumlflow.flow.errors import (
     FlowError,
     ValueNotStored,
 )
+from lumlflow.flow.ids import new_ulid
 from lumlflow.flow.scheduler.planner import Preflight
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
@@ -250,6 +251,7 @@ class Api:
         )
         if result.dangling:
             session.acceptance.reaccept(result.dangling, branch=branch, actor=actor)
+        session.store.save_manifest()
         return {
             "slug": result.slug,
             "branch": branch,
@@ -296,17 +298,40 @@ class Api:
             slug = _placeholder_slug(session, branch)
         else:
             slug = portable.cell_name(str(raw_slug))
-        source = params.get("source") or _scaffold(
-            session, params, slug=slug, branch=branch
+        provided_source = params.get("source")
+        anchor_name = str(params.get("after") or params.get("anchor") or "")
+        if not anchor_name and provided_source:
+            copied_uid = loader.parse(str(provided_source)).uid
+            branch_id = session.store.branches.get(branch).branch_id
+            original = session.store.index.slice_versions(branch_id).get(
+                copied_uid or ""
+            )
+            if original is not None:
+                anchor_name = original.slug
+        anchor = queries.head(session, branch, anchor_name) if anchor_name else None
+        uid = new_ulid() if anchor is not None else None
+        order_key = (
+            session.store.order_after(anchor.uid) if anchor is not None else None
         )
-        accepted = session.acceptance.accept_source(
-            slug,
-            str(source),
-            branch=branch,
-            actor=_actor(params),
-            intent=params.get("intent") or f"added {slug}",
-            fresh=True,
-        )
+        source = provided_source or _scaffold(session, params, slug=slug, branch=branch)
+        previous_order = session.store.manifest.order
+        if order_key is not None and uid is not None:
+            order = dict(previous_order or {})
+            order[uid] = order_key
+            session.store.manifest.order = order
+        try:
+            accepted = session.acceptance.accept_source(
+                slug,
+                str(source),
+                branch=branch,
+                actor=_actor(params),
+                intent=params.get("intent") or f"added {slug}",
+                uid=uid,
+                fresh=True,
+            )
+        except BaseException:
+            session.store.manifest.order = previous_order
+            raise
         return self._edited(session, accepted, branch=branch)
 
     async def cells_edit(self, params: dict[str, Any]) -> dict[str, Any]:

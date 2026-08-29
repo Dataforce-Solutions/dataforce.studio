@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from lumlflow.flow.store.flowstore import FlowStore
 from lumlflow.flow.store.index import INDEX_SCHEMA_VERSION
 from lumlflow.flow.store.models import Transaction
 
-from tests.flow.helpers import cell_accepted, transaction
+from tests.flow.helpers import accept, cell_accepted, transaction
 
 _WINDOWS_ILLEGAL = set('<>:"|?*\\')
 
@@ -53,6 +54,7 @@ class TestInit:
             "reactivity": "auto",
             "eager": [],
         }
+        assert "order" not in manifest
 
     def test_takes_an_explicit_name(self, flow_dir: Path) -> None:
         store = FlowStore.init(flow_dir, name="churn-v2")
@@ -199,6 +201,77 @@ class TestOpen:
             "eager": [],
             "future_setting": ["one", "two"],
         }
+
+    def test_round_trips_decimal_order_keys_without_losing_digits(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        store.manifest.order = {features.uid: "2.00000000000000000000000000005"}
+        store.save_manifest()
+        store.close()
+
+        reopened = FlowStore.open(flow_dir)
+
+        assert reopened.manifest.order == {
+            features.uid: "2.00000000000000000000000000005"
+        }
+        assert reopened.effective_order()[features.uid] == Decimal(
+            "2.00000000000000000000000000005"
+        )
+        assert reopened.order_after(features.uid) == (
+            "2.500000000000000000000000000025"
+        )
+
+    def test_a_malformed_top_level_order_value_does_not_block_open(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        store.close()
+        manifest = read_manifest(flow_dir)
+        manifest["order"] = ["not", "a", "map"]
+        (flow_dir / "flow.yaml").write_text(yaml.safe_dump(manifest))
+
+        reopened = FlowStore.open(flow_dir)
+        reopened.save_manifest()
+
+        assert reopened.manifest.order is None
+        assert "order" not in read_manifest(flow_dir)
+
+    def test_ignores_bad_and_duplicate_keys_among_unmapped_cells(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        split = accept(store, "split")
+        train = accept(store, "train")
+        evaluate = accept(store, "evaluate")
+        store.manifest.order = {
+            features.uid: "2.5",
+            train.uid: "not-a-number",
+            evaluate.uid: str(store.index.creation_steps()[split.uid]),
+        }
+
+        order = store.effective_order()
+        born = store.index.creation_steps()
+
+        assert order == {
+            features.uid: Decimal("2.5"),
+            split.uid: Decimal(born[split.uid]),
+            train.uid: Decimal(born[train.uid]),
+            evaluate.uid: Decimal(born[evaluate.uid]),
+        }
+
+    def test_drops_an_order_entry_for_a_uid_no_lane_selects(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        store.manifest.order = {
+            features.uid: "1.5",
+            "01J00000000000000000000GONE": "1.75",
+        }
+
+        store.save_manifest()
+
+        assert store.manifest.order == {features.uid: "1.5"}
+        assert read_manifest(store.flow_dir)["order"] == {features.uid: "1.5"}
 
     def test_refuses_a_newer_journal_schema_naming_both_versions(
         self, flow_dir: Path, store: FlowStore

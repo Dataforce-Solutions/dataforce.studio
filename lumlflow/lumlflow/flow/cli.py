@@ -521,6 +521,9 @@ def cells_new(
     after: str | None = typer.Option(
         None, "--after", help="Prefill `consumes` from this cell's outputs."
     ),
+    anchor: str | None = typer.Option(
+        None, "--anchor", help="Place the new cell directly after this cell."
+    ),
     docstring: str | None = typer.Option(None, "--doc", help="The cell's docstring."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
@@ -531,6 +534,7 @@ def cells_new(
     params = {
         "slug": slug,
         "after": after,
+        "anchor": anchor,
         "docstring": docstring,
         "branch": lane,
         "intent": intent,

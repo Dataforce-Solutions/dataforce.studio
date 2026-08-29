@@ -9,10 +9,12 @@ that hosts one flow proves nothing about the one that hosts two.
 import asyncio
 import json
 import shutil
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from lumlflow.flow.daemon import envs, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession
 from lumlflow.flow.dsl import portable
@@ -46,6 +48,11 @@ class Train:
     def materialize(self, ctx):
         return {"model": "WEIGHTS"}
 """
+
+NOTE_CELL = '''
+class Note:
+    """A note placed among the compute cells."""
+'''
 
 
 async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
@@ -257,6 +264,163 @@ async def test_opening_a_flow_reports_the_settings_a_panel_renders(tmp_path: Pat
         "eager_cost_threshold_s": 5.0,
     }
     assert relaxed["settings"]["reactivity"] == "lazy"
+
+
+async def test_anchored_adds_persist_exact_keys_across_rename_and_reload(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "first", "source": NOTE_CELL})
+        await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
+        assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "placed",
+                "source": NOTE_CELL,
+                "anchor": "first",
+            }
+        )
+        once = await api.cells_list({"flow": "churn"})
+        by_slug = {cell["slug"]: cell for cell in once["cells"]}
+        placed_uid = slice_of(api.hub.session("churn"), "main")["placed"].uid
+        placed_key = yaml.safe_load((flow / "flow.yaml").read_text())["order"][
+            placed_uid
+        ]
+
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "closer",
+                "source": NOTE_CELL,
+                "anchor": "first",
+            }
+        )
+        await api.rename({"flow": "churn", "slug": "placed", "to": "renamed_placed"})
+        renamed = await api.cells_show({"flow": "churn", "slug": "renamed_placed"})
+        after = await api.cells_list({"flow": "churn"})
+        after_by_slug = {cell["slug"]: cell for cell in after["cells"]}
+
+    async with daemon_api(root) as api:
+        reloaded = await api.cells_show({"flow": "churn", "slug": "renamed_placed"})
+
+    assert (
+        Decimal(str(by_slug["first"]["order"]))
+        < Decimal(placed_key)
+        < Decimal(str(by_slug["last"]["order"]))
+    )
+    assert (
+        Decimal(str(after_by_slug["first"]["order"]))
+        < Decimal(str(after_by_slug["closer"]["order"]))
+        < Decimal(str(after_by_slug["renamed_placed"]["order"]))
+    )
+    assert (
+        yaml.safe_load((flow / "flow.yaml").read_text())["order"][placed_uid]
+        == placed_key
+    )
+    assert renamed["order"] == reloaded["order"] == placed_key
+
+
+async def test_an_unknown_or_other_lane_anchor_changes_nothing(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "shared", "source": NOTE_CELL})
+        await api.fork({"flow": "churn", "name": "exp"})
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "exp_only",
+                "source": NOTE_CELL,
+            }
+        )
+        session = api.hub.session("churn")
+        manifest_before = (flow / "flow.yaml").read_bytes()
+        journal_before = transactions(session)
+
+        with pytest.raises(FlowError, match="nowhere"):
+            await api.cells_new(
+                {
+                    "flow": "churn",
+                    "slug": "refused_unknown",
+                    "source": NOTE_CELL,
+                    "anchor": "nowhere",
+                }
+            )
+        with pytest.raises(FlowError, match="exp_only"):
+            await api.cells_new(
+                {
+                    "flow": "churn",
+                    "branch": "main",
+                    "slug": "refused_lane",
+                    "source": NOTE_CELL,
+                    "anchor": "exp_only",
+                }
+            )
+
+        assert (flow / "flow.yaml").read_bytes() == manifest_before
+        assert transactions(session) == journal_before
+        assert set(slice_of(session, "main")) == {"shared"}
+
+
+async def test_a_duplicate_is_anchored_on_its_original(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "original", "source": NOTE_CELL})
+        await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
+        original = await api.cells_show({"flow": "churn", "slug": "original"})
+
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "original_copy",
+                "source": original["source"],
+            }
+        )
+        listed = await api.cells_list({"flow": "churn"})
+
+    by_slug = {cell["slug"]: Decimal(str(cell["order"])) for cell in listed["cells"]}
+    assert by_slug["original"] < by_slug["original_copy"] < by_slug["last"]
+
+
+async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "first", "source": NOTE_CELL})
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "placed",
+                "source": NOTE_CELL,
+                "anchor": "first",
+            }
+        )
+        placed = await api.cells_show({"flow": "churn", "slug": "placed"})
+        assert placed["order"] != str(placed["created_step"])
+
+        await api.cells_delete({"flow": "churn", "slug": "placed"})
+        assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+
+        await api.rewind({"flow": "churn", "to_step": placed["created_step"]})
+        restored = await api.cells_show({"flow": "churn", "slug": "placed"})
+
+    assert restored["order"] == str(restored["created_step"])
+    assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
 
 
 async def test_removed_surfaces_are_not_api_methods(tmp_path: Path) -> None:

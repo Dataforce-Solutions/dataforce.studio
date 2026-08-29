@@ -15,6 +15,7 @@ import inspect
 import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
@@ -83,6 +84,8 @@ class Slice:
     reused: frozenset[str] = frozenset()
     #: The step each cell was minted at, store-wide — the notebook's tiebreak.
     born: dict[str, int] = field(default_factory=dict)
+    #: Flow-wide presentation keys, falling back to mint steps.
+    order: dict[str, Decimal] = field(default_factory=dict)
     #: Cells opted into eager materialization, whatever the cost threshold says.
     eager: frozenset[str] = frozenset()
     #: How to ask reactivity what it decided. Deferred, not held: answering
@@ -129,6 +132,7 @@ def read(session: "FlowSession", branch: str) -> Slice:
         env_lock_hash=index.env_lock_hash(),
         reused=frozenset(index.reused_baselines(record.branch_id)),
         born=index.creation_steps(),
+        order=session.store.effective_order(),
         eager=frozenset(session.store.manifest.settings.eager),
         reactivity=lambda: session.planner.auto_verdicts(branch),
     )
@@ -167,6 +171,7 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
         # The mint order, which is what breaks ties in the notebook's column:
         # sorting siblings by name would move a card whenever one is renamed.
         "created_step": here.born.get(uid, 0),
+        "order": format(here.order.get(uid, Decimal(here.born.get(uid, 0))), "f"),
         "changed_step": version.created_step,
         "older_env": _older_env(here, mat),
         # A memo hit put this result here: the cost below is what the run cost

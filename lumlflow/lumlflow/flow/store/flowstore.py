@@ -10,6 +10,7 @@ import threading
 import traceback
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import yaml
@@ -211,7 +212,70 @@ class FlowStore:
         self._index_stale = False
 
     def save_manifest(self) -> None:
+        self._drop_unselected_order_entries()
         _write_manifest(self.flow_dir, self.manifest)
+
+    def effective_order(self) -> dict[str, Decimal]:
+        born = self.index.creation_steps()
+        fallback = {
+            uid: Decimal(born[uid]) for uid in self._selected_uids() if uid in born
+        }
+        raw = self.manifest.order or {}
+        mapped = {
+            uid: key
+            for uid in fallback
+            if (key := _order_decimal(raw.get(uid))) is not None
+        }
+
+        while True:
+            effective = {
+                uid: mapped.get(uid, created) for uid, created in fallback.items()
+            }
+            collisions: dict[Decimal, list[str]] = {}
+            for uid, key in effective.items():
+                collisions.setdefault(key, []).append(uid)
+            invalid = {
+                uid
+                for uids in collisions.values()
+                if len(uids) > 1
+                for uid in uids
+                if uid in mapped
+            }
+            if not invalid:
+                return effective
+            for uid in invalid:
+                mapped.pop(uid)
+
+    def order_after(self, anchor_uid: str) -> str:
+        effective = self.effective_order()
+        if anchor_uid not in effective:
+            raise FlowError("the anchor is no longer selected on any lane")
+        lower = effective[anchor_uid]
+        upper = min((key for key in effective.values() if key > lower), default=None)
+        if upper is None:
+            upper = Decimal(self.next_step)
+        if upper <= lower:
+            raise FlowError("the anchor's order must be earlier than the next step")
+        return _order_text(_exact_midpoint(lower, upper))
+
+    def _selected_uids(self) -> set[str]:
+        return {
+            uid
+            for branch in self.index.branches()
+            for uid in self.index.selections(branch.branch_id)
+        }
+
+    def _drop_unselected_order_entries(self) -> None:
+        if self.manifest.order is None:
+            return
+        selected = self._selected_uids()
+        known = set(self.index.creation_steps())
+        rebuilding = set(self.manifest.cells.values()) - known
+        self.manifest.order = {
+            uid: key
+            for uid, key in self.manifest.order.items()
+            if uid in selected or uid in rebuilding
+        } or None
 
     def close(self) -> None:
         self.index.close()
@@ -296,8 +360,46 @@ def _read_manifest(flow_dir: Path) -> FlowManifest:
 
 
 def _write_manifest(flow_dir: Path, manifest: FlowManifest) -> None:
-    body = yaml.safe_dump(manifest.model_dump(mode="json"), sort_keys=False)
+    payload = manifest.model_dump(mode="json")
+    if payload.get("order") is None:
+        payload.pop("order", None)
+    body = yaml.safe_dump(payload, sort_keys=False)
     atomic_write_bytes(manifest_path(flow_dir), body.encode("utf-8"))
+
+
+def _order_decimal(value: object) -> Decimal | None:
+    try:
+        key = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return key if key.is_finite() else None
+
+
+def _exact_midpoint(lower: Decimal, upper: Decimal) -> Decimal:
+    lower_tuple = lower.as_tuple()
+    upper_tuple = upper.as_tuple()
+    exponent = min(int(lower_tuple.exponent), int(upper_tuple.exponent))
+
+    def scaled(value: Decimal) -> int:
+        parts = value.as_tuple()
+        coefficient = int("".join(str(digit) for digit in parts.digits) or "0")
+        if parts.sign:
+            coefficient = -coefficient
+        return coefficient * 10 ** (int(parts.exponent) - exponent)
+
+    # Coefficient arithmetic keeps the midpoint exact regardless of the active
+    # Decimal context; repeated insertion may need more than its 28 digits.
+    coefficient = (scaled(lower) + scaled(upper)) * 5
+    sign = int(coefficient < 0)
+    digits = tuple(int(digit) for digit in str(abs(coefficient))) or (0,)
+    return Decimal((sign, digits, exponent - 1))
+
+
+def _order_text(value: Decimal) -> str:
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return "0" if text in {"", "-0"} else text
 
 
 def _git_repo_root(path: Path) -> Path | None:

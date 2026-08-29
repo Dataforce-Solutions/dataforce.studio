@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 import typer.main
+import yaml
 from lumlflow.cli import app
 from lumlflow.flow import render
 from lumlflow.flow.daemon import client
@@ -217,10 +218,26 @@ def test_cells_new_after_prefills_the_wiring_and_the_signature(
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("cells", "list")
 
-    cli("cells", "new", "report", "--after", "score", "--doc", "Reads the score.")
+    cli(
+        "cells",
+        "new",
+        "report",
+        "--after",
+        "score",
+        "--doc",
+        "Reads the score.",
+    )
+    anchored = cli(
+        "cells", "new", "note", "--anchor", "score", "--doc", "Beside score."
+    )
     source = (workspace / "churn.flow" / "cells" / "report.py").read_text("utf-8")
     wired = cli("graph")
+    order = yaml.safe_load((workspace / "churn.flow" / "flow.yaml").read_text())[
+        "order"
+    ]
 
+    assert anchored.exit_code == 0, anchored.output
+    assert len(order) == 2
     assert 'consumes = {"summary": "score.summary"}' in source
     assert "def materialize(self, ctx, summary):" in source
     assert "from __future__ import annotations" in source

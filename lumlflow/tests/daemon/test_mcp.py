@@ -489,6 +489,7 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert old["capabilities"] == {"tools": {}, "resources": {}}
     assert set(tools) == {tool.name for tool in mcp.TOOLS}
     assert tools["edit-cell"]["inputSchema"]["required"] == ["slug", "source", "intent"]
+    assert "anchor" in tools["new-cell"]["inputSchema"]["properties"]
     assert "lane" in tools["run"]["inputSchema"]["properties"]
     assert "directory" in tools["status"]["inputSchema"]["properties"]
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]

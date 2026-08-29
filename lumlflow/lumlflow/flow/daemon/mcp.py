@@ -188,6 +188,7 @@ TOOLS: tuple[_Tool, ...] = (
             _Arg("slug", "string", "The cell's name, lowercase."),
             _Arg("source", "string", "The whole cell file. Scaffolded when absent."),
             _Arg("after", "string", "Prefill `consumes` from this cell's outputs."),
+            _Arg("anchor", "string", "Place the new cell directly after this cell."),
             _Arg("docstring", "string", "What the cell is for."),
             _INTENT,
         ),
