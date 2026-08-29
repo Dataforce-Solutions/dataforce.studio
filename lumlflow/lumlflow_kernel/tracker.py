@@ -31,6 +31,64 @@ class ExperimentRef:
     snapshot: dict[str, dict[str, Any]]
 
 
+class Experiment:
+    """A read-only view of an experiment in the tracker."""
+
+    def __init__(self, client: SdkTrackerClient, ref: ExperimentRef) -> None:
+        self._client = client
+        self._ref = ref
+
+    @property
+    def id(self) -> str:
+        self._record()
+        return self._ref.experiment_id
+
+    @property
+    def params(self) -> dict[str, Any]:
+        record = self._record()
+        return dict(getattr(record, "static_params", {}) or {})
+
+    @property
+    def metrics(self) -> dict[str, Any]:
+        record = self._record()
+        return dict(getattr(record, "dynamic_params", {}) or {})
+
+    def metric_history(self, name: str) -> list[dict[str, Any]]:
+        self._record()
+        try:
+            history = self._client.get_experiment_metric_history(
+                self._ref.experiment_id, str(name)
+            )
+        except TrackerError as failure:
+            self._record()
+            raise self._unreachable(failure) from None
+        return [dict(point) for point in history]
+
+    def _record(self) -> Any:
+        if self._ref.store.expanduser().resolve() != self._client.store.resolve():
+            raise TrackerError(
+                f"experiment `{self._ref.experiment_id}` is unreachable: it was "
+                f"recorded in tracker store `{self._ref.store}`, but this kernel "
+                f"uses `{self._client.store}`"
+            )
+        try:
+            record = self._client.get_experiment_record(self._ref.experiment_id)
+        except TrackerError as failure:
+            raise self._unreachable(failure) from None
+        if record is None:
+            raise TrackerError(
+                f"experiment `{self._ref.experiment_id}` is missing from tracker "
+                f"store `{self._ref.store}`; run the cell that produced it again"
+            )
+        return record
+
+    def _unreachable(self, failure: TrackerError) -> TrackerError:
+        return TrackerError(
+            f"experiment `{self._ref.experiment_id}` is unreachable in tracker "
+            f"store `{self._ref.store}`: {failure}"
+        )
+
+
 def tracker_store() -> Path:
     raw = os.environ.get("BACKEND_STORE_URI") or os.environ.get(
         "LUML_BACKEND_STORE_URI", _DEFAULT_STORE

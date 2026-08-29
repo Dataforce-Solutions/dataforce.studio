@@ -37,6 +37,7 @@ from lumlflow_kernel.ctxobj import EXTERNAL, IDENTITY, Ctx
 from lumlflow_kernel.kinds import preview as previews
 from lumlflow_kernel.kinds.registry import Registry
 from lumlflow_kernel.tracker import (
+    Experiment,
     ExperimentRef,
     SdkTrackerClient,
     Tracker,
@@ -131,6 +132,7 @@ class Executor:
         outputs: dict[str, dict[str, Any]] = {}
         error: dict[str, Any] | None = None
         tracker: Tracker | None = None
+        experiment_client: SdkTrackerClient | None = None
         tracker_close_error: str | None = None
         tracker_sdk_warning: str | None = None
         identity = self._experiment_identity(request, version, ctx_info, run_id)
@@ -144,12 +146,14 @@ class Executor:
                             os.chdir(self._workspace_dir)
                             if _uses_experiment(version, declared):
                                 store = tracker_store()
-                                client, tracker_sdk_warning = self._experiment_tracker(
-                                    store, self._warn_sdk_version
+                                experiment_client, tracker_sdk_warning = (
+                                    self._experiment_tracker(
+                                        store, self._warn_sdk_version
+                                    )
                                 )
                                 if _declares_experiment(version):
                                     tracker = Tracker.start(
-                                        client,
+                                        experiment_client,
                                         name=version.slug,
                                         group=identity["flow"],
                                         tags=[identity["lane"], version.slug],
@@ -168,7 +172,9 @@ class Executor:
                                     self._emit("experiment_started", event)
                                     tracker.initialize({"lumlflow": identity})
                             cell = _instantiate(version)
-                            inputs = self._load_inputs(version, declared)
+                            inputs = self._load_inputs(
+                                version, declared, experiment_client
+                            )
                             returned = cell.materialize(
                                 self._ctx(
                                     version,
@@ -362,7 +368,12 @@ class Executor:
             observed.external = True
             self._emit("external_access", {"slug": version.slug, "detail": detail})
 
-    def _load_inputs(self, version: Version, inputs: dict[str, Any]) -> dict[str, Any]:
+    def _load_inputs(
+        self,
+        version: Version,
+        inputs: dict[str, Any],
+        experiment_client: SdkTrackerClient | None,
+    ) -> dict[str, Any]:
         loaded = {}
         for name, spec in inputs.items():
             value_ref = str((spec or {}).get("value_ref") or "")
@@ -372,7 +383,12 @@ class Executor:
                     f"`{version.slug}` needs `{name}`, whose value is not stored — "
                     "run the cell that produces it"
                 )
-            loaded[name] = self._deserialize(self._registry.get(kind), kind, value_ref)
+            value = self._deserialize(self._registry.get(kind), kind, value_ref)
+            if kind == "experiment":
+                if experiment_client is None or not isinstance(value, ExperimentRef):
+                    raise CellError("stored experiment reference is invalid")
+                value = Experiment(experiment_client, value)
+            loaded[name] = value
         return loaded
 
     def _deserialize(self, asset_type: Any, kind: str, value_ref: str) -> Any:

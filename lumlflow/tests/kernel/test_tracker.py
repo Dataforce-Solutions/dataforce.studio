@@ -174,6 +174,202 @@ def test_ctx_tracker_without_an_experiment_output_fails_in_words(
     assert "declare an `experiment` output" in record["error"]["message"]
 
 
+def test_a_consumer_reads_the_live_experiment_without_observation_marks(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            ctx.tracker.log_param("optimizer", "adamw")
+            ctx.tracker.log_metric("rmse", 0.8, step=1)
+            ctx.tracker.log_metric("rmse", 0.4, step=2)
+            return {"metrics": ctx.tracker.record}
+        """,
+        slug="evaluate",
+        run_id="evaluate-run",
+        produces={"metrics": "experiment"},
+        params={"folds": 5},
+        identity=_identity(kernel, run_id="evaluate-run"),
+    )
+    consumed = run(
+        kernel,
+        """
+        def materialize(self, ctx, metrics):
+            params = metrics.params
+            params["local-only"] = True
+            return {
+                "seen": {
+                    "id": metrics.id,
+                    "params": metrics.params,
+                    "metrics": metrics.metrics,
+                    "history": [
+                        (point["step"], point["value"])
+                        for point in metrics.metric_history("rmse")
+                    ],
+                    "has_writer": hasattr(metrics, "log_metric"),
+                }
+            }
+        """,
+        slug="report",
+        run_id="report-run",
+        produces={"seen": "asset"},
+        inputs={"metrics": _input(produced, "metrics")},
+    )
+
+    experiment = _only_experiment(ExperimentTracker(f"sqlite://{tracker_store}"))
+    seen_spec = consumed["outputs"]["seen"]
+    seen = kernel.executor.fresh(seen_spec["value_ref"], seen_spec["kind"])
+    assert consumed["state"] == "succeeded"
+    assert consumed["identity_dependent"] is False
+    assert consumed["external"] is False
+    assert seen == {
+        "id": experiment.id,
+        "params": {"folds": 5, "optimizer": "adamw"},
+        "metrics": {"rmse": 0.4},
+        "history": [(1, 0.8), (2, 0.4)],
+        "has_writer": False,
+    }
+
+
+def test_a_consumer_without_the_sdk_fails_before_its_code_runs(
+    tmp_path: Path,
+    tracker_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, _ = make_kernel(tmp_path)
+    produced = run(
+        producer,
+        """
+        def materialize(self, ctx):
+            return {"metrics": ctx.tracker.record}
+        """,
+        produces={"metrics": "experiment"},
+        identity=_identity(producer),
+    )
+    tracker = ExperimentTracker(f"sqlite://{tracker_store}")
+    experiment_id = _only_experiment(tracker).id
+    consumer, _ = make_kernel(tmp_path)
+    marker = tmp_path / "consumer-ran"
+    real_import = builtins.__import__
+
+    def import_without_sdk(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "luml" or name.startswith("luml."):
+            raise ModuleNotFoundError("No module named 'luml'", name="luml")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_sdk)
+    record = run(
+        consumer,
+        f"""
+        def materialize(self, ctx, metrics):
+            from pathlib import Path
+            Path({str(marker)!r}).write_text("ran")
+            return {{"seen": metrics.id}}
+        """,
+        slug="report",
+        produces={"seen": "asset"},
+        inputs={"metrics": _input(produced, "metrics")},
+    )
+
+    assert record["state"] == "failed"
+    assert "luml-sdk" in record["error"]["message"]
+    assert record["outputs"] == {}
+    assert [experiment.id for experiment in tracker.list_experiments()] == [
+        experiment_id
+    ]
+    assert not marker.exists()
+
+
+def test_accessing_a_removed_experiment_fails_in_words(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            ctx.tracker.log_metric("rmse", 0.4)
+            return {"metrics": ctx.tracker.record}
+        """,
+        produces={"metrics": "experiment"},
+        identity=_identity(kernel),
+    )
+    tracker = ExperimentTracker(f"sqlite://{tracker_store}")
+    experiment = _only_experiment(tracker)
+    tracker.delete_experiment(experiment.id)
+    marker = tmp_path / "consumer-reached-access"
+
+    record = run(
+        kernel,
+        f"""
+        def materialize(self, ctx, metrics):
+            from pathlib import Path
+            Path({str(marker)!r}).write_text("accessing")
+            return {{"seen": metrics.metrics}}
+        """,
+        slug="report",
+        produces={"seen": "asset"},
+        inputs={"metrics": _input(produced, "metrics")},
+    )
+
+    message = record["error"]["message"]
+    assert record["state"] == "failed"
+    assert "missing" in message
+    assert experiment.id in message
+    assert str(tracker_store) in message
+    assert marker.exists()
+
+
+def test_an_unreachable_experiment_fails_at_access(
+    tmp_path: Path,
+    tracker_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from luml.experiments import tracker as sdk_tracker
+
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"metrics": ctx.tracker.record}
+        """,
+        produces={"metrics": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    def refuse_read(client: Any, experiment_id: str) -> None:
+        raise RuntimeError("tracker schema is not readable")
+
+    monkeypatch.setattr(
+        sdk_tracker.ExperimentTracker, "get_experiment_record", refuse_read
+    )
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx, metrics):
+            return {"seen": metrics.params}
+        """,
+        slug="report",
+        produces={"seen": "asset"},
+        inputs={"metrics": _input(produced, "metrics")},
+    )
+
+    message = record["error"]["message"]
+    assert record["state"] == "failed"
+    assert "unreachable" in message
+    assert "tracker schema is not readable" in message
+    assert str(tracker_store) in message
+
+
 def test_the_experiment_start_is_reported_before_materialize(
     tmp_path: Path, tracker_store: Path
 ) -> None:
@@ -751,6 +947,11 @@ def _only_experiment(tracker: ExperimentTracker) -> Any:
     experiment = tracker.get_experiment_record(experiments[0].id)
     assert experiment is not None
     return experiment
+
+
+def _input(record: dict[str, Any], output: str) -> dict[str, Any]:
+    stored = record["outputs"][output]
+    return {"value_ref": stored["value_ref"], "kind": stored["kind"]}
 
 
 def _await(condition: Callable[[], bool]) -> None:
