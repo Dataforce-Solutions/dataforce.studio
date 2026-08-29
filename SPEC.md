@@ -1152,10 +1152,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Mirror socket-door errors on the HTTP door
   - [x] HTTP door mirrors the socket door's exception mapping (JSON 400 for `FlowError`, JSON 500 with the message otherwise, CORS headers on both, the traceback never in the reply); numeric params coerced through a `FlowError`-raising helper; the traceback goes wherever the daemon's exceptions go today until the logging task routes them to the rotated file
   - [x] Tests in `tests/daemon/test_web.py`: `to_step: "abc"`, a non-`FlowError` exception whose reply is JSON and holds no traceback
-- [ ] Validate slugs and harden the CLI download path
-  - [ ] Slug rule shared by `cells.new`, `rename`, `import`; assert paths under `cells/` in acceptance and projection; `rename` to a taken name raises
-  - [ ] `asset.download` refuses to overwrite without `force` and refuses a relative `to`; CLI `--force`, the CLI keeping its absolute `--to` (or its cwd) as today; the HTTP door refuses the `asset.download` method outright, with or without `to`
-  - [ ] Tests: `../../escaped`, `../out`, empty `to`, an import carrying a path-shaped cell name, taken name, overwrite refusal, a relative `to` over the socket refused, HTTP refusal with `to` and — writing nothing into the daemon's cwd — without it
+- [x] Validate slugs and harden the CLI download path
+  - [x] Slug rule shared by `cells.new`, `rename`, `import`; assert paths under `cells/` in acceptance and projection; `rename` to a taken name raises
+  - [x] `asset.download` refuses to overwrite without `force` and refuses a relative `to`; CLI `--force`, the CLI keeping its absolute `--to` (or its cwd) as today; the HTTP door refuses the `asset.download` method outright, with or without `to`
+  - [x] Tests: `../../escaped`, `../out`, empty `to`, an import carrying a path-shaped cell name, taken name, overwrite refusal, a relative `to` over the socket refused, HTTP refusal with `to` and — writing nothing into the daemon's cwd — without it
 - [ ] Fix lane semantics for adopt, delete, import and clashes
   - [ ] `adopt` of a renamed cell rewires consumers by uid; `cells.delete` re-accepts dangling consumers on any lane; `import` rewires after carrying; uid recovered from text when the AST fails; forced-adopt clash resolved deterministically with the adopted uid re-accepted
   - [ ] Tests in `tests/daemon/test_api.py` / `test_reconcile.py`: adopt of a renamed cell keeps consumers synced; delete on an off-disk lane flags consumers; an import rename rewires and a mid-edit `mv` keeps the uid; a forced adopt clash is deterministic

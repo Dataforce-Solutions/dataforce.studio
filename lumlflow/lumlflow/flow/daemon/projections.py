@@ -9,7 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from lumlflow.flow.atomic import atomic_write_bytes, unlink_retry
-from lumlflow.flow.dsl.accept import CELL_SUFFIX, cell_paths, cell_source_matches
+from lumlflow.flow.dsl.accept import (
+    CELL_SUFFIX,
+    assert_cell_path,
+    cell_paths,
+    cell_source_matches,
+)
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FlowStore
 from lumlflow.flow.store.index import BranchRow
@@ -87,10 +92,11 @@ class Worktree:
         written, keep = [], set()
         for _uid, version in sorted(here.items(), key=lambda item: item[1].slug):
             path = self.cells_dir / f"{version.slug}{CELL_SUFFIX}"
-            keep.add(path.name.lower())
-            source = self._store.objects.get(version.raw_source_ref)
             if path.is_symlink() and not path.exists():
                 continue
+            assert_cell_path(path, self.cells_dir)
+            keep.add(path.name.casefold())
+            source = self._store.objects.get(version.raw_source_ref)
             if path.exists():
                 try:
                     held = path.read_bytes()
@@ -102,11 +108,14 @@ class Worktree:
             written.append(version.slug)
         removed = []
         for path in cell_paths(self.cells_dir):
+            if path.is_symlink() and not path.exists():
+                continue
+            assert_cell_path(path, self.cells_dir)
             # Case-insensitively: slugs are lowercase, so a file the author
             # called `Features.py` *is* the cell `features` on the filesystems
             # that cannot tell them apart, and deleting it would delete the
             # cell this projection had just decided to keep.
-            if path.name.lower() not in keep:
+            if path.name.casefold() not in keep:
                 try:
                     path.read_bytes()
                 except OSError:

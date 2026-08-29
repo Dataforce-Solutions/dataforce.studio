@@ -20,7 +20,13 @@ from typing import TYPE_CHECKING, Literal
 
 from lumlflow.flow.atomic import atomic_write_bytes
 from lumlflow.flow.dsl import loader, normalize
-from lumlflow.flow.dsl.accept import AcceptedCell, Batch, CellReadError, cell_paths
+from lumlflow.flow.dsl.accept import (
+    CELL_SUFFIX,
+    AcceptedCell,
+    Batch,
+    CellReadError,
+    cell_paths,
+)
 from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.hashing import hash_bytes
 from lumlflow.flow.store.models import (
@@ -202,6 +208,9 @@ def _accept_files(
         deferred_rewires: list[AcceptedCell] = []
         read: list[tuple[Path, str]] = []
         for path in cell_paths(cells):
+            if path.is_symlink() and not path.exists():
+                unreadable = True
+                continue
             unmoved = level.uid_of(path)
             if unmoved is not None:
                 seen.add(unmoved)
@@ -434,6 +443,9 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
     here = store.index.slice_versions(branch_id)
     completed: list[str] = []
     for uid, version in sorted(here.items(), key=lambda item: item[1].slug):
+        candidate = session.worktree.cells_dir / f"{version.slug}{CELL_SUFFIX}"
+        if candidate.is_symlink() and not candidate.exists():
+            continue
         path = session.acceptance.cell_path(version.slug)
         if not path.exists():
             continue

@@ -633,6 +633,7 @@ def asset_download(
     to: Path | None = typer.Option(None, "--to", help="Where to write it."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing file."),
     as_json: bool = _JSON,
 ) -> None:
     """Copy a stored value out of the flow."""
@@ -640,6 +641,7 @@ def asset_download(
         "target": target,
         "branch": lane,
         "to": str(Path(to).resolve()) if to else str(Path.cwd()),
+        "force": force,
     }
     result = _call("asset.download", params, flow=flow, as_json=as_json)
     _emit(

@@ -279,6 +279,46 @@ def test_an_unexpected_failure_is_json_without_its_traceback(served: Served) -> 
     assert "Traceback" not in answer.text
 
 
+def test_http_refuses_asset_download_without_writing_anywhere(
+    served: Served, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    served.rpc("flow.open", {"flow": "churn"})
+    served.rpc("run", {"flow": "churn", "target": "score"})
+    daemon_cwd = tmp_path / "daemon-cwd"
+    daemon_cwd.mkdir()
+    monkeypatch.chdir(daemon_cwd)
+    destination = tmp_path / "downloaded.summary"
+    headers = {web.TOKEN_HEADER: TOKEN}
+
+    with_to = served.http.post(
+        web.RPC_PATH,
+        json={
+            "method": "asset.download",
+            "params": {
+                "flow": "churn",
+                "target": "score.summary",
+                "to": str(destination),
+            },
+        },
+        headers=headers,
+    )
+    without_to = served.http.post(
+        web.RPC_PATH,
+        json={
+            "method": "asset.download",
+            "params": {"flow": "churn", "target": "score.summary"},
+        },
+        headers=headers,
+    )
+
+    for answer in (with_to, without_to):
+        assert answer.status_code == 400
+        assert answer.json()["error"]["kind"] == "FlowError"
+        assert "asset.download" in answer.json()["error"]["message"]
+    assert not destination.exists()
+    assert list(daemon_cwd.iterdir()) == []
+
+
 def test_a_subscriber_is_caught_up_and_then_kept_up(served: Served):
     served.rpc("flow.open", {"flow": "churn"})
 

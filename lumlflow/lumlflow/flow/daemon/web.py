@@ -85,7 +85,11 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         message = await _message(request)
         if message is None:
             return _failed("unreadable message", status=_REFUSED)
-        method = api.methods.get(str(message.get("method")))
+        method_name = str(message.get("method"))
+        if method_name == "asset.download":
+            failure = FlowError("`asset.download` is available only over the socket")
+            return _failed(str(failure), status=_REFUSED, kind=type(failure).__name__)
+        method = api.methods.get(method_name)
         if method is None:
             return _failed(f"no method `{message.get('method')}`", status=_NO_METHOD)
         try:

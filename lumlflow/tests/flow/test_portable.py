@@ -57,7 +57,16 @@ def test_a_file_that_is_not_an_export_says_what_writes_one():
 
 
 @pytest.mark.parametrize(
-    "name", ["../../escape", "sub/score", "sub\\score", ".hidden", "", "sco\x00re"]
+    "name",
+    [
+        "../../escape",
+        "score..backup",
+        "sub/score",
+        "sub\\score",
+        ".hidden",
+        "",
+        "sco\x00re",
+    ],
 )
 def test_a_name_that_could_be_a_path_is_refused(name: str):
     """The file came from outside the workspace, and the name in it becomes a

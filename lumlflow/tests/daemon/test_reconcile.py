@@ -601,7 +601,7 @@ async def test_editor_links_and_an_undecodable_cell_do_not_break_reconciliation(
     cells = root / "churn.flow" / "cells"
     (cells / ".#score.py").symlink_to("missing.py")
     (cells / "._score.py").symlink_to("also-missing.py")
-    (cells / "dangling.py").symlink_to("not-there.py")
+    (cells / "dangling.py").symlink_to("../../not-there.py")
     latin1_path = cells / "latin1.py"
     latin1_source = b'class Latin1:\n    """caf\xe9"""\n'
     latin1_path.write_bytes(latin1_source)

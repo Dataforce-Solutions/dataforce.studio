@@ -51,7 +51,7 @@ class Binding:
 def lowercase_slug(stem: str) -> tuple[str, list[VersionFlag]]:
     """Slugs are lowercase — case-insensitive filesystems make anything else a
     collision waiting to happen."""
-    slug = stem.lower()
+    slug = stem.casefold()
     if slug == stem:
         return slug, []
     return slug, [

@@ -543,6 +543,30 @@ async def test_paging_a_value_starts_the_kernel_the_preview_never_needed(
     assert paged["page"]["total_rows"] == 50
 
 
+async def test_asset_download_refuses_a_relative_socket_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        daemon_cwd = tmp_path / "daemon-cwd"
+        daemon_cwd.mkdir()
+        monkeypatch.chdir(daemon_cwd)
+
+        with pytest.raises(FlowError, match=r"`to`.*absolute"):
+            await api.asset_download(
+                {
+                    "flow": "churn",
+                    "target": "train.model",
+                    "to": "relative.model",
+                }
+            )
+
+    assert list(daemon_cwd.iterdir()) == []
+
+
 async def test_a_half_written_cell_never_stops_the_flow(tmp_path: Path):
     """Agents iterate through broken states; a rescan that refused one would
     stall the loop it exists to serve."""

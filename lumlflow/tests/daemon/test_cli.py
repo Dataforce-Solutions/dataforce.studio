@@ -549,6 +549,37 @@ def test_an_output_with_no_bytes_says_what_to_do_about_it(cli: Invoke, workspace
     assert "run `score` first" in answered["error"]
 
 
+def test_asset_download_refuses_to_overwrite_unless_forced(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
+    ran = cli("run", "score")
+    destination = workspace / "train.model"
+    destination.write_bytes(b"keep me")
+
+    refused = cli("asset", "download", "score.summary", "--to", "./train.model")
+    held = destination.read_bytes()
+    forced = cli(
+        "asset",
+        "download",
+        "score.summary",
+        "--to",
+        "./train.model",
+        "--force",
+    )
+
+    assert ran.exit_code == 0
+    assert refused.exit_code == 1
+    assert str(destination) in refused.output
+    assert "already exists" in refused.output
+    assert held == b"keep me"
+    assert forced.exit_code == 0
+    assert destination.read_bytes() != b"keep me"
+    _no_internals(refused)
+    _no_internals(forced)
+
+
 def test_promote_is_not_a_command(cli: Invoke) -> None:
     removed = cli("promote")
 

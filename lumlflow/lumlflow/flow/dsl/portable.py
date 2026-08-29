@@ -66,7 +66,7 @@ def read(text: str) -> list[PortableCell]:
             continue
         if slug is not None:
             cells.append(PortableCell(slug=slug, source=_body("\n".join(body))))
-        slug, body = _cell_name(line[len(MARKER) :], number), []
+        slug, body = cell_name(line[len(MARKER) :], line=number), []
     if slug is not None:
         cells.append(PortableCell(slug=slug, source=_body("\n".join(body))))
     if not cells and not text.lstrip().startswith(HEADER):
@@ -91,15 +91,19 @@ def _body(source: str) -> str:
     return source.rstrip("\n") + "\n"
 
 
-def _cell_name(raw: str, line: int) -> str:
+def cell_name(raw: str, *, line: int | None = None) -> str:
     """The name the block's cell answers to — a filename, never a path.
 
     Case is left to acceptance, which lowercases it and says so, exactly as it
     does for a file somebody named `Features.py`.
     """
     slug = raw.strip()
-    if not slug or slug.startswith(".") or _UNSAFE.search(slug):
-        raise FlowError(f"line {line}: `{slug}` is not a name a cell can have")
+    if not slug or slug.startswith(".") or ".." in slug or _UNSAFE.search(slug):
+        location = f"line {line}: " if line is not None else ""
+        raise FlowError(
+            f"{location}`{slug}` is not a name a cell can have. use a non-empty "
+            "name without path separators, `..`, control characters or a leading dot"
+        )
     return slug
 
 

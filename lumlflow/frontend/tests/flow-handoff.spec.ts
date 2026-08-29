@@ -435,6 +435,34 @@ describe('the activity feed is read-only and opens at the cursor', () => {
     wrapper.unmount()
   })
 
+  it('shows a projection-completion cell note in the activity feed', async () => {
+    const sentence =
+      'projection completed for `features`; use `rewind` to keep the file\'s bytes instead'
+    const { wrapper } = await workbench({
+      journal: [
+        transaction(11, {
+          actor: 'system',
+          intent: sentence,
+          ops: [
+            {
+              op: 'cell_noted',
+              uid: 'cell-features',
+              kind: 'projection_completed',
+              sentence,
+              version_id: 'version-features',
+            },
+          ],
+        }),
+      ],
+      caughtUpAt: 11,
+    })
+
+    await openPanel(wrapper, 'activity')
+
+    expect(wrapper.text()).toContain(sentence)
+    wrapper.unmount()
+  })
+
 })
 
 // --- the scratch REPL --------------------------------------------------------

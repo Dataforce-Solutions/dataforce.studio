@@ -65,6 +65,12 @@ def cell_source_matches(
     )
 
 
+def assert_cell_path(path: Path, cells_dir: Path) -> None:
+    boundary = cells_dir.parent.resolve() / cells_dir.name
+    if path.resolve().parent != boundary:
+        raise AssertionError(f"cell path must resolve directly under {boundary}")
+
+
 class CellReadError(OSError):
     pass
 
@@ -149,7 +155,10 @@ class Acceptance:
         self._store = store
 
     def cell_path(self, slug: str) -> Path:
-        return self._store.flow_dir / CELLS_DIRNAME / f"{slug}{CELL_SUFFIX}"
+        cells_dir = self._store.flow_dir / CELLS_DIRNAME
+        path = cells_dir / f"{slug}{CELL_SUFFIX}"
+        assert_cell_path(path, cells_dir)
+        return path
 
     def accept_path(
         self,
@@ -166,6 +175,7 @@ class Acceptance:
         Valid UTF-8 is decoded without newline translation. Undecodable bytes
         are represented with replacement characters and never written back.
         """
+        assert_cell_path(path, self._store.flow_dir / CELLS_DIRNAME)
         try:
             data = path.read_bytes()
         except OSError as error:
@@ -432,6 +442,7 @@ class Acceptance:
         """Everything the version will say, before anything is written down."""
         parsed = loader.parse(source)
         slug, naming = normalize.lowercase_slug(stem)
+        self.cell_path(slug)
         identity = self._identify(
             slug, parsed.cell, here, path=path, given=given, fresh=fresh
         )

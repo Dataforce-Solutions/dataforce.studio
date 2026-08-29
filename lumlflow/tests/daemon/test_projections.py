@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from lumlflow.flow.errors import EditConflict
+from lumlflow.flow.errors import EditConflict, FlowError
 from lumlflow.flow.store.models import CellAccepted, CellRemoved, Renamed, WorktreeBound
 
 from tests.daemon.helpers import (
@@ -462,6 +462,79 @@ async def test_adding_a_cell_never_lands_on_the_one_already_named_that(
     assert "0.91" in bodies["score"] and "0.77" in bodies["score_2"]
     assert here["score"].author == "user"
     assert cell_files(root / "churn.flow") == ["score", "score_2"]
+
+
+async def test_path_shaped_cell_names_leave_the_lane_and_files_unchanged(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")
+        journal_before = transactions(session)
+
+        with pytest.raises(FlowError, match="path separators"):
+            await api.cells_new(
+                {"flow": "churn", "slug": "../../escaped", "source": SCORE_CELL}
+            )
+        with pytest.raises(FlowError, match="path separators"):
+            await api.rename({"flow": "churn", "slug": "score", "to": "../out"})
+        with pytest.raises(FlowError, match="non-empty"):
+            await api.rename({"flow": "churn", "slug": "score", "to": ""})
+
+        after = slice_of(session, "main")
+        journal_after = transactions(session)
+
+    assert after == before
+    assert journal_after == journal_before
+    assert cell_files(flow) == ["score"]
+    assert not (root / "escaped.py").exists()
+    assert not (flow / "out.py").exists()
+
+
+async def test_projection_ignores_a_dangling_cell_symlink_outside_cells(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    score = write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        score.unlink()
+        score.symlink_to("../../missing.py")
+
+        checked_out = await api.flow_checkout({"flow": "churn", "branch": "main"})
+        here = slice_of(api.hub.session("churn"), "main")
+
+    assert checked_out["projected"] == {"written": [], "removed": []}
+    assert list(here) == ["score"]
+    assert score.is_symlink()
+
+
+async def test_rename_refuses_a_name_another_cell_holds(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")
+
+        with pytest.raises(FlowError, match=r"`report`.*already"):
+            await api.rename({"flow": "churn", "slug": "score", "to": "REPORT"})
+
+        after = slice_of(session, "main")
+
+    assert after == before
+    assert cell_files(flow) == ["report", "score"]
+    assert not (flow / "cells" / "report_2.py").exists()
 
 
 async def test_ending_one_session_leaves_the_other_registered(

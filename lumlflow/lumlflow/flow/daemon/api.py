@@ -267,9 +267,11 @@ class Api:
         an edit to the one that was there.
         """
         session, branch = await self._read(params)
-        slug = str(params.get("slug") or "").strip().lower()
-        if not slug:
+        raw_slug = params.get("slug")
+        if raw_slug is None:
             slug = _placeholder_slug(session, branch)
+        else:
+            slug = portable.cell_name(str(raw_slug))
         source = params.get("source") or _scaffold(
             session, params, slug=slug, branch=branch
         )
@@ -348,9 +350,16 @@ class Api:
         slug, output, record = queries.locate(here, _target(params))
         if record is None or record.value_ref is None:
             raise ValueNotStored(_unstored(slug, output, record is not None))
-        destination = Path(str(params.get("to") or f"{slug}.{output}")).expanduser()
+        destination = Path(str(params.get("to") or "")).expanduser()
+        if not destination.is_absolute():
+            raise FlowError("`to` must be an absolute path for `asset.download`")
         if destination.is_dir():
             destination = destination / f"{slug}.{output}"
+        force = params.get("force") is True
+        if (destination.exists() or destination.is_symlink()) and not force:
+            raise FlowError(
+                f"`{destination}` already exists. use `--force` to overwrite it"
+            )
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(session.store.values.path(record.value_ref), destination)
         return {
@@ -432,8 +441,16 @@ class Api:
         """
         session, branch = await self._read(params)
         actor = _actor(params)
-        old, new = str(params.get("slug") or ""), str(params.get("to") or "")
+        old = portable.cell_name(str(params.get("slug") or "")).casefold()
+        new = portable.cell_name(str(params.get("to") or ""))
         head = queries.head(session, branch, old)
+        branch_id = session.store.branches.get(branch).branch_id
+        canonical = new.casefold()
+        if any(
+            uid != head.uid and version.slug.casefold() == canonical
+            for uid, version in session.store.index.slice_versions(branch_id).items()
+        ):
+            raise FlowError(f"a cell named `{canonical}` already exists on `{branch}`")
         accepted = session.acceptance.accept_source(
             new,
             session.store.objects.get(head.raw_source_ref).decode("utf-8"),

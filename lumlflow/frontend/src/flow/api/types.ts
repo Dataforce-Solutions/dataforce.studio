@@ -107,6 +107,14 @@ export interface CellRemovedOp {
   branch_id: string
 }
 
+export interface CellNotedOp {
+  op: 'cell_noted'
+  uid: string
+  kind: 'projection_completed' | 'refresh_failed' | 'experiment_unclosed'
+  sentence: string
+  version_id: string | null
+}
+
 export interface SelectionSetOp {
   op: 'selection_set'
   branch_id: string
@@ -235,6 +243,7 @@ export type FlowOp =
   | FlowInitOp
   | CellAcceptedOp
   | CellRemovedOp
+  | CellNotedOp
   | SelectionSetOp
   | BranchCreatedOp
   | BranchArchivedOp
