@@ -6,7 +6,13 @@
     :footer-actions="footerActions"
     @update:visible="updateVisible"
   >
-    <Form id="track-edit-form" :initialValues :resolver class="form" @submit="submit">
+    <Form
+      id="track-edit-form"
+      :initialValues
+      :resolver="trackEditorResolver"
+      class="form"
+      @submit="submit"
+    >
       <div class="inputs">
         <div class="field">
           <label for="name" class="label">Name</label>
@@ -50,7 +56,7 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { deleteTrackConfirmOptions } from '@/lib/primevue/data/confirm'
-import z from 'zod'
+import { trackEditorResolver } from '@/utils/forms/resolvers'
 import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 
@@ -88,14 +94,6 @@ const footerActions = computed<FooterActions>(() => {
     },
   }
 })
-
-const resolver = zodResolver(
-  z.object({
-    name: z.string().min(1).max(100),
-    description: z.string().max(255).optional(),
-    stages: z.array(z.string().min(1).max(100)).min(1),
-  }),
-)
 
 const stagesTooltips = computed(() => {
   if (!tracksStore.editableTrack) return {}
