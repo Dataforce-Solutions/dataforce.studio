@@ -71,10 +71,12 @@ class KernelProcess:
         *,
         flow_dir: Path,
         workspace_dir: Path,
+        tracker_store: Path | None = None,
         on_event: OnEvent | None = None,
     ) -> None:
         self.flow_dir = flow_dir
         self.workspace_dir = workspace_dir
+        self.tracker_store = tracker_store.resolve() if tracker_store else None
         self.handshake: dict[str, Any] | None = None
         self.interpreter: envs.Interpreter | None = None
         # The env as it stood when this process started. Within a kernel's
@@ -243,7 +245,7 @@ class KernelProcess:
             str(self.workspace_dir),
             *(("--token-file", str(token_file)) if token_file else ()),
             cwd=str(self.workspace_dir),
-            env=spawn_environment(self.workspace_dir),
+            env=spawn_environment(self.workspace_dir, tracker_store=self.tracker_store),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
@@ -567,7 +569,9 @@ class KernelProcess:
         return self._logs.put(captured + _failure_text(error).encode("utf-8"))
 
 
-def spawn_environment(workspace_dir: Path) -> dict[str, str]:
+def spawn_environment(
+    workspace_dir: Path, *, tracker_store: Path | None = None
+) -> dict[str, str]:
     """The kernel from the tool install, the workspace for `import helpers`.
 
     Path injection is what lets the venv hold no lumlflow code: the kernel is
@@ -579,11 +583,16 @@ def spawn_environment(workspace_dir: Path) -> dict[str, str]:
         raise KernelError("this install carries no kernel package")
     existing = os.environ.get("PYTHONPATH", "")
     roots = [str(Path(installed).resolve().parent.parent), str(workspace_dir)]
-    return {
+    environment = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join([*roots, *filter(None, [existing])]),
         "PYTHONUNBUFFERED": "1",
     }
+    if tracker_store is not None:
+        store = str(tracker_store.resolve())
+        environment["BACKEND_STORE_URI"] = store
+        environment["LUML_BACKEND_STORE_URI"] = store
+    return environment
 
 
 def _run_payload(request: RunRequest) -> dict[str, Any]:

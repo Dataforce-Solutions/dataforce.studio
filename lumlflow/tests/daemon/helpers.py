@@ -30,6 +30,7 @@ from lumlflow.flow.store.flowstore import (
 )
 from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import OutputSpec, Transaction
+from lumlflow.tracker import TrackerProvider
 
 SCORE_CELL = """
 class Score:
@@ -217,9 +218,11 @@ class LocalDaemon:
 
 
 @contextlib.asynccontextmanager
-async def daemon_api(root: Path) -> AsyncIterator[Api]:
+async def daemon_api(
+    root: Path, *, tracker: TrackerProvider | None = None
+) -> AsyncIterator[Api]:
     """An API over a hub, closed — kernels and all — when the test ends."""
-    hub = Hub()
+    hub = Hub(tracker=tracker)
     try:
         yield Api(hub, directory=root)
     finally:

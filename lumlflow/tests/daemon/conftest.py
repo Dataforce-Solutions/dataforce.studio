@@ -9,11 +9,25 @@ from typing import Any
 import pytest
 from lumlflow.flow.daemon import client
 from lumlflow.flow.daemon.workspace import STATE_DIR_ENV
+from lumlflow.settings import get_tracker
+from lumlflow.tracker import ThreadSafeTracker, TrackerProvider
 
 from tests.servers import reap, stop_recorded
 
 # What a test hands a server process it started by hand, to be ended with it.
 Reap = Callable[["subprocess.Popen[Any]"], None]
+
+
+@pytest.fixture(autouse=True)
+def tracker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TrackerProvider]:
+    store = tmp_path / "experiments"
+    monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
+    monkeypatch.setenv("BACKEND_STORE_URI", str(store))
+    provider = get_tracker()
+    with provider.bind(ThreadSafeTracker(f"sqlite://{store}")):
+        yield provider
 
 
 @pytest.fixture(autouse=True)

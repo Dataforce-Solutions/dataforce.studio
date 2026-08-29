@@ -23,6 +23,7 @@ from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
+from lumlflow.tracker import TrackerProvider
 
 from tests.daemon.helpers import (
     BROKEN_CELL,
@@ -65,6 +66,20 @@ class Evaluate:
 
     def materialize(self, ctx):
         return {"metrics": ctx.tracker.record}
+"""
+
+TRACKER_STORE_CELL = """
+class Tracked:
+    produces = {"run": "experiment"}
+
+    def materialize(self, ctx):
+        import os
+        from luml.experiments.tracker import ExperimentTracker
+
+        tracker = ExperimentTracker(f"sqlite://{os.environ['BACKEND_STORE_URI']}")
+        experiment_id = tracker.start_experiment(name="fixture-probe", group="churn")
+        tracker.end_experiment(experiment_id)
+        return {"run": ctx.tracker.record}
 """
 
 NOTE_CELL = '''
@@ -344,6 +359,26 @@ async def test_downstream_scaffolds_an_experiment_when_it_is_the_only_output(
 
     assert report["consumes"] == {"metrics": "evaluate.metrics"}
     assert "def materialize(self, ctx, metrics):" in report["source"]
+
+
+async def test_an_experiment_cell_uses_the_daemons_tracker_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tracker: TrackerProvider,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "tracked", TRACKER_STORE_CELL)
+    unrelated = tmp_path / "unrelated"
+    monkeypatch.setenv("BACKEND_STORE_URI", str(unrelated))
+    monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(unrelated))
+
+    async with daemon_api(root, tracker=tracker) as api:
+        await api.flow_open({"flow": "churn"})
+        result = await api.run({"flow": "churn", "target": "tracked"})
+
+    assert result["executed"] == ["tracked"]
+    assert [record.name for record in tracker.list_experiments()] == ["fixture-probe"]
+    assert not unrelated.exists()
 
 
 async def test_opening_a_flow_reports_the_settings_a_panel_renders(tmp_path: Path):

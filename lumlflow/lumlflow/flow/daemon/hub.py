@@ -38,6 +38,7 @@ from lumlflow.flow.store.flowstore import (
     FlowStore,
     store_dir,
 )
+from lumlflow.tracker import TrackerProvider
 
 
 class FlowSession:
@@ -47,11 +48,13 @@ class FlowSession:
         store: FlowStore,
         workspace_dir: Path,
         *,
+        tracker: TrackerProvider,
         streams: Streams | None = None,
     ) -> None:
         self.ref = ref
         self.store = store
         self.workspace_dir = workspace_dir
+        self.tracker = tracker
         # What a file event has to be on for this flow to care: its own cells,
         # and the shared code of the workspace it runs under. Monitoring belongs
         # to the flow — an event outside this set is not this session's news.
@@ -64,6 +67,7 @@ class FlowSession:
         self.kernel = KernelProcess(
             flow_dir=ref.path,
             workspace_dir=workspace_dir,
+            tracker_store=tracker.store_path,
             on_event=self._observed if streams is not None else None,
         )
         self.planner = Planner(store)
@@ -127,8 +131,14 @@ class Hub:
     def __init__(
         self,
         *,
+        tracker: TrackerProvider | None = None,
         streams: Streams | None = None,
     ) -> None:
+        if tracker is None:
+            from lumlflow.settings import get_tracker
+
+            tracker = get_tracker()
+        self.tracker = tracker
         self._streams = streams
         self._sessions: dict[Path, FlowSession] = {}
         self._known: dict[Path, FlowRef] = {}
@@ -335,6 +345,7 @@ class Hub:
             ref,
             store,
             self._workspace_of(ref),
+            tracker=self.tracker,
             streams=self._streams,
         )
         self._sessions[ref.path] = session

@@ -17,12 +17,12 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
-from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client as daemon_client
 from lumlflow.flow.daemon import web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
+from lumlflow.tracker import TrackerProvider
 from starlette.testclient import WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 from typer.testing import CliRunner
@@ -105,22 +105,6 @@ def served(tmp_path: Path, static: Path) -> Iterator[Served]:
                 portal.call(hub.close)
 
 
-@pytest.fixture
-def experiments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ExperimentTracker:
-    """A store of this test's own, behind the tracker routers the daemon serves.
-
-    The handlers are module-level singletons holding the store they opened at
-    import; swapping it here is what keeps a test off the user's real one.
-    """
-    from lumlflow.api import experiment_groups
-    from lumlflow.api import experiments as experiments_api
-
-    tracker = ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
-    monkeypatch.setattr(experiment_groups.groups_handler, "tracker", tracker)
-    monkeypatch.setattr(experiments_api.experiments_handler, "tracker", tracker)
-    return tracker
-
-
 def subscribe(socket: WebSocketTestSession, flow: str, cursor: int = 0) -> list[Any]:
     """Watch a flow's journal, and take the catch-up it answers with."""
     socket.send_json({"subscribe": "journal", "flow": flow, "cursor": cursor})
@@ -162,13 +146,13 @@ def test_the_spa_and_the_tracker_share_the_port_with_the_flow_api(served: Served
 
 
 def test_the_tracker_answers_the_calls_experiments_actually_makes(
-    served: Served, experiments: ExperimentTracker
+    served: Served, tracker: TrackerProvider
 ):
     """Not just "some tracker route exists" — the listing the Experiments half
     opens on. A page that got the SPA's index.html here reads its `items` off
     an HTML string, which is the shape of the failure this guards."""
-    experiments.create_group("churn")
-    experiments.start_experiment(name="first", group="churn")
+    tracker.create_group("churn")
+    tracker.start_experiment(name="first", group="churn")
 
     listed = served.http.get("/api/groups")
 
@@ -180,7 +164,7 @@ def test_the_tracker_answers_the_calls_experiments_actually_makes(
 
 
 def test_the_flow_key_gates_the_flow_api_and_not_the_tracker(
-    served: Served, experiments: ExperimentTracker
+    served: Served, tracker: TrackerProvider
 ):
     """Experiments was unauthenticated on loopback before it shared this port,
     and sharing a port is not a reason to start asking its callers for a key —
@@ -190,6 +174,65 @@ def test_the_flow_key_gates_the_flow_api_and_not_the_tracker(
 
     assert unkeyed.status_code == 200, unkeyed.text
     assert refused.status_code == 401
+
+
+def test_every_tracker_router_uses_the_per_test_store(
+    served: Served, tracker: TrackerProvider
+) -> None:
+    from lumlflow.api import (
+        annotations,
+        experiment_groups,
+        experiments,
+        experiments_evals,
+        experiments_traces,
+        luml,
+        models,
+    )
+
+    handlers = (
+        annotations.annotations_handler,
+        experiment_groups.groups_handler,
+        experiments.experiments_handler,
+        experiments.models_handler,
+        experiments_evals.experiments_handler,
+        experiments_traces.experiments_handler,
+        luml.luml_handler,
+        luml.artifact_handler,
+        models.models_handler,
+    )
+    assert all(handler.tracker is tracker for handler in handlers)
+
+    tracker.create_group("isolated")
+    experiment_id = tracker.start_experiment(name="only-here", group="isolated")
+    paths = (
+        "/api/groups",
+        f"/api/experiments/{experiment_id}",
+        f"/api/experiments/{experiment_id}/evals/dataset-ids",
+        f"/api/experiments/{experiment_id}/traces/columns",
+        f"/api/experiments/{experiment_id}/models",
+        f"/api/experiments/{experiment_id}/evals/data/sample/annotations",
+    )
+
+    for path in paths:
+        response = served.http.get(path)
+        assert response.status_code == 200, f"{path}: {response.text}"
+
+
+def test_delete_through_the_experiments_api_fires_the_provider_hook(
+    served: Served, tracker: TrackerProvider
+) -> None:
+    experiment_id = tracker.start_experiment(name="remove-me", group="isolated")
+    deleted: list[str] = []
+
+    unsubscribe = tracker.on_experiment_deleted(deleted.append)
+    try:
+        response = served.http.delete(f"/api/experiments/{experiment_id}")
+    finally:
+        unsubscribe()
+
+    assert response.status_code == 204, response.text
+    assert deleted == [experiment_id]
+    assert tracker.get_experiment_record(experiment_id) is None
 
 
 def test_the_store_the_ui_was_pointed_at_is_the_one_the_tracker_opens(tmp_path: Path):
@@ -203,19 +246,21 @@ def test_the_store_the_ui_was_pointed_at_is_the_one_the_tracker_opens(tmp_path: 
     program = (
         "import os, sys\n"
         "os.environ.pop('BACKEND_STORE_URI', None)\n"
+        "os.environ.pop('LUML_BACKEND_STORE_URI', None)\n"
         "import lumlflow.cli\n"
         "from lumlflow.flow.daemon import client, workspace\n"
         "from lumlflow.flow.daemon import main as server\n"
         f"os.environ['BACKEND_STORE_URI'] = {str(store)!r}\n"
-        "from lumlflow.settings import get_config\n"
+        "from lumlflow.settings import get_config, get_tracker\n"
         "print(get_config().BACKEND_STORE_URI)\n"
+        "print(get_tracker().store_path)\n"
     )
 
     answered = subprocess.run(
         [sys.executable, "-c", program], capture_output=True, text=True, check=True
     )
 
-    assert answered.stdout.strip() == str(store), answered.stderr
+    assert answered.stdout.splitlines() == [str(store), str(store)], answered.stderr
 
 
 def test_the_flow_api_asks_for_the_daemons_token(served: Served):

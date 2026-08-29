@@ -57,11 +57,9 @@ def build_app(
     fallback answers everything, so it goes on last. A build that was never
     made is simply absent: the API is what a browser-less workspace needs.
 
-    The tracker is imported here rather than at module scope because importing
-    it opens the store: its handlers are module-level singletons that read
-    `BACKEND_STORE_URI` as they are constructed, and `lumlflow ui --path` sets
-    that on its way past this module's import. Building is late enough; loading
-    was not.
+    The tracker app stays a late import because `lumlflow ui --path` sets its
+    process settings on the way past this module. Its handler singletons retain
+    one lazy provider, so importing them neither opens nor freezes the store.
     """
     from lumlflow.server import SPAStaticFiles, get_static_dir
     from lumlflow.service import AppService

@@ -118,7 +118,7 @@ class Daemon:
                 token=self.token,
                 web_host=self.web_host,
                 web_port=self.web_port,
-                tracker_store=_tracker_store(),
+                tracker_store=str(self.hub.tracker.store_path),
             )
             workspace.write_record(record)
             self._record = record
@@ -460,12 +460,6 @@ def _bind_web(host: str, port: int) -> socket.socket:
 
 def _port_of(listener: socket.socket | None) -> int:
     return int(listener.getsockname()[1]) if listener is not None else 0
-
-
-def _tracker_store() -> str:
-    from lumlflow.settings import Settings
-
-    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
 
 
 def _install_signals(stop: Any) -> None:
