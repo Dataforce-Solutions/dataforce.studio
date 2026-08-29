@@ -108,9 +108,9 @@
       <div class="flex flex-col gap-1.5">
         <p class="text-sm text-muted-color">logs</p>
         <pre
-          v-if="cell.logs"
+          v-if="renderedLogs"
           class="font-mono text-sm leading-relaxed rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 p-3 overflow-auto max-h-48 whitespace-pre-wrap"
-          >{{ cell.logs.trimEnd() }}</pre
+          >{{ renderedLogs }}</pre
         >
         <p v-else class="text-sm text-muted-color">no logs</p>
       </div>
@@ -124,6 +124,7 @@ import { Button, Dialog, type DialogPassThroughOptions } from 'primevue'
 import { ChevronLeft, ChevronRight, Download, ExternalLink, Info, X } from 'lucide-vue-next'
 import { formatCost } from '../../model/format'
 import { primaryOutput } from '../../model/registry'
+import { terminalText } from '../../model/terminal'
 import type { FlowCell, FramePreview, ParamValue, ValuePage } from '../../model/types'
 import { KIND_ICONS } from '../../ui/kinds'
 import RendererHost from '../../renderers/RendererHost.vue'
@@ -224,6 +225,7 @@ const paged = computed<FramePreview | null>(() => {
     dtypes: page.dtypes,
     rows: page.rows,
     totalRows: page.totalRows,
+    totalColumns: page.totalColumns,
   }
 })
 
@@ -285,6 +287,8 @@ const hasExperiment = computed(() =>
     (output) => output.kind === 'experiment' || output.preview.type === 'experiment',
   ),
 )
+
+const renderedLogs = computed(() => terminalText(props.cell.logs ?? '').trimEnd())
 
 /**
  * No bytes on this branch, but a run would make some. A declared unpersisted

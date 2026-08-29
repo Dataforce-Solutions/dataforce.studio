@@ -92,6 +92,7 @@ export const cleanFrame: FramePreview = {
     [1006, 47, 19.9, 'two-year', 'False'],
   ],
   totalRows: 83907,
+  totalColumns: 5,
 }
 
 export const trainSplitFrame: FramePreview = {
@@ -107,6 +108,7 @@ export const trainSplitFrame: FramePreview = {
     [4, 19.9, 2, 'True', 'False'],
   ],
   totalRows: 67125,
+  totalColumns: 5,
 }
 
 export const errorAnalysisFrame: FramePreview = {
@@ -121,6 +123,7 @@ export const errorAnalysisFrame: FramePreview = {
     [5521, 0.14, 'True', 39, 'two-year'],
   ],
   totalRows: 412,
+  totalColumns: 5,
 }
 
 export function rocPlot(auc: number): PlotPreview {

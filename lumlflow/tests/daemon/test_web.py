@@ -42,6 +42,17 @@ class Chatty:
         return {"summary": {"auc": 0.91}}
 """
 
+NON_FINITE_METRIC_CELL = """
+class Diverged:
+    produces = {"scores": "asset", "baseline": "asset"}
+
+    def materialize(self, ctx):
+        return {
+            "scores": {"loss": float("nan"), "auc": 0.00032},
+            "baseline": {"auc": 0.75},
+        }
+"""
+
 
 @dataclass
 class Served:
@@ -321,6 +332,40 @@ def test_http_refuses_asset_download_without_writing_anywhere(
         assert "asset.download" in answer.json()["error"]["message"]
     assert not destination.exists()
     assert list(daemon_cwd.iterdir()) == []
+
+
+def test_a_non_finite_metric_preview_crosses_the_http_door_as_a_string(
+    served: Served,
+) -> None:
+    write_cell(served.root / "churn.flow", "diverged", NON_FINITE_METRIC_CELL)
+    served.rpc("flow.open", {"flow": "churn"})
+    served.rpc("run", {"flow": "churn", "target": "diverged"})
+
+    answer = served.http.post(
+        web.RPC_PATH,
+        json={
+            "method": "asset.preview",
+            "params": {"flow": "churn", "target": "diverged.scores"},
+        },
+        headers={web.TOKEN_HEADER: TOKEN},
+    )
+
+    assert answer.status_code == 200, answer.text
+    entries = answer.json()["result"]["preview"]["blocks"][0]["entries"]
+    assert entries == {"auc": 0.00032, "loss": "nan"}
+
+    absent = served.http.post(
+        web.RPC_PATH,
+        json={
+            "method": "asset.preview",
+            "params": {"flow": "churn", "target": "diverged.baseline"},
+        },
+        headers={web.TOKEN_HEADER: TOKEN},
+    )
+
+    assert absent.status_code == 200, absent.text
+    absent_entries = absent.json()["result"]["preview"]["blocks"][0]["entries"]
+    assert absent_entries == {"auc": 0.75}
 
 
 def test_a_subscriber_is_caught_up_and_then_kept_up(served: Served):

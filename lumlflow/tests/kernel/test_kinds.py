@@ -545,6 +545,33 @@ def test_a_diverged_metric_survives_its_blob(
     assert math.isnan(restored["loss"])
 
 
+def test_non_finite_metrics_are_strings_in_the_stored_preview(tmp_path: Path) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {
+                "scores": {
+                    "loss": float("nan"),
+                    "upper": float("inf"),
+                    "lower": float("-inf"),
+                }
+            }
+        """,
+        produces={"scores": "asset"},
+    )
+
+    envelope = stored_preview(kernel, record, "scores")
+
+    assert envelope["blocks"][0]["entries"] == {
+        "loss": "nan",
+        "upper": "inf",
+        "lower": "-inf",
+    }
+    canonical_json(envelope)
+
+
 def test_the_envelope_states_its_schema_its_kind_and_its_blocks() -> None:
     assert preview.envelope("metric", [preview.kv({"auc": 0.91})]) == {
         "schema": preview.PREVIEW_SCHEMA_VERSION,
@@ -581,6 +608,7 @@ def test_a_wide_frame_preview_and_page_share_the_column_bound_and_normalizer(
     columns.update({f"column_{index}": [index] for index in range(197)})
     frame = pandas.DataFrame(columns)
     asset_type = kinds.get(builtin.FRAME)
+    assert isinstance(asset_type, builtin.FrameKind)
 
     head = asset_type.preview(frame)[0]
     page = asset_type.page(frame, {"offset": 0, "limit": 10})
@@ -601,8 +629,10 @@ def test_an_eval_page_normalizes_cells_and_bounds_columns(
 ) -> None:
     row: dict[str, Any] = {"loss": float("inf")}
     row.update({f"column_{index}": index for index in range(44)})
+    asset_type = kinds.get(builtin.EVAL)
+    assert isinstance(asset_type, builtin.EvalKind)
 
-    page = kinds.get(builtin.EVAL).page([row], {"offset": 0})
+    page = asset_type.page([row], {"offset": 0})
 
     assert len(page["columns"]) == 40
     assert len(page["rows"][0]) == 40

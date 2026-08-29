@@ -215,7 +215,12 @@ class ExperimentKind:
         for section in _EXPERIMENT_SECTIONS:
             entries = value.get(section) or {}
             if entries:
-                blocks.extend([preview.markdown(f"**{section}**"), preview.kv(entries)])
+                rendered = (
+                    preview.metric(entries)
+                    if section == "metrics"
+                    else preview.kv(entries)
+                )
+                blocks.extend([preview.markdown(f"**{section}**"), rendered])
         return blocks or [preview.markdown("*this run recorded nothing*")]
 
 
@@ -240,7 +245,7 @@ class MetricKind:
         return json.loads(source.read_bytes())
 
     def preview(self, value: Any) -> list[Block]:
-        return [preview.kv(dict(value))]
+        return [preview.metric(dict(value))]
 
 
 class EvalKind:
@@ -281,7 +286,7 @@ class EvalKind:
         ]
         aggregates = _aggregates(value, columns)
         if aggregates:
-            blocks.append(preview.kv(aggregates))
+            blocks.append(preview.metric(aggregates))
         return blocks
 
     def page(self, value: Any, query: dict[str, Any]) -> dict[str, Any]:

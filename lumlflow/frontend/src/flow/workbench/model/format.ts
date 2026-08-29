@@ -19,8 +19,15 @@ export function formatBytes(bytes: number): string {
   return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${unit}`
 }
 
-export function formatMetric(value: number): string {
+export type MetricValue = number | 'nan' | 'inf' | '-inf'
+
+export function formatMetric(value: MetricValue): string {
+  if (typeof value === 'string') return value
+  if (Number.isNaN(value)) return 'nan'
+  if (value === Number.POSITIVE_INFINITY) return 'inf'
+  if (value === Number.NEGATIVE_INFINITY) return '-inf'
   if (Number.isInteger(value)) return String(value)
+  if (value !== 0 && Math.abs(value) < 1e-3) return value.toExponential(1)
   if (Math.abs(value) >= 100) return value.toFixed(1)
   if (Math.abs(value) >= 1) return value.toFixed(2)
   return value.toFixed(3)

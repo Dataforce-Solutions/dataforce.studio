@@ -18,7 +18,9 @@
       </DataTable>
     </div>
     <p class="text-sm text-muted-color mt-2">
-      {{ preview.rows.length }} of {{ preview.totalRows.toLocaleString() }} rows
+      {{ preview.rows.length.toLocaleString() }} of {{ preview.totalRows.toLocaleString() }} rows ·
+      {{ preview.columns.length.toLocaleString() }} of
+      {{ preview.totalColumns.toLocaleString() }} columns
     </p>
   </div>
 </template>

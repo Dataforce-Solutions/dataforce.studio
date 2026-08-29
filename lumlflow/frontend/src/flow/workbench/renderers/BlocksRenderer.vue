@@ -19,7 +19,11 @@
         :preview="{ type: 'note', markdown: block.text }"
         :density="density"
       />
-      <ConfigGrid v-else-if="block.block === 'kv'" :config="block.entries" />
+      <ConfigGrid
+        v-else-if="block.block === 'kv'"
+        :config="block.entries"
+        :metrics="preview.kind === 'metric'"
+      />
       <FileRenderer v-else :preview="asFile(block)" :density="density" />
     </template>
 
@@ -69,6 +73,7 @@ function asFrame(block: TableBlock): FramePreview {
     dtypes: block.dtypes,
     rows: block.rows,
     totalRows: block.totalRows,
+    totalColumns: block.totalColumns,
   }
 }
 

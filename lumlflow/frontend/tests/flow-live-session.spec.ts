@@ -14,7 +14,7 @@ import { effectScope, nextTick, ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 
 import { DaemonUnreachable, FlowApi } from '@/flow/api/client'
-import { LogRing } from '@/flow/api/logs'
+import { LogRing, RING_CHUNKS } from '@/flow/api/logs'
 import { FlowStream, WS_UNAUTHORIZED } from '@/flow/api/stream'
 import { browserToken, resolveToken, TOKEN_STORAGE_KEY, tokenRejected } from '@/flow/api/token'
 import type { CellSummary, LogFrame } from '@/flow/api/types'
@@ -28,6 +28,7 @@ import { coalesceTransactions } from '@/flow/workbench/live/toasts'
 import { useFlowOps } from '@/flow/workbench/live/useFlowOps'
 import { useFlowSession } from '@/flow/workbench/live/useFlowSession'
 import type { FlowSessionHandle } from '@/flow/workbench/live/useFlowSession'
+import { useCell } from '@/flow/workbench/live/useCell'
 import { useRunLogs } from '@/flow/workbench/live/useRunLogs'
 import { useSelection } from '@/flow/workbench/live/useSelection'
 import { useSlice } from '@/flow/workbench/live/useSlice'
@@ -767,6 +768,58 @@ describe('run logs', () => {
     ring.append(logFrame(1, 'y', 'run-3'))
     expect(ring.tail(FLOW, 'run-1')).toEqual([])
     expect(ring.tail(FLOW, 'run-3').map((chunk) => chunk.text)).toEqual(['y'])
+  })
+
+  it('renders terminal updates incrementally in a bounded client buffer', async () => {
+    const { session, stream, socket } = await attach()
+    const runId = ref<string | null>('run-1')
+    const scope = effectScope()
+    const logs = scope.run(() => useRunLogs(session, stream, runId))!
+
+    for (let seq = 1; seq <= 5_000; seq += 1) {
+      socket.deliver(logFrame(seq, `\u001b[32m${seq}%\u001b[0m\r`))
+    }
+    await nextTick()
+
+    expect(logs.chunks.value).toHaveLength(RING_CHUNKS)
+    expect(logs.text.value).toBe('5000%')
+    expect(logs.text.value).not.toContain('\u001b')
+    scope.stop()
+  })
+
+  it('starts at row zero when paging has no window in hand', async () => {
+    const { session, stream, daemon } = await attach({
+      handlers: {
+        'asset.page': () => ({
+          slug: 'scores',
+          output: 'result',
+          kind: 'frame',
+          page: {
+            columns: ['loss'],
+            dtypes: ['float64'],
+            rows: [[0.5]],
+            offset: 0,
+            total_rows: 1,
+            total_columns: 1,
+          },
+        }),
+      },
+    })
+    const scope = effectScope()
+    const live = scope.run(() =>
+      useCell({
+        session,
+        stream,
+        branch: ref('main'),
+        summary: ref(cellSummary('scores', { kinds: { result: 'frame' } })),
+      }),
+    )!
+
+    await live.readPage('result', 'next')
+
+    const request = daemon.calls.find((call) => call.method === 'asset.page')
+    expect(request?.params.query).toEqual({ offset: 0, limit: 50 })
+    scope.stop()
   })
 })
 

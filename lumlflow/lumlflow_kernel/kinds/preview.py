@@ -97,6 +97,20 @@ def kv(entries: dict[str, Any]) -> Block:
     return {"block": "kv", "entries": {str(k): _cell(v) for k, v in entries.items()}}
 
 
+def metric(entries: dict[str, Any]) -> Block:
+    normalized: dict[str, str | int | float | bool | None] = {}
+    for name, entry in entries.items():
+        value = _unwrap(entry)
+        if isinstance(value, float) and not math.isfinite(value):
+            if math.isnan(value):
+                normalized[str(name)] = "nan"
+            else:
+                normalized[str(name)] = "inf" if value > 0 else "-inf"
+        else:
+            normalized[str(name)] = _cell(value)
+    return {"block": "kv", "entries": normalized}
+
+
 def file(name: str, size: int, content_type: str = "application/octet-stream") -> Block:
     return {"block": "file", "name": name, "size": size, "content_type": content_type}
 

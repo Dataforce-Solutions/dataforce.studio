@@ -531,6 +531,7 @@ describe('browsing needs no kernel; expand says when one starts', () => {
             rows: [['zz', 51]],
             offset: Number((params.query as { offset: number }).offset),
             total_rows: 500,
+            total_columns: 2,
           },
         }),
       },
@@ -643,6 +644,7 @@ describe('browsing needs no kernel; expand says when one starts', () => {
               rows: [[`${output}-paged`]],
               offset: 0,
               total_rows: frames[output],
+              total_columns: 1,
             },
           }
         },

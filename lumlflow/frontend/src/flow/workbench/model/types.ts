@@ -150,6 +150,7 @@ export interface FramePreview {
   dtypes: string[]
   rows: (string | number | boolean | null)[][]
   totalRows: number
+  totalColumns: number
 }
 
 export interface PlotPreview {
@@ -310,6 +311,7 @@ export interface ValuePage {
   rows: (string | number | boolean | null)[][]
   offset: number
   totalRows: number
+  totalColumns: number
 }
 
 export type PreviewValue =

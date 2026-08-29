@@ -499,6 +499,7 @@ export interface AssetPage {
     rows: (string | number | boolean | null)[][]
     offset: number
     total_rows: number
+    total_columns: number
   }
 }
 

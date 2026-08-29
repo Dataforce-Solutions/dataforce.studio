@@ -12,16 +12,18 @@
  * the daemon's order and not a guess made here.
  */
 
-import { computed, getCurrentScope, onScopeDispose, ref, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, triggerRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
+import { RING_CHUNKS } from '@/flow/api/logs'
 import type { LogFrame, StreamFrame } from '@/flow/api/types'
 import type { FlowStream } from '@/flow/api/stream'
+import { TerminalBuffer } from '../model/terminal'
 import type { FlowSessionHandle } from './useFlowSession'
 
 export interface RunLogsHandle {
   chunks: Ref<LogFrame[]>
-  /** The console's text, ANSI preserved exactly as the run wrote it. */
+  /** The console's terminal-rendered text. */
   text: ComputedRef<string>
 }
 
@@ -30,12 +32,17 @@ export function useRunLogs(
   stream: FlowStream,
   runId: Ref<string | null>,
 ): RunLogsHandle {
-  const chunks = ref<LogFrame[]>([])
+  const chunks = shallowRef<LogFrame[]>([])
+  const rendered = ref('')
+  const terminal = new TerminalBuffer()
 
   const unlisten = stream.onFrame((frame: StreamFrame) => {
     if (!('channel' in frame) || frame.channel !== 'logs') return
     if (frame.run_id !== runId.value || frame.flow !== session.path.value) return
-    chunks.value = [...chunks.value, frame]
+    chunks.value.push(frame)
+    if (chunks.value.length > RING_CHUNKS) chunks.value.shift()
+    rendered.value = terminal.append(frame.text)
+    triggerRef(chunks)
   })
 
   watch(
@@ -45,10 +52,15 @@ export function useRunLogs(
       if (wasId && wasFlow) stream.unwatchRun(wasFlow, wasId)
       if (!id || !flow) {
         chunks.value = []
+        terminal.reset()
+        rendered.value = ''
         return
       }
       stream.watchRun(flow, id)
-      chunks.value = stream.tail(flow, id)
+      chunks.value = stream.tail(flow, id).slice(-RING_CHUNKS)
+      terminal.reset()
+      for (const chunk of chunks.value) terminal.append(chunk.text)
+      rendered.value = terminal.text
     },
     { immediate: true },
   )
@@ -63,6 +75,6 @@ export function useRunLogs(
 
   return {
     chunks,
-    text: computed(() => chunks.value.map((chunk) => chunk.text).join('')),
+    text: computed(() => rendered.value),
   }
 }

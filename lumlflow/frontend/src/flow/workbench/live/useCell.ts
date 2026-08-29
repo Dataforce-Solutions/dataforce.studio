@@ -250,9 +250,13 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
    */
   async function readPage(output: string, move: PageMove): Promise<void> {
     refusal.value = null
-    const at = rows.value?.offset ?? 0
+    const at = paged === output ? rows.value?.offset : undefined
     const offset =
-      move === 'first' ? 0 : move === 'next' ? at + PAGE_ROWS : Math.max(0, at - PAGE_ROWS)
+      move === 'first' || at === undefined
+        ? 0
+        : move === 'next'
+          ? at + PAGE_ROWS
+          : Math.max(0, at - PAGE_ROWS)
     paging.value = true
     const answer = await ask(() =>
       session.request('asset.page', {
@@ -272,6 +276,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
       rows: page.rows,
       offset: page.offset,
       totalRows: page.total_rows,
+      totalColumns: page.total_columns,
     }
   }
 
