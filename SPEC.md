@@ -1172,9 +1172,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] A flow's workspace is its parent directory: `ctx.workspace_dir`, run cwd (scratch only for `tempdir()`/staging), scan and watcher root; `hub._workspace_of` answers the containing directory for every flow — its branch on the daemon's root and the outside-the-launch-directory special case go here, while the root itself still serves daemon discovery until the one-daemon task — the `Watches` registry stays; interpreter resolution walks up from the flow's directory, an existing `.venv` never synced
   - [x] `EXCLUDED_DIRS` extended (pyvenv.cfg, site-packages, env/venv/.tox/build/dist, `.gitignore`)
   - [x] Tests: cell cwd and `ctx.workspace_dir`, interpreter walk-up (an existing `.venv` unsynced, a `pyproject.toml` alone synced) and the own-interpreter fallback, nested roots, venv exclusion, an unreadable file elsewhere in the tree skipped
-- [ ] Key the worktree binding by flow id
-  - [ ] The binding is keyed by the flow id rather than the absolute path (`WorktreeBound`, the index's worktree lookup); a store with history but no binding for its location rebinds to the last bound lane, never `main`
-  - [ ] Tests: moved workspace keeps the checked-out lane and never falls back to `main`
+- [x] Key the worktree binding by flow id
+  - [x] The binding is keyed by the flow id rather than the absolute path (`WorktreeBound`, the index's worktree lookup); a store with history but no binding for its location rebinds to the last bound lane, never `main`
+  - [x] Tests: moved workspace keeps the checked-out lane and never falls back to `main`
 - [ ] Restore the ui host option
   - [ ] `lumlflow ui --host` (default `127.0.0.1`), the web listener bound to it and the host recorded beside the port in the daemon record; the token required on a non-loopback bind as on loopback; the help text carrying the one-sentence non-loopback warning of D11.3, and `ui` printing it at start on a non-loopback bind
   - [ ] Tests in `tests/daemon/test_ui.py` and `test_cli.py`: the bind and the recorded host, the token still required, the warning printed on a non-loopback bind and not on loopback, the help sentence

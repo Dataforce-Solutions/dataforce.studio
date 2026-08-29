@@ -140,18 +140,20 @@ class TestFold:
         assert archived[1]["parent_branch_id"] == "b1"
 
     def test_binding_a_worktree_twice_rebinds_the_one_row(self, index: Index) -> None:
-        index.apply(
-            transaction(1, [WorktreeBound(path="/w/churn.flow", branch_id="b1")])
-        )
+        index.apply(transaction(1, [WorktreeBound(flow_id="flow-1", branch_id="b1")]))
         index.apply(
             transaction(
                 2,
-                [WorktreeBound(path="/w/churn.flow", branch_id="b2", actor="claude-1")],
+                [WorktreeBound(flow_id="flow-1", branch_id="b2", actor="claude-1")],
             )
         )
 
         (row,) = rows(index, "SELECT * FROM worktrees")
-        assert (row["branch_id"], row["actor"]) == ("b2", "claude-1")
+        assert (row["flow_id"], row["branch_id"], row["actor"]) == (
+            "flow-1",
+            "b2",
+            "claude-1",
+        )
 
     def test_a_successful_run_becomes_the_branch_baseline(self, index: Index) -> None:
         accepted = cell_accepted()

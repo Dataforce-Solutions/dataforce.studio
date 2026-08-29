@@ -45,7 +45,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 8
+INDEX_SCHEMA_VERSION = 9
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -143,7 +143,7 @@ CREATE TABLE cell_notes (
 );
 
 CREATE TABLE worktrees (
-    path TEXT PRIMARY KEY,
+    flow_id TEXT PRIMARY KEY,
     branch_id TEXT NOT NULL,
     actor TEXT,
     lock_holder TEXT
@@ -618,9 +618,9 @@ class Index:
         ).fetchone()
         return float(row["cost_seconds"]) if row is not None else None
 
-    def worktree_branch(self, path: str) -> str | None:
+    def worktree_branch(self, flow_id: str) -> str | None:
         row = self._conn.execute(
-            "SELECT branch_id FROM worktrees WHERE path = ?", (path,)
+            "SELECT branch_id FROM worktrees WHERE flow_id = ?", (flow_id,)
         ).fetchone()
         return str(row["branch_id"]) if row is not None else None
 
@@ -758,10 +758,11 @@ class Index:
                 )
             case WorktreeBound():
                 self._conn.execute(
-                    "INSERT INTO worktrees (path, branch_id, actor) VALUES (?, ?, ?) "
-                    "ON CONFLICT(path) DO UPDATE SET "
+                    "INSERT INTO worktrees (flow_id, branch_id, actor) "
+                    "VALUES (?, ?, ?) "
+                    "ON CONFLICT(flow_id) DO UPDATE SET "
                     "branch_id = excluded.branch_id, actor = excluded.actor",
-                    (op.path, op.branch_id, op.actor),
+                    (op.flow_id, op.branch_id, op.actor),
                 )
             case Rewound():
                 self._rewind(op)

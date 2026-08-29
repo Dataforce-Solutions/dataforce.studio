@@ -149,7 +149,7 @@ class BranchArchived(_Frozen):
 
 class WorktreeBound(_Frozen):
     op: Literal["worktree_bound"] = "worktree_bound"
-    path: str
+    flow_id: str
     branch_id: str
     actor: str | None = None
 

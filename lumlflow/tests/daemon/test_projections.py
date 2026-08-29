@@ -35,12 +35,13 @@ async def test_opening_a_flow_checks_it_out_rather_than_binding_it_bare(
         session = api.hub.session("churn")
         bound = session.worktree.bound()
         binds = ops_of(session, WorktreeBound)
+        flow_id = session.store.manifest.flow_id
 
     assert opened["branch"] == "main"
     assert opened["checked_out"] is True
     assert "unwritten" not in opened
     assert bound is not None and bound.name == "main"
-    assert [op.path for op in binds] == [str(root / "churn.flow")]
+    assert [op.flow_id for op in binds] == [flow_id]
     # The cells were already the branch's slice, so the projection wrote nothing.
     assert slugs(opened) == ["score"]
 
@@ -105,6 +106,45 @@ async def test_reopening_lands_on_the_branch_the_worktree_is_bound_to(tmp_path: 
     assert reopened["branch"] == "sweep"
     assert bound is not None and bound.name == "sweep"
     assert "0.77" in source_of(flow, "score")
+
+
+async def test_moving_the_workspace_keeps_the_checked_out_lane(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        session.store.branches.fork("sweep", from_branch="main")
+        await api.cells_edit(
+            {"flow": "churn", "branch": "sweep", "slug": "score", "source": SWEEP_CELL}
+        )
+        await api.switch({"flow": "churn", "branch": "sweep"})
+        main_version = slice_of(session, "main")["score"].version_id
+        before_move_step = session.store.next_step - 1
+
+    moved_root = root.rename(tmp_path / "moved-project")
+    moved_flow = moved_root / "churn.flow"
+
+    async with daemon_api(moved_root) as api:
+        reopened = await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        bound = session.worktree.bound()
+        moved_transactions = [
+            entry for entry in transactions(session) if entry.step > before_move_step
+        ]
+        main_version_after = slice_of(session, "main")["score"].version_id
+
+    assert reopened["branch"] == "sweep"
+    assert bound is not None and bound.name == "sweep"
+    assert main_version_after == main_version
+    assert "0.77" in source_of(moved_flow, "score")
+    assert not any(
+        entry.intent.startswith("offline edits:") for entry in moved_transactions
+    )
 
 
 async def test_rewinding_shows_that_runs_logs_not_the_latest(tmp_path: Path):

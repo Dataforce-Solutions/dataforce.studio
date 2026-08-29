@@ -101,7 +101,7 @@ class Branches:
 
     def bound_branch(self) -> BranchRow | None:
         """The branch the worktree projects, or None while nothing is bound."""
-        branch_id = self._index.worktree_branch(str(self._store.flow_dir))
+        branch_id = self._index.worktree_branch(self._store.manifest.flow_id)
         return self._index.branch_by_id(branch_id) if branch_id else None
 
     def fork(
@@ -143,7 +143,7 @@ class Branches:
         self._store.commit(
             [
                 WorktreeBound(
-                    path=str(self._store.flow_dir),
+                    flow_id=self._store.manifest.flow_id,
                     branch_id=branch.branch_id,
                     actor=actor,
                 )
