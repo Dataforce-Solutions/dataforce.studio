@@ -1207,9 +1207,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Fix console, frame footer and metric rendering
   - [x] Frame footer with column totals; ANSI/`\r` handling and a bounded console buffer; non-finite metric values carried in the preview as the strings `"nan"`/`"inf"`/`"-inf"` (kernel preview side) and rendered as such, distinct from absent; scientific `formatMetric`; paging from row 0
   - [x] Renderer specs; a kernel preview test that a NaN metric survives the HTTP door as a string
-- [ ] Sanitize notes and fix export and cursor noise
-  - [ ] Note sanitizer forbids `style`/`form`/`input`/`button`/remote images; export/import mints no version for zero or two trailing newlines; `flow.open` / `status` return the store's `flow_id` in the brief and the workbench's brief type gains it (D4.10); both journal cursors (the high-water mark in `api/stream.ts`, the marker in `workbench/live/cursor.ts`) reset when the brief's `flow_id` differs from the one the cursor was recorded under
-  - [ ] Tests: renderer spec, `tests/daemon` export/import, the brief carrying `flow_id`, and a session spec for the cursor reset
+- [x] Sanitize notes and fix export and cursor noise
+  - [x] Note sanitizer forbids `style`/`form`/`input`/`button`/remote images; export/import mints no version for zero or two trailing newlines; `flow.open` / `status` return the store's `flow_id` in the brief and the workbench's brief type gains it (D4.10); both journal cursors (the high-water mark in `api/stream.ts`, the marker in `workbench/live/cursor.ts`) reset when the brief's `flow_id` differs from the one the cursor was recorded under
+  - [x] Tests: renderer spec, `tests/daemon` export/import, the brief carrying `flow_id`, and a session spec for the cursor reset
 - [ ] Add ephemeral state frames to the journal channel
   - [ ] Daemon: a `state` frame type on the journal channel (D6.5) carrying the state's name, the flow, the lane and cell where it concerns one, and the flow's current step; never journaled, never replayed, dropped when no client is connected; a hub-side push the later tasks call with `experiment_removed`, `refreshing` and `order_changed`
   - [ ] Client: `useFlowSession` delivers state frames to subscribers, leaves the replay cursor unmoved, and keeps them out of the transaction and catch-up paths

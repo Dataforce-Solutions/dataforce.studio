@@ -290,6 +290,18 @@ async def test_status_covers_every_flow_and_names_the_interpreter(tmp_path: Path
     assert slugs(flow_named(status, "sales")) == []
 
 
+async def test_open_and_status_carry_the_store_flow_id(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        opened = await api.flow_open({"flow": "churn"})
+        status = await api.status({"flow": "churn"})
+        flow_id = api.hub.session("churn").store.manifest.flow_id
+
+    assert opened["flow_id"] == flow_id
+    assert flow_named(status, "churn")["flow_id"] == flow_id
+
+
 async def test_status_lists_only_flows_beneath_the_requested_directory(
     tmp_path: Path,
 ):

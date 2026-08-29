@@ -839,6 +839,7 @@ class Api:
         settings = session.store.manifest.settings
         return {
             "flow": session.ref.name,
+            "flow_id": session.store.manifest.flow_id,
             "path": session.ref.address,
             "branch": session.branch,
             "checked_out": session.worktree.bound() is not None,
@@ -964,11 +965,36 @@ def _accept_carried(
     version.
     """
     landed: list[AcceptedCell] = []
+    branch_id = session.store.branches.get(branch).branch_id
+    selected = session.store.index.slice_versions(branch_id)
     for _ in range(_IMPORT_PASSES):
         landed, moved = [], False
         for cell in carried:
+            source = cell.source
+            here = batch.slice_over(selected)
+            parsed = loader.parse(source)
+            previous = (
+                here.get(parsed.uid)
+                if parsed.uid is not None
+                else next(
+                    (version for version in here.values() if version.slug == cell.slug),
+                    None,
+                )
+            )
+            if previous is not None:
+                stored = session.store.objects.get(previous.raw_source_ref).decode(
+                    "utf-8"
+                )
+                # Block separators normalize endings; keep the stored bytes
+                # when that formatting is the only difference.
+                if stored.rstrip("\n") == source.rstrip("\n"):
+                    source = stored
             accepted = session.acceptance.accept_source(
-                cell.slug, cell.source, branch=branch, actor=actor, batch=batch
+                cell.slug,
+                source,
+                branch=branch,
+                actor=actor,
+                batch=batch,
             )
             landed.append(accepted)
             moved = moved or not accepted.unchanged

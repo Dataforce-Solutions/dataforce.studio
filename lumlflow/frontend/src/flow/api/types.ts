@@ -633,6 +633,7 @@ export interface FlowSettingsReport {
 
 export interface FlowBrief {
   flow: string
+  flow_id: string
   /** Absolute path of the `<name>.flow` directory; the daemon's flow address. */
   path: string
   branch: string

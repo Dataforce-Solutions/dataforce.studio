@@ -152,6 +152,33 @@ async def test_reimporting_an_untouched_export_writes_no_version(tmp_path: Path)
     assert after == []
 
 
+@pytest.mark.parametrize("trailing_newlines", [0, 2])
+async def test_reimporting_an_export_ignores_format_only_trailing_newlines(
+    tmp_path: Path, trailing_newlines: int
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    path = write_cell(root / "churn.flow", "score", SCORE_CELL)
+    path.write_text(
+        path.read_text(encoding="utf-8").rstrip("\n") + "\n" * trailing_newlines,
+        encoding="utf-8",
+    )
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")["score"].version_id
+        exported = await api.export({"flow": "churn"})
+        transaction_count = len(transactions(session))
+        await api.import_cells({"flow": "churn", "source": exported["source"]})
+        after = slice_of(session, "main")["score"].version_id
+        imported = _accepting(transactions(session)[transaction_count:])
+
+    assert after == before
+    assert imported == []
+    source = source_of(root / "churn.flow", "score")
+    assert len(source) - len(source.rstrip("\n")) == trailing_newlines
+
+
 async def test_a_hand_reordered_file_still_binds_its_references(tmp_path: Path):
     """The format writes producers first; a file somebody rearranged need not."""
     root = make_workspace(tmp_path / "project")

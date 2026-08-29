@@ -53,11 +53,13 @@ if (source.value === 'live' && token !== null) {
   // Where this browser got to last time, so the catch-up marker has a gap to
   // measure. Read before attaching — the catch-up is what compares them.
   const storage = browserCursorStorage()
+  const marker = flowId ? readCursor(flowId, storage) : null
   const session = useFlowSession({
     api: new FlowApi({ token }),
     stream,
     flow: flowId,
-    seenStep: flowId ? readCursor(flowId, storage) : null,
+    seenStep: marker?.step,
+    seenFlowId: marker?.flowId,
   })
   // The session takes the scope's teardown itself: leaving the socket open
   // behind a closed tab is what would keep the server writing to nobody.
@@ -66,7 +68,14 @@ if (source.value === 'live' && token !== null) {
     .then(() => {
       live.value = { session, stream }
       if (flowId) {
-        watch(session.head, (step) => writeCursor(flowId, step, storage), { immediate: true })
+        watch(
+          session.head,
+          (step) => {
+            const identity = session.brief.value?.flow_id
+            if (identity) writeCursor(flowId, identity, step, storage)
+          },
+          { immediate: true },
+        )
       }
     })
     .catch((failure: unknown) => {

@@ -72,6 +72,8 @@ export interface FlowSessionOptions {
    * catch-up is the baseline and a first load is never "behind".
    */
   seenStep?: number | null
+  /** Identity the persisted catch-up marker was recorded under. */
+  seenFlowId?: string
 }
 
 export interface FlowSessionHandle {
@@ -156,6 +158,20 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     if (settling !== null) clearTimeout(settling)
     settling = null
     revision.value = head.value
+  }
+
+  function resetFlowState(): void {
+    if (settling !== null) clearTimeout(settling)
+    settling = null
+    head.value = 0
+    revision.value = 0
+    seen.value = 0
+    arrears.value = 0
+    watching.value = false
+    transactions.value = []
+    running.value = []
+    attempts.value = {}
+    agent.value = null
   }
 
   async function request<M extends FlowMethod>(
@@ -316,9 +332,11 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
    */
   async function attach(): Promise<void> {
     const opened = await request('flow.open', { flow: options.flow })
+    const previousFlowId = brief.value?.flow_id ?? options.seenFlowId
+    if (previousFlowId !== undefined && previousFlowId !== opened.flow_id) resetFlowState()
     brief.value = opened
     options.stream.connect()
-    options.stream.watchJournal(opened.path)
+    options.stream.watchJournal(opened.path, opened.flow_id)
   }
 
   function detach(): void {

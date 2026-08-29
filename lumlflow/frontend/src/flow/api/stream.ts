@@ -56,6 +56,7 @@ export class FlowStream {
   private readonly frameListeners = new Set<(frame: StreamFrame) => void>()
   private readonly statusListeners = new Set<(status: StreamStatus) => void>()
   private readonly journals = new Set<string>()
+  private readonly journalFlowIds = new Map<string, string>()
   private readonly runs = new Set<string>()
   private readonly cursors = new Map<string, number>()
   private socket: SocketLike | null = null
@@ -106,7 +107,10 @@ export class FlowStream {
     socket.onerror = () => {}
   }
 
-  watchJournal(flow: string): void {
+  watchJournal(flow: string, flowId: string): void {
+    const previous = this.journalFlowIds.get(flow)
+    if (previous !== undefined && previous !== flowId) this.cursors.set(flow, 0)
+    this.journalFlowIds.set(flow, flowId)
     this.journals.add(flow)
     this.send({ subscribe: 'journal', flow, cursor: this.cursor(flow) })
   }

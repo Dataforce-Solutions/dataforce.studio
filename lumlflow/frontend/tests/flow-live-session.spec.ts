@@ -1193,11 +1193,11 @@ describe('the reopen cursor', () => {
   it('remembers where a flow got to, per flow', () => {
     const kept = storage()
 
-    writeCursor('churn.flow', 42, kept)
-    writeCursor('sales.flow', 7, kept)
+    writeCursor('churn.flow', 'flow-churn', 42, kept)
+    writeCursor('sales.flow', 'flow-sales', 7, kept)
 
-    expect(readCursor('churn.flow', kept)).toBe(42)
-    expect(readCursor('sales.flow', kept)).toBe(7)
+    expect(readCursor('churn.flow', kept)).toEqual({ flowId: 'flow-churn', step: 42 })
+    expect(readCursor('sales.flow', kept)).toEqual({ flowId: 'flow-sales', step: 7 })
     expect(readCursor('never-opened.flow', kept)).toBeNull()
   })
 
@@ -1218,13 +1218,14 @@ describe('the reopen cursor', () => {
       },
     }
     expect(readCursor('churn.flow', refuses)).toBeNull()
-    expect(() => writeCursor('churn.flow', 3, refuses)).not.toThrow()
+    expect(() => writeCursor('churn.flow', 'flow-churn', 3, refuses)).not.toThrow()
   })
 
   /** End to end: what one session banked is the gap the next one measures. */
   it('turns a step banked by one session into the next session’s marker', async () => {
     const kept = storage()
-    writeCursor(FLOW, 8, kept)
+    writeCursor(FLOW, 'flow-1', 8, kept)
+    const marker = readCursor(FLOW, kept)
 
     const daemon = fakeDaemon({ 'flow.open': () => flowStatus() })
     const sockets: FakeSocket[] = []
@@ -1241,13 +1242,53 @@ describe('the reopen cursor', () => {
       api: daemon.api,
       stream,
       flow: 'churn',
-      seenStep: readCursor(FLOW, kept),
+      seenStep: marker?.step,
+      seenFlowId: marker?.flowId,
     })
     await session.attach()
     sockets[0].open()
     sockets[0].deliver({ channel: 'journal', type: 'caught_up', flow: FLOW, step: 20, running: [] })
 
     expect(session.changesBehind.value).toBe(12)
+  })
+
+  it('resets the live and persisted cursors when a path holds a new flow', async () => {
+    const kept = storage()
+    writeCursor(FLOW, 'old-flow', 8, kept)
+    const marker = readCursor(FLOW, kept)
+    let status = flowStatus({ flow_id: 'old-flow' })
+    const daemon = fakeDaemon({ 'flow.open': () => status })
+    const socket = new FakeSocket()
+    const stream = new FlowStream({
+      token: 'the-token',
+      open: () => socket,
+      schedule: () => {},
+    })
+    const session = useFlowSession({
+      api: daemon.api,
+      stream,
+      flow: 'churn',
+      seenStep: marker?.step,
+      seenFlowId: marker?.flowId,
+    })
+    await session.attach()
+    socket.open()
+    socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 12,
+      transaction: transaction(12),
+    })
+
+    status = flowStatus({ flow_id: 'new-flow' })
+    await session.attach()
+    writeCursor(FLOW, session.brief.value?.flow_id ?? '', session.head.value, kept)
+
+    expect(stream.cursor(FLOW)).toBe(0)
+    expect(session.head.value).toBe(0)
+    expect(socket.messages.at(-1)).toEqual({ subscribe: 'journal', flow: FLOW, cursor: 0 })
+    expect(readCursor(FLOW, kept)).toEqual({ flowId: 'new-flow', step: 0 })
   })
 })
 

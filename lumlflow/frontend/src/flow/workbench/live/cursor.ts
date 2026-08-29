@@ -17,12 +17,17 @@ export const CURSOR_STORAGE_PREFIX = 'lumlflow.flow.cursor:'
 
 export type CursorStorage = Pick<Storage, 'getItem' | 'setItem'>
 
+export interface StoredCursor {
+  flowId: string
+  step: number
+}
+
 export function cursorKey(flow: string): string {
   return `${CURSOR_STORAGE_PREFIX}${flow}`
 }
 
-/** The step this browser last watched on `flow`, or null if it never has. */
-export function readCursor(flow: string, storage: CursorStorage | null): number | null {
+/** The flow identity and step this browser last watched, or null on a first load. */
+export function readCursor(flow: string, storage: CursorStorage | null): StoredCursor | null {
   if (!flow || storage === null) return null
   let held: string | null
   try {
@@ -31,14 +36,29 @@ export function readCursor(flow: string, storage: CursorStorage | null): number 
     return null
   }
   if (held === null) return null
-  const step = Number(held)
-  return Number.isFinite(step) && step >= 0 ? step : null
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(held)
+  } catch {
+    return null
+  }
+  if (typeof decoded !== 'object' || decoded === null) return null
+  const flowId = Reflect.get(decoded, 'flowId')
+  const step = Reflect.get(decoded, 'step')
+  return typeof flowId === 'string' && flowId && typeof step === 'number' && step >= 0
+    ? { flowId, step }
+    : null
 }
 
-export function writeCursor(flow: string, step: number, storage: CursorStorage | null): void {
-  if (!flow || storage === null || !Number.isFinite(step) || step < 0) return
+export function writeCursor(
+  flow: string,
+  flowId: string,
+  step: number,
+  storage: CursorStorage | null,
+): void {
+  if (!flow || !flowId || storage === null || !Number.isFinite(step) || step < 0) return
   try {
-    storage.setItem(cursorKey(flow), String(step))
+    storage.setItem(cursorKey(flow), JSON.stringify({ flowId, step }))
   } catch {
     // Out of quota, or an origin that holds nothing. The marker is worth no
     // more than the gesture it decorates.

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import ConsoleView from '@/flow/workbench/components/card/ConsoleView.vue'
 import LogsView from '@/flow/workbench/components/card/LogsView.vue'
 import RendererHost from '@/flow/workbench/renderers/RendererHost.vue'
-import type { BlocksPreview, FramePreview } from '@/flow/workbench/model/types'
+import type { BlocksPreview, FramePreview, NotePreview } from '@/flow/workbench/model/types'
 
 describe('flow value renderers', () => {
   it('reports both visible and total columns in a wide frame footer', () => {
@@ -52,5 +52,28 @@ describe('flow value renderers', () => {
       expect(wrapper.text()).not.toContain('10%')
       expect(wrapper.text()).not.toContain('\u001b')
     }
+  })
+
+  it('removes interactive markup, styles, and remote images from notes', () => {
+    const preview: NotePreview = {
+      type: 'note',
+      markdown: [
+        '<style>.markdown-body { display: none }</style>',
+        '',
+        '<form><input value="secret"><button>send</button></form>',
+        '',
+        '![remote](https://example.com/tracker.png)',
+        '',
+        '![local](/images/chart.png)',
+      ].join('\n'),
+    }
+    const wrapper = mount(RendererHost, { props: { preview } })
+
+    expect(wrapper.find('style').exists()).toBe(false)
+    expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.find('img[src="https://example.com/tracker.png"]').exists()).toBe(false)
+    expect(wrapper.find('img[src="/images/chart.png"]').exists()).toBe(true)
   })
 })

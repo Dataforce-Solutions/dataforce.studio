@@ -106,6 +106,7 @@ export function fakeDaemon(handlers: Handlers = {}): Daemon {
 export function flowStatus(overrides: Partial<FlowStatus> = {}): FlowStatus {
   return {
     flow: 'churn',
+    flow_id: 'flow-1',
     path: FLOW,
     branch: 'main',
     checked_out: true,

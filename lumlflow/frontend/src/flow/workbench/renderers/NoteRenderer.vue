@@ -18,7 +18,29 @@ const props = defineProps<{
   density?: RenderDensity
 }>()
 
-const html = computed(() => DOMPurify.sanitize(marked.parse(props.preview.markdown) as string))
+const html = computed(() => {
+  const sanitized = DOMPurify.sanitize(marked.parse(props.preview.markdown) as string, {
+    FORBID_TAGS: ['style', 'form', 'input', 'button'],
+  })
+  const template = document.createElement('template')
+  template.innerHTML = sanitized
+  for (const image of template.content.querySelectorAll('img')) {
+    image.removeAttribute('srcset')
+    if (isRemoteImage(image.getAttribute('src') ?? '')) image.remove()
+  }
+  return template.innerHTML
+})
+
+function isRemoteImage(source: string): boolean {
+  if (!source) return false
+  try {
+    const base = new URL(document.baseURI)
+    const url = new URL(source, base)
+    return url.protocol !== 'data:' && url.protocol !== 'blob:' && url.origin !== base.origin
+  } catch {
+    return true
+  }
+}
 </script>
 
 <style scoped>
