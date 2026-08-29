@@ -24,7 +24,7 @@ from types import TracebackType
 from typing import Any
 
 DEFAULT_CAP_BYTES = 256 * 1024
-_READ_SIZE = 1 << 16
+_READ_SIZE = 32 * 1024
 _JOIN_TIMEOUT_S = 5.0
 _STREAMS = ("stdin", "stdout", "stderr")
 

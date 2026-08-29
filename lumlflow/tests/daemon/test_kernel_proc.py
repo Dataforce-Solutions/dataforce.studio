@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import sys
+from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,15 @@ class Sleeps:
         for _ in range(2000):
             time.sleep(0.01)
         return {"summary": {"auc": 0.0}}
+"""
+
+PRINTS_LARGE = """
+class PrintsLarge:
+    \"\"\"Writes one large console value.\"\"\"
+
+    def materialize(self, ctx):
+        print("x" * 200_000, end="")
+        return {"summary": {"written": 200_000}}
 """
 
 
@@ -164,6 +174,83 @@ async def test_a_cell_runs_and_its_value_lands_in_the_flows_store(tmp_path: Path
     # was handed before one existed.
     assert [name for name, _ in events][:2] == ["kernel_state", "started"]
     assert "log" in {name for name, _ in events}
+
+
+async def test_a_200_000_character_print_stays_on_one_kernel_and_arrives_whole(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    def record(event: str, params: dict[str, Any]) -> None:
+        events.append((event, params))
+
+    async with flow_kernel(root, on_event=record) as kernel:
+        handshake = await kernel.ensure_started()
+        result = await kernel.run(run_request("prints_large", PRINTS_LARGE))
+        chunks = [
+            b64decode(params["bytes"]) for event, params in events if event == "log"
+        ]
+
+        assert result.state == "succeeded"
+        assert b"".join(chunks) == b"x" * 200_000
+        assert max(map(len, chunks)) <= 32 * 1024
+        assert kernel.state == "running"
+        assert kernel.handshake is not None
+        assert kernel.handshake["pid"] == handshake["pid"]
+
+
+async def test_an_oversized_kernel_message_fails_the_run_but_keeps_the_link(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with flow_kernel(root) as kernel:
+        address, token_file = await kernel._listen()
+        if token_file is None:
+            peer_reader, peer_writer = await asyncio.open_unix_connection(address)
+        else:
+            peer_reader, peer_writer = await _greet(
+                address, token_file.read_text("utf-8")
+            )
+        await asyncio.wait_for(kernel._connected.wait(), timeout=10)
+        kernel.handshake = {"pid": 1234}
+
+        rejected = asyncio.create_task(
+            kernel.run(run_request("score", SCORE, run_id="too-large"))
+        )
+        request = json.loads(await peer_reader.readline())
+        peer_writer.write(f'{{"jsonrpc":"2.0","id":{request["id"]},"result":"'.encode())
+        peer_writer.write(b"x" * (17 * 1024 * 1024))
+        peer_writer.write(b'"}\n')
+        await peer_writer.drain()
+
+        with pytest.raises(KernelError, match="16 MiB") as overrun:
+            await rejected
+
+        assert "stopped" not in str(overrun.value)
+        assert kernel.state == "running"
+
+        next_run = asyncio.create_task(
+            kernel.run(run_request("score", SCORE, run_id="after-limit"))
+        )
+        next_request = json.loads(await peer_reader.readline())
+        peer_writer.write(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": next_request["id"],
+                    "result": {"state": "succeeded", "outputs": {}},
+                }
+            ).encode()
+            + b"\n"
+        )
+        await peer_writer.drain()
+
+        assert (await next_run).state == "succeeded"
+        assert kernel.state == "running"
+        peer_writer.close()
+        await peer_writer.wait_closed()
 
 
 async def test_a_failure_is_a_record_and_its_traceback_joins_the_logs(tmp_path: Path):

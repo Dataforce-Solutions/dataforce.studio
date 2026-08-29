@@ -1132,10 +1132,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Remove lock state from the workbench
   - [x] Delete `WorktreeLockNotice.vue`, the `pending`/`pendingProjection` state and the *saved · not yet written to files* wording in `LiveCellCard`/`CodeView`, and the `FlowBrief.unwritten` field of `api/types.ts`; confirm no `WorktreeLocked` reference remains anywhere in `lumlflow/` or `frontend/src`
   - [x] Update `flow-live-card.spec.ts` and `flow-workbench-editing.spec.ts`
-- [ ] Raise the kernel link and RPC door limits
-  - [ ] Set explicit stream limits (16 MiB) on the kernel link and the socket door (the HTTP door is untouched); treat a `readline` overrun on the kernel link as a run failure, not a dead link; answer `INVALID_REQUEST` on the socket door without dropping the connection
-  - [ ] Cap capture chunks at 32 KiB; clip REPL output and result at 64 KiB with a marker
-  - [ ] Tests in `tests/kernel` and `tests/daemon`: 200 000-character print, 200 KiB `edit-cell` over the socket keeping the session, oversized line refused politely
+- [x] Raise the kernel link and RPC door limits
+  - [x] Set explicit stream limits (16 MiB) on the kernel link and the socket door (the HTTP door is untouched); treat a `readline` overrun on the kernel link as a run failure, not a dead link; answer `INVALID_REQUEST` on the socket door without dropping the connection
+  - [x] Cap capture chunks at 32 KiB; clip REPL output and result at 64 KiB with a marker
+  - [x] Tests in `tests/kernel` and `tests/daemon`: 200 000-character print, 200 KiB `edit-cell` over the socket keeping the session, oversized line refused politely
 - [ ] Refuse empty edits and keep card detail across refetches
   - [ ] Daemon: `cells.edit` rejects empty/whitespace source with a `FlowError`
   - [ ] Frontend: stale-while-revalidate in `useCell.ts`; disable *edit* / *apply suggestion* while no detail; always send `base`

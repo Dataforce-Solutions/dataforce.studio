@@ -19,6 +19,7 @@ from lumlflow_kernel.capture import Capture
 from lumlflow_kernel.executor import Executor
 
 FILENAME = "<eval>"
+_REPLY_LIMIT_BYTES = 64 * 1024
 
 Refs = dict[str, dict[str, str]]
 
@@ -40,8 +41,8 @@ def evaluate(executor: Executor, *, refs: Refs, code: str) -> dict[str, Any]:
     except BaseException as failure:  # noqa: B036 - a failure is an answer here
         error = _error(failure)
     return {
-        "repr": answer,
-        "output": capture.artifact().decode("utf-8", "backslashreplace"),
+        "repr": _clip(answer),
+        "output": _clip(capture.artifact().decode("utf-8", "backslashreplace")),
         "names": sorted(namespace.touched),
         "error": error,
     }
@@ -113,6 +114,20 @@ def _from_typed_line(tb: TracebackType | None) -> TracebackType | None:
     while tb is not None and tb.tb_frame.f_code.co_filename != FILENAME:
         tb = tb.tb_next
     return tb
+
+
+def _clip(text: str | None) -> str | None:
+    if text is None:
+        return None
+    encoded = text.encode("utf-8")
+    if len(encoded) <= _REPLY_LIMIT_BYTES:
+        return text
+    widest_marker = f"\n… {len(encoded)} bytes omitted".encode()
+    prefix = encoded[: _REPLY_LIMIT_BYTES - len(widest_marker)].decode(
+        "utf-8", "ignore"
+    )
+    omitted = len(encoded) - len(prefix.encode("utf-8"))
+    return f"{prefix}\n… {omitted} bytes omitted"
 
 
 def _discard(stream: str, seq: int, data: bytes) -> None:

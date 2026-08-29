@@ -28,6 +28,11 @@ import uvicorn
 
 from lumlflow.flow.daemon import client, web, workspace
 from lumlflow.flow.daemon.api import Api
+from lumlflow.flow.daemon.framing import (
+    STREAM_LIMIT_BYTES,
+    STREAM_LIMIT_LABEL,
+    discard_oversized_line,
+)
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.daemon.watcher import Watcher
@@ -107,7 +112,9 @@ class Daemon:
                 flush=True,
             )
             return 1
-        self._server = await asyncio.start_server(self._session, "127.0.0.1", port)
+        self._server = await asyncio.start_server(
+            self._session, "127.0.0.1", port, limit=STREAM_LIMIT_BYTES
+        )
         self.port = int(self._server.sockets[0].getsockname()[1])
         # Bound before the record is written, because the record is where a
         # browser reads the port from.
@@ -270,7 +277,31 @@ class Daemon:
         leased: Leases = set()
         self._clients.add(writer)
         try:
-            while line := await reader.readline():
+            while True:
+                try:
+                    line = await reader.readuntil()
+                except asyncio.LimitOverrunError as overrun:
+                    await discard_oversized_line(reader, overrun)
+                    _reply_unaddressed(
+                        writer,
+                        _error(
+                            INVALID_REQUEST,
+                            f"RPC lines are limited to {STREAM_LIMIT_LABEL}",
+                        ),
+                    )
+                    with contextlib.suppress(OSError):
+                        await writer.drain()
+                    continue
+                except asyncio.IncompleteReadError as incomplete:
+                    if incomplete.partial:
+                        call = asyncio.create_task(
+                            self._handle(incomplete.partial, writer, leased)
+                        )
+                        mine.add(call)
+                        self._calls.add(call)
+                        call.add_done_callback(mine.discard)
+                        call.add_done_callback(self._calls.discard)
+                    break
                 call = asyncio.create_task(self._handle(line, writer, leased))
                 mine.add(call)
                 self._calls.add(call)
@@ -500,6 +531,17 @@ def _reply(
     )
     if not writer.is_closing():
         writer.write(json.dumps(message, ensure_ascii=False).encode("utf-8") + b"\n")
+
+
+def _reply_unaddressed(writer: asyncio.StreamWriter, error: dict[str, Any]) -> None:
+    if not writer.is_closing():
+        writer.write(
+            json.dumps(
+                {"jsonrpc": "2.0", "id": None, "error": error},
+                ensure_ascii=False,
+            ).encode("utf-8")
+            + b"\n"
+        )
 
 
 def _error(code: int, message: str, *, data: Any = None) -> dict[str, Any]:

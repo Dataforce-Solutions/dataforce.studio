@@ -26,6 +26,11 @@ from typing import Any, Literal
 import lumlflow_kernel
 from lumlflow.flow.atomic import atomic_write_bytes
 from lumlflow.flow.daemon import envs
+from lumlflow.flow.daemon.framing import (
+    STREAM_LIMIT_BYTES,
+    STREAM_LIMIT_LABEL,
+    discard_oversized_line,
+)
 from lumlflow.flow.errors import KernelError
 from lumlflow.flow.scheduler.queue import RunRequest, RunResult
 from lumlflow.flow.store.cas import Cas
@@ -52,6 +57,10 @@ KernelState = Literal["stopped", "running"]
 # "stopped" and stays wrong for the rest of the tab's life without this.
 KERNEL_STATE_EVENT = "kernel_state"
 OnEvent = Callable[[str, dict[str, Any]], None]
+
+
+class _KernelProtocolError(KernelError):
+    pass
 
 
 class KernelProcess:
@@ -124,6 +133,8 @@ class KernelProcess:
         await self.ensure_started()
         try:
             record = await self._call("run", _run_payload(request), timeout=None)
+        except _KernelProtocolError:
+            raise
         except KernelError as death:
             # Nothing recorded is lost: the kernel holds no state the store does
             # not, so the next run starts a fresh one.
@@ -256,12 +267,16 @@ class KernelProcess:
         unix_path = self._unix_socket_path()
         if unix_path is not None:
             Path(unix_path).unlink(missing_ok=True)
-            self._server = await asyncio.start_unix_server(self._accept, path=unix_path)
+            self._server = await asyncio.start_unix_server(
+                self._accept, path=unix_path, limit=STREAM_LIMIT_BYTES
+            )
             return unix_path, None
         self._token = secrets.token_hex(16)
         token_file = self._kernel_dir / TOKEN_NAME
         atomic_write_bytes(token_file, self._token.encode("utf-8"))
-        self._server = await asyncio.start_server(self._accept, "127.0.0.1", 0)
+        self._server = await asyncio.start_server(
+            self._accept, "127.0.0.1", 0, limit=STREAM_LIMIT_BYTES
+        )
         port = int(self._server.sockets[0].getsockname()[1])
         return f"127.0.0.1:{port}", token_file
 
@@ -309,7 +324,20 @@ class KernelProcess:
         self._writer = writer
         self._connected.set()
         try:
-            while line := await reader.readline():
+            while True:
+                try:
+                    line = await reader.readuntil()
+                except asyncio.LimitOverrunError as overrun:
+                    await discard_oversized_line(reader, overrun)
+                    self._fail_pending(
+                        f"a kernel message exceeded the {STREAM_LIMIT_LABEL} limit",
+                        error_type=_KernelProtocolError,
+                    )
+                    continue
+                except asyncio.IncompleteReadError as incomplete:
+                    if incomplete.partial:
+                        self._receive(incomplete.partial)
+                    break
                 self._receive(line)
         except OSError:
             pass
@@ -412,10 +440,15 @@ class KernelProcess:
             return
         writer.write(json.dumps(message, ensure_ascii=False).encode("utf-8") + b"\n")
 
-    def _fail_pending(self, message: str) -> None:
+    def _fail_pending(
+        self,
+        message: str,
+        *,
+        error_type: type[KernelError] = KernelError,
+    ) -> None:
         for future in list(self._pending.values()):
             if not future.done():
-                future.set_exception(KernelError(message))
+                future.set_exception(error_type(message))
         self._pending.clear()
 
     async def _drain_stdio(self, process: asyncio.subprocess.Process) -> None:

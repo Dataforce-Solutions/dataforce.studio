@@ -47,6 +47,19 @@ def test_chunks_arrive_while_the_run_is_still_going():
     assert seen_live == [("stdout", 1, b"epoch 1\n")]
 
 
+def test_a_large_write_is_emitted_in_chunks_no_larger_than_32_kib() -> None:
+    payload = b"x" * 200_000
+    chunks: list[tuple[str, int, bytes]] = []
+
+    with Capture(_collect(chunks)):
+        remaining = memoryview(payload)
+        while remaining:
+            remaining = remaining[os.write(1, remaining) :]
+
+    assert b"".join(data for _, _, data in chunks) == payload
+    assert max(len(data) for _, _, data in chunks) <= 32 * 1024
+
+
 def test_ansi_survives_into_the_artifact():
     coloured = "\x1b[31mfailed\x1b[0m"
     with Capture(_ignore) as capture:

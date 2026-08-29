@@ -9,6 +9,7 @@ import contextlib
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -22,6 +23,7 @@ import pytest
 import websockets.exceptions
 import websockets.sync.client
 from lumlflow.flow.daemon import client, connect, web, workspace
+from lumlflow.flow.daemon.main import INVALID_REQUEST
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowNotFound, ServerError
 
@@ -500,6 +502,79 @@ def test_a_failure_crosses_the_wire_as_the_failure_it_was(
             live.call("flow.open", {"flow": "sweep"})
 
     assert "`sweep`" in str(missing.value)
+
+
+def test_a_200_kib_edit_keeps_a_leased_socket_session(
+    tmp_path: Path, start: Starter
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow_dir = root / "churn.flow"
+    write_cell(flow_dir, "score", SCORE_CELL)
+    source = f"{SCORE_CELL}\n# {'x' * (200 * 1024)}"
+
+    with start(root) as live:
+        live.call("flow.open", {"flow": "churn"})
+        with client.attach(live.record, timeout=30) as paired:
+            begun = paired.call(
+                "agent.begin",
+                {"flow": "churn", "actor": "codex", "label": "codex", "lease": True},
+            )
+            edited = paired.call(
+                "cells.edit",
+                {
+                    "flow": "churn",
+                    "slug": "score",
+                    "source": source,
+                    "intent": "large edit",
+                    "actor": "codex",
+                },
+            )
+            status = paired.call("status", {"flow": "churn"})
+
+    assert begun["leased"] is True
+    assert edited["slug"] == "score"
+    assert status["flows"][0]["agent"] == "codex"
+    assert "x" * (200 * 1024) in (flow_dir / "cells" / "score.py").read_text("utf-8")
+
+
+def test_an_oversized_rpc_line_is_refused_without_dropping_the_connection(
+    tmp_path: Path, start: Starter
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    with start(root) as live:
+        connection = socket.create_connection(
+            ("127.0.0.1", live.record.port), timeout=30
+        )
+        connection.settimeout(30)
+        reader = connection.makefile("rb")
+        try:
+            connection.sendall(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "authenticate",
+                        "params": {"token": live.record.token},
+                    }
+                ).encode()
+                + b"\n"
+            )
+            connection.sendall(b"x" * (20 * 1024 * 1024) + b"\n")
+            refused = json.loads(reader.readline())
+
+            connection.sendall(
+                b'{"jsonrpc":"2.0","id":7,"method":"ping","params":{}}\n'
+            )
+            answered = json.loads(reader.readline())
+        finally:
+            reader.close()
+            connection.close()
+
+    assert refused["id"] is None
+    assert refused["error"]["code"] == INVALID_REQUEST
+    assert "16 MiB" in refused["error"]["message"]
+    assert answered["id"] == 7
+    assert answered["result"]["pid"] == live.record.pid
 
 
 def test_no_daemon_is_started_when_the_caller_says_not_to(tmp_path: Path):

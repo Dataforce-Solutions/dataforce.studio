@@ -51,6 +51,26 @@ def test_the_repl_writes_no_asset_no_preview_and_no_log(tmp_path: Path):
     assert store_blobs(kernel) == before
 
 
+def test_output_and_result_are_clipped_to_64_kib_with_the_omitted_size(
+    tmp_path: Path,
+) -> None:
+    kernel, names = _kernel_with(tmp_path, rows=[1, 2, 3])
+    characters = 70 * 1024
+
+    printed = _eval(kernel, names, f"print('å' * {characters}, end='')")["output"]
+    represented = _eval(kernel, names, f"'å' * {characters}")["repr"]
+
+    for clipped, original_bytes in (
+        (printed, characters * 2),
+        (represented, characters * 2 + 2),
+    ):
+        assert isinstance(clipped, str)
+        prefix, marker = clipped.rsplit("\n… ", 1)
+        omitted = int(marker.removesuffix(" bytes omitted"))
+        assert len(clipped.encode("utf-8")) <= 64 * 1024
+        assert len(prefix.encode("utf-8")) + omitted == original_bytes
+
+
 def test_only_the_names_the_code_mentions_are_read(tmp_path: Path):
     """Hydration is lazy, and the proof is a name that could not be read.
 
