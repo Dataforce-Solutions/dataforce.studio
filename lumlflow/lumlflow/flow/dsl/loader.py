@@ -11,9 +11,11 @@ agents iterate through broken intermediate states, so a file is never refused.
 """
 
 import ast
+import re
 from dataclasses import dataclass, field
 from typing import Any, get_args
 
+from lumlflow.flow.ids import is_ulid
 from lumlflow.flow.store.models import (
     AssetType,
     CellClassification,
@@ -29,6 +31,11 @@ DECLARATIONS = frozenset(
 ASSET_TYPES: tuple[str, ...] = get_args(AssetType)
 
 _OVERRIDE_KEYS = frozenset({"type", "kind", "persist"})
+_UID_ASSIGNMENT = re.compile(
+    r"(?:^|;)[ \t]*uid(?:[ \t]*:[^=;\n]+)?[ \t]*=[ \t]*"
+    r"(?P<quote>['\"])(?P<uid>[0-9A-Z]{26})(?P=quote)",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
@@ -57,6 +64,11 @@ class ParsedFile:
 
     cell: ParsedCell | None
     flags: list[VersionFlag] = field(default_factory=list)
+    recovered_uid: str | None = None
+
+    @property
+    def uid(self) -> str | None:
+        return self.cell.uid if self.cell is not None else self.recovered_uid
 
 
 def parse(source: str) -> ParsedFile:
@@ -66,6 +78,7 @@ def parse(source: str) -> ParsedFile:
         return ParsedFile(
             None,
             [_invalid(f"this file does not parse. {error.msg} on line {error.lineno}")],
+            recovered_uid=_recover_uid(source),
         )
     flags: list[VersionFlag] = []
     candidates = [node for node in _classes(module) if _declares_a_cell(node)]
@@ -277,6 +290,15 @@ def _declared_uid(node: ast.ClassDef) -> str | None:
             continue
         if isinstance(value.value, str):
             return value.value
+    return None
+
+
+def _recover_uid(source: str) -> str | None:
+    """Recover the daemon-written identity while the surrounding AST is broken."""
+    for match in _UID_ASSIGNMENT.finditer(source):
+        uid = match.group("uid")
+        if is_ulid(uid):
+            return uid
     return None
 
 

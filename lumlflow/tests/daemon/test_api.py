@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 from lumlflow.flow.daemon import envs, queries
 from lumlflow.flow.daemon.hub import FlowSession
+from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
@@ -30,6 +31,7 @@ from tests.daemon.helpers import (
     ops_of,
     slice_of,
     slugs,
+    source_of,
     transactions,
     values_in,
     write_cell,
@@ -442,6 +444,165 @@ async def test_running_a_fork_never_hands_it_the_worktrees_edit(tmp_path: Path):
     assert on_main != pinned
     # The fork ran what it pinned, not what the worktree now holds.
     assert values_in(root / "churn.flow") == [{"auc": 0.91}]
+
+
+async def test_adopting_a_renamed_cell_rewires_consumers_by_uid(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "report"})
+        session = api.hub.session("churn")
+        score_uid = slice_of(session, "main")["score"].uid
+        await api.fork({"flow": "churn", "name": "exp"})
+        await api.rename(
+            {
+                "flow": "churn",
+                "branch": "exp",
+                "slug": "score",
+                "to": "points",
+            }
+        )
+
+        adopted = await api.adopt(
+            {
+                "flow": "churn",
+                "slug": "points",
+                "from_branch": "exp",
+            }
+        )
+        listed = await api.cells_list({"flow": "churn", "branch": "main"})
+        outcome = await api.run({"flow": "churn", "target": "report", "force": True})
+        here = slice_of(session, "main")
+
+    report = next(cell for cell in listed["cells"] if cell["slug"] == "report")
+    assert adopted["slug"] == "points"
+    assert here["points"].uid == score_uid
+    assert here["report"].manifest.consumes["summary"].uid == score_uid
+    assert (report["state"], report["flags"]) == ("synced", [])
+    assert "points.summary" in source_of(flow, "report")
+    assert (outcome["failed"], outcome["executed"]) == (None, ["report"])
+
+
+async def test_deleting_on_an_off_disk_lane_flags_its_consumers(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "report"})
+        await api.fork({"flow": "churn", "name": "exp"})
+
+        deleted = await api.cells_delete(
+            {"flow": "churn", "branch": "exp", "slug": "score"}
+        )
+        listed = await api.cells_list({"flow": "churn", "branch": "exp"})
+
+    report = next(cell for cell in listed["cells"] if cell["slug"] == "report")
+    assert deleted["dangling"] == ["report"]
+    assert report["state"] == "unsynced"
+    assert [flag["code"] for flag in report["flags"]] == ["dangling_ref"]
+    assert "score" in str(report["flags"][0]["detail"])
+    assert any("score" in cause for cause in report["causes"])
+    assert (flow / "cells" / "score.py").exists()
+
+
+async def test_importing_a_renamed_cell_rewires_existing_consumers(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "report"})
+        session = api.hub.session("churn")
+        score_uid = slice_of(session, "main")["score"].uid
+        carried = portable.render(
+            [portable.PortableCell(slug="points", source=source_of(flow, "score"))],
+            flow="churn",
+            branch="exp",
+        )
+
+        imported = await api.import_cells({"flow": "churn", "source": carried})
+        listed = await api.cells_list({"flow": "churn"})
+        outcome = await api.run({"flow": "churn", "target": "report", "force": True})
+        here = slice_of(session, "main")
+
+    report = next(cell for cell in listed["cells"] if cell["slug"] == "report")
+    assert [cell["slug"] for cell in imported["cells"]] == ["points"]
+    assert here["points"].uid == score_uid
+    assert here["report"].manifest.consumes["summary"].uid == score_uid
+    assert (report["state"], report["flags"]) == ("synced", [])
+    assert "points.summary" in source_of(flow, "report")
+    assert outcome["failed"] is None
+
+
+@pytest.mark.parametrize("adopted_first", [False, True])
+async def test_a_forced_adopt_name_clash_keeps_the_preexisting_cell(
+    tmp_path: Path, adopted_first: bool
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "exp"})
+        first_branch = "exp" if adopted_first else "main"
+        second_branch = "main" if adopted_first else "exp"
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "branch": first_branch,
+                "slug": "score",
+                "source": SCORE_CELL,
+            }
+        )
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "branch": second_branch,
+                "slug": "score",
+                "source": SCORE_CELL,
+            }
+        )
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "branch": "main",
+                "slug": "report",
+                "source": REPORT_CELL,
+            }
+        )
+        session = api.hub.session("churn")
+        existing = slice_of(session, "main")["score"]
+        incoming = slice_of(session, "exp")["score"]
+
+        adopted = await api.adopt(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "from_branch": "exp",
+                "force": True,
+            }
+        )
+        here = slice_of(session, "main")
+
+    assert adopted["slug"] == "score_2"
+    assert here["score"].uid == existing.uid
+    assert here["score_2"].uid == incoming.uid
+    assert here["score_2"].version_id != incoming.version_id
+    assert here["report"].manifest.consumes["summary"].uid == existing.uid
 
 
 async def test_a_clone_without_a_store_rebuilds_the_identity_git_carried(

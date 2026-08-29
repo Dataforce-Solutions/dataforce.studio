@@ -1156,9 +1156,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Slug rule shared by `cells.new`, `rename`, `import`; assert paths under `cells/` in acceptance and projection; `rename` to a taken name raises
   - [x] `asset.download` refuses to overwrite without `force` and refuses a relative `to`; CLI `--force`, the CLI keeping its absolute `--to` (or its cwd) as today; the HTTP door refuses the `asset.download` method outright, with or without `to`
   - [x] Tests: `../../escaped`, `../out`, empty `to`, an import carrying a path-shaped cell name, taken name, overwrite refusal, a relative `to` over the socket refused, HTTP refusal with `to` and — writing nothing into the daemon's cwd — without it
-- [ ] Fix lane semantics for adopt, delete, import and clashes
-  - [ ] `adopt` of a renamed cell rewires consumers by uid; `cells.delete` re-accepts dangling consumers on any lane; `import` rewires after carrying; uid recovered from text when the AST fails; forced-adopt clash resolved deterministically with the adopted uid re-accepted
-  - [ ] Tests in `tests/daemon/test_api.py` / `test_reconcile.py`: adopt of a renamed cell keeps consumers synced; delete on an off-disk lane flags consumers; an import rename rewires and a mid-edit `mv` keeps the uid; a forced adopt clash is deterministic
+- [x] Fix lane semantics for adopt, delete, import and clashes
+  - [x] `adopt` of a renamed cell rewires consumers by uid; `cells.delete` re-accepts dangling consumers on any lane; `import` rewires after carrying; uid recovered from text when the AST fails; forced-adopt clash resolved deterministically with the adopted uid re-accepted
+  - [x] Tests in `tests/daemon/test_api.py` / `test_reconcile.py`: adopt of a renamed cell keeps consumers synced; delete on an off-disk lane flags consumers; an import rename rewires and a mid-edit `mv` keeps the uid; a forced adopt clash is deterministic
 - [ ] Fix scheduler stop, replan and force
   - [ ] A stop that arrives while the kernel is starting ends the run `cancelled` (`kernel_proc.py`, `queue.py`); a step whose selected version moved mid-plan is re-planned or abandoned, never run from the superseded version; `force` never joins another lane's flight
   - [ ] Tests in `tests/flow/test_queue.py` and `tests/daemon/test_api.py`: stop during kernel start, edit mid-plan, force never joins another lane's run

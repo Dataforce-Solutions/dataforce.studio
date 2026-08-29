@@ -510,11 +510,10 @@ class TestReacceptance:
         assert "`features.train_split`" in detail(rebound, "dangling_ref")
         assert version(store, rebound).manifest.consumes["train"].uid is None
 
-    def test_an_adopt_that_moves_a_name_rebinds_the_consumers_it_reports(
+    def test_an_adopt_that_moves_a_name_rewires_the_consumers_it_reports(
         self, store: FlowStore, acceptance: Acceptance
     ) -> None:
-        """The other half of the adopt story: the branch reports who has to
-        re-resolve, and acceptance is what re-resolves them."""
+        """The branch reports consumers by uid so acceptance can respell them."""
         accept(acceptance, "features", FEATURES)
         consumer = accept(acceptance, "train_model", TRAIN_MODEL)
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
@@ -527,13 +526,15 @@ class TestReacceptance:
         result = store.branches.adopt(
             "raw_features", from_branch="sweep", to_branch=MAIN_BRANCH
         )
-        (rebound,) = acceptance.reaccept(result.reaccept, branch=MAIN_BRANCH)
+        (rewired,) = acceptance.rewire(result.rewire, branch=MAIN_BRANCH)
+        source = store.objects.get(version(store, rewired).raw_source_ref).decode()
 
-        assert result.reaccept == ["train_model"]
-        assert rebound.definition_hash != consumer.definition_hash
-        assert codes(rebound) == ["dangling_ref"]
-        assert "raw_features.train_split" in detail(rebound, "dangling_ref")
-        assert version(store, rebound).manifest.consumes["train"].uid is None
+        assert result.reaccept == []
+        assert result.rewire == [consumer.uid]
+        assert rewired.definition_hash == consumer.definition_hash
+        assert codes(rewired) == []
+        assert "raw_features.train_split" in source
+        assert version(store, rewired).manifest.consumes["train"].uid is not None
 
     def test_a_reaccepted_consumer_goes_unsynced_naming_the_rewire(
         self, store: FlowStore, acceptance: Acceptance
@@ -556,7 +557,7 @@ class TestReacceptance:
         verdict = staleness.derive_all(store.index, branch_id)[consumer.uid]
         assert verdict.state == "unsynced"
         assert [(cause.kind, cause.detail) for cause in verdict.causes] == [
-            ("deps-rewired", "`train` now comes from a different cell")
+            ("deps-rewired", "`features` is missing from this lane")
         ]
 
     def test_reaccepting_an_unmoved_binding_writes_no_version(

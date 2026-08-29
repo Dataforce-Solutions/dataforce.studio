@@ -477,11 +477,11 @@ class TestAdopt:
         assert raised.value.namespace == ("features.data",)
         assert "features.data names a different cell on main" in str(raised.value)
 
-    def test_an_adopt_that_moves_a_name_reports_the_consumers_to_re_accept(
+    def test_an_adopt_that_moves_a_name_reports_the_consumers_to_rewire(
         self, store: FlowStore
     ) -> None:
         features = accept(store, "features")
-        accept(
+        plot = accept(
             store,
             "plot_curves",
             consumes={"rows": "features.data"},
@@ -495,7 +495,8 @@ class TestAdopt:
         )
 
         assert result.slug == "raw_features"
-        assert result.reaccept == ["plot_curves"]
+        assert result.reaccept == []
+        assert result.rewire == [plot.uid]
 
     def test_an_adopt_that_keeps_the_name_re_accepts_nobody(
         self, store: FlowStore
@@ -569,7 +570,7 @@ class TestAdopt:
             "features", from_branch="sweep", to_branch=MAIN_BRANCH, force=True
         )
 
-        assert result.reaccept == ["features"]
+        assert result.reaccept == [theirs.uid]
         assert theirs.uid in selections(store, MAIN_BRANCH)
 
     def test_an_upstream_missing_here_adopts_but_asks_to_re_accept(
@@ -577,7 +578,7 @@ class TestAdopt:
     ) -> None:
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
         features = accept(store, "features", branch="sweep")
-        accept(
+        holdout = accept(
             store,
             "holdout_eval",
             branch="sweep",
@@ -590,7 +591,7 @@ class TestAdopt:
         )
 
         assert result.namespace_conflicts == []
-        assert result.reaccept == ["holdout_eval"]
+        assert result.reaccept == [holdout.uid]
 
     def test_a_reference_that_only_resolves_here_asks_to_be_re_accepted(
         self, store: FlowStore
@@ -598,7 +599,7 @@ class TestAdopt:
         accept(store, "features", branch=MAIN_BRANCH)
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
         store.branches.delete("features", branch="sweep")
-        accept(
+        holdout = accept(
             store,
             "holdout_eval",
             branch="sweep",
@@ -611,14 +612,14 @@ class TestAdopt:
         )
 
         assert result.namespace_conflicts == []
-        assert result.reaccept == ["holdout_eval"]
+        assert result.reaccept == [holdout.uid]
 
     def test_a_forced_rebind_re_accepts_the_adopted_cell_itself(
         self, store: FlowStore
     ) -> None:
         theirs = accept(store, "features", branch=MAIN_BRANCH)
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
-        accept(
+        holdout = accept(
             store,
             "holdout_eval",
             branch="sweep",
@@ -632,7 +633,7 @@ class TestAdopt:
             "holdout_eval", from_branch="sweep", to_branch=MAIN_BRANCH, force=True
         )
 
-        assert result.reaccept == ["holdout_eval"]
+        assert result.reaccept == [holdout.uid]
 
     def test_an_unknown_cell_is_named_in_the_error(
         self, store: FlowStore, sweep: str

@@ -237,8 +237,9 @@ class Acceptance:
 
     def reaccept(
         self,
-        slugs: Sequence[str],
+        slugs: Sequence[str] = (),
         *,
+        uids: Sequence[str] = (),
         branch: str = MAIN_BRANCH,
         actor: str = "system",
         intent: str | None = None,
@@ -253,22 +254,33 @@ class Acceptance:
         """
         record = self._store.branches.get(branch)
         here = self._store.index.slice_versions(record.branch_id)
-        by_slug = {version.slug: (uid, version) for uid, version in here.items()}
-        accepted = []
+        by_slug: dict[str, tuple[str, VersionRow]] = {}
+        for uid, version in here.items():
+            by_slug.setdefault(version.slug, (uid, version))
+        selected: list[tuple[str, VersionRow]] = []
+        seen: set[str] = set()
+        for uid in uids:
+            selected_version = here.get(uid)
+            if selected_version is not None and uid not in seen:
+                selected.append((uid, selected_version))
+                seen.add(uid)
         for slug in slugs:
             found = by_slug.get(slug)
-            if found is None:
+            if found is None or found[0] in seen:
                 continue
-            uid, version = found
+            selected.append(found)
+            seen.add(found[0])
+        accepted: list[AcceptedCell] = []
+        for uid, version in selected:
             source = self._store.objects.get(version.raw_source_ref).decode("utf-8")
             accepted.append(
                 self._accept(
-                    slug,
+                    version.slug,
                     source,
                     path=None,
                     branch=branch,
                     actor=actor,
-                    intent=intent or f"rebound {slug}",
+                    intent=intent or f"rebound {version.slug}",
                     uid=uid,
                 )
             )
@@ -444,7 +456,7 @@ class Acceptance:
         slug, naming = normalize.lowercase_slug(stem)
         self.cell_path(slug)
         identity = self._identify(
-            slug, parsed.cell, here, path=path, given=given, fresh=fresh
+            slug, parsed.uid, here, path=path, given=given, fresh=fresh
         )
         slug, taken = normalize.unique_slug(
             slug, {other.slug for uid, other in here.items() if uid != identity.uid}
@@ -558,7 +570,7 @@ class Acceptance:
     def _identify(
         self,
         slug: str,
-        cell: ParsedCell | None,
+        declared: str | None,
         here: dict[str, VersionRow],
         *,
         path: Path | None,
@@ -584,7 +596,6 @@ class Acceptance:
             return _Identity(uid=given, previous=current)
         if fresh:
             return _Identity(uid=new_ulid(), previous=None)
-        declared = cell.uid if cell is not None else None
         if declared is not None and declared in here:
             current = here[declared]
             if current.slug == slug:

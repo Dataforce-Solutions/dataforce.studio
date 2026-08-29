@@ -117,11 +117,22 @@ class _Derivation:
                 if now.get(name) != then.get(name)
             )
             comes = "come" if len(moved) > 1 else "comes"
-            return (
-                Cause(
-                    "deps-rewired", f"{_names(moved)} now {comes} from a different cell"
-                ),
+            missing = sorted(
+                {
+                    ref.ref.split(".", 1)[0]
+                    for name in moved
+                    if (ref := version.manifest.consumes.get(name)) is not None
+                    and ref.uid is None
+                    and "." in ref.ref
+                }
             )
+            detail = (
+                f"{_names(missing)} "
+                f"{'are' if len(missing) > 1 else 'is'} missing from this lane"
+                if missing
+                else f"{_names(moved)} now {comes} from a different cell"
+            )
+            return (Cause("deps-rewired", detail),)
         ran = self.index.version(mat.version_id)
         if ran is None or ran.definition_hash != version.definition_hash:
             return (Cause("definition-changed", f"`{version.slug}` was edited"),)

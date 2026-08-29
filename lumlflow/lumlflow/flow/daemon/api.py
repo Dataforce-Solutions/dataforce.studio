@@ -226,6 +226,8 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
+        if result.dangling:
+            session.acceptance.reaccept(result.dangling, branch=branch, actor=actor)
         return {
             "slug": result.slug,
             "branch": branch,
@@ -399,6 +401,15 @@ class Api:
                 branch=session.store.branches.get(branch).branch_id,
             )
             session.store.save_manifest()
+            rewire = sorted(
+                {
+                    uid
+                    for accepted_cell in batch.accepted
+                    for uid in accepted_cell.rewire
+                }
+            )
+            if rewire:
+                self._rewire(session, rewire, branch=branch, actor=actor)
         return {
             "flow": session.ref.name,
             "branch": branch,
@@ -542,12 +553,15 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
-        if result.reaccept:
-            session.acceptance.reaccept(result.reaccept, branch=branch, actor=actor)
+        reaccepted = session.acceptance.reaccept(
+            uids=result.reaccept, branch=branch, actor=actor
+        )
+        rewired = self._rewire(session, result.rewire, branch=branch, actor=actor)
+        landed_slug = reaccepted[0].slug if reaccepted else result.slug
         return {
-            "slug": result.slug,
+            "slug": landed_slug,
             "branch": branch,
-            "rebound": list(result.reaccept),
+            "rebound": [accepted.slug for accepted in reaccepted] + rewired,
         } | _projection(self._reproject(session, branch))
 
     async def agent_begin(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -865,8 +879,8 @@ def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:
     """
     seen: dict[str, str] = {}
     for cell in carried:
-        parsed = loader.parse(cell.source).cell
-        if parsed is None or parsed.uid is None:
+        parsed = loader.parse(cell.source)
+        if parsed.uid is None:
             continue
         if parsed.uid in seen:
             written = (

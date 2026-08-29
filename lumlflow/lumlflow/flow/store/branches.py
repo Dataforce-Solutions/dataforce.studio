@@ -55,12 +55,13 @@ class RewindResult:
 
 @dataclass(frozen=True)
 class AdoptResult:
-    """`reaccept` names the target's consumers whose bindings the adopt moved."""
+    """Follow-up acceptance work caused by the target lane's namespace."""
 
     slug: str
     uid: str
     version_id: str
     reaccept: list[str] = field(default_factory=list)
+    rewire: list[str] = field(default_factory=list)
     namespace_conflicts: list[str] = field(default_factory=list)
 
 
@@ -286,19 +287,21 @@ class Branches:
             actor=actor,
             branch=target.branch_id,
         )
-        reaccept = _renamed_by_adopt(here, uid, incoming.slug, current)
+        rewire = _renamed_by_adopt(here, uid, incoming.slug, current)
+        reaccept: list[str] = []
         if rebinding or taken:
             # The adopted version is itself a consumer whose references bind
             # differently here — to another cell, to none, or to one they were
             # missing — and a name forced in over an existing one still has to
             # be suffixed apart. Either way it is acceptance that re-binds and
             # renames it.
-            reaccept = sorted({*reaccept, incoming.slug})
+            reaccept = [uid]
         return AdoptResult(
             slug=incoming.slug,
             uid=uid,
             version_id=incoming.version_id,
             reaccept=reaccept,
+            rewire=rewire,
             namespace_conflicts=conflicts,
         )
 
@@ -498,24 +501,15 @@ def _renamed_by_adopt(
     incoming_slug: str,
     current: VersionRow | None,
 ) -> list[str]:
-    """Consumers of a name the adopt moved — their bindings have to re-resolve."""
-    if current is not None and current.slug == incoming_slug:
+    """Consumers bound to the renamed uid, regardless of their source spelling."""
+    if current is None or current.slug == incoming_slug:
         return []
-    moved = {incoming_slug} | ({current.slug} if current else set())
     return sorted(
-        version.slug
+        other
         for other, version in here.items()
-        if other != uid and moved & _producers(version)
+        if other != uid
+        and any(consumed.uid == uid for consumed in version.manifest.consumes.values())
     )
-
-
-def _producers(version: VersionRow) -> set[str]:
-    """The slugs a version's `consumes` references name."""
-    return {
-        consumed.ref.split(".", 1)[0]
-        for consumed in version.manifest.consumes.values()
-        if "." in consumed.ref
-    }
 
 
 def _binding_changes(

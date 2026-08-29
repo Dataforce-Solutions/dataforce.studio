@@ -362,6 +362,39 @@ async def test_an_mv_is_a_rename_that_rewires_consumers_for_free(tmp_path: Path)
     assert slugs(opened, "synced") == ["auc", "report"]
 
 
+async def test_an_mv_during_a_syntax_error_keeps_the_cell_uid(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")["score"]
+        score = flow / "cells" / "score.py"
+        score.write_text(
+            score.read_text("utf-8") + "\n    consumes = {\n", encoding="utf-8"
+        )
+        score.rename(flow / "cells" / "points.py")
+
+        broken = await api.cells_list({"flow": "churn"})
+        during = slice_of(session, "main")["points"]
+        renames = ops_of(session, Renamed)
+
+        write_cell(flow, "points", SCORE_CELL)
+        fixed = await api.cells_list({"flow": "churn"})
+        after = slice_of(session, "main")
+
+    report = next(cell for cell in fixed["cells"] if cell["slug"] == "report")
+    assert slugs(broken) == ["points", "report"]
+    assert (during.uid, after["points"].uid) == (before.uid, before.uid)
+    assert [(op.old_slug, op.new_slug) for op in renames] == [("score", "points")]
+    assert [flag["code"] for flag in report["flags"]] == []
+    assert after["report"].manifest.consumes["summary"].uid == before.uid
+    assert "points.summary" in source_of(flow, "report")
+
+
 async def test_renaming_a_producer_and_its_consumer_together_still_rewires(
     tmp_path: Path,
 ):
