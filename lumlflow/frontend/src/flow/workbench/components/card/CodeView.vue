@@ -15,9 +15,16 @@
         <div class="flex items-center gap-1">
           <template v-if="editing">
             <Button text severity="secondary" label="cancel" @click="cancelEdit" />
-            <Button label="save" @click="saveEdit" />
+            <Button label="save" :disabled="disabled" @click="saveEdit" />
           </template>
-          <Button v-else text severity="secondary" label="edit" @click="startEdit">
+          <Button
+            v-else
+            text
+            severity="secondary"
+            label="edit"
+            :disabled="disabled"
+            @click="startEdit"
+          >
             <template #icon><Pencil :size="14" /></template>
           </Button>
         </div>
@@ -56,6 +63,7 @@ import { CODE_SURFACE_CLASS } from './codeSurface'
 const props = defineProps<{
   cell: FlowCell
   density: 'canvas' | 'notebook'
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -91,6 +99,7 @@ const editing = ref(false)
 const draftSource = ref('')
 
 function startEdit(): void {
+  if (props.disabled) return
   draftSource.value = props.cell.source
   editing.value = true
   emit('edit-start')

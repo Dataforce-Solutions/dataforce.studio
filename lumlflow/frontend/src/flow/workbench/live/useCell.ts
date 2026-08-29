@@ -68,6 +68,8 @@ export interface LiveCellHandle {
    * conflict when the head has moved on since.
    */
   base: ComputedRef<string | null>
+  /** Whether source and its edit base have ever loaded for this cell. */
+  detailLoaded: ComputedRef<boolean>
   /** What the card is showing. Setting it is what pulls the payload behind it. */
   showing: Ref<CellTabId>
   /** The run in flight for this cell, when the session has one. */
@@ -109,10 +111,12 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   // ask for the same source twice and race over which answer lands.
   let queue: Promise<void> = Promise.resolve()
   // Bumped whenever what was pulled stops describing the cell. An answer that
-  // was in flight across that moment describes the cell as it was, and writing
-  // it into the cleared caches would leave the previous run's picture standing
-  // and the reload — which sees a full cache — skipping the refetch.
+  // was in flight across that moment describes the cell as it was and is
+  // discarded rather than replacing the newer answer.
   let generation = 0
+  let detailGeneration = -1
+  let detailSlug: string | null = null
+  let detailBranch: string | null = null
   // Which output the rows in hand were read out of: a window belongs to one
   // value, and carrying it under another output's tab would show rows nobody
   // asked that output for.
@@ -125,8 +129,9 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   /**
    * A journal step is as fine-grained as invalidation gets here: a transaction
    * names the branch it touched by id, and this card knows its branch by name.
-   * Dropping everything pulled and re-pulling what is on screen costs a read;
-   * showing the previous run's preview as if it were this one's does not.
+   * Payloads are cleared and re-pulled, except detail: its source and edit base
+   * stay visible while the replacement is in flight. Changing cells or lanes
+   * still clears it so one cell's source is never shown under another's name.
    *
    * The signal is the session's settled revision rather than its live head:
    * a burst of transactions leaves the card in one state, and clearing the
@@ -135,9 +140,12 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
    */
   watch(
     [slug, branch, session.revision],
-    () => {
+    ([nextSlug, nextBranch]) => {
       generation += 1
-      detail.value = null
+      detailGeneration = -1
+      if (nextSlug !== detailSlug || nextBranch !== detailBranch) detail.value = null
+      detailSlug = nextSlug
+      detailBranch = nextBranch
       previews.value = new Map()
       logs.value = null
       rows.value = null
@@ -165,11 +173,14 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
 
   async function load(): Promise<void> {
     const here = { slug: slug.value, branch: branch.value, generation }
-    if (detail.value === null) {
+    if (detailGeneration !== here.generation) {
       const shown = await ask(() =>
         session.request('cells.show', { flow: flow(), branch: here.branch, slug: here.slug }),
       )
-      if (shown && current(here)) detail.value = shown
+      if (shown && current(here)) {
+        detail.value = shown
+        detailGeneration = here.generation
+      }
     }
     for (const wanted of wantedOutputs()) {
       if (previews.value.has(wanted)) continue
@@ -287,6 +298,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   return {
     cell,
     base: computed(() => detail.value?.definition_hash ?? null),
+    detailLoaded: computed(() => detail.value !== null),
     showing,
     runId,
     rows,

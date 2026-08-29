@@ -508,7 +508,12 @@ async function onForkEdit(slug: string, source: string): Promise<void> {
   const name = `${slug}-edit`
   try {
     await ops.fork(name, viewedBranch.value)
-    await ops.edit(slug, source, { branch: name })
+    const detail = await session.request('cells.show', {
+      flow: session.path.value,
+      branch: name,
+      slug,
+    })
+    await ops.edit(slug, source, { branch: name, base: detail.definition_hash })
     selection.viewedBranch.value = name
     acknowledge(`Started ${name}`, `your edit to ${slug} landed there. it overwrote nothing.`)
   } catch (failure) {

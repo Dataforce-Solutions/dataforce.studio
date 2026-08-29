@@ -85,6 +85,7 @@
             text
             severity="warn"
             label="apply suggestion"
+            :disabled="!detailLoaded"
             @click="applySuggestion"
           />
         </div>
@@ -126,6 +127,7 @@
           v-else-if="activeTab === 'code'"
           :cell="cell"
           :density="density"
+          :disabled="!detailLoaded"
           @edit="emit('edit', $event)"
           @edit-start="emit('edit-start')"
         />
@@ -205,15 +207,19 @@ import { inlineCodeHtml } from './inlineCode'
  * assets the cell produced plus code and logs, at two densities: canvas leads
  * with outputs, notebook leads with code. Same card, different accent.
  */
-const props = defineProps<{
-  cell: FlowCell
-  density: 'canvas' | 'notebook'
-  selected?: boolean
-  /** Demo-only: other branches awaiting the in-flight run (drives stop wording). */
-  awaiters?: number
-  /** The daemon-served run closure; null while it is still being asked for. */
-  preflight?: Preflight | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    cell: FlowCell
+    density: 'canvas' | 'notebook'
+    selected?: boolean
+    /** Demo-only: other branches awaiting the in-flight run (drives stop wording). */
+    awaiters?: number
+    /** The daemon-served run closure; null while it is still being asked for. */
+    preflight?: Preflight | null
+    detailLoaded?: boolean
+  }>(),
+  { detailLoaded: true },
+)
 
 const emit = defineEmits<{
   /** Which tab is on screen — what a live card pulls its payload for. */
@@ -311,6 +317,7 @@ const flagHtml = computed(() => {
 })
 
 function applySuggestion(): void {
+  if (!props.detailLoaded) return
   const flag = props.cell.flag
   if (!flag?.didYouMean) return
   const broken = flag.message.match(/`([^`]+)`/)?.[1]

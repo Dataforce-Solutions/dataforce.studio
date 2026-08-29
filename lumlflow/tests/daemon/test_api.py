@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from lumlflow.flow.daemon import envs, queries
 from lumlflow.flow.daemon.hub import FlowSession
-from lumlflow.flow.errors import FlowNotFound
+from lumlflow.flow.errors import FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
 
@@ -378,6 +378,28 @@ async def test_a_failing_cell_is_recorded_not_raised(tmp_path: Path):
     assert outcome["failed"] == "score"
     assert outcome["executed"] == []
     assert slugs(opened, "failed") == ["score"]
+
+
+@pytest.mark.parametrize("source", ["", "   \n"])
+async def test_an_empty_edit_changes_neither_file_nor_journal(
+    tmp_path: Path, source: str
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    cell_path = write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        file_before = cell_path.read_bytes()
+        head_before = slice_of(session, "main")["score"].version_id
+        journal_before = transactions(session)
+
+        with pytest.raises(FlowError, match=r"`score`.*empty"):
+            await api.cells_edit({"flow": "churn", "slug": "score", "source": source})
+
+        assert cell_path.read_bytes() == file_before
+        assert slice_of(session, "main")["score"].version_id == head_before
+        assert transactions(session) == journal_before
 
 
 async def test_an_edit_between_runs_is_picked_up_without_a_watcher(tmp_path: Path):

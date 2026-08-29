@@ -769,6 +769,78 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 })
 
 describe('what the card holds keeps up with the journal', () => {
+  it('keeps loaded detail editable while a transaction burst is revalidating it', async () => {
+    const source = 'class Train:\n    consumes = {"rows": "load_dat.rows"}\n'
+    const flagged = trainer({
+      flags: [
+        {
+          code: 'dangling_ref',
+          detail: 'unknown reference `load_dat.rows`. did you mean `load_data.rows`?',
+        },
+      ],
+    })
+    let shows = 0
+    let releaseInitial: (detail: CellDetail) => void = () => {}
+    let releaseRefresh: (detail: CellDetail) => void = () => {}
+    const made = await card({
+      density: 'notebook',
+      summary: flagged,
+      handlers: {
+        'cells.show': () => {
+          shows += 1
+          return new Promise<CellDetail>((resolve) => {
+            if (shows === 1) releaseInitial = resolve
+            else releaseRefresh = resolve
+          })
+        },
+      },
+    })
+
+    const button = (label: string) =>
+      made.wrapper.findAll('button').find((candidate) => candidate.text() === label)
+
+    expect((button('edit')!.element as HTMLButtonElement).disabled).toBe(true)
+    expect((button('apply suggestion')!.element as HTMLButtonElement).disabled).toBe(true)
+
+    releaseInitial(
+      trainerDetail({ ...flagged, source, definition_hash: 'definition-before-burst' }),
+    )
+    await settle()
+
+    expect((button('edit')!.element as HTMLButtonElement).disabled).toBe(false)
+    expect((button('apply suggestion')!.element as HTMLButtonElement).disabled).toBe(false)
+
+    for (let step = 30; step < 40; step += 1) {
+      made.live.socket.deliver({
+        channel: 'journal',
+        type: 'transaction',
+        flow: FLOW,
+        step,
+        transaction: transaction(step),
+      })
+    }
+    await settleJournal()
+
+    expect(shows).toBe(2)
+    expect((button('edit')!.element as HTMLButtonElement).disabled).toBe(false)
+    expect((button('apply suggestion')!.element as HTMLButtonElement).disabled).toBe(false)
+    await button('edit')!.trigger('click')
+    await settle()
+    await button('save')!.trigger('click')
+    await settle()
+
+    expect(asked(made.live, 'cells.edit')[0]).toMatchObject({
+      source,
+      base: 'definition-before-burst',
+    })
+
+    releaseRefresh(
+      trainerDetail({ ...flagged, source, definition_hash: 'definition-after-burst' }),
+    )
+    await settle()
+    made.wrapper.unmount()
+  })
+
   it('drops an answer the journal moved past, and re-reads what it cleared', async () => {
     let release: (detail: CellDetail) => void = () => {}
     let shows = 0

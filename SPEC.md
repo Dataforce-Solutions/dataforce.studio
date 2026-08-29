@@ -1136,10 +1136,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Set explicit stream limits (16 MiB) on the kernel link and the socket door (the HTTP door is untouched); treat a `readline` overrun on the kernel link as a run failure, not a dead link; answer `INVALID_REQUEST` on the socket door without dropping the connection
   - [x] Cap capture chunks at 32 KiB; clip REPL output and result at 64 KiB with a marker
   - [x] Tests in `tests/kernel` and `tests/daemon`: 200 000-character print, 200 KiB `edit-cell` over the socket keeping the session, oversized line refused politely
-- [ ] Refuse empty edits and keep card detail across refetches
-  - [ ] Daemon: `cells.edit` rejects empty/whitespace source with a `FlowError`
-  - [ ] Frontend: stale-while-revalidate in `useCell.ts`; disable *edit* / *apply suggestion* while no detail; always send `base`
-  - [ ] Tests: daemon regression; `flow-live-card.spec.ts` burst scenario
+- [x] Refuse empty edits and keep card detail across refetches
+  - [x] Daemon: `cells.edit` rejects empty/whitespace source with a `FlowError`
+  - [x] Frontend: stale-while-revalidate in `useCell.ts`; disable *edit* / *apply suggestion* while no detail; always send `base`
+  - [x] Tests: daemon regression; `flow-live-card.spec.ts` burst scenario
 - [ ] Harden reconciliation against unreadable files
   - [ ] `accept_path` / `scan_workspace`: ignore `.#*` and `._*`, skip dangling symlinks and unreadable files, decode undecodable cells with an `invalid` flag naming the encoding; accept a UTF-8 BOM; fix the header-line-class uid insert
   - [ ] Tests: Latin-1 cell, dangling symlink, permission-denied file in the tree, one-line class, BOM

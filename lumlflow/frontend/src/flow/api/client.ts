@@ -224,7 +224,7 @@ export interface FlowMethods {
     EditedCell
   >
   'cells.edit': Method<
-    Intentful & { slug: string; source: string; base?: string; force?: boolean },
+    Intentful & { slug: string; source: string; base: string; force?: boolean },
     EditedCell
   >
   'cells.delete': Method<

@@ -31,7 +31,7 @@ export interface FlowOps {
   edit: (
     slug: string,
     source: string,
-    options: { branch: string; base?: string; force?: boolean },
+    options: { branch: string; base: string; force?: boolean },
   ) => Promise<EditedCell>
   addCell: (options: {
     branch: string

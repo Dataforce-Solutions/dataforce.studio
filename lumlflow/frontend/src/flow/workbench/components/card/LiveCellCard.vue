@@ -6,6 +6,7 @@
       :selected="selected"
       :preflight="preflight ?? closure"
       :awaiters="awaiters"
+      :detail-loaded="live.detailLoaded.value"
       @copy-context="onCopyContext"
       @tab="live.showing.value = $event"
       @expand="onExpand"
@@ -238,13 +239,18 @@ async function onResolveConflict(choice: 'overwrite' | 'fork'): Promise<void> {
 
 async function land(source: string, options: { force?: boolean }): Promise<void> {
   draft.value = source
+  const base = editingBase.value ?? live.base.value
+  if (base === null) {
+    notice.value = 'cell detail is still loading'
+    return
+  }
   // Optimistic only where the store is: the edit reads as pending until the
   // daemon has taken it, because until then it may still come back a conflict.
   notice.value = 'saving…'
   try {
     await ops.edit(slug.value, source, {
       branch: props.branch,
-      base: editingBase.value ?? live.base.value ?? undefined,
+      base,
       force: options.force,
     })
     conflict.value = false

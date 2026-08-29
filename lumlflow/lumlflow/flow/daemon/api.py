@@ -289,10 +289,13 @@ class Api:
         versions and picks: overwrite, or fork the edit onto a branch of its
         own.
         """
+        slug = str(params.get("slug") or "")
+        source = str(params.get("source") or "")
+        if not source.strip():
+            raise FlowError(f"`{slug}` cannot be edited with empty source")
         session = self.hub.session(_flow_name(params), actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         branch = _branch(session, params)
-        slug = str(params.get("slug") or "")
         head = queries.head(session, branch, slug)
         base = params.get("base")
         if base and base != head.definition_hash and not params.get("force"):
@@ -307,7 +310,7 @@ class Api:
             )
         accepted = session.acceptance.accept_source(
             slug,
-            str(params.get("source") or ""),
+            source,
             branch=branch,
             actor=_actor(params),
             intent=params.get("intent") or f"edited {slug}",
