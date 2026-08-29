@@ -233,6 +233,40 @@ describe('reconnect replay', () => {
     // the address that mints a working one.
     expect(tokenRejected.value).toBe(true)
   })
+
+  it('marks the daemon reachable as soon as a reconnected socket opens', async () => {
+    const { socket, sockets, session, daemon, reconnects } = await attach()
+
+    daemon.down.value = true
+    socket.drop()
+    await settle()
+    expect(session.reachable.value).toBe(false)
+
+    reconnects[0]()
+    sockets[1].open()
+
+    expect(session.reachable.value).toBe(true)
+  })
+
+  it('keeps newer socket evidence when the probe from the drop fails later', async () => {
+    let failProbe: ((reason: unknown) => void) | undefined
+    const probe = new Promise<never>((_resolve, reject) => {
+      failProbe = reject
+    })
+    const { socket, sockets, session, reconnects } = await attach({
+      handlers: { ping: () => probe },
+    })
+
+    socket.drop()
+    reconnects[0]()
+    sockets[1].open()
+    expect(session.reachable.value).toBe(true)
+
+    failProbe?.(new TypeError('the old daemon stopped answering'))
+    await settle()
+
+    expect(session.reachable.value).toBe(true)
+  })
 })
 
 // --- degraded states ---------------------------------------------------------
@@ -857,6 +891,30 @@ describe('selection', () => {
     expect(selection.path()).toBe(`/flow/${FLOW}/notebook`)
 
     scope.stop()
+  })
+
+  it('never mirrors the token after selecting a cell, changing view, or switching lanes', async () => {
+    window.history.replaceState(null, '', `/flow/${FLOW}`)
+    const scope = effectScope()
+    const selection = scope.run(() =>
+      useSelection(route({ token: 'abc123' }), { defaultBranch: ref('main') }),
+    )!
+
+    selection.selectedSlug.value = 'features'
+    await nextTick()
+    expect(window.location.search).toBe('?asset=features')
+
+    selection.view.value = 'notebook'
+    await nextTick()
+    expect(window.location.pathname).toBe(`/flow/${FLOW}/notebook`)
+    expect(window.location.search).not.toContain('token=')
+
+    selection.viewedBranch.value = 'sweep'
+    await nextTick()
+    expect(window.location.search).toBe('?asset=features&branch=sweep')
+
+    scope.stop()
+    window.history.replaceState(null, '', '/')
   })
 })
 

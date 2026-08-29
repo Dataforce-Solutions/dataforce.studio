@@ -160,7 +160,7 @@ async def test_the_fork_tree_carries_the_key_the_journal_scopes_by(tmp_path: Pat
     assert [line["intent"] for line in scoped] == ["try it higher"]
 
 
-async def test_a_cell_summary_names_its_kinds_its_mint_step_and_what_it_reads(
+async def test_a_cell_summary_names_its_kinds_its_steps_and_what_it_reads(
     tmp_path: Path,
 ):
     root = make_workspace(tmp_path / "project", files={"raw.csv": "n\n1\n"})
@@ -170,6 +170,13 @@ async def test_a_cell_summary_names_its_kinds_its_mint_step_and_what_it_reads(
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+            }
+        )
         # Written after the others, so its mint step is genuinely later — and
         # its name would sort it first.
         write_cell(flow, "load", EXTERNAL_CELL)
@@ -184,6 +191,7 @@ async def test_a_cell_summary_names_its_kinds_its_mint_step_and_what_it_reads(
     assert cells["score"]["kinds"] == {"summary": "asset"}
     # Mint order, not the alphabet: `score` was written first and stays first.
     assert cells["score"]["created_step"] < cells["load"]["created_step"]
+    assert cells["score"]["changed_step"] > cells["score"]["created_step"]
     # It read a workspace file, which the store does not version.
     assert (cells["load"]["external"], cells["score"]["external"]) == (True, False)
 

@@ -167,6 +167,7 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
         # The mint order, which is what breaks ties in the notebook's column:
         # sorting siblings by name would move a card whenever one is renamed.
         "created_step": here.born.get(uid, 0),
+        "changed_step": version.created_step,
         "older_env": _older_env(here, mat),
         # A memo hit put this result here: the cost below is what the run cost
         # whoever ran it, and printing that alone would read as work that just

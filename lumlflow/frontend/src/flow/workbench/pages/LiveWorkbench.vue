@@ -118,7 +118,7 @@
                 v-if="endedUnder === cell.slug"
                 :cell="cell"
                 :failed-run="Boolean(failedCell)"
-                :unsynced-assets="unsynced.length"
+                :unsynced-assets="endedUnsynced.length"
                 class="mt-2"
               />
             </template>
@@ -141,7 +141,7 @@
                 v-if="endedUnder === cell.slug"
                 :cell="cell"
                 :failed-run="Boolean(failedCell)"
-                :unsynced-assets="unsynced.length"
+                :unsynced-assets="endedUnsynced.length"
                 class="mt-2"
               />
             </template>
@@ -613,7 +613,14 @@ const stopWatchingReplay = props.stream.onFrame((frame) => {
   if (announced === null) announced = frame.step
 })
 
-onScopeDispose(stopWatchingReplay)
+const stopRearmingReplay = props.stream.onStatus((status) => {
+  if (status === 'connecting') announced = null
+})
+
+onScopeDispose(() => {
+  stopWatchingReplay()
+  stopRearmingReplay()
+})
 
 watch(
   () => session.transactions.value,
@@ -641,19 +648,38 @@ watch(
  * does is say why the agent stopped — a clean `agent_end` and a killed process
  * look the same from here, and only one of them is journaled.
  */
+const latestAgentEnd = computed(() => {
+  let latest: number | null = null
+  for (const entry of session.transactions.value) {
+    if (entry.ops.some((op) => op.op === 'agent_end')) latest = entry.step
+  }
+  return latest
+})
+
+function changedBeforeAgentEnded(cell: CellSummary | undefined): boolean {
+  return (
+    cell !== undefined && latestAgentEnd.value !== null && cell.changed_step < latestAgentEnd.value
+  )
+}
+
+const endedUnsynced = computed(() => unsynced.value.filter(changedBeforeAgentEnded))
+const failedCell = computed(() =>
+  cells.value.find(
+    (cell) => cell.status === 'failed' && changedBeforeAgentEnded(shownBySlug.value.get(cell.slug)),
+  ),
+)
 const agentEnded = computed(
   () =>
     !session.agent.value &&
-    session.transactions.value.some((entry) => entry.ops.some((op) => op.op === 'agent_end')),
+    latestAgentEnd.value !== null &&
+    (failedCell.value !== undefined || endedUnsynced.value.length > 0),
 )
-
-const failedCell = computed(() => cells.value.find((cell) => cell.status === 'failed'))
 
 /** The banner hangs under the cell the trouble is about, not over the screen. */
 const endedUnder = computed(() => {
   if (!agentEnded.value) return null
   if (failedCell.value) return failedCell.value.slug
-  return unsynced.value.length ? unsynced.value[unsynced.value.length - 1].slug : null
+  return endedUnsynced.value.at(-1)?.slug ?? null
 })
 
 /** Viewing is free; this is the read that scopes the whole screen. */

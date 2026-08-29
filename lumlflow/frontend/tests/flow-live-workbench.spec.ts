@@ -16,6 +16,7 @@ import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import { Toast } from 'primevue'
 import ToastService from 'primevue/toastservice'
 
 import type { EnvReport } from '@/flow/api/client'
@@ -169,6 +170,11 @@ interface Bench {
 }
 
 const Empty = defineComponent({ template: '<div />' })
+const WorkbenchHost = defineComponent({
+  components: { LiveWorkbench, Toast },
+  props: { session: { type: Object, required: true }, stream: { type: Object, required: true } },
+  template: '<div><Toast /><LiveWorkbench :session="session" :stream="stream" /></div>',
+})
 
 function testRouter(): Router {
   return createRouter({
@@ -184,7 +190,7 @@ function testRouter(): Router {
 }
 
 async function workbench(
-  options: { handlers?: Handlers; at?: string; branch?: string } = {},
+  options: { handlers?: Handlers; at?: string; branch?: string; withToasts?: boolean } = {},
 ): Promise<Bench> {
   const live = await attach({
     status: flowStatus({ cells: MAIN, ...(options.branch ? { branch: options.branch } : {}) }),
@@ -225,7 +231,7 @@ async function workbench(
   const router = testRouter()
   await router.push(options.at ?? `/flow/${FLOW}`)
   await router.isReady()
-  const wrapper = mount(LiveWorkbench, {
+  const wrapper = mount(options.withToasts ? WorkbenchHost : LiveWorkbench, {
     props: { session: live.session, stream: live.stream },
     global: { plugins: [router, ToastService] },
   })
@@ -235,6 +241,12 @@ async function workbench(
 
 function asked(live: Attached, method: string): Record<string, unknown>[] {
   return live.daemon.calls.filter((call) => call.method === method).map((call) => call.params)
+}
+
+function toasts(): string {
+  return Array.from(document.body.querySelectorAll('.p-toast-message'))
+    .map((node) => node.textContent ?? '')
+    .join(' ')
 }
 
 /** The slugs on screen, in the order the view drew them. */
@@ -760,6 +772,99 @@ describe('the session is a journal subscription', () => {
 
     expect(wrapper.text()).not.toContain('not paired')
     expect(wrapper.text()).toContain('claude-1')
+    wrapper.unmount()
+  })
+
+  it('keeps a reconnected replay of 150 transactions quiet', async () => {
+    const { wrapper, live } = await workbench({ withToasts: true })
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'caught_up',
+      flow: FLOW,
+      step: 10,
+      running: [],
+    })
+    live.socket.drop()
+    live.reconnects[0]()
+    const reopened = live.sockets[1]
+    reopened.open()
+    for (let step = 11; step <= 160; step += 1) {
+      reopened.deliver({
+        channel: 'journal',
+        type: 'transaction',
+        flow: FLOW,
+        step,
+        transaction: transaction(step, { intent: 'agent worked while the tab slept' }),
+      })
+    }
+    reopened.deliver({
+      channel: 'journal',
+      type: 'caught_up',
+      flow: FLOW,
+      step: 160,
+      running: [],
+    })
+    await settle()
+
+    expect(toasts()).toBe('')
+    wrapper.unmount()
+  })
+
+  it('counts only stale cells changed before an agent session ended', async () => {
+    const stale = [
+      {
+        ...cellSummary('score', {
+          state: 'unsynced',
+          causes: ['score changed'],
+          created_step: 2,
+        }),
+        changed_step: 12,
+      },
+      {
+        ...cellSummary('report', {
+          state: 'unsynced',
+          causes: ['report changed'],
+          created_step: 4,
+        }),
+        changed_step: 16,
+      },
+    ]
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: stale,
+        }),
+      },
+    })
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 14,
+      transaction: transaction(14, {
+        ops: [{ op: 'agent_end', actor: 'claude-1', label: 'claude-1' }],
+      }),
+    })
+    await settleJournal()
+
+    expect(wrapper.text()).toContain('agent session ended · 1 stale asset')
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 18,
+      transaction: transaction(18, {
+        ops: [{ op: 'agent_end', actor: 'claude-1', label: 'claude-1' }],
+      }),
+    })
+    await settleJournal()
+
+    expect(wrapper.text()).toContain('agent session ended · 2 stale assets')
     wrapper.unmount()
   })
 })

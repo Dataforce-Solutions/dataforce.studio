@@ -85,7 +85,7 @@ export function fakeDaemon(handlers: Handlers = {}): Daemon {
     if (down.value) throw new TypeError('failed to fetch')
     let result: unknown
     try {
-      result = handlers[body.method]?.(body.params) ?? {}
+      result = (await handlers[body.method]?.(body.params)) ?? {}
     } catch (refused) {
       if (!(refused instanceof FlowApiError)) throw refused
       return {
@@ -137,6 +137,7 @@ export function cellSummary(slug: string, overrides: Partial<CellSummary> = {}):
     older_env: false,
     reused: false,
     created_step: 1,
+    changed_step: 1,
     eager: false,
     auto_declined: null,
     ...overrides,

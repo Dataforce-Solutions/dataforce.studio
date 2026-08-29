@@ -15,6 +15,8 @@ import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 
+import { TOKEN_PARAM } from '@/flow/api/token'
+
 export type WorkbenchView = 'canvas' | 'notebook'
 
 export interface SelectionOptions {
@@ -63,7 +65,7 @@ export function useSelection(
     if (compared.value.length > 0) params.set('compare', compared.value.join(','))
     // Query keys owned by another surface are not this selection's to remove.
     for (const [name, value] of Object.entries(route.query)) {
-      if (OWNED.includes(name) || typeof value !== 'string') continue
+      if (OWNED.includes(name) || name === TOKEN_PARAM || typeof value !== 'string') continue
       params.set(name, value)
     }
     return params.toString()

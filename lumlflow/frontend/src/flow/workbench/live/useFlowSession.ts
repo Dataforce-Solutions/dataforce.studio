@@ -129,6 +129,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
   const running = ref<RunningCell[]>([])
   const attempts = ref<Record<string, number>>({})
   const agent = ref<RegisteredAgent | null>(null)
+  let reachabilityEpoch = 0
 
   const path = computed(() => brief.value?.path ?? '')
   const cursor = computed(() => (path.value ? options.stream.cursor(path.value) : 0))
@@ -161,15 +162,17 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     method: M,
     params: FlowMethods[M]['params'],
   ): Promise<FlowMethods[M]['result']> {
+    const epoch = reachabilityEpoch
     try {
       const answer = await options.api.call(method, params)
-      reachable.value = true
+      if (epoch === reachabilityEpoch) reachable.value = true
       return answer
     } catch (failure) {
       // Only a transport failure says anything about the daemon. A refusal it
       // named is proof it is very much there.
-      if (failure instanceof DaemonUnreachable) reachable.value = false
-      else reachable.value = true
+      if (epoch === reachabilityEpoch) {
+        reachable.value = !(failure instanceof DaemonUnreachable)
+      }
       throw failure
     }
   }
@@ -279,6 +282,10 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
 
   function watchStatus(next: StreamStatus): void {
     stream.value = next
+    if (next === 'open') {
+      reachabilityEpoch += 1
+      reachable.value = true
+    }
     // Every status change opens a new subscription cycle, and a replay is on
     // its way through it. Whatever that replay carries is what this client was
     // away for, however briefly — the catch-up at the end of it is what says
@@ -295,6 +302,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     // The socket's 4401 is the 401 door in another spelling, so the token goes
     // the same way and the surface says what actually fixes this.
     if (next === 'refused') {
+      reachabilityEpoch += 1
       reachable.value = true
       rejectToken()
     }

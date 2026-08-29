@@ -386,6 +386,8 @@ export interface CellSummary {
   reused: boolean
   /** The step the cell was minted at — the notebook column's tiebreak. */
   created_step: number
+  /** The step the current selected version was accepted at. */
+  changed_step: number
   /** Opted out of the cost threshold: rematerializes on change regardless. */
   eager: boolean
   /**
