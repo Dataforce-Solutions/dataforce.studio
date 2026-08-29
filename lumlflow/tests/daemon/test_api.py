@@ -51,6 +51,22 @@ class Train:
         return {"model": "WEIGHTS"}
 """
 
+MODEL_AND_EXPERIMENT_CELL = """
+class Train:
+    produces = {"model": "model", "run": "experiment"}
+
+    def materialize(self, ctx):
+        return {"model": "WEIGHTS", "run": ctx.tracker.record}
+"""
+
+EXPERIMENT_ONLY_CELL = """
+class Evaluate:
+    produces = {"metrics": "experiment"}
+
+    def materialize(self, ctx):
+        return {"metrics": ctx.tracker.record}
+"""
+
 NOTE_CELL = '''
 class Note:
     """A note placed among the compute cells."""
@@ -275,6 +291,61 @@ async def test_a_flow_with_cells_opens_on_them_unmaterialized(tmp_path: Path):
     assert report["flags"] == []
 
 
+async def test_downstream_scaffolds_one_non_experiment_output_unless_all_requested(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new(
+            {"flow": "churn", "slug": "train", "source": MODEL_AND_EXPERIMENT_CELL}
+        )
+        await api.cells_new({"flow": "churn", "slug": "report", "after": "train"})
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "audit",
+                "after": "train",
+                "outputs": "all",
+            }
+        )
+        listed = await api.cells_list({"flow": "churn"})
+        report = await api.cells_show({"flow": "churn", "slug": "report"})
+        audit = await api.cells_show({"flow": "churn", "slug": "audit"})
+
+    train = next(cell for cell in listed["cells"] if cell["slug"] == "train")
+    assert train["primary"] == "run"
+    assert report["consumes"] == {"model": "train.model"}
+    assert "def materialize(self, ctx, model):" in report["source"]
+    assert audit["consumes"] == {
+        "model": "train.model",
+        "run": "train.run",
+    }
+    assert "def materialize(self, ctx, model, run):" in audit["source"]
+
+
+async def test_downstream_scaffolds_an_experiment_when_it_is_the_only_output(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new(
+            {
+                "flow": "churn",
+                "slug": "evaluate",
+                "source": EXPERIMENT_ONLY_CELL,
+            }
+        )
+        await api.cells_new({"flow": "churn", "slug": "report", "after": "evaluate"})
+        report = await api.cells_show({"flow": "churn", "slug": "report"})
+
+    assert report["consumes"] == {"metrics": "evaluate.metrics"}
+    assert "def materialize(self, ctx, metrics):" in report["source"]
+
+
 async def test_opening_a_flow_reports_the_settings_a_panel_renders(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
@@ -452,6 +523,45 @@ async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
 
     assert restored["order"] == str(restored["created_step"])
     assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+
+
+async def test_slug_index_tracks_all_lanes_and_rewind_restores_a_deleted_slug(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    manifest_path = root / "churn.flow" / "flow.yaml"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        first = await api.cells_new({"flow": "churn"})
+        await api.cells_new({"flow": "churn"})
+        await api.cells_new({"flow": "churn"})
+        first_detail = await api.cells_show({"flow": "churn", "slug": first["slug"]})
+        await api.fork({"flow": "churn", "name": "exp"})
+
+        await api.cells_delete({"flow": "churn", "slug": first["slug"]})
+        still_selected = yaml.safe_load(manifest_path.read_text())["cells"]
+        await api.cells_delete(
+            {"flow": "churn", "branch": "exp", "slug": first["slug"]}
+        )
+        fully_deleted = yaml.safe_load(manifest_path.read_text())["cells"]
+
+        added = await api.cells_new({"flow": "churn"})
+        await api.rewind(
+            {
+                "flow": "churn",
+                "branch": "main",
+                "to_step": first_detail["created_step"],
+            }
+        )
+        restored = yaml.safe_load(manifest_path.read_text())["cells"]
+
+    assert first["slug"] == "untitled_1"
+    assert still_selected[first["slug"]] == first_detail["uid"]
+    assert first["slug"] not in fully_deleted
+    assert added["slug"] == "untitled_4"
+    assert restored[first["slug"]] == first_detail["uid"]
+    assert set(restored) == {"untitled_1", "untitled_2", "untitled_3"}
 
 
 async def test_reorder_checks_the_called_lanes_topology_and_allows_archived_lanes(

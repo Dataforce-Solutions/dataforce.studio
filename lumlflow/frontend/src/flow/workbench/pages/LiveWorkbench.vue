@@ -474,11 +474,7 @@ async function onMove(slug: string, direction: 'up' | 'down'): Promise<void> {
   }
 }
 
-/**
- * Duplicating carries the source across but not the identity: the copy is a new
- * cell with no consumers, which is why fork is the promoted gesture and this
- * one is buried in the menu.
- */
+/** Duplicating carries the source and its inputs across under a new identity. */
 async function onDuplicate(slug: string): Promise<void> {
   try {
     // The slice carries no source — only a card's detail does — so the body is
@@ -495,7 +491,7 @@ async function onDuplicate(slug: string): Promise<void> {
       source: original.source,
     })
     selection.selectedSlug.value = copy.slug
-    acknowledge(`Duplicated as ${copy.slug}`, 'a new identity with no consumers')
+    acknowledge(`Duplicated as ${copy.slug}`, "keeps the original's inputs")
   } catch (failure) {
     refused(failure)
   }

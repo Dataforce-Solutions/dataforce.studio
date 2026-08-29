@@ -188,6 +188,11 @@ TOOLS: tuple[_Tool, ...] = (
             _Arg("slug", "string", "The cell's name, lowercase."),
             _Arg("source", "string", "The whole cell file. Scaffolded when absent."),
             _Arg("after", "string", "Prefill `consumes` from this cell's outputs."),
+            _Arg(
+                "all_outputs",
+                "boolean",
+                "Wire every output instead of the first non-experiment output.",
+            ),
             _Arg("anchor", "string", "Place the new cell directly after this cell."),
             _Arg("docstring", "string", "What the cell is for."),
             _INTENT,
@@ -758,7 +763,10 @@ def _as_read(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _as_wire(params: dict[str, Any]) -> dict[str, Any]:
     """Arguments under the names the daemon has always answered to."""
-    return {_WIRE_NAMES.get(name, name): value for name, value in params.items()}
+    wire = {_WIRE_NAMES.get(name, name): value for name, value in params.items()}
+    if wire.pop("all_outputs", False):
+        wire["outputs"] = "all"
+    return wire
 
 
 def _blank(value: Any) -> bool:

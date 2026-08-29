@@ -414,6 +414,16 @@ class Index:
         rows = self._conn.execute("SELECT uid, created_step FROM cells").fetchall()
         return {str(row["uid"]): int(row["created_step"]) for row in rows}
 
+    def selected_slugs(self) -> list[tuple[str, str]]:
+        rows = self._conn.execute(
+            "SELECT DISTINCT slug, uid FROM selections ORDER BY slug, uid"
+        ).fetchall()
+        return [(str(row["slug"]), str(row["uid"])) for row in rows]
+
+    def version_slugs(self) -> set[str]:
+        rows = self._conn.execute("SELECT DISTINCT slug FROM asset_versions").fetchall()
+        return {str(row["slug"]) for row in rows}
+
     def selection(self, branch_id: str, uid: str) -> str | None:
         row = self._conn.execute(
             "SELECT version_id FROM selections WHERE branch_id = ? AND uid = ?",

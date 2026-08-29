@@ -449,6 +449,35 @@ def test_move_cell_places_a_cell_and_returns_its_order(talk: Talk) -> None:
     assert live.store.manifest.order == {moved_uid: moved["order"]}
 
 
+def test_new_cell_all_outputs_wires_every_producer_output(talk: Talk) -> None:
+    producer = """
+class Train:
+    produces = {"model": "model", "run": "experiment"}
+"""
+    answers = talk(
+        hello(),
+        tool(1, "init-flow", {"name": "churn"}),
+        tool(2, "new-cell", {"slug": "train", "source": producer, "intent": "train"}),
+        tool(
+            3,
+            "new-cell",
+            {
+                "slug": "report",
+                "after": "train",
+                "all_outputs": True,
+                "intent": "report",
+            },
+        ),
+    )
+
+    assert answered(answers, 3)["slug"] == "report"
+    live = talk.flow("churn")
+    version = slice_of(live, "main")["report"]
+    report = live.store.objects.get(version.raw_source_ref).decode("utf-8")
+    assert 'consumes = {"model": "train.model", "run": "train.run"}' in report
+    assert "def materialize(self, ctx, model, run):" in report
+
+
 def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
     talk: Talk, workspace: Path
 ):
@@ -509,6 +538,7 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert set(tools) == {tool.name for tool in mcp.TOOLS}
     assert tools["edit-cell"]["inputSchema"]["required"] == ["slug", "source", "intent"]
     assert "anchor" in tools["new-cell"]["inputSchema"]["properties"]
+    assert "all_outputs" in tools["new-cell"]["inputSchema"]["properties"]
     assert tools["move-cell"]["inputSchema"]["required"] == ["slug"]
     assert {"before", "after"} <= set(tools["move-cell"]["inputSchema"]["properties"])
     assert "lane" in tools["run"]["inputSchema"]["properties"]

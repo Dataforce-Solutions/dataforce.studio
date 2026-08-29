@@ -521,6 +521,11 @@ def cells_new(
     after: str | None = typer.Option(
         None, "--after", help="Prefill `consumes` from this cell's outputs."
     ),
+    all_outputs: bool = typer.Option(
+        False,
+        "--all-outputs",
+        help="Wire every output instead of the first non-experiment output.",
+    ),
     anchor: str | None = typer.Option(
         None, "--anchor", help="Place the new cell directly after this cell."
     ),
@@ -534,6 +539,7 @@ def cells_new(
     params = {
         "slug": slug,
         "after": after,
+        "outputs": "all" if all_outputs else None,
         "anchor": anchor,
         "docstring": docstring,
         "branch": lane,

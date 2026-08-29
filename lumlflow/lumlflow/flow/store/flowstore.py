@@ -212,6 +212,7 @@ class FlowStore:
         self._index_stale = False
 
     def save_manifest(self) -> None:
+        self._sync_manifest_cells()
         self._drop_unselected_order_entries()
         _write_manifest(self.flow_dir, self.manifest)
 
@@ -281,6 +282,23 @@ class FlowStore:
             for branch in self.index.branches()
             for uid in self.index.selections(branch.branch_id)
         }
+
+    def _sync_manifest_cells(self) -> None:
+        known = set(self.index.creation_steps())
+        selected: dict[str, set[str]] = {}
+        for slug, uid in self.index.selected_slugs():
+            selected.setdefault(slug, set()).add(uid)
+
+        synced: dict[str, str] = {}
+        for slug, uid in self.manifest.cells.items():
+            candidates = selected.pop(slug, None)
+            if candidates:
+                synced[slug] = uid if uid in candidates else min(candidates)
+            elif uid not in known:
+                synced[slug] = uid
+        for slug, candidates in selected.items():
+            synced[slug] = min(candidates)
+        self.manifest.cells = synced
 
     def _drop_unselected_order_entries(self) -> None:
         if self.manifest.order is None:

@@ -1186,7 +1186,7 @@ describe('adding, renaming and deleting a cell', () => {
     wrapper.unmount()
   })
 
-  it('duplicates the body, not a blank scaffold, and says the copy has no consumers', async () => {
+  it('duplicates the body and says the copy keeps the original inputs', async () => {
     const { wrapper, live } = await workbench({
       handlers: {
         'cells.new': (params) => ({
@@ -1212,7 +1212,7 @@ describe('adding, renaming and deleting a cell', () => {
     expect(added.slug).toBe('features_copy')
     expect(added.source).toBe(SOURCE)
     expect(added.intent).toBe('duplicated a cell as features_copy')
-    expect(toasts()).toContain('a new identity with no consumers')
+    expect(toasts()).toContain("keeps the original's inputs")
     wrapper.unmount()
   })
 

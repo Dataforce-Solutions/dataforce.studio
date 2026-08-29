@@ -303,9 +303,12 @@ class Api:
         session, branch = await self._read(params)
         raw_slug = params.get("slug")
         if raw_slug is None:
-            slug = _placeholder_slug(session, branch)
+            slug = _placeholder_slug(session)
         else:
             slug = portable.cell_name(str(raw_slug))
+        output_mode = params.get("outputs")
+        if output_mode not in (None, "all"):
+            raise FlowError("`outputs` must be `all` when given")
         provided_source = params.get("source")
         anchor_name = str(params.get("after") or params.get("anchor") or "")
         if not anchor_name and provided_source:
@@ -614,6 +617,7 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
+        session.store.save_manifest()
         return (
             await self._flow_brief(session)
             | {
@@ -1200,18 +1204,15 @@ def _projection(projection: Projection | None) -> dict[str, Any]:
     }
 
 
-def _placeholder_slug(session: FlowSession, branch: str) -> str:
+def _placeholder_slug(session: FlowSession) -> str:
     """The next free `untitled_N`. Adding a cell never waits for a name."""
-    branch_id = session.store.branches.get(branch).branch_id
-    taken = {
-        version.slug
-        for version in session.store.index.slice_versions(branch_id).values()
-    }
-    return next(
-        f"{PLACEHOLDER_SLUG}_{number}"
-        for number in range(1, len(taken) + 2)
-        if f"{PLACEHOLDER_SLUG}_{number}" not in taken
-    )
+    prefix = f"{PLACEHOLDER_SLUG}_"
+    assigned = [
+        int(suffix)
+        for slug in session.store.index.version_slugs()
+        if slug.startswith(prefix) and (suffix := slug[len(prefix) :]).isdigit()
+    ]
+    return f"{prefix}{max(assigned, default=0) + 1}"
 
 
 def _scaffold(
@@ -1220,12 +1221,27 @@ def _scaffold(
     """The file a new cell starts as, wired to what it comes after when told."""
     after = params.get("after")
     producer = queries.head(session, branch, str(after)) if after else None
+    materialization = None
+    if producer is not None:
+        branch_id = session.store.branches.get(branch).branch_id
+        mat_id = session.store.index.baselines(branch_id).get(producer.uid)
+        materialization = (
+            session.store.index.materialization(mat_id) if mat_id else None
+        )
     docstring = params.get("docstring")
     return scaffold.cell_source(
         slug,
         docstring=str(docstring) if docstring else None,
         producer=producer.slug if producer is not None else None,
-        outputs=list(producer.manifest.produces) if producer is not None else (),
+        outputs=(
+            queries.downstream_outputs(
+                producer,
+                materialization,
+                include_all=params.get("outputs") == "all",
+            )
+            if producer is not None
+            else ()
+        ),
     )
 
 

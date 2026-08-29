@@ -522,6 +522,30 @@ def primary_output(
     )
 
 
+def downstream_outputs(
+    version: VersionRow,
+    mat: MaterializationRow | None = None,
+    *,
+    include_all: bool = False,
+) -> list[str]:
+    """Outputs a scaffold consumes, without preferring an experiment handle."""
+    outputs = list(version.manifest.produces)
+    if include_all:
+        return outputs
+    non_experiments = [
+        name for name in outputs if _kind_of(name, version, mat) != "experiment"
+    ]
+    candidates = non_experiments or outputs
+    if not candidates:
+        return []
+    return [
+        min(
+            candidates,
+            key=lambda name: (_rank(name, version, mat), outputs.index(name)),
+        )
+    ]
+
+
 def context(session: "FlowSession", branch: str) -> dict[str, Any]:
     """The brief an agent reads before it does anything: where it is, what is
     unsynced and why, what broke, what the pending work costs, what just

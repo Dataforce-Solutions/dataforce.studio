@@ -246,6 +246,27 @@ def test_cells_new_after_prefills_the_wiring_and_the_signature(
     assert "score.summary → report (summary)" in wired.output
 
 
+def test_cells_new_all_outputs_keeps_the_previous_downstream_wiring(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    write_cell(
+        workspace / "churn.flow",
+        "train",
+        """
+class Train:
+    produces = {"model": "model", "run": "experiment"}
+""",
+    )
+    cli("cells", "list")
+
+    added = cli("cells", "new", "report", "--after", "train", "--all-outputs")
+    assert added.exit_code == 0, added.output
+    source = (workspace / "churn.flow" / "cells" / "report.py").read_text("utf-8")
+    assert 'consumes = {"model": "train.model", "run": "train.run"}' in source
+    assert "def materialize(self, ctx, model, run):" in source
+
+
 def test_cells_move_places_a_cell_beside_its_neighbour(
     cli: Invoke, workspace: Path
 ) -> None:

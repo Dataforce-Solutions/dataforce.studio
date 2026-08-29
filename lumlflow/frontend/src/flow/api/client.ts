@@ -219,6 +219,7 @@ export interface FlowMethods {
       anchor?: string
       docstring?: string
       source?: string
+      outputs?: 'all'
     },
     EditedCell
   >
