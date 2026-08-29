@@ -220,6 +220,9 @@ class RunQueue:
         self, plan: Plan, step: Step, *, actor: str, force: bool = False
     ) -> StepOutcome:
         here = self._store.index.slice_versions(plan.branch_id)
+        selected = here.get(step.uid)
+        if selected is None or selected.version_id != step.version.version_id:
+            return "abandoned"
         inputs, missing = resolve_inputs(
             self._store.index, plan.branch_id, step.version, here
         )
@@ -242,7 +245,7 @@ class RunQueue:
             if hit is not None:
                 self._record_hit(plan, step, key, hit.mat_id, actor=actor)
                 return "cached"
-        return await self._execute(plan, step, key, inputs, actor=actor)
+        return await self._execute(plan, step, key, inputs, actor=actor, force=force)
 
     async def _execute(
         self,
@@ -252,8 +255,17 @@ class RunQueue:
         inputs: dict[str, Bound],
         *,
         actor: str,
+        force: bool,
     ) -> StepOutcome:
-        flight = self._flights.get(key)
+        flight = next(
+            (
+                candidate
+                for candidate in self._flights.values()
+                if candidate.key == key
+                and (not force or candidate.origin == plan.branch)
+            ),
+            None,
+        )
         if flight is not None:
             joined = await self._join(flight, plan, step, key, actor=actor)
             if joined is not None:
@@ -267,6 +279,8 @@ class RunQueue:
         waiter = self._wait_on(flight, plan.branch)
         result = await waiter.future
         if waiter.abandoned:
+            return "abandoned"
+        if not self._still_selected(plan, step):
             return "abandoned"
         if result is None or result.state != "succeeded" or flight.mat_id is None:
             return None
@@ -289,7 +303,7 @@ class RunQueue:
         actor: str,
     ) -> StepOutcome:
         flight = _Flight(key=key, run_id=new_ulid(), origin=plan.branch, slug=step.slug)
-        self._flights[key] = flight
+        self._flights[flight.run_id] = flight
         waiter = self._wait_on(flight, plan.branch)
         # The run is the queue's, not the caller's: the caller may walk away
         # while other branches are still awaiting the same result.
@@ -317,19 +331,23 @@ class RunQueue:
         try:
             await self._acquire(plan.branch)
             try:
-                if not flight.preempted and flight.waiters:
+                if (
+                    not flight.preempted
+                    and flight.waiters
+                    and self._still_selected(plan, step)
+                ):
                     result = await self._run(flight, plan, step, inputs, actor=actor)
             finally:
                 self._release()
         except BaseException as failure:  # noqa: B036 - relayed to every waiter
             error = failure
-        if self._flights.get(flight.key) is flight:
-            # Only ever retire our own registration. A waiter that found the
-            # result unusable — an identity-dependent run under another branch's
-            # name — starts its own flight under the same key, and that one is
-            # still live.
-            del self._flights[flight.key]
+        if self._flights.get(flight.run_id) is flight:
+            del self._flights[flight.run_id]
         self._settle(flight, result, error)
+
+    def _still_selected(self, plan: Plan, step: Step) -> bool:
+        selected = self._store.index.slice_versions(plan.branch_id).get(step.uid)
+        return selected is not None and selected.version_id == step.version.version_id
 
     async def _run(
         self,

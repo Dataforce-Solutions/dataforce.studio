@@ -97,6 +97,8 @@ class KernelProcess:
         self._accepting = False
         self._next_id = 0
         self._evict_before_next_run: bool = False
+        self._active_runs: set[str] = set()
+        self._cancelled_runs: set[str] = set()
 
     @property
     def state(self) -> KernelState:
@@ -131,25 +133,32 @@ class KernelProcess:
             await self._teardown()
 
     async def run(self, request: RunRequest) -> RunResult:
-        await self.ensure_started()
+        self._active_runs.add(request.run_id)
         try:
-            if self._evict_before_next_run:
-                self._evict_before_next_run = False
-                try:
-                    await self._call("evict_workspace_modules", {})
-                except BaseException:
-                    self._evict_before_next_run = True
-                    raise
-            record = await self._call("run", _run_payload(request), timeout=None)
-        except _KernelProtocolError:
-            raise
-        except KernelError as death:
-            # Nothing recorded is lost: the kernel holds no state the store does
-            # not, so the next run starts a fresh one.
-            raise KernelError(
-                f"the kernel stopped while `{request.slug}` was running: {death}"
-            ) from death
-        return self._result(record)
+            await self.ensure_started()
+            try:
+                if self._evict_before_next_run:
+                    self._evict_before_next_run = False
+                    try:
+                        await self._call("evict_workspace_modules", {})
+                    except BaseException:
+                        self._evict_before_next_run = True
+                        raise
+                if request.run_id in self._cancelled_runs:
+                    return RunResult(state="cancelled")
+                record = await self._call("run", _run_payload(request), timeout=None)
+            except _KernelProtocolError:
+                raise
+            except KernelError as death:
+                # Nothing recorded is lost: the kernel holds no state the store does
+                # not, so the next run starts a fresh one.
+                raise KernelError(
+                    f"the kernel stopped while `{request.slug}` was running: {death}"
+                ) from death
+            return self._result(record)
+        finally:
+            self._active_runs.discard(request.run_id)
+            self._cancelled_runs.discard(request.run_id)
 
     async def page(
         self, value_ref: str, kind: str, query: dict[str, Any]
@@ -187,6 +196,8 @@ class KernelProcess:
 
     def cancel(self, run_id: str) -> None:
         """Fire-and-forget: the kernel answers a cancel on its reader thread."""
+        if run_id in self._active_runs:
+            self._cancelled_runs.add(run_id)
         self._send({"jsonrpc": "2.0", "method": "cancel", "params": {"run_id": run_id}})
 
     def evict_workspace_modules(self) -> None:

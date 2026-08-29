@@ -6,6 +6,7 @@ store records it — on a workspace holding two flows, because a workspace daemo
 that hosts one flow proves nothing about the one that hosts two.
 """
 
+import asyncio
 import json
 import shutil
 from pathlib import Path
@@ -367,6 +368,56 @@ async def test_leaving_a_run_nobody_is_waiting_on_says_so(tmp_path: Path):
         left = await api.cancel({"flow": "churn"})
 
     assert (left["left"], left["stopped"], left["awaiting"]) == (0, False, 0)
+
+
+async def test_cancelling_during_kernel_start_never_runs_the_cell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    marker = tmp_path / "executed"
+    write_cell(
+        root / "churn.flow",
+        "slow_start",
+        f"""
+        class SlowStart:
+            produces = {{"value": "asset"}}
+
+            def materialize(self, ctx):
+                from pathlib import Path
+
+                Path({str(marker)!r}).touch()
+                return {{"value": 1}}
+        """,
+    )
+
+    async with daemon_api(root) as api:
+        session = api.hub.session("churn")
+        ensure_started = session.kernel.ensure_started
+        starting = asyncio.Event()
+        resume = asyncio.Event()
+
+        async def delayed_start() -> dict[str, Any]:
+            starting.set()
+            await resume.wait()
+            return await ensure_started()
+
+        monkeypatch.setattr(session.kernel, "ensure_started", delayed_start)
+        running = asyncio.create_task(
+            api.run({"flow": "churn", "target": "slow_start"})
+        )
+        await asyncio.wait_for(starting.wait(), timeout=5)
+        left = await api.cancel({"flow": "churn"})
+        resume.set()
+        outcome = await running
+        async with asyncio.timeout(30):
+            while session.queue.busy:
+                await asyncio.sleep(0.01)
+        runs = ops_of(session, RunRecorded)
+
+    assert (left["left"], left["stopped"]) == (1, True)
+    assert outcome["abandoned"] is True
+    assert [run.state for run in runs] == ["cancelled"]
+    assert not marker.exists()
 
 
 async def test_a_failing_cell_is_recorded_not_raised(tmp_path: Path):

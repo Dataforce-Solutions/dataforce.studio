@@ -236,6 +236,58 @@ class TestForcedRuns:
 
         assert (outcome.pruned, flow.executor.requests) == (("features",), [])
 
+    async def test_force_does_not_join_another_branches_flight(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("train")
+        main = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+
+        sweep = asyncio.create_task(
+            flow.queue.submit("train", branch="sweep", force=True)
+        )
+        await settle()
+        flow.executor.release()
+
+        main_outcome, sweep_outcome = await asyncio.gather(main, sweep)
+        assert main_outcome.executed == ("train",)
+        assert sweep_outcome.executed == ("train",)
+        assert [request.branch for request in flow.executor.requests] == [
+            MAIN_BRANCH,
+            "sweep",
+        ]
+        assert flow.ops(MemoHit) == []
+
+    async def test_force_still_joins_its_own_branches_flight(self, flow: Flow) -> None:
+        flow.add("train")
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("train")
+        main = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+        first_sweep = asyncio.create_task(
+            flow.queue.submit("train", branch="sweep", force=True)
+        )
+        await settle()
+        second_sweep = asyncio.create_task(
+            flow.queue.submit("train", branch="sweep", force=True)
+        )
+        await settle()
+        flow.executor.release()
+
+        main_outcome, first_outcome, second_outcome = await asyncio.gather(
+            main, first_sweep, second_sweep
+        )
+
+        assert main_outcome.executed == ("train",)
+        assert first_outcome.executed == ("train",)
+        assert second_outcome.cached == ("train",)
+        assert [request.branch for request in flow.executor.requests] == [
+            MAIN_BRANCH,
+            "sweep",
+        ]
+
 
 class TestUnpersistedValues:
     async def test_demand_for_bytes_that_were_never_kept_reruns_the_producer(
@@ -384,6 +436,73 @@ class TestCoalescing:
         ]
         assert counts == [1, 2, 1]
         assert {params["slug"] for _, params in flow.events} == {"train"}
+
+
+class TestPlanChanges:
+    async def test_a_step_edited_before_its_turn_is_abandoned(self, flow: Flow) -> None:
+        flow.add("load")
+        original = flow.add("child", consumes={"rows": "load.data"})
+        flow.executor.holding.add("load")
+        running = asyncio.create_task(flow.run("child"))
+        await flow.executor.started.wait()
+
+        edited = flow.edit("child", "v2")
+        flow.executor.release()
+        outcome = await running
+
+        assert outcome.abandoned is True
+        assert flow.executor.slugs == ["load"]
+        assert edited.version_id != original.version_id
+        assert all(
+            op.version_id != original.version_id
+            for op in flow.ops(RunRecorded)
+            if op.uid == original.uid
+        )
+
+    async def test_a_step_edited_while_waiting_for_the_kernel_is_abandoned(
+        self, flow: Flow
+    ) -> None:
+        flow.add("blocker")
+        original = flow.add("child")
+        flow.executor.holding.add("blocker")
+        blocking = asyncio.create_task(flow.run("blocker"))
+        await flow.executor.started.wait()
+        queued = asyncio.create_task(flow.run("child"))
+        await settle()
+
+        edited = flow.edit("child", "v2")
+        flow.executor.release()
+        _, outcome = await asyncio.gather(blocking, queued)
+
+        assert outcome.abandoned is True
+        assert flow.executor.slugs == ["blocker"]
+        assert edited.version_id != original.version_id
+        assert all(
+            op.version_id != original.version_id
+            for op in flow.ops(RunRecorded)
+            if op.uid == original.uid
+        )
+
+    async def test_a_branch_edited_while_joining_gets_no_old_memo_hit(
+        self, flow: Flow
+    ) -> None:
+        original = flow.add("train")
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("train")
+        main = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+        sweep = asyncio.create_task(flow.queue.submit("train", branch="sweep"))
+        await settle()
+
+        edited = flow.edit("train", "v2", branch="sweep")
+        flow.executor.release()
+        main_outcome, sweep_outcome = await asyncio.gather(main, sweep)
+
+        assert main_outcome.executed == ("train",)
+        assert sweep_outcome.abandoned is True
+        assert flow.executor.slugs == ["train"]
+        assert edited.version_id != original.version_id
+        assert flow.ops(MemoHit) == []
 
 
 class TestQueueOrder:
