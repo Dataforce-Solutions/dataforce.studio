@@ -165,7 +165,18 @@ class Api:
         )
 
     async def workspace_list(self, params: dict[str, Any]) -> dict[str, Any]:
-        return workspace.listing(self.directory, str(params.get("path") or ""))
+        directory = self._directory(params)
+        return {
+            "directory": str(directory),
+            "flows": [
+                {
+                    "name": ref.name,
+                    "path": ref.address,
+                    "relative_path": ref.relpath,
+                }
+                for ref in workspace.find_flows(directory)
+            ],
+        }
 
     async def flow_init(self, params: dict[str, Any]) -> dict[str, Any]:
         name = str(params.get("name") or "")

@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -500,7 +500,12 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
     )
 
     assert result.exit_code == 0, result.output
-    assert printed == f"http://127.0.0.1:7777/?token={TOKEN}"
+    parsed = urlparse(printed)
+    assert parsed.path == "/flow"
+    assert parse_qs(parsed.query) == {
+        "token": [TOKEN],
+        "directory": [str(Path.cwd())],
+    }
     with served.http.websocket_connect(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"
     ) as socket:

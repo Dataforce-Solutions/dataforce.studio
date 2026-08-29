@@ -1,19 +1,12 @@
-/**
- * The launch surface and the pairing door.
- *
- * Two rules are load-bearing here and both are asserted rather than described.
- * A flow is a **document**: the browser lists it as one entry, opens it, and
- * offers no way to walk into its cells or its store — the daemon refuses such a
- * listing, and this asserts the client never asks for one. And pairing is
- * **detected**: the panel flips because an `agent_begin` transaction arrived on
- * the journal, not because anything in the UI confirmed it.
- */
+/** The launch-directory listing, path addressing, pairing, and empty state. */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { computed, defineComponent, nextTick } from 'vue'
+import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, createWebHistory, type Router } from 'vue-router'
 
+import MainHeader from '@/components/layout/header/MainHeader.vue'
 import { FlowApiError } from '@/flow/api/client'
 import { browserToken, TOKEN_STORAGE_KEY } from '@/flow/api/token'
 import { flowPath } from '@/flow/workbench/model/routes'
@@ -41,55 +34,33 @@ function testRouter(): Router {
 const ROOT = '/home/dana/project'
 
 const workspace = {
-  root: ROOT,
-  path: '',
-  outside: false,
-  parent: '/home/dana',
-  entries: [
-    { name: 'churn.flow', path: 'churn.flow', kind: 'flow' as const, size: null },
-    { name: 'data', path: 'data', kind: 'dir' as const, size: null },
-    { name: 'helpers.py', path: 'helpers.py', kind: 'file' as const, size: 2048 },
-    { name: 'pyproject.toml', path: 'pyproject.toml', kind: 'file' as const, size: 412 },
+  directory: ROOT,
+  flows: [
+    {
+      name: 'churn',
+      path: `${ROOT}/churn.flow`,
+      relative_path: 'churn.flow',
+    },
+    {
+      name: 'sweep',
+      path: `${ROOT}/experiments/sweep.flow`,
+      relative_path: 'experiments/sweep.flow',
+    },
   ],
-}
-
-const inside = {
-  root: ROOT,
-  path: 'data',
-  outside: false,
-  parent: ROOT,
-  entries: [{ name: 'raw.csv', path: 'data/raw.csv', kind: 'file' as const, size: 1_048_576 }],
-}
-
-/** One directory up: a neighbouring project, and the workspace beside it. */
-const above = {
-  root: ROOT,
-  path: '/home/dana',
-  outside: true,
-  parent: '/home',
-  entries: [
-    { name: 'sales.flow', path: '/home/dana/sales.flow', kind: 'flow' as const, size: null },
-    { name: 'project', path: ROOT, kind: 'dir' as const, size: null },
-    { name: 'notes.md', path: '/home/dana/notes.md', kind: 'file' as const, size: 96 },
-  ],
-}
-
-const byPath: Record<string, typeof workspace> = {
-  '': workspace,
-  data: inside,
-  '/home/dana': above,
-  [ROOT]: workspace,
 }
 
 function listings(handlers: Handlers = {}): Daemon {
   return fakeDaemon({
-    'workspace.list': (params) => byPath[String(params.path ?? '')] ?? workspace,
+    'workspace.list': (params) => ({
+      ...workspace,
+      directory: String(params.directory ?? ROOT),
+    }),
     ...handlers,
   })
 }
 
 /** Creating a flow is a once-per-project gesture and folds away behind a button. */
-async function openNewFlow(wrapper: Awaited<ReturnType<typeof browse>>): Promise<void> {
+async function openNewFlow(wrapper: Awaited<ReturnType<typeof landing>>): Promise<void> {
   await wrapper
     .findAll('button')
     .find((button) => button.text() === 'New flow')
@@ -97,17 +68,10 @@ async function openNewFlow(wrapper: Awaited<ReturnType<typeof browse>>): Promise
   await settle()
 }
 
-/** The file-manager gesture, which is the only way out of the launch directory. */
-function upArrow(wrapper: Awaited<ReturnType<typeof browse>>) {
-  return wrapper
-    .findAll('button')
-    .find((button) => button.attributes('aria-label') === 'up one directory')
-}
-
-async function browse(daemon: Daemon) {
+async function landing(daemon: Daemon, directory = ROOT) {
   vi.stubGlobal('fetch', daemon.transport)
   const router = testRouter()
-  await router.push('/flow')
+  await router.push({ path: '/flow', query: { directory } })
   await router.isReady()
   const wrapper = mount(WorkspacePage, { global: { plugins: [router] } })
   await settle()
@@ -130,137 +94,82 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('the workspace browser', () => {
-  it('lists what the daemon says is there, rooted at the launch directory', async () => {
+describe('the workspace listing', () => {
+  it('lists only the flows beneath the directory in the address', async () => {
     const daemon = listings()
 
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
-    expect(listed(daemon)).toEqual([{ path: '' }])
-    expect(wrapper.text()).toContain('/home/dana/project')
-    for (const name of ['churn.flow', 'data', 'helpers.py', 'pyproject.toml']) {
+    expect(listed(daemon)).toEqual([{ directory: ROOT }])
+    expect(wrapper.text()).toContain(ROOT)
+    for (const name of ['churn.flow', 'experiments/sweep.flow']) {
       expect(wrapper.text()).toContain(name)
     }
     wrapper.unmount()
   })
 
-  it('renders a flow as one document that opens, never as a folder to walk into', async () => {
+  it('opens absolute flow paths and offers no directory browser', async () => {
     const daemon = listings()
 
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
-    // One entry, one gesture: the workbench. Nothing offers its internals, and
-    // no listing is ever asked for a path inside it — cells and the store are
-    // the document's insides, not this workspace's files.
     const links = wrapper.findAll('a')
-    expect(links).toHaveLength(1)
-    expect(links[0].attributes('href')).toBe('/flow/churn.flow')
-    expect(links[0].text()).toContain('churn.flow')
-
-    expect(links[0].findAll('button')).toHaveLength(0)
-
-    await links[0].trigger('click')
-    await settle()
-    expect(listed(daemon)).toEqual([{ path: '' }])
-    expect(wrapper.findAll('a')).toHaveLength(1)
-    wrapper.unmount()
-  })
-
-  it('walks into a plain directory and lists its files as context, without viewers', async () => {
-    const daemon = listings()
-    const wrapper = await browse(daemon)
-
-    const folder = wrapper.findAll('button').find((button) => button.text() === 'data')
-    await folder?.trigger('click')
-    await settle()
-
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: 'data' }])
-    expect(wrapper.text()).toContain('raw.csv')
-    expect(wrapper.text()).toContain('1.0 MB')
-    // A workspace file is listed, never opened: viewers are not v1, and the
-    // store versions none of this.
-    expect(wrapper.findAll('a')).toHaveLength(0)
-    expect(wrapper.findAll('button').some((button) => button.text().includes('raw.csv'))).toBe(
-      false,
+    expect(links).toHaveLength(2)
+    expect(links[0].attributes('href')).toBe(
+      '/flow/%2Fhome%2Fdana%2Fproject%2Fchurn.flow?directory=/home/dana/project',
     )
+    expect(links[0].text()).toContain('churn.flow')
+    expect(wrapper.find('[aria-label="up one directory"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('back to workspace')
     wrapper.unmount()
   })
 
-  it('climbs above the launch directory rather than dead-ending at it', async () => {
-    const daemon = listings()
-    const wrapper = await browse(daemon)
+  it('keeps the launch-directory view in top-level navigation', async () => {
+    const router = testRouter()
+    await router.push({ path: flowPath(`${ROOT}/churn.flow`), query: { directory: ROOT } })
+    await router.isReady()
+    const wrapper = mount(MainHeader, {
+      global: {
+        plugins: [router, createPinia()],
+        stubs: { ApiKeyButton: true, ThemeToggle: true },
+      },
+    })
 
-    await upArrow(wrapper)?.trigger('click')
-    await settle()
+    const workspaceLink = wrapper.findAll('a').find((link) => link.text() === 'Workspace')
+    expect(workspaceLink?.attributes('href')).toBe('/flow?directory=/home/dana/project')
 
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: '/home/dana' }])
-    // The address is shown whole: above the workspace there is no root-relative
-    // trail to draw, and the entries are the same three renderings as ever.
-    expect(wrapper.text()).toContain('/home/dana')
-    for (const name of ['sales.flow', 'project', 'notes.md']) {
-      expect(wrapper.text()).toContain(name)
-    }
-    // Creating a flow stays in the workspace — "here" is not one up there.
-    expect(wrapper.text()).not.toContain('new flow')
-    expect(wrapper.text()).toContain('flows are created in')
+    const experimentsLink = wrapper.findAll('a').find((link) => link.text() === 'Experiments')
+    await experimentsLink?.trigger('click')
+    await nextTick()
+    expect(router.currentRoute.value.query).toEqual({ directory: ROOT })
     wrapper.unmount()
   })
 
-  it('opens a flow outside the workspace on a link that carries where it is', async () => {
-    const daemon = listings()
-    const wrapper = await browse(daemon)
-    await upArrow(wrapper)?.trigger('click')
-    await settle()
+  it('offers New flow when the launch directory contains no flows', async () => {
+    const daemon = listings({
+      'workspace.list': (params) => ({
+        directory: params.directory,
+        flows: [],
+      }),
+    })
 
-    const link = wrapper.findAll('a')[0]
+    const wrapper = await landing(daemon)
 
-    // One segment, percent-encoded: `:flowId` matches one, and a literal `../`
-    // would be resolved away by the browser before the router ever saw it.
-    expect(wrapper.findAll('a')).toHaveLength(1)
-    expect(link.attributes('href')).toBe('/flow/%2Fhome%2Fdana%2Fsales.flow')
-    expect(link.text()).toContain('sales.flow')
-    wrapper.unmount()
-  })
-
-  it('walks back down into the workspace, which is one of the entries up there', async () => {
-    const daemon = listings()
-    const wrapper = await browse(daemon)
-    await upArrow(wrapper)?.trigger('click')
-    await settle()
-
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'project')
-      ?.trigger('click')
-    await settle()
-
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: '/home/dana' }, { path: ROOT }])
-    // Home again: the crumb trail is back and so is the way to create a flow.
+    expect(wrapper.text()).toContain('no flows here yet')
+    expect(wrapper.findAll('a')).toHaveLength(0)
     expect(wrapper.findAll('button').map((button) => button.text())).toContain('New flow')
-    expect(wrapper.findAll('a')[0].attributes('href')).toBe('/flow/churn.flow')
-    wrapper.unmount()
-  })
-
-  it('offers `back to workspace` from anywhere above it', async () => {
-    const daemon = listings()
-    const wrapper = await browse(daemon)
-    await upArrow(wrapper)?.trigger('click')
-    await settle()
-
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'back to workspace')
-      ?.trigger('click')
-    await settle()
-
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: '/home/dana' }, { path: '' }])
     wrapper.unmount()
   })
 
   it('init here scaffolds through the daemon and checks main out into it', async () => {
-    const created = { flow: 'sweep', path: 'sweep.flow', branch: 'main', warnings: [] }
+    const created = {
+      flow: 'sweep',
+      path: `${ROOT}/sweep.flow`,
+      branch: 'main',
+      warnings: [],
+    }
     const daemon = listings({ 'flow.init': () => created, 'flow.checkout': () => created })
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
     await openNewFlow(wrapper)
     await wrapper.find('input').setValue('sweep')
@@ -269,41 +178,41 @@ describe('the workspace browser', () => {
 
     const ops = daemon.calls.filter((call) => call.method.startsWith('flow.'))
     expect(ops.map((call) => call.method)).toEqual(['flow.init', 'flow.checkout'])
-    expect(ops[0].params).toEqual({ name: 'sweep' })
-    // A bare init leaves the flow unbound; the browser's door owes the checkout
-    // that makes the directory a worktree on `main`.
-    expect(ops[1].params.flow).toBe('sweep.flow')
+    expect(ops[0].params).toEqual({ name: 'sweep', directory: ROOT })
+    expect(ops[1].params.flow).toBe(`${ROOT}/sweep.flow`)
     expect(ops[1].params.branch).toBe('main')
     expect(ops[1].params.intent).toBeTruthy()
     // And the listing is re-read, so the new document shows up where it landed.
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: '' }])
+    expect(listed(daemon)).toEqual([{ directory: ROOT }, { directory: ROOT }])
     wrapper.unmount()
   })
 
-  it('inits into the directory being browsed, not the root', async () => {
-    const created = { flow: 'sweep', path: 'data/sweep.flow', branch: 'main', warnings: [] }
+  it('uses the launch directory from the address, not the daemon start directory', async () => {
+    const other = '/home/dana/other'
+    const created = {
+      flow: 'sweep',
+      path: `${other}/sweep.flow`,
+      branch: 'main',
+      warnings: [],
+    }
     const daemon = listings({ 'flow.init': () => created, 'flow.checkout': () => created })
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon, other)
 
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'data')
-      ?.trigger('click')
-    await settle()
     await openNewFlow(wrapper)
     await wrapper.find('input').setValue('sweep')
     await wrapper.find('form').trigger('submit')
     await settle()
 
     const init = daemon.calls.find((call) => call.method === 'flow.init')
-    expect(init?.params).toEqual({ name: 'data/sweep' })
+    expect(listed(daemon)[0]).toEqual({ directory: other })
+    expect(init?.params).toEqual({ name: 'sweep', directory: other })
     wrapper.unmount()
   })
 
   it('shows the flow the scaffold created even when the checkout refuses', async () => {
     const created = {
       flow: 'sweep',
-      path: 'sweep.flow',
+      path: `${ROOT}/sweep.flow`,
       branch: 'main',
       warnings: ['cloud-synced folder'],
     }
@@ -313,7 +222,7 @@ describe('the workspace browser', () => {
         throw new FlowApiError('`main` is held by claude-1', { status: 409 })
       },
     })
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
     await openNewFlow(wrapper)
     await wrapper.find('input').setValue('sweep')
@@ -323,7 +232,7 @@ describe('the workspace browser', () => {
     // The flow is on disk the moment `flow.init` returns. A listing that does
     // not show it leaves the user unable to open it and unable to create it
     // again, so the re-read is owed whether or not the checkout landed.
-    expect(listed(daemon)).toEqual([{ path: '' }, { path: '' }])
+    expect(listed(daemon)).toEqual([{ directory: ROOT }, { directory: ROOT }])
     // And the refusal is still the sentence on screen, not swallowed by the
     // fresh listing that followed it.
     expect(wrapper.text()).toContain('held by claude-1')
@@ -333,28 +242,15 @@ describe('the workspace browser', () => {
     wrapper.unmount()
   })
 
-  it('stops claiming lumlflow is stopped once it names a refusal', async () => {
+  it('renders a listing refusal without claiming lumlflow is stopped', async () => {
     const daemon = listings({
       'workspace.list': () => {
-        throw new FlowApiError('`churn.flow` is a flow — open it rather than browsing it', {
-          status: 400,
-        })
+        throw new FlowApiError('the launch directory cannot be read', { status: 400 })
       },
     })
-    daemon.down.value = true
-    const wrapper = await browse(daemon)
-    expect(wrapper.text()).toContain('lumlflow is not running')
+    const wrapper = await landing(daemon)
 
-    // It came back, and what it came back with is a refusal — which is proof it
-    // is there. Reporting that as "not running" would name the wrong failure.
-    daemon.down.value = false
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'workspace')
-      ?.trigger('click')
-    await settle()
-
-    expect(wrapper.text()).toContain('open it rather than browsing it')
+    expect(wrapper.text()).toContain('the launch directory cannot be read')
     expect(wrapper.text()).not.toContain('lumlflow is not running')
     wrapper.unmount()
   })
@@ -363,7 +259,7 @@ describe('the workspace browser', () => {
     const daemon = listings()
     daemon.down.value = true
 
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
     expect(wrapper.text()).toContain('lumlflow is not running')
     expect(wrapper.text()).toContain('lumlflow ui')
@@ -382,7 +278,7 @@ describe('the workspace browser', () => {
     window.localStorage.clear()
     const daemon = listings()
 
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
     expect(daemon.calls).toEqual([])
     expect(wrapper.text()).toContain('this tab is not connected')
@@ -409,7 +305,7 @@ describe('the workspace browser', () => {
       },
     })
 
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
     expect(wrapper.text()).toContain('this tab is not connected')
     expect(wrapper.text()).toContain('lumlflow ui')
@@ -423,10 +319,8 @@ describe('the workspace browser', () => {
   })
 
   /**
-   * `lumlflow ui` opens the address it prints, and that address is a tracker
-   * page as often as a flow. The key is banked when the tab enters, wherever it
-   * enters — the click through to the workspace is a router navigation, and a
-   * router navigation carries no query for a later page to read.
+   * The key is banked before routing, so the directory query remains available
+   * to the landing page after the key is removed from the address bar.
    */
   it('connects on a key the tab entered on another route holding', async () => {
     window.localStorage.clear()
@@ -437,9 +331,9 @@ describe('the workspace browser', () => {
     expect(window.location.search).toBe('?view=table')
 
     const daemon = listings()
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
-    expect(listed(daemon)).toEqual([{ path: '' }])
+    expect(listed(daemon)).toEqual([{ directory: ROOT }])
     expect(wrapper.text()).not.toContain('this tab is not connected')
     wrapper.unmount()
   })
@@ -450,16 +344,16 @@ describe('the workspace browser', () => {
     window.sessionStorage.setItem(TOKEN_STORAGE_KEY, 'the-token')
 
     const daemon = listings()
-    const wrapper = await browse(daemon)
+    const wrapper = await landing(daemon)
 
-    expect(listed(daemon)).toEqual([{ path: '' }])
+    expect(listed(daemon)).toEqual([{ directory: ROOT }])
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('the-token')
     expect(wrapper.text()).not.toContain('this tab is not connected')
     wrapper.unmount()
   })
 
   it('leaks no internals and offers no kernel plumbing', async () => {
-    const wrapper = await browse(listings())
+    const wrapper = await landing(listings())
 
     const text = wrapper.text()
     expect(text).not.toMatch(/\buid\b/i)

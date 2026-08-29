@@ -13,7 +13,7 @@ from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowAmbiguous, FlowNotFound
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, STORE_DIRNAME
 
-from tests.daemon.helpers import make_workspace, write_file
+from tests.daemon.helpers import make_workspace
 
 
 def test_flows_are_found_nested_and_never_descended_into(tmp_path: Path):
@@ -76,110 +76,6 @@ def test_an_unknown_flow_name_lists_what_there_is(tmp_path: Path):
         workspace.select_flow(root, name="sweep")
 
     assert "`sweep`" in str(missing.value) and "`churn`" in str(missing.value)
-
-
-def test_the_browser_lists_a_flow_as_one_entry(tmp_path: Path):
-    root = make_workspace(
-        tmp_path / "project",
-        files={"helpers.py": "VALUE = 1", "data/raw.csv": "a,b"},
-    )
-    write_file(root / "churn.flow" / CELLS_DIRNAME / "score.py", "class Score: pass")
-
-    entries = workspace.listing(root)["entries"]
-
-    assert [(entry["name"], entry["kind"]) for entry in entries] == [
-        ("churn.flow", "flow"),
-        ("data", "dir"),
-        ("helpers.py", "file"),
-    ]
-    assert entries[0]["path"] == str(root / "churn.flow")
-    assert next(entry for entry in entries if entry["kind"] == "file")["size"] == len(
-        b"VALUE = 1\n"
-    )
-
-
-def test_the_browser_never_opens_a_flow(tmp_path: Path):
-    root = make_workspace(tmp_path / "project", files={"notes/todo.md": "later"})
-    (root / "churn.flow" / STORE_DIRNAME).mkdir(parents=True, exist_ok=True)
-
-    assert workspace.listing(root, "notes")["path"] == "notes"
-    with pytest.raises(FlowNotFound) as refused:
-        workspace.listing(root, "churn.flow")
-    with pytest.raises(FlowNotFound):
-        workspace.listing(root, f"churn.flow/{CELLS_DIRNAME}")
-    with pytest.raises(FlowNotFound):
-        workspace.listing(root, str(root / "churn.flow" / CELLS_DIRNAME))
-
-    assert "open it rather than browsing it" in str(refused.value)
-
-
-def test_the_browser_climbs_above_the_launch_directory(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    make_workspace(tmp_path / "other", flows=("sales",))
-    write_file(tmp_path / "outside.txt", "context")
-
-    here = workspace.listing(root)
-    above = workspace.listing(root, here["parent"])
-
-    assert here["outside"] is False
-    assert here["path"] == "" and here["parent"] == str(tmp_path)
-    assert above["outside"] is True
-    # The launch directory is still what `root` names; only the listing moved.
-    assert above["root"] == str(root) and above["path"] == str(tmp_path)
-    assert [(entry["name"], entry["kind"]) for entry in above["entries"]] == [
-        ("other", "dir"),
-        ("project", "dir"),
-        ("outside.txt", "file"),
-    ]
-    # Above the workspace an entry spells itself absolutely — there is no
-    # root-relative name for a directory the workspace does not contain.
-    assert [entry["path"] for entry in above["entries"]] == [
-        str(tmp_path / "other"),
-        str(root),
-        str(tmp_path / "outside.txt"),
-    ]
-
-
-def test_climbing_back_down_reaches_a_flow_in_another_directory(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    make_workspace(tmp_path / "other", flows=("sales",))
-
-    sideways = workspace.listing(root, str(tmp_path / "other"))
-
-    assert sideways["outside"] is True
-    assert ("sales.flow", "flow") in [
-        (entry["name"], entry["kind"]) for entry in sideways["entries"]
-    ]
-    # And walking back down into the workspace is the workspace again, spelled
-    # the way every existing caller spells it.
-    assert workspace.listing(root, str(root))["path"] == ""
-    assert workspace.listing(root, str(root))["outside"] is False
-
-
-def test_the_filesystem_root_is_where_climbing_stops(tmp_path: Path):
-    root = make_workspace(tmp_path / "project")
-    top = Path(tmp_path.anchor)
-
-    assert workspace.listing(root, str(top))["parent"] is None
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="no POSIX modes there")
-@pytest.mark.skipif(os.geteuid() == 0, reason="root reads everything")
-def test_a_directory_nobody_may_read_is_a_refusal_and_not_a_traceback(tmp_path: Path):
-    """Climbing meets directories the user does not own — `/root`, another
-    account's home. That is a sentence the browser prints, not a crash."""
-    root = make_workspace(tmp_path / "project")
-    shut = tmp_path / "shut"
-    shut.mkdir()
-    shut.chmod(0)
-
-    try:
-        with pytest.raises(FlowNotFound) as refused:
-            workspace.listing(root, str(shut))
-    finally:
-        shut.chmod(0o700)
-
-    assert "cannot be read" in str(refused.value)
 
 
 def test_a_flow_outside_the_workspace_is_addressed_by_its_own_path(tmp_path: Path):

@@ -1,4 +1,4 @@
-"""The daemon API over a real workspace: browse, init, open, run, delete.
+"""The daemon API over a real workspace: list, init, open, run, delete.
 
 The end-to-end run here is the whole stack — a cell file goes through
 acceptance, the scheduler plans it, a kernel process materializes it, and the
@@ -48,21 +48,34 @@ class Train:
 """
 
 
-async def test_the_browser_sees_flows_as_documents_and_files_as_context(
+async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
     tmp_path: Path,
-):
-    root = make_workspace(
-        tmp_path / "project", flows=("churn",), files={"helpers.py": "VALUE = 1"}
-    )
-    write_cell(root / "churn.flow", "score", SCORE_CELL)
+) -> None:
+    launch = make_workspace(tmp_path / "launch", flows=("launch",))
+    project = make_workspace(tmp_path / "project", flows=("parent",))
+    requested = make_workspace(project / "sub", flows=("sales",))
+    make_workspace(requested / "nested", flows=("sweep",))
 
-    async with daemon_api(root) as api:
-        listed = await api.workspace_list({})
+    async with daemon_api(launch) as api:
+        listed = await api.workspace_list({"directory": str(requested)})
 
-    assert [(entry["name"], entry["kind"]) for entry in listed["entries"]] == [
-        ("churn.flow", "flow"),
-        ("helpers.py", "file"),
-    ]
+        assert api.hub.flows() == []
+
+    assert listed == {
+        "directory": str(requested),
+        "flows": [
+            {
+                "name": "sales",
+                "path": str(requested / "sales.flow"),
+                "relative_path": "sales.flow",
+            },
+            {
+                "name": "sweep",
+                "path": str(requested / "nested" / "sweep.flow"),
+                "relative_path": "nested/sweep.flow",
+            },
+        ],
+    }
 
 
 # Whose `helpers.py` a cell imports is the whole question, so the answer comes
@@ -102,31 +115,21 @@ class Workspace:
 """
 
 
-async def test_the_browser_climbs_out_of_the_workspace_and_opens_what_it_finds(
+async def test_a_flow_outside_the_listing_opens_in_the_same_daemon(
     tmp_path: Path,
-):
-    """The launch directory is where browsing starts, not where it ends.
-
-    A flow a neighbouring project holds is one entry with the same one gesture,
-    and opening it addresses the flow by where it is — so the workbench link is
-    a link, not an instruction to relaunch somewhere else.
-    """
+) -> None:
     root = make_workspace(tmp_path / "project")
-    sales = make_workspace(tmp_path / "other", flows=("sales",)) / "sales.flow"
+    other = make_workspace(tmp_path / "other", flows=("sales",))
+    sales = other / "sales.flow"
     write_cell(sales, "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
-        above = await api.workspace_list({"path": str(tmp_path)})
-        sideways = await api.workspace_list({"path": str(tmp_path / "other")})
-        found = next(entry for entry in sideways["entries"] if entry["kind"] == "flow")
+        listed = await api.workspace_list({"directory": str(other)})
+        found = listed["flows"][0]
         opened = await api.flow_open({"flow": found["path"]})
         ran = await api.run({"flow": found["path"], "target": "score"})
 
-    # The launch directory is still what `root` names; only the listing moved.
-    assert (above["outside"], above["root"]) == (True, str(root))
     assert found["path"] == str(sales)
-    # The brief spells the flow the way the browser addressed it, which is what
-    # every frame on the journal channel is keyed by.
     assert (opened["flow"], opened["path"]) == ("sales", sales.as_posix())
     assert opened["checked_out"] and ran["executed"] == ["score"]
 
@@ -194,7 +197,7 @@ async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path:
 
     async with daemon_api(root) as api:
         created = await api.flow_init({"name": "churn"})
-        listed = await api.workspace_list({})
+        listed = await api.workspace_list({"directory": str(root)})
         # The API path creates a flow, never a checkout: binding the worktree
         # and projecting `main` into `cells/` is what `lumlflow init` adds.
         bound = api.hub.session("churn").store.branches.bound_branch()
@@ -204,11 +207,7 @@ async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path:
     assert created["branch"] == "main"
     assert _kernel_state(created) == ("stopped", False, [])
     assert store_dir(root / "churn.flow").is_dir()
-    # The flow, and the `AGENTS.md` the daemon generates beside it.
-    assert [(entry["name"], entry["kind"]) for entry in listed["entries"]] == [
-        ("churn.flow", "flow"),
-        ("AGENTS.md", "file"),
-    ]
+    assert [flow["relative_path"] for flow in listed["flows"]] == ["churn.flow"]
     assert bound is None
 
 
@@ -779,8 +778,8 @@ async def test_a_clone_without_a_store_rebuilds_the_identity_git_carried(
     assert ran_before.mat_id not in {op.mat_id for op in ops_of(session, RunRecorded)}
 
 
-async def test_browsing_a_materialized_flow_starts_no_kernel(tmp_path: Path):
-    """Everything a session renders is stored, so a browser that never runs a
+async def test_listing_a_materialized_flow_starts_no_kernel(tmp_path: Path):
+    """Everything a session renders is stored, so a listing that never runs a
     cell never spawns a process — the expand gesture is what starts one."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
@@ -789,14 +788,11 @@ async def test_browsing_a_materialized_flow_starts_no_kernel(tmp_path: Path):
         await api.run({"flow": "churn", "target": "score"})
         await api.hub.session("churn").kernel.stop()
 
-        listed = await api.workspace_list({})
+        listed = await api.workspace_list({"directory": str(root)})
         opened = await api.flow_open({"flow": "churn"})
         status = await api.status({})
 
-    assert [entry["name"] for entry in listed["entries"]] == [
-        "churn.flow",
-        "AGENTS.md",
-    ]
+    assert [flow["relative_path"] for flow in listed["flows"]] == ["churn.flow"]
     assert slugs(opened, "synced") == ["score"]
     assert _kernel_state(opened) == ("stopped", False, [])
     assert _kernel_state(flow_named(status, "churn")) == ("stopped", False, [])
@@ -881,11 +877,11 @@ async def test_deleting_a_flow_takes_its_store_with_it(tmp_path: Path):
     async with daemon_api(root) as api:
         await api.run({"flow": "churn", "target": "score"})
         deleted = await api.flow_delete({"flow": "churn"})
-        left = await api.workspace_list({})
+        left = await api.workspace_list({"directory": str(root)})
 
     assert deleted == {"deleted": "churn", "path": str(root / "churn.flow")}
     assert not (root / "churn.flow").exists()
-    assert [entry["name"] for entry in left["entries"]] == ["sales.flow", "AGENTS.md"]
+    assert [flow["relative_path"] for flow in left["flows"]] == ["sales.flow"]
 
 
 async def test_an_unknown_flow_is_refused_by_name(tmp_path: Path):

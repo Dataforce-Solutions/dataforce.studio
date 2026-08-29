@@ -1188,9 +1188,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Address flows by path everywhere
   - [x] The API's `flow` parameter, `brief.path`, the workbench route, the compare page, the download route and every MCP call after `flow.open` (`mcp.py`) address a flow by its absolute path; a bare name resolves against the flows beneath the caller's cwd — the MCP server's spawn directory — with ambiguity refused naming the paths; `status` and `init` / `flow.init` take a directory defaulting to the cwd (`gc` and `doctor` take the same directory when their own tasks land them), and the MCP `status` and `init-flow` tools gain an optional directory argument (D3)
   - [x] Tests: two same-named flows over MCP in one session; a bare name matching two flows refused naming both paths; `status` listing only the flows beneath the given directory; `init-flow` with a directory
-- [ ] List the launch directory on the landing page
-  - [ ] Remove `WorkspacePage.vue` browse-up and `workspace.listing/_within/_flow_crossed` (the `hub._workspace_of` special case went with the rooting task); the landing page lists the flows beneath the directory `ui` was given — the listing method takes the directory, and the address `ui` opens carries it — plus *New flow*, which creates there; the listing is a filter, and a flow opened by path from elsewhere opens in the same daemon
-  - [ ] Replace `flow-workspace-browser.spec.ts` with a listing spec; daemon test for the landing listing of a given directory
+- [x] List the launch directory on the landing page
+  - [x] Remove `WorkspacePage.vue` browse-up and `workspace.listing/_within/_flow_crossed` (the `hub._workspace_of` special case went with the rooting task); the landing page lists the flows beneath the directory `ui` was given — the listing method takes the directory, and the address `ui` opens carries it — plus *New flow*, which creates there; the listing is a filter, and a flow opened by path from elsewhere opens in the same daemon
+  - [x] Replace `flow-workspace-browser.spec.ts` with a listing spec; daemon test for the landing listing of a given directory
 - [ ] Fix lane and flow addressing in the workbench
   - [ ] Brief refresh on checkout and rewind; compare by `brief.path`
   - [ ] Specs in `flow-live-workbench.spec.ts`, `flow-compare.spec.ts`, `flow-branch-nav.spec.ts`

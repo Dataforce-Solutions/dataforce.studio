@@ -103,30 +103,15 @@ export interface CellsPage {
   cells: CellSummary[]
 }
 
-/** A flow is `flow`, never `dir`: the browser has no way to walk into one. */
-export type WorkspaceEntryKind = 'flow' | 'dir' | 'file'
-
-export interface WorkspaceEntry {
+export interface WorkspaceFlow {
   name: string
-  /**
-   * What `workspace.list` takes back, and what `flow` addresses a flow by:
-   * relative to the workspace root inside it, absolute above it — a directory
-   * the workspace does not contain has no root-relative spelling.
-   */
   path: string
-  kind: WorkspaceEntryKind
-  size: number | null
+  relative_path: string
 }
 
 export interface WorkspaceListing {
-  /** The launch directory, whichever directory is being listed. */
-  root: string
-  path: string
-  /** Above the launch directory: browsable context, not part of the workspace. */
-  outside: boolean
-  /** The directory above this one — null only at the top of the filesystem. */
-  parent: string | null
-  entries: WorkspaceEntry[]
+  directory: string
+  flows: WorkspaceFlow[]
 }
 
 export interface BranchTree {
@@ -204,7 +189,7 @@ export interface FlowMethods {
   diff: Method<FlowScoped & { branches: string[] }, BranchDiff>
   /** A read: the branch's slice as one file, written nowhere by itself. */
   export: Method<BranchScoped, FlowExport>
-  'workspace.list': Method<{ path?: string }, WorkspaceListing>
+  'workspace.list': Method<{ directory?: string }, WorkspaceListing>
   /** Scaffolds the flow unbound; the checkout below is what `init here` adds. */
   'flow.init': Method<{ name: string; directory?: string }, FlowBrief & { warnings: string[] }>
   'flow.checkout': Method<Intentful, Projected & FlowBrief>

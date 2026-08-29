@@ -3,6 +3,7 @@ import os
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import typer
 
@@ -32,7 +33,7 @@ def ui(
         exists=True,
         file_okay=False,
         resolve_path=True,
-        help="Directory to use when this command starts the daemon.",
+        help="Directory whose flows to list.",
     ),
     path: str | None = typer.Option(
         None,
@@ -49,7 +50,7 @@ def ui(
         False, "--no-browser", help="Do not open the browser."
     ),
 ) -> None:
-    """Open lumlflow, starting it from DIRECTORY when needed.
+    """Open lumlflow on DIRECTORY's flows, starting the daemon when needed.
 
     With no daemon running, it serves http://127.0.0.1:5000 until Ctrl+C. When
     one is already running, it opens that daemon and exits.
@@ -76,6 +77,7 @@ def ui(
         if serving is not None:
             _attach(
                 serving,
+                directory=launch_directory,
                 host=host,
                 port=port,
                 tracker_store=tracker_store,
@@ -95,6 +97,7 @@ def ui(
             if serving is not None:
                 _attach(
                     serving,
+                    directory=launch_directory,
                     host=host,
                     port=port,
                     tracker_store=tracker_store,
@@ -118,15 +121,16 @@ def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> No
     """Said once this process is answering, from inside its own event loop."""
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"directory: {directory}")
-    typer.echo(f"lumlflow at {_url(record)}")
+    typer.echo(f"lumlflow at {_url(record, directory)}")
     typer.echo("press Ctrl+C to stop")
     if not no_browser:
-        webbrowser.open(_url(record))
+        webbrowser.open(_url(record, directory))
 
 
 def _attach(
     record: "DaemonRecord",
     *,
+    directory: Path,
     host: str,
     port: int,
     tracker_store: str,
@@ -153,11 +157,11 @@ def _attach(
         )
         raise typer.Exit(1)
     _warn_if_non_loopback(record.web_host)
-    typer.echo(f"lumlflow already at {_url(record)}")
+    typer.echo(f"lumlflow already at {_url(record, directory)}")
     if record.web_port != port:
         typer.echo(f"it is serving port {record.web_port}, not {port}")
     if not no_browser:
-        webbrowser.open(_url(record))
+        webbrowser.open(_url(record, directory))
 
 
 def _tracker_store() -> str:
@@ -166,11 +170,9 @@ def _tracker_store() -> str:
     return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
 
 
-def _url(record: "DaemonRecord") -> str:
-    """The authenticated address: the flow API asks every caller for the
-    workspace's token, and the SPA is the one caller with no other way to
-    have it."""
-    return f"http://{record.web_host}:{record.web_port}/?token={record.token}"
+def _url(record: "DaemonRecord", directory: Path) -> str:
+    query = urlencode({"token": record.token, "directory": str(directory.resolve())})
+    return f"http://{record.web_host}:{record.web_port}/flow?{query}"
 
 
 def _warn_if_non_loopback(host: str) -> None:

@@ -3,7 +3,7 @@
     class="flex items-center justify-between px-4 py-3 bg-(--p-content-hover-background) border-b border-(--p-divider-border-color)"
   >
     <div class="flex items-center gap-6">
-      <router-link to="/">
+      <router-link :to="{ path: '/', query: directoryQuery }">
         <img :src="currentLogo" alt="Logo" class="w-[175px] h-7" />
       </router-link>
       <!-- The two top-level surfaces, side by side: the tracker, and the flows
@@ -11,7 +11,7 @@
       <nav class="flex items-center gap-1 text-sm">
         <router-link
           v-for="surface in surfaces"
-          :key="surface.to"
+          :key="surface.label"
           :to="surface.to"
           class="rounded px-2.5 py-1 no-underline! transition-colors"
           :class="
@@ -70,11 +70,20 @@ import { computed } from 'vue'
 const themeStore = useThemeStore()
 const route = useRoute()
 
+const directoryQuery = computed(() => {
+  const directory = route.query.directory
+  return typeof directory === 'string' && directory ? { directory } : {}
+})
+
 const surfaces = computed(() => {
   const onFlow = route.path.startsWith('/flow')
   return [
-    { to: '/', label: 'Experiments', current: !onFlow },
-    { to: '/flow', label: 'Workspace', current: onFlow },
+    { to: { path: '/', query: directoryQuery.value }, label: 'Experiments', current: !onFlow },
+    {
+      to: { path: '/flow', query: directoryQuery.value },
+      label: 'Workspace',
+      current: onFlow,
+    },
   ]
 })
 

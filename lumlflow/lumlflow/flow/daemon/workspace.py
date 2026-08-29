@@ -7,7 +7,6 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
 
 if sys.platform == "win32":
     import msvcrt
@@ -40,8 +39,6 @@ _NETWORK_FILESYSTEMS = frozenset(
 )
 _MOUNT_ESCAPE = re.compile(r"\\([0-7]{3})")
 
-EntryKind = Literal["flow", "dir", "file"]
-
 
 @dataclass(frozen=True)
 class FlowRef:
@@ -58,16 +55,6 @@ class FlowRef:
     @property
     def has_store(self) -> bool:
         return store_dir(self.path).is_dir()
-
-
-@dataclass(frozen=True)
-class Entry:
-    """One line of the workspace browser. A flow is a document, never a folder."""
-
-    name: str
-    path: str
-    kind: EntryKind
-    size: int | None = None
 
 
 @dataclass(frozen=True)
@@ -137,38 +124,6 @@ def select_flow(
 def flow_here(root: Path, cwd: Path) -> FlowRef | None:
     """The flow a caller is standing in — how a verb addresses one unasked."""
     return _standing_flow(cwd) or _containing_flow(find_flows(root), cwd)
-
-
-def listing(root: Path, relative: str = "") -> dict[str, Any]:
-    """The workspace browser's directory listing — under the launch dir, or above it.
-
-    Upward is how a flow the launch directory does not contain is reached, so
-    this browses like a file manager: `parent` is the directory above, and a
-    listing outside the workspace spells its own path and its entries' paths
-    absolutely, which is what the browser hands back to list or to open them.
-    """
-    root = root.resolve()
-    directory = _within(root, relative)
-    if not directory.is_dir():
-        raise FlowNotFound(f"there is no directory `{relative}`")
-    try:
-        children = sorted(directory.iterdir(), key=lambda path: path.name.lower())
-    except OSError as unreadable:
-        raise FlowNotFound(f"`{directory}` cannot be read") from unreadable
-    listed = [
-        _entry(child, root) for child in children if child.name not in EXCLUDED_DIRS
-    ]
-    listed.sort(key=lambda entry: (entry.kind == "file", entry.name.lower()))
-    inside = directory.is_relative_to(root)
-    return {
-        "root": str(root),
-        "path": _addressable(root, directory),
-        # A workspace is one venv and one set of helpers, so a directory above
-        # the launch one is browsable context and never part of it.
-        "outside": not inside,
-        "parent": str(directory.parent) if directory.parent != directory else None,
-        "entries": [entry.__dict__ for entry in listed],
-    }
 
 
 class WorkspaceLock:
@@ -368,48 +323,6 @@ def _containing_flow(flows: list[FlowRef], cwd: Path) -> FlowRef | None:
     )
 
 
-def _within(root: Path, relative: str) -> Path:
-    """Resolve a browser path — relative to the workspace, or absolute.
-
-    Leaving the workspace is the point: a flow the launch directory does not
-    contain is reached by climbing to it. What no path may do is enter a flow,
-    which is one entry in this listing and a workbench to open, never a folder
-    to walk into.
-    """
-    if not relative:
-        return root
-    asked = Path(relative)
-    target = (asked if asked.is_absolute() else root / asked).resolve()
-    flow = _flow_crossed(root, target)
-    if flow is not None:
-        raise FlowNotFound(f"`{flow}` is a flow. open it rather than browsing it")
-    return target
-
-
-def _flow_crossed(root: Path, target: Path) -> str | None:
-    """A `.flow` directory on the way to `target`, below where it parts company
-    with the workspace — the stretch the browser navigated, and the only
-    stretch it is in any position to refuse."""
-    shared = Path(*os.path.commonprefix([root.parts, target.parts]))
-    return next(
-        (
-            part
-            for part in target.relative_to(shared).parts
-            if part.endswith(FLOW_SUFFIX)
-        ),
-        None,
-    )
-
-
-def _addressable(root: Path, directory: Path) -> str:
-    """What the browser hands back to list this directory again: root-relative
-    inside the workspace — the spelling every existing caller uses — and the
-    absolute path above it, which has no root-relative spelling."""
-    if not directory.is_relative_to(root):
-        return str(directory)
-    return directory.relative_to(root).as_posix() if directory != root else ""
-
-
 def _addressed(root: Path, name: str) -> FlowRef:
     """A flow by name, by path under the workspace, or by its own absolute path.
 
@@ -463,33 +376,6 @@ def _standing_flow(directory: Path) -> FlowRef | None:
         path=path,
         relpath=path.name,
     )
-
-
-def _entry(path: Path, root: Path) -> Entry:
-    # The workspace itself is one of the entries a listing above it holds, and
-    # it spells itself the way its neighbours do rather than as an empty path.
-    if path.is_dir():
-        kind: EntryKind = "flow" if path.name.endswith(FLOW_SUFFIX) else "dir"
-        relative = (
-            str(path.resolve())
-            if kind == "flow"
-            else (
-                path.relative_to(root).as_posix()
-                if path.is_relative_to(root) and path != root
-                else str(path)
-            )
-        )
-        return Entry(name=path.name, path=relative, kind=kind)
-    relative = (
-        path.relative_to(root).as_posix()
-        if path.is_relative_to(root) and path != root
-        else str(path)
-    )
-    try:
-        size = path.stat().st_size
-    except OSError:
-        size = None
-    return Entry(name=path.name, path=relative, kind="file", size=size)
 
 
 def _candidates(flows: list[FlowRef]) -> str:

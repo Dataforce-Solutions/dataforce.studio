@@ -18,6 +18,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 import pytest
@@ -146,7 +147,7 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     runner.invoke(app, ["ui"])
     runner.invoke(app, ["ui", "--no-browser"])
 
-    assert opened == [f"http://127.0.0.1:{record.web_port}/?token={record.token}"]
+    assert opened == [_ui_url(record, root)]
 
 
 @pytest.mark.parametrize(
@@ -231,7 +232,7 @@ def test_a_non_loopback_host_is_bound_recorded_and_still_requires_the_token(
     assert record.web_host == "0.0.0.0"
     assert unauthorized.status_code == web.UNAUTHORIZED
     assert authorized["result"]["workspace"] == str(root)
-    assert f"http://0.0.0.0:{port}/?token={record.token}" in printed
+    assert _ui_url(record, root) in printed
     assert top_cli.NON_LOOPBACK_WARNING in printed
     assert errors == ""
 
@@ -262,7 +263,7 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     runner.invoke(app, ["ui"])
     runner.invoke(app, ["ui", "--no-browser"])
 
-    assert opened == [f"http://127.0.0.1:{record.web_port}/?token={record.token}"]
+    assert opened == [_ui_url(record, root)]
     # It attached; nothing was started to open a browser on.
     assert started == []
 
@@ -359,9 +360,7 @@ def test_ui_attaches_without_interrupting_a_run_or_leased_session(
             status = paired.call("status", {"flow": "churn"})
 
             assert attached.returncode == 0, attached.stderr
-            assert (
-                f":{live.record.web_port}/?token={live.record.token}" in attached.stdout
-            )
+            assert _ui_url(live.record, tmp_path) in attached.stdout
             assert not running.done()
             assert begun["leased"] is True
             assert status["flows"][0]["agent"] == "Codex"
@@ -403,7 +402,7 @@ def test_ctrl_c_ends_it_and_everything_it_was_holding(
 
     assert answered["result"]["workspace"] == str(root)
     assert running.returncode == 0
-    assert f"http://127.0.0.1:{port}/?token={record.token}" in printed
+    assert _ui_url(record, root) in printed
     assert "Ctrl+C" in printed
     assert "Traceback" not in printed
     # Deregistered, unlocked, and the port handed back: nothing left behind.
@@ -546,7 +545,7 @@ def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     )
 
     assert second.returncode == 0
-    assert f"http://127.0.0.1:{port}/?token={record.token}" in second.stdout
+    assert _ui_url(record, other) in second.stdout
     assert f"it is serving port {port}, not {wanted}" in second.stdout
     # The first is untouched, and no second server took the workspace.
     assert workspace.read_record() == record
@@ -673,6 +672,11 @@ def _record(*, tracker_store: str | None = None) -> DaemonRecord:
         tracker_store=tracker_store,
         version=__version__,
     )
+
+
+def _ui_url(record: DaemonRecord, directory: Path) -> str:
+    query = urlencode({"token": record.token, "directory": str(directory.resolve())})
+    return f"http://{record.web_host}:{record.web_port}/flow?{query}"
 
 
 def _served(root: Path, port: int) -> DaemonRecord:
