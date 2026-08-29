@@ -20,8 +20,8 @@ directory):
 - `F/cells/*.py` — its own cells, direct children only, because that is exactly
   what acceptance globs. A `.py` deeper under `cells/` is not a cell and is not
   shared code either, so nothing watches it.
-- Every other `.py` under `W`, excluding `.venv`, `.git`, `node_modules`,
-  `__pycache__` and the stores — its shared code, which is precisely the domain
+- Every other `.py` under `W`, excluding environments, build output, ignored
+  paths, caches and stores — its shared code, which is precisely the domain
   `scan_workspace` hashes. Any flow's `cells/` is cut out of it, so a
   *neighbour* flow's cell file is not this flow's anything.
 
@@ -54,7 +54,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
-from lumlflow.flow.dsl.tree import EXCLUDED_DIRS
+from lumlflow.flow.dsl.tree import WorkspaceExclusions
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FLOW_SUFFIX
 
 if TYPE_CHECKING:
@@ -106,8 +106,6 @@ class WatchSet:
         except (ValueError, OSError):
             return None
         parts = relative.parts
-        if any(part in EXCLUDED_DIRS for part in parts):
-            return None
         for depth, part in enumerate(parts):
             if not part.endswith(FLOW_SUFFIX):
                 continue
@@ -116,6 +114,8 @@ class WatchSet:
             flow = self.workspace_dir.joinpath(*parts[: depth + 1])
             mine = flow == self.flow_dir and len(parts) == depth + _CELL_DEPTH
             return "cell" if mine else None
+        if WorkspaceExclusions(self.workspace_dir).matches(path):
+            return None
         return "code"
 
 

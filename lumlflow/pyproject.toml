@@ -18,6 +18,7 @@ dependencies = [
     "websockets>=17.0.1",
     "scikit-learn>=1.9.0",
     "matplotlib>=3.11.1",
+    "pathspec>=0.12.1,<2.0.0",
 ]
 
 [project.optional-dependencies]

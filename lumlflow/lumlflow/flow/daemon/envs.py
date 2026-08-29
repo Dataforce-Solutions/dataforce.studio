@@ -55,22 +55,40 @@ def venv_python(workspace_dir: Path) -> Path | None:
 
 def describe(workspace_dir: Path) -> Interpreter:
     """What would run a kernel right now, without syncing anything."""
-    python = venv_python(workspace_dir)
+    environment_dir = _environment_dir(workspace_dir)
+    python = venv_python(environment_dir) if environment_dir is not None else None
     if python is not None:
         return Interpreter(python=python, source="venv")
     return Interpreter(python=Path(sys.executable), source="lumlflow")
 
 
 async def ensure_interpreter(workspace_dir: Path) -> Interpreter:
-    python = venv_python(workspace_dir)
+    environment_dir = _environment_dir(workspace_dir)
+    if environment_dir is None:
+        return Interpreter(python=Path(sys.executable), source="lumlflow")
+    python = venv_python(environment_dir)
     if python is not None:
         return Interpreter(python=python, source="venv")
-    if (workspace_dir / PROJECT_FILE).exists() and shutil.which("uv"):
-        await uv_sync(workspace_dir)
-        python = venv_python(workspace_dir)
+    if not (environment_dir / VENV_DIRNAME).exists() and shutil.which("uv"):
+        await uv_sync(environment_dir)
+        python = venv_python(environment_dir)
         if python is not None:
             return Interpreter(python=python, source="venv")
     return Interpreter(python=Path(sys.executable), source="lumlflow")
+
+
+def _environment_dir(workspace_dir: Path) -> Path | None:
+    """Nearest ancestor that declares or already holds the flow's environment."""
+    start = workspace_dir.resolve()
+    return next(
+        (
+            directory
+            for directory in (start, *start.parents)
+            if (directory / VENV_DIRNAME).exists()
+            or (directory / PROJECT_FILE).is_file()
+        ),
+        None,
+    )
 
 
 async def uv_sync(workspace_dir: Path) -> None:
@@ -96,7 +114,8 @@ def packages(workspace_dir: Path) -> dict[str, str]:
     what says it did: `uv` writes a new lockfile rather than editing one, so a
     changed pin always arrives as a changed stamp.
     """
-    path = workspace_dir / LOCK_FILE
+    environment_dir = _environment_dir(workspace_dir) or workspace_dir.resolve()
+    path = environment_dir / LOCK_FILE
     try:
         status = path.stat()
     except OSError:

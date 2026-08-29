@@ -79,6 +79,29 @@ class Where:
 """
 
 
+WORKSPACE_CELL = """
+class Workspace:
+    produces = {"facts": "asset"}
+
+    def materialize(self, ctx):
+        import json
+        from pathlib import Path
+
+        temporary = ctx.tempdir()
+        (temporary / "marker.txt").write_text("temporary")
+        return {
+            "facts": json.dumps(
+                {
+                    "cwd": str(Path.cwd()),
+                    "workspace": str(ctx.workspace_dir),
+                    "data": Path("data.csv").read_text(),
+                    "temporary": str(temporary),
+                }
+            )
+        }
+"""
+
+
 async def test_the_browser_climbs_out_of_the_workspace_and_opens_what_it_finds(
     tmp_path: Path,
 ):
@@ -133,6 +156,34 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
     assert values_in(other / "sales.flow") == [{"marker": 2}]
     # And nothing moved under the flows the launch directory does contain.
     assert hosted == {"churn": root}
+
+
+async def test_a_nested_flow_runs_from_its_containing_directory(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    containing = make_workspace(
+        root / "experiments" / "q3",
+        flows=("churn",),
+        files={"data.csv": "payload"},
+    )
+    flow = containing / "churn.flow"
+    write_cell(flow, "workspace", WORKSPACE_CELL)
+
+    async with daemon_api(root) as api:
+        outcome = await api.run({"flow": "churn", "target": "workspace"})
+        session = api.hub.session("churn")
+
+    assert outcome["executed"] == ["workspace"]
+    assert session.workspace_dir == containing
+    (facts,) = values_in(flow)
+    temporary = Path(facts.pop("temporary"))
+    assert facts == {
+        "cwd": str(containing),
+        "workspace": str(containing),
+        "data": "payload\n",
+    }
+    assert not temporary.exists()
 
 
 async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path: Path):

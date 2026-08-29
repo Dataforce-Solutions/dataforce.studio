@@ -1,10 +1,10 @@
-"""One run: a fresh namespace, a scratch cwd, and the facts the store records.
+"""One run: a fresh namespace, a workspace cwd, and the facts the store records.
 
 Nothing about a run is inherited from the last one. The namespace is built from
-the version's bound source every time, the cwd is a per-run directory that is
-destroyed afterwards — which is what forces a durable file to be a declared
-output rather than a lucky leftover — and the environment, working directory,
-logging configuration and open figures are put back where they were.
+the version's bound source every time, the cwd is the flow's containing
+directory, and a per-run scratch directory exists only for `ctx.tempdir()` and
+output staging. The environment, working directory, logging configuration and
+open figures are put back where they were.
 
 Failures are recorded, not raised: a cell that throws produces a `failed`
 materialization with its traceback, because a broken cell is a state the store
@@ -126,7 +126,7 @@ class Executor:
                     scratch.mkdir(parents=True, exist_ok=True)
                     try:
                         with capture:
-                            os.chdir(scratch)
+                            os.chdir(self._workspace_dir)
                             cell = _instantiate(version)
                             inputs = self._load_inputs(version, declared)
                             returned = cell.materialize(
@@ -139,10 +139,9 @@ class Executor:
                             )
                     finally:
                         cell_returned()
-                        # Off the scratch directory before it goes: Windows will
-                        # not remove the working directory of a live process.
+                        # A cell may have moved into its scratch directory.
                         with contextlib.suppress(OSError):
-                            os.chdir(self._flow_dir)
+                            os.chdir(self._workspace_dir)
                         shutil.rmtree(scratch, ignore_errors=True)
             except Cancelled:
                 state = "cancelled"

@@ -1,9 +1,8 @@
 """What one run is allowed to touch, and what it leaves behind as facts.
 
-The executor's contract is mostly about isolation: a run gets a scratch cwd it
-loses, a namespace nobody else shares, no stdin, and an environment that is put
-back. What survives it is exactly the declared outputs and a record of what the
-cell reached for.
+The executor's contract is mostly about isolation: a run gets a namespace
+nobody else shares, no stdin, a temporary staging area, and an environment that
+is put back. Its cwd is the flow's containing directory.
 """
 
 from __future__ import annotations
@@ -27,15 +26,18 @@ from tests.kernel.helpers import (
 DEADLINE_S = 20.0
 
 
-def test_a_declared_path_moves_into_the_store_and_scratch_does_not_survive(tmp_path):
+def test_a_declared_path_moves_into_the_store_and_scratch_does_not_survive(
+    tmp_path: Path,
+) -> None:
     kernel, _ = make_kernel(tmp_path)
     record = run(
         kernel,
         """
         def materialize(self, ctx):
-            from pathlib import Path
-            Path("checkpoints").mkdir()
-            weights = Path("checkpoints/epoch3.pt")
+            temporary = ctx.tempdir()
+            checkpoints = temporary / "checkpoints"
+            checkpoints.mkdir()
+            weights = checkpoints / "epoch3.pt"
             weights.write_bytes(b"weights")
             return {"checkpoint": weights}
         """,
@@ -49,7 +51,9 @@ def test_a_declared_path_moves_into_the_store_and_scratch_does_not_survive(tmp_p
     assert list(scratch.iterdir()) == []
 
 
-def test_the_next_run_cannot_see_what_the_last_one_wrote_beside_its_outputs(tmp_path):
+def test_relative_paths_live_in_the_flows_containing_directory(
+    tmp_path: Path,
+) -> None:
     kernel, _ = make_kernel(tmp_path)
     run(
         kernel,
@@ -67,13 +71,13 @@ def test_the_next_run_cannot_see_what_the_last_one_wrote_beside_its_outputs(tmp_
         """
         def materialize(self, ctx):
             from pathlib import Path
-            return {"seen": " ".join(sorted(p.name for p in Path(".").iterdir()))}
+            return {"seen": Path("checkpoints/epoch3.pt").read_text()}
         """,
         run_id="second",
         produces={"seen": "asset"},
     )
 
-    assert stored_value(kernel, record, "seen") == b""
+    assert stored_value(kernel, record, "seen") == b"weights"
 
 
 def test_a_path_the_cell_did_not_create_under_scratch_is_copied_not_eaten(tmp_path):

@@ -75,8 +75,23 @@ class TestScope:
         assert "cells/shared.py" in scan_workspace(workspace).files
 
     def test_environments_and_caches_are_never_watched(self, workspace: Path) -> None:
-        for excluded in (".venv", ".git", "node_modules", "__pycache__"):
+        for excluded in (
+            ".venv",
+            ".git",
+            "node_modules",
+            "__pycache__",
+            "site-packages",
+            "env",
+            "venv",
+            ".tox",
+            "build",
+            "dist",
+        ):
             _write(workspace / excluded / "ignored.py", "X = 1\n")
+        _write(workspace / "custom-environment" / "pyvenv.cfg", "home = /python\n")
+        _write(workspace / "custom-environment" / "ignored.py", "X = 1\n")
+        _write(workspace / ".gitignore", "generated/\n")
+        _write(workspace / "generated" / "ignored.py", "X = 1\n")
         _write(workspace / "src" / "nested" / "deep.py", "Y = 2\n")
 
         tree = scan_workspace(workspace)

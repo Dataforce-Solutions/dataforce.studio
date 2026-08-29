@@ -1168,10 +1168,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Move the churn demo beside its own pyproject
   - [x] Move `churn.flow` to `lumlflow/examples/churn/` beside a `pyproject.toml` declaring its dependencies (scikit-learn, matplotlib, pandas, pyarrow, luml-sdk); exclude `/examples` from the sdist; the demo's cells either pass `ruff` or `examples/` is excluded from its scan (`mypy` and `pytest` already take explicit paths); confirm the nested `pyproject.toml` is not picked up as a `uv` workspace member
   - [x] Tests: the built sdist and wheel hold no `examples/` entry; every reference to the old path (tests, docs, the README) points at the new one
-- [ ] Root each flow in its containing directory
-  - [ ] A flow's workspace is its parent directory: `ctx.workspace_dir`, run cwd (scratch only for `tempdir()`/staging), scan and watcher root; `hub._workspace_of` answers the containing directory for every flow — its branch on the daemon's root and the outside-the-launch-directory special case go here, while the root itself still serves daemon discovery until the one-daemon task — the `Watches` registry stays; interpreter resolution walks up from the flow's directory, an existing `.venv` never synced
-  - [ ] `EXCLUDED_DIRS` extended (pyvenv.cfg, site-packages, env/venv/.tox/build/dist, `.gitignore`)
-  - [ ] Tests: cell cwd and `ctx.workspace_dir`, interpreter walk-up (an existing `.venv` unsynced, a `pyproject.toml` alone synced) and the own-interpreter fallback, nested roots, venv exclusion, an unreadable file elsewhere in the tree skipped
+- [x] Root each flow in its containing directory
+  - [x] A flow's workspace is its parent directory: `ctx.workspace_dir`, run cwd (scratch only for `tempdir()`/staging), scan and watcher root; `hub._workspace_of` answers the containing directory for every flow — its branch on the daemon's root and the outside-the-launch-directory special case go here, while the root itself still serves daemon discovery until the one-daemon task — the `Watches` registry stays; interpreter resolution walks up from the flow's directory, an existing `.venv` never synced
+  - [x] `EXCLUDED_DIRS` extended (pyvenv.cfg, site-packages, env/venv/.tox/build/dist, `.gitignore`)
+  - [x] Tests: cell cwd and `ctx.workspace_dir`, interpreter walk-up (an existing `.venv` unsynced, a `pyproject.toml` alone synced) and the own-interpreter fallback, nested roots, venv exclusion, an unreadable file elsewhere in the tree skipped
 - [ ] Key the worktree binding by flow id
   - [ ] The binding is keyed by the flow id rather than the absolute path (`WorktreeBound`, the index's worktree lookup); a store with history but no binding for its location rebinds to the last bound lane, never `main`
   - [ ] Tests: moved workspace keeps the checked-out lane and never falls back to `main`

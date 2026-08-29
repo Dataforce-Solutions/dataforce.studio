@@ -52,6 +52,65 @@ def test_a_workspace_without_a_venv_runs_on_the_daemons_interpreter(tmp_path: Pa
     assert described.python == Path(sys.executable)
 
 
+async def test_interpreter_resolution_walks_up_to_an_existing_venv_without_sync(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"pyproject.toml": "[project]"})
+    python = fake_venv(root)
+    containing = root / "experiments" / "q3"
+    containing.mkdir(parents=True)
+    synced: list[Path] = []
+
+    async def record_sync(path: Path) -> None:
+        synced.append(path)
+
+    monkeypatch.setattr(envs, "uv_sync", record_sync)
+
+    interpreter = await envs.ensure_interpreter(containing)
+
+    assert interpreter == envs.Interpreter(python=python, source="venv")
+    assert envs.describe(containing) == interpreter
+    assert synced == []
+
+
+@stubbed_uv
+async def test_interpreter_resolution_syncs_the_nearest_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"pyproject.toml": "[project]"})
+    containing = root / "experiments" / "q3"
+    containing.mkdir(parents=True)
+    stub_uv(
+        tmp_path / "bin",
+        f"""
+        #!/bin/sh
+        mkdir -p "$PWD/.venv/bin"
+        ln -s "{sys.executable}" "$PWD/.venv/bin/python"
+        """,
+        monkeypatch,
+    )
+
+    interpreter = await envs.ensure_interpreter(containing)
+
+    assert interpreter == envs.Interpreter(
+        python=root / ".venv" / "bin" / "python", source="venv"
+    )
+    assert envs.describe(containing) == interpreter
+
+
+async def test_interpreter_resolution_without_a_project_uses_lumlflow(
+    tmp_path: Path,
+) -> None:
+    containing = tmp_path / "project" / "experiments" / "q3"
+    containing.mkdir(parents=True)
+
+    interpreter = await envs.ensure_interpreter(containing)
+
+    assert interpreter == envs.Interpreter(
+        python=Path(sys.executable), source="lumlflow"
+    )
+
+
 @stubbed_uv
 async def test_uv_sync_creates_the_venv_the_kernel_then_runs_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

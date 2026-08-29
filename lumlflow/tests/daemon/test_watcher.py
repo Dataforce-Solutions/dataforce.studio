@@ -42,6 +42,11 @@ def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: P
     """
     root = tmp_path / "project"
     flow = root / "churn.flow"
+    (root / "ignored").mkdir(parents=True)
+    (root / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+    environment = root / "custom-environment"
+    environment.mkdir()
+    (environment / "pyvenv.cfg").write_text("home = /python\n", encoding="utf-8")
     watch = WatchSet(flow_dir=flow, workspace_dir=root)
 
     seen = {
@@ -54,6 +59,12 @@ def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: P
         "data": watch.classify(root / "data" / "raw.csv"),
         "store": watch.classify(store_dir(flow) / "kernel" / "scratch.py"),
         "venv": watch.classify(root / ".venv" / "lib" / "site.py"),
+        "named_venv": watch.classify(root / "venv" / "lib" / "site.py"),
+        "site_packages": watch.classify(
+            root / "lib" / "site-packages" / "installed.py"
+        ),
+        "marked_venv": watch.classify(environment / "installed.py"),
+        "gitignored": watch.classify(root / "ignored" / "generated.py"),
         "cache": watch.classify(root / "__pycache__" / "helpers.py"),
         "outside": watch.classify(tmp_path / "elsewhere.py"),
     }
@@ -72,10 +83,38 @@ def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: P
         "data": None,
         "store": None,
         "venv": None,
+        "named_venv": None,
+        "site_packages": None,
+        "marked_venv": None,
+        "gitignored": None,
         "cache": None,
         "outside": None,
     }
     assert watch.root == root
+
+
+async def test_nested_flows_hold_their_containing_directories_as_watch_roots(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=("a",))
+    inner = make_workspace(root / "exp", flows=("b",))
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "a"})
+        await api.flow_open({"flow": "b"})
+        outer_session = api.hub.session("a")
+        inner_session = api.hub.session("b")
+
+        assert outer_session.workspace_dir == root
+        assert inner_session.workspace_dir == inner
+        assert api.hub.watches.roots() == [root, inner]
+        assert outer_session.watch.classify(inner / "helpers.py") == "code"
+        assert inner_session.watch.classify(inner / "helpers.py") == "code"
+        assert outer_session.watch.classify(root / "top.py") == "code"
+        assert inner_session.watch.classify(root / "top.py") is None
+
+        await api.flow_delete({"flow": "b"})
+        assert api.hub.watches.roots() == [root]
 
 
 def test_an_outside_flow_watches_its_own_workspace_not_the_launch_one(tmp_path: Path):

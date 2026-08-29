@@ -1,4 +1,4 @@
-"""The daemon's object graph: one workspace, N flows, one kernel each.
+"""The daemon's object graph: one launch directory, N flows, one kernel each.
 
 A flow session is opened once and kept. The daemon is the single writer of
 every `.lumlflow/` store beneath the workspace, and two sessions over one store
@@ -9,12 +9,9 @@ Nothing here survives a restart, and nothing needs to: the store is the state.
 A session is a store handle, a planner, a queue, and a kernel that has not been
 spawned yet.
 
-The launch directory is the workspace this daemon is registered for and locked
-to. A flow the browser reached by climbing above it is hosted here too, but
-under the workspace it belongs to: one venv and one set of helpers per workspace
-holds whoever happens to be hosting — and watching follows that, not the launch
-directory, so an outside flow is watched over its own workspace rather than not
-at all.
+The launch directory still owns daemon discovery. Each flow runs under the
+directory that contains it, so its environment, shared code and watch follow
+the flow even when it is nested beneath or outside that launch directory.
 """
 
 import contextlib
@@ -265,7 +262,7 @@ class Hub:
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store)
-        reconciliation.sync_workspace_code(self.root, [session])
+        reconciliation.sync_workspace_code(session.workspace_dir, [session])
         self.document()
         return session
 
@@ -281,17 +278,8 @@ class Hub:
         return session
 
     def _workspace_of(self, ref: FlowRef) -> Path:
-        """Which workspace a flow runs under — one venv, one set of helpers.
-
-        A flow the browser opened from above the launch directory belongs to
-        its own workspace, not to this one: running it here would hand it an
-        environment nobody installed for it and hide the `helpers.py` sitting
-        beside it. This daemon still hosts it — the record, the lock, the port
-        and the watched tree remain the launch directory's.
-        """
-        if ref.path.is_relative_to(self.root):
-            return self.root
-        return workspace.resolve_root(ref.path.parent)
+        """The containing directory whose code and environment the flow uses."""
+        return ref.path.parent
 
     async def delete_flow(self, ref: FlowRef) -> None:
         """Remove the flow and everything it owns — its store included."""
