@@ -532,11 +532,15 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
-        return {
-            "branch": result.branch,
-            "to_step": result.to_step,
-            "cells": len(result.selections),
-        } | _projection(self._reproject(session, branch))
+        return (
+            await self._flow_brief(session)
+            | {
+                "rewound_branch": result.branch,
+                "to_step": result.to_step,
+                "cells": len(result.selections),
+            }
+            | _projection(self._reproject(session, branch))
+        )
 
     async def checkpoint(self, params: dict[str, Any]) -> dict[str, Any]:
         """Mark this point in a branch's history. Nothing is copied or frozen.

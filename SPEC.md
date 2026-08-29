@@ -1191,9 +1191,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] List the launch directory on the landing page
   - [x] Remove `WorkspacePage.vue` browse-up and `workspace.listing/_within/_flow_crossed` (the `hub._workspace_of` special case went with the rooting task); the landing page lists the flows beneath the directory `ui` was given — the listing method takes the directory, and the address `ui` opens carries it — plus *New flow*, which creates there; the listing is a filter, and a flow opened by path from elsewhere opens in the same daemon
   - [x] Replace `flow-workspace-browser.spec.ts` with a listing spec; daemon test for the landing listing of a given directory
-- [ ] Fix lane and flow addressing in the workbench
-  - [ ] Brief refresh on checkout and rewind; compare by `brief.path`
-  - [ ] Specs in `flow-live-workbench.spec.ts`, `flow-compare.spec.ts`, `flow-branch-nav.spec.ts`
+- [x] Fix lane and flow addressing in the workbench
+  - [x] Brief refresh on checkout and rewind; compare by `brief.path`
+  - [x] Specs in `flow-live-workbench.spec.ts`, `flow-compare.spec.ts`, `flow-branch-nav.spec.ts`
 - [ ] Fix the token mirror, agent-ended banner and reconnect
   - [ ] Token excluded from mirrored query keys; agent-ended banner counting only `agent_end` transactions newer than the cell's last change; toast guard re-armed on reconnect; `open` marks reachable
   - [ ] Specs in `flow-live-session.spec.ts`, `flow-live-workbench.spec.ts`, the banner count among them

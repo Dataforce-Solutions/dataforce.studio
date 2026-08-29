@@ -7,7 +7,7 @@
           :muted="paired.state !== 'working'"
         />
         <BranchTag
-          v-if="paired.state === 'working' && paired.branch !== viewedBranch"
+          v-if="paired.state === 'working'"
           :name="paired.branch"
         />
         <span v-if="paired.state !== 'working'" class="text-base text-muted-color">

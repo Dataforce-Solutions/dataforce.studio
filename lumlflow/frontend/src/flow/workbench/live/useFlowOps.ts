@@ -16,6 +16,7 @@ import type {
   CellContextPayload,
   ConnectPrompt,
   EvalResult,
+  FlowBrief,
   FlowSettingsReport,
   Preflight,
   RunOutcome,
@@ -64,6 +65,21 @@ export interface FlowOps {
 
 export function useFlowOps(session: FlowSessionHandle): FlowOps {
   const flow = () => session.brief.value?.path
+
+  function applyBrief(next: FlowBrief): void {
+    const current = session.brief.value
+    if (current === null) return
+    session.brief.value = {
+      ...current,
+      flow: next.flow,
+      path: next.path,
+      branch: next.branch,
+      checked_out: next.checked_out,
+      agent: next.agent,
+      kernel: next.kernel,
+      settings: next.settings,
+    }
+  }
 
   return {
     // One target or several: rerunning a branch to its leaves is one closure,
@@ -140,20 +156,26 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         intent: `started ${name} from ${from}`,
       }),
 
-    checkout: (branch) =>
-      session.request('switch', {
+    checkout: async (branch) => {
+      const switched = await session.request('switch', {
         flow: flow(),
         branch,
         intent: `put ${branch} on disk`,
-      }),
+      })
+      applyBrief(switched)
+      return switched
+    },
 
-    rewind: (toStep, { branch }) =>
-      session.request('rewind', {
+    rewind: async (toStep, { branch }) => {
+      const rewound = await session.request('rewind', {
         flow: flow(),
         branch,
         to_step: toStep,
         intent: `rewound ${branch}`,
-      }),
+      })
+      applyBrief(rewound)
+      return rewound
+    },
 
     // The intent is not written here. Every other verb above carries an
     // auto-intent because the gesture says what happened; a checkpoint's whole

@@ -657,6 +657,43 @@ async def test_rewinding_the_checked_out_branch_carries_the_files_back(
         rewound = await api.rewind({"flow": "churn", "to_step": at})
 
     assert "0.77" in edited
+    assert rewound["branch"] == "main"
+    assert rewound["rewound_branch"] == "main"
+    assert rewound["path"] == str(flow)
+    assert rewound["checked_out"] is True
     assert rewound["to_step"] == at
     assert rewound["projected"]["written"] == ["score"]
+    assert "0.91" in source_of(flow, "score")
+
+
+async def test_rewinding_an_off_disk_branch_keeps_the_brief_on_disk(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        forked = await api.fork({"flow": "churn", "name": "sweep"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "sweep",
+                "slug": "score",
+                "source": SWEEP_CELL,
+            }
+        )
+
+        rewound = await api.rewind(
+            {
+                "flow": "churn",
+                "branch": "sweep",
+                "to_step": forked["forked_at_step"],
+            }
+        )
+
+    assert rewound["branch"] == "main"
+    assert rewound["rewound_branch"] == "sweep"
+    assert rewound["projected"] is None
     assert "0.91" in source_of(flow, "score")

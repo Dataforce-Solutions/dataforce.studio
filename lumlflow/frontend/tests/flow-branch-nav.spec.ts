@@ -113,6 +113,17 @@ async function workbench(options: { handlers?: Handlers; branches?: BranchRecord
         cells: SLICES[String(params.branch)] ?? [],
       }),
       'cells.logs': () => ({ flow: 'churn', branch: 'main', slug: '', state: null, logs: null }),
+      switch: (params) => ({
+        ...flowStatus({ branch: String(params.branch) }),
+        projected: null,
+      }),
+      rewind: (params) => ({
+        ...flowStatus(),
+        rewound_branch: String(params.branch),
+        to_step: Number(params.to_step),
+        cells: MAIN.length,
+        projected: null,
+      }),
       ...options.handlers,
     },
   })
@@ -391,7 +402,21 @@ describe('the step timeline is where a branch moves through its own history', ()
   })
 
   it('confirms what a rewind moves before asking the daemon for one', async () => {
-    const { wrapper, live } = await withHistory()
+    const { wrapper, live } = await withHistory({
+      rewind: () => ({
+        flow: 'churn',
+        path: FLOW,
+        branch: 'main',
+        checked_out: true,
+        agent: 'claude-1',
+        kernel: { state: 'stopped', restart_required: true, behind: ['pandas'] },
+        settings: { reactivity: 'lazy', eager_cost_threshold_s: 30 },
+        rewound_branch: 'main',
+        to_step: 12,
+        cells: 1,
+        projected: { written: ['features'], removed: [] },
+      }),
+    })
 
     await openTimeline(wrapper)
     await clickOverlayButton('step 12 · added features')
@@ -405,6 +430,13 @@ describe('the step timeline is where a branch moves through its own history', ()
     expect(asked(live, 'rewind')).toEqual([
       expect.objectContaining({ branch: 'main', to_step: 12 }),
     ])
+    expect(live.session.brief.value).toMatchObject({
+      branch: 'main',
+      agent: 'claude-1',
+      kernel: { state: 'stopped', restart_required: true, behind: ['pandas'] },
+      settings: { reactivity: 'lazy', eager_cost_threshold_s: 30 },
+      cells: MAIN,
+    })
     wrapper.unmount()
   })
 

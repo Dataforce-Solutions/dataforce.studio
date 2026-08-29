@@ -299,7 +299,7 @@ def rewind(
         result,
         as_json,
         [
-            f"`{result['branch']}` is back at step {result['to_step']} · "
+            f"`{result['rewound_branch']}` is back at step {result['to_step']} · "
             f"{result['cells']} cells",
             *_projected(result),
         ],

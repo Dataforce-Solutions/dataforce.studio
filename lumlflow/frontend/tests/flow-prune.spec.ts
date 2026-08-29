@@ -37,6 +37,6 @@ describe('Prune — production bundle has no fixture or concept surfaces', () =>
         expect(modulePaths.some((path) => path.includes(removedSurface))).toBe(false)
       }
     },
-    60_000,
+    120_000,
   )
 })

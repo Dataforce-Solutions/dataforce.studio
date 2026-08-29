@@ -21,6 +21,7 @@ import ToastService from 'primevue/toastservice'
 import type { EnvReport } from '@/flow/api/client'
 import type { BranchRecord, CellSummary } from '@/flow/api/types'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
+import AgentTaskLine from '@/flow/workbench/components/panel/AgentTaskLine.vue'
 import {
   attach,
   cellDetail,
@@ -213,6 +214,10 @@ async function workbench(
         size: 32,
         persisted: true,
         preview: storedPreview('metric', [{ block: 'kv', entries: { auc: 0.91 } }]),
+      }),
+      switch: (params) => ({
+        ...flowStatus({ branch: String(params.branch) }),
+        projected: null,
       }),
       ...options.handlers,
     },
@@ -489,13 +494,55 @@ describe('the left panel is scoped to the viewed branch', () => {
     wrapper.unmount()
   })
 
-  it('checks a branch out through the daemon, and follows the files there', async () => {
-    const { wrapper, live } = await workbench()
+  it('checks a branch out through the daemon, refreshes the brief, and follows the files there', async () => {
+    const { wrapper, live } = await workbench({
+      at: `/flow/${FLOW}?branch=exp%2Flr-sweep`,
+      handlers: {
+        switch: () => ({
+          flow: 'churn',
+          path: FLOW,
+          branch: 'exp/lr-sweep',
+          checked_out: true,
+          agent: 'claude-1',
+          kernel: { state: 'stopped', restart_required: true, behind: ['pandas'] },
+          settings: { reactivity: 'lazy', eager_cost_threshold_s: 30 },
+          projected: { written: ['features', 'sweep_notes'], removed: [] },
+        }),
+      },
+    })
 
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 18,
+      transaction: transaction(18, {
+        ts: '2999-08-13T09:18:00Z',
+        intent: 'working on the checked-out lane',
+        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
+      }),
+    })
+    await settle()
+
+    expect(wrapper.findComponent(AgentTaskLine).text()).toContain('main')
     await clickText(wrapper, 'button[aria-label^="Open the lane map"]', '')
     await clickBranchVerb('exp/lr-sweep', 'use here')
 
     expect(asked(live, 'switch').map((params) => params.branch)).toEqual(['exp/lr-sweep'])
+    expect(live.session.brief.value).toMatchObject({
+      branch: 'exp/lr-sweep',
+      agent: 'claude-1',
+      kernel: { state: 'stopped', restart_required: true, behind: ['pandas'] },
+      settings: { reactivity: 'lazy', eager_cost_threshold_s: 30 },
+      cells: MAIN,
+    })
+    expect(window.location.search).not.toContain('branch=')
+    expect(wrapper.get('[role="combobox"]').text()).toContain('on disk')
+    expect(wrapper.find('[role="combobox"] .lucide-eye').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('viewing · the files stay on main')
+    expect(wrapper.findComponent(AgentTaskLine).text()).toContain('exp/lr-sweep')
+    await clickText(wrapper, 'button', 'Stop session')
+    expect(document.body.textContent).toContain('cancelled the run on `exp/lr-sweep`')
     expect(drawn(wrapper)).toEqual(['features', 'sweep_notes'])
     wrapper.unmount()
   })

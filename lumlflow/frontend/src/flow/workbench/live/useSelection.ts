@@ -69,7 +69,7 @@ export function useSelection(
     return params.toString()
   }
 
-  watch([view, selectedSlug, viewedBranch, compared], () => {
+  watch([view, selectedSlug, viewedBranch, compared, options.defaultBranch], () => {
     const search = query()
     if (typeof window !== 'undefined') {
       window.history.replaceState(

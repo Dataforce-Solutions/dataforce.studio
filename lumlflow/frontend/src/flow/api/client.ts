@@ -230,7 +230,10 @@ export interface FlowMethods {
     { branch: string; from_branch: string; forked_at_step: number; cells: number }
   >
   switch: Method<Intentful & { branch: string }, Projected & FlowBrief>
-  rewind: Method<Intentful & { to_step: number }, Projected & FlowBrief>
+  rewind: Method<
+    Intentful & { to_step: number },
+    Projected & FlowBrief & { rewound_branch: string; to_step: number; cells: number }
+  >
   /**
    * Mark this point on a branch. A marker, not a snapshot: the store already
    * keeps every version this step resolved to, so the intent is the whole
