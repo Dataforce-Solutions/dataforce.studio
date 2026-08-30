@@ -41,6 +41,9 @@ agent_app = typer.Typer(
     help="Register an agent session by hand. An MCP client needs none of this.",
     no_args_is_help=True,
 )
+agents_app = typer.Typer(
+    help="Connect installed agent harnesses to lumlflow.", no_args_is_help=True
+)
 env_app = typer.Typer(help="The workspace's packages.", no_args_is_help=True)
 flow_app = typer.Typer(help="Manage flows in this workspace.", no_args_is_help=True)
 daemon_app = typer.Typer(
@@ -79,6 +82,7 @@ def register(app: typer.Typer) -> None:
     app.add_typer(asset_app, name="asset")
     app.add_typer(lane_app, name="lane")
     app.add_typer(agent_app, name="agent")
+    app.add_typer(agents_app, name="agents")
     app.add_typer(env_app, name="env")
     app.add_typer(flow_app, name="flow")
     app.add_typer(daemon_app, name="daemon")
@@ -741,6 +745,71 @@ def agent_begin(
     _emit(result, as_json, [f"`{result['label']}` is working here"])
 
 
+@agents_app.command("list")
+def agents_list(as_json: bool = _JSON) -> None:
+    """Detected agent harnesses and whether their MCP entry is current."""
+    result = _call("agents.harnesses", as_json=as_json, scoped=False)
+    _emit(result, as_json, _agent_harness_lines(result["harnesses"]))
+
+
+@agents_app.command("setup")
+def agents_setup(
+    harness: str = typer.Argument(..., help="Harness id from `agents list`."),
+    yes: bool = typer.Option(False, "--yes", help="Consent without prompting."),
+    as_json: bool = _JSON,
+) -> None:
+    """Install or update lumlflow's user-level MCP entry."""
+    with _daemon(as_json) as daemon:
+        listed = daemon.call("agents.harnesses", scoped=False)
+        current = _agent_harness(listed["harnesses"], harness)
+        if not current["can_setup"]:
+            _fail(
+                FlowError(
+                    f"{current['display_name']} is detect-only; paste the snippet in "
+                    f"{current['config_path']}"
+                ),
+                as_json,
+            )
+        consent = yes or not current["consent_required"]
+        if current["consent_required"] and not consent:
+            consent = typer.confirm(str(current["consent_prompt"]), default=False)
+        result = daemon.call(
+            "agents.setup",
+            {"harness": harness, "consent": consent},
+            scoped=False,
+        )
+    if not consent:
+        _emit(result, as_json, [f"{result['display_name']} was not set up"])
+        return
+    if result.get("error"):
+        _fail(FlowError(str(result["error"])), as_json)
+    _emit(
+        result,
+        as_json,
+        [
+            f"{result['display_name']} · {result['state']}",
+            str(result["post_write_hint"]),
+        ],
+    )
+
+
+@agents_app.command("remove")
+def agents_remove(
+    harness: str = typer.Argument(..., help="Harness id from `agents list`."),
+    as_json: bool = _JSON,
+) -> None:
+    """Remove every MCP entry lumlflow owns for this harness."""
+    result = _call(
+        "agents.remove",
+        {"harness": harness},
+        as_json=as_json,
+        scoped=False,
+    )
+    if result.get("error"):
+        _fail(FlowError(str(result["error"])), as_json)
+    _emit(result, as_json, [f"removed lumlflow from {result['display_name']}"])
+
+
 @agent_app.command("end")
 def agent_end(
     actor: str | None = typer.Option(None, "--actor", help="Whose session ended."),
@@ -1038,6 +1107,34 @@ def _projected(result: dict[str, Any]) -> list[str]:
     if removed:
         parts.append(f"removed {len(removed)}")
     return [f"files: {', '.join(parts)}"]
+
+
+def _agent_harness(listed: Sequence[dict[str, Any]], harness_id: str) -> dict[str, Any]:
+    for harness in listed:
+        if harness["id"] == harness_id:
+            return harness
+    raise FlowError(f"agent harness `{harness_id}` is not detected on this machine")
+
+
+def _agent_harness_lines(listed: Sequence[dict[str, Any]]) -> list[str]:
+    if not listed:
+        return ["no supported agent harnesses detected"]
+    lines: list[str] = []
+    for harness in listed:
+        lines.extend(
+            [
+                f"{harness['display_name']} ({harness['id']}) · {harness['state']}",
+                f"  {harness['config_path']}",
+            ]
+        )
+        if harness.get("shell_hint"):
+            lines.append(f"  {harness['shell_hint']}")
+        if not harness["can_setup"]:
+            lines.append("  paste this configuration:")
+            lines.extend(f"    {line}" for line in harness["snippet"].splitlines())
+        if harness.get("error"):
+            lines.append(f"  {harness['error']}")
+    return lines
 
 
 def _actor_label(label: str | None, command: Sequence[str]) -> str:

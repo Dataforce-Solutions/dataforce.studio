@@ -199,6 +199,41 @@ def test_status_and_init_take_a_directory(
     assert (requested / "sweep.flow").is_dir()
 
 
+def test_agents_cli_lists_consents_sets_up_and_removes(
+    cli: Invoke,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "agent-home"
+    binary_dir = tmp_path / "agent-bin"
+    for name in ("claude", "lumlflow"):
+        executable = write_file(binary_dir / name, "#!/bin/sh")
+        executable.chmod(0o755)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.setenv("PATH", str(binary_dir))
+
+    listed = cli("agents", "list")
+    declined = cli("agents", "setup", "claude-code", stdin="n\n")
+    config = home / ".claude.json"
+
+    assert listed.exit_code == 0, listed.output
+    assert "Claude Code (claude-code) · not set up" in listed.output
+    assert declined.exit_code == 0, declined.output
+    assert "was not set up" in declined.output
+    assert not config.exists()
+
+    set_up = cli("agents", "setup", "claude-code", stdin="y\n")
+    removed = cli("agents", "remove", "claude-code")
+
+    assert set_up.exit_code == 0, set_up.output
+    assert "Claude Code · set up" in set_up.output
+    assert "approve the server when Claude Code asks" in set_up.output
+    assert removed.exit_code == 0, removed.output
+    assert "removed lumlflow from Claude Code" in removed.output
+    assert json.loads(config.read_text("utf-8"))["mcpServers"] == {}
+
+
 def test_status_from_each_cwd_reaches_one_daemon_and_lists_only_that_directory(
     cli: Invoke, workspace: Path, tmp_path: Path
 ) -> None:
@@ -551,14 +586,10 @@ def test_run_leaves_its_daemon_when_an_attachment_arrives(
             assert expected in output
             assert client.is_alive(record)
             if paired is not None:
-                ended = paired.call(
-                    "agent.end", {"flow": str(flow), "actor": "codex"}
-                )
+                ended = paired.call("agent.end", {"flow": str(flow), "actor": "codex"})
                 assert ended["actor"] == "codex"
             elif stream is not None:
-                stream.send(
-                    json.dumps({"subscribe": "journal", "flow": str(flow)})
-                )
+                stream.send(json.dumps({"subscribe": "journal", "flow": str(flow)}))
                 _receive_caught_up(stream)
             else:
                 assert opener is not None

@@ -16,7 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, get_args
 
-from lumlflow.flow.daemon import connect, envs, handoff, queries, workspace
+from lumlflow.flow.daemon import connect, envs, handoff, harnesses, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
@@ -52,6 +52,7 @@ class Api:
         stop: Callable[[], None] | None = None,
         attachments: AttachmentCheck | None = None,
         instance_id: str = "",
+        harness_service: harnesses.HarnessService | None = None,
     ) -> None:
         self.hub = hub
         self.directory = (directory or Path.cwd()).resolve()
@@ -62,6 +63,7 @@ class Api:
         self.web: str | None = None
         self._stop = stop
         self._attachments = attachments
+        self._harnesses = harness_service or harnesses.HarnessService()
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -70,6 +72,9 @@ class Api:
             "graph": self.graph,
             "diff": self.diff,
             "workspace.list": self.workspace_list,
+            "agents.harnesses": self.agents_harnesses,
+            "agents.setup": self.agents_setup,
+            "agents.remove": self.agents_remove,
             "flow.init": self.flow_init,
             "flow.open": self.flow_open,
             "flow.checkout": self.flow_checkout,
@@ -185,6 +190,23 @@ class Api:
                 for ref in workspace.find_flows(directory)
             ],
         }
+
+    def sync_agents(self) -> list[dict[str, Any]]:
+        return self._harnesses.sync()
+
+    async def agents_harnesses(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"harnesses": self._harnesses.list_harnesses()}
+
+    async def agents_setup(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._harnesses.setup(
+            str(params.get("harness") or params.get("id") or ""),
+            consent=bool(params.get("consent")),
+        )
+
+    async def agents_remove(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._harnesses.remove(
+            str(params.get("harness") or params.get("id") or "")
+        )
 
     async def flow_init(self, params: dict[str, Any]) -> dict[str, Any]:
         name = str(params.get("name") or "")

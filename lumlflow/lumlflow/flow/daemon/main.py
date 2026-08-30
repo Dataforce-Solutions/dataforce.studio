@@ -102,6 +102,10 @@ class Daemon:
             return ALREADY_RUNNING
         listener: socket.socket | None = None
         try:
+            try:
+                self.api.sync_agents()
+            except FlowError as error:
+                print(f"agent setup sync failed: {error}", file=sys.stderr)
             self._server = await asyncio.start_server(
                 self._session, "127.0.0.1", port, limit=STREAM_LIMIT_BYTES
             )

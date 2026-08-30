@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from lumlflow.flow.errors import FlowError
 
 SERVER_NAME = "lumlflow"
 MANAGED_ENV = "LUMLFLOW_MANAGED"
+DAEMON_EXECUTABLE_ENV = "LUMLFLOW_DAEMON_EXECUTABLE"
+CONSENT_RECORD_NAME = "agents.json"
 
 Platform = Literal["linux", "darwin", "win32"]
 PathBase = Literal["home", "appdata", "codex_home"]
@@ -38,6 +41,7 @@ class EntryState(StrEnum):
     SET_UP = "set up"
     OUT_OF_DATE = "out of date"
     BROKEN = "broken"
+    REMOVED_BY_YOU = "removed by you"
 
 
 class HarnessConfigError(FlowError):
@@ -333,6 +337,12 @@ class WriteResult:
     entry: dict[str, Any]
 
 
+@dataclass
+class _Preferences:
+    consented: set[str]
+    removed: set[str]
+
+
 def harness_by_id(harness_id: str) -> Harness:
     for harness in HARNESSES:
         if harness.id == harness_id:
@@ -520,6 +530,36 @@ def write_config(
     return WriteResult(path=config_path, changed=True, entry=desired)
 
 
+def remove_config(
+    harness: Harness,
+    *,
+    home: Path | None = None,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    path: Path | None = None,
+) -> WriteResult:
+    config_path = _config_path(
+        harness,
+        home=home,
+        platform=platform,
+        environment=environment,
+        override=path,
+    )
+    existing = config_path.read_bytes() if config_path.exists() else None
+    rendered = _render_config_removal(harness, existing, config_path)
+    if rendered is None:
+        return WriteResult(path=config_path, changed=False, entry={})
+    backup = config_path.with_name(f"{config_path.name}.bak")
+    if existing is not None and not backup.exists():
+        atomic_write_bytes(backup, existing)
+    latest = config_path.read_bytes() if config_path.exists() else None
+    rendered = _render_config_removal(harness, latest, config_path)
+    if rendered is None:
+        return WriteResult(path=config_path, changed=False, entry={})
+    atomic_write_bytes(config_path, rendered)
+    return WriteResult(path=config_path, changed=True, entry={})
+
+
 def is_owned(name: str, entry: object) -> bool:
     if not isinstance(entry, dict):
         return False
@@ -600,6 +640,23 @@ def _render_config_update(
     for name, _entry in owned:
         del section[name]
     section[SERVER_NAME] = desired
+    return _serialize(document, harness.shape)
+
+
+def _render_config_removal(
+    harness: Harness,
+    existing: bytes | None,
+    path: Path,
+) -> bytes | None:
+    if existing is None:
+        return None
+    document = _parse(existing, harness.shape, path)
+    section = _section(document, harness.shape, create=False)
+    owned = [name for name, entry in section.items() if is_owned(name, entry)]
+    if not owned:
+        return None
+    for name in owned:
+        del section[name]
     return _serialize(document, harness.shape)
 
 
@@ -737,6 +794,268 @@ def _entry_command_exists(entry: object, search_path: str | None) -> bool:
     if Path(command).is_absolute() or "/" in command or "\\" in command:
         return Path(command).is_file()
     return shutil.which(command, path=search_path) is not None
+
+
+class HarnessService:
+    def __init__(
+        self,
+        running_executable: str | Path | None = None,
+        *,
+        state_directory: Path | None = None,
+        home: Path | None = None,
+        platform: str | None = None,
+        environment: Mapping[str, str] | None = None,
+        search_path: str | None = None,
+    ) -> None:
+        inherited = os.environ.get(DAEMON_EXECUTABLE_ENV)
+        self._running_executable = running_executable or inherited or sys.argv[0]
+        self._state_directory = state_directory
+        self._home = home
+        self._platform = platform
+        self._environment = dict(environment) if environment is not None else None
+        self._search_path_override = search_path
+        self._detected: tuple[Harness, ...] | None = None
+        self._errors: dict[str, str] = {}
+        self._lock = threading.RLock()
+
+    @property
+    def consent_path(self) -> Path:
+        if self._state_directory is not None:
+            return self._state_directory / CONSENT_RECORD_NAME
+        from lumlflow.flow.daemon import workspace
+
+        return workspace.state_dir() / CONSENT_RECORD_NAME
+
+    def has_consent(self, harness_id: str) -> bool:
+        with self._lock:
+            return harness_id in self._read_preferences().consented
+
+    def sync(self) -> list[dict[str, Any]]:
+        with self._lock:
+            preferences = self._read_preferences()
+            self._sync(preferences)
+            return [
+                self._describe(harness, preferences)
+                for harness in self._detected_harnesses()
+            ]
+
+    def list_harnesses(self) -> list[dict[str, Any]]:
+        return self.sync()
+
+    def setup(self, harness_id: str, *, consent: bool) -> dict[str, Any]:
+        with self._lock:
+            harness = self._detected_harness(harness_id)
+            if not self._can_setup(harness):
+                raise HarnessConfigError(
+                    f"{harness.display_name} is detect-only; paste the snippet in "
+                    f"{harness.config_hint}"
+                )
+            preferences = self._read_preferences()
+            if harness.id not in preferences.consented:
+                if not consent:
+                    return self._describe(harness, preferences)
+            self._errors.pop(harness.id, None)
+            try:
+                write_config(
+                    harness,
+                    executable=self.executable,
+                    home=self._home,
+                    platform=self._platform,
+                    environment=self._environment,
+                )
+            except (HarnessConfigError, OSError) as error:
+                self._errors[harness.id] = str(error)
+                return self._describe(harness, preferences)
+            if harness.id not in preferences.consented:
+                preferences.consented.add(harness.id)
+                preferences.removed.discard(harness.id)
+                self._write_preferences(preferences)
+            return self._describe(harness, preferences)
+
+    def remove(self, harness_id: str) -> dict[str, Any]:
+        with self._lock:
+            harness = self._detected_harness(harness_id)
+            if not self._can_setup(harness):
+                raise HarnessConfigError(
+                    f"{harness.display_name} has no lumlflow-owned entry to remove"
+                )
+            preferences = self._read_preferences()
+            self._errors.pop(harness.id, None)
+            try:
+                remove_config(
+                    harness,
+                    home=self._home,
+                    platform=self._platform,
+                    environment=self._environment,
+                )
+            except (HarnessConfigError, OSError) as error:
+                self._errors[harness.id] = str(error)
+                return self._describe(harness, preferences)
+            preferences.consented.discard(harness.id)
+            preferences.removed.discard(harness.id)
+            self._write_preferences(preferences)
+            return self._describe(harness, preferences)
+
+    @property
+    def executable(self) -> str:
+        return resolve_executable(
+            self._running_executable,
+            search_path=self._search_path(),
+        )
+
+    def _sync(self, preferences: _Preferences) -> None:
+        self._errors.clear()
+        for harness in self._detected_harnesses():
+            if (
+                harness.id not in preferences.consented
+                or harness.id in preferences.removed
+                or not self._can_setup(harness)
+            ):
+                continue
+            try:
+                state = self._entry_state(harness)
+                if state == EntryState.OUT_OF_DATE:
+                    write_config(
+                        harness,
+                        executable=self.executable,
+                        home=self._home,
+                        platform=self._platform,
+                        environment=self._environment,
+                    )
+            except (HarnessConfigError, OSError) as error:
+                self._errors[harness.id] = str(error)
+
+    def _describe(self, harness: Harness, preferences: _Preferences) -> dict[str, Any]:
+        consented = harness.id in preferences.consented
+        error = self._errors.get(harness.id)
+        state = EntryState.NOT_SET_UP
+        if self._can_setup(harness):
+            try:
+                state = self._entry_state(harness)
+            except (HarnessConfigError, OSError) as failure:
+                error = error or str(failure)
+                state = EntryState.OUT_OF_DATE if consented else EntryState.NOT_SET_UP
+        if harness.id in preferences.removed:
+            state = EntryState.REMOVED_BY_YOU
+        elif consented and state == EntryState.NOT_SET_UP and error is None:
+            state = EntryState.REMOVED_BY_YOU
+
+        can_setup = self._can_setup(harness)
+        action: str | None = None
+        if can_setup and state == EntryState.OUT_OF_DATE:
+            action = "update"
+        elif can_setup and state in {
+            EntryState.NOT_SET_UP,
+            EntryState.REMOVED_BY_YOU,
+        }:
+            action = "setup"
+        config_path = self._config_path(harness)
+        shown_path = (
+            str(config_path) if config_path is not None else harness.config_hint
+        )
+        consent_required = can_setup and not consented
+        return {
+            "id": harness.id,
+            "display_name": harness.display_name,
+            "state": str(state),
+            "config_path": shown_path,
+            "snippet": config_snippet(harness, executable=self.executable),
+            "can_setup": can_setup,
+            "action": action,
+            "consent_required": consent_required,
+            "consent_prompt": (
+                f"Allow lumlflow to update {shown_path} and keep its entry current?"
+                if consent_required
+                else None
+            ),
+            "post_write_hint": harness.post_write_hint,
+            "shell": harness.shell,
+            "shell_hint": (
+                "also works without setup: run `lumlflow guide` in it"
+                if harness.shell
+                else None
+            ),
+            "error": error,
+        }
+
+    def _entry_state(self, harness: Harness) -> EntryState:
+        return entry_state(
+            harness,
+            executable=self.executable,
+            home=self._home,
+            platform=self._platform,
+            environment=self._environment,
+            search_path=self._search_path(),
+        )
+
+    def _detected_harnesses(self) -> tuple[Harness, ...]:
+        if self._detected is None:
+            self._detected = tuple(
+                detected_harnesses(
+                    home=self._home,
+                    platform=self._platform,
+                    environment=self._environment,
+                    search_path=self._search_path(),
+                )
+            )
+        return self._detected
+
+    def _detected_harness(self, harness_id: str) -> Harness:
+        harness = harness_by_id(harness_id)
+        if harness not in self._detected_harnesses():
+            raise HarnessConfigError(
+                f"agent harness `{harness_id}` is not detected on this machine"
+            )
+        return harness
+
+    def _config_path(self, harness: Harness) -> Path | None:
+        return harness.config_path(
+            home=self._home,
+            platform=self._platform,
+            environment=self._environment,
+        )
+
+    def _can_setup(self, harness: Harness) -> bool:
+        return harness.writer is not None and self._config_path(harness) is not None
+
+    def _search_path(self) -> str | None:
+        if self._search_path_override is not None:
+            return self._search_path_override
+        environment = self._environment if self._environment is not None else os.environ
+        return environment.get("PATH")
+
+    def _read_preferences(self) -> _Preferences:
+        path = self.consent_path
+        if not path.exists():
+            return _Preferences(consented=set(), removed=set())
+        try:
+            document = json.loads(path.read_text("utf-8"))
+            consented = document["consented"]
+            removed = document["removed"]
+        except (OSError, UnicodeDecodeError, ValueError, KeyError, TypeError) as error:
+            raise HarnessConfigError(
+                f"cannot read agent setup consent from {path}"
+            ) from error
+        if not (
+            isinstance(consented, list)
+            and all(isinstance(value, str) for value in consented)
+            and isinstance(removed, list)
+            and all(isinstance(value, str) for value in removed)
+        ):
+            raise HarnessConfigError(f"cannot read agent setup consent from {path}")
+        return _Preferences(consented=set(consented), removed=set(removed))
+
+    def _write_preferences(self, preferences: _Preferences) -> None:
+        body = json.dumps(
+            {
+                "consented": sorted(preferences.consented),
+                "removed": sorted(preferences.removed),
+            },
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        atomic_write_bytes(self.consent_path, body + b"\n")
+        self.consent_path.chmod(0o600)
 
 
 def _platform(platform: str | None) -> Platform:

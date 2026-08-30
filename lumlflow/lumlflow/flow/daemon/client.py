@@ -12,7 +12,7 @@ from types import TracebackType
 from typing import Any
 
 from lumlflow.flow import errors
-from lumlflow.flow.daemon import workspace
+from lumlflow.flow.daemon import harnesses, workspace
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowError, ServerError
 
@@ -242,6 +242,11 @@ def _start_daemon(
 
 
 def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
+    inherited_executable = os.environ.get(harnesses.DAEMON_EXECUTABLE_ENV)
+    environment = dict(os.environ)
+    environment[harnesses.DAEMON_EXECUTABLE_ENV] = inherited_executable or str(
+        Path(sys.argv[0]).resolve()
+    )
     with log.open("ab") as output:
         return subprocess.Popen(
             [sys.executable, "-m", "lumlflow.flow.daemon"],
@@ -249,6 +254,7 @@ def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
             stdout=output,
             stderr=output,
             cwd=str(directory),
+            env=environment,
             **_detached(),
         )
 
