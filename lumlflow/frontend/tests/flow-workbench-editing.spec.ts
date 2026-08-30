@@ -640,6 +640,40 @@ function toasts(): string {
     .join(' ')
 }
 
+describe('rerunning a lane is one daemon request', () => {
+  it('asks run for the viewed lane without sending client-derived leaves', async () => {
+    const { wrapper, live } = await workbench({
+      handlers: {
+        run: (params) => ({
+          branch: String(params.branch),
+          target: 'train_model',
+          targets: ['train_model'],
+          executed: ['features', 'train_model'],
+          cached: [],
+          pruned: [],
+          failed: null,
+          failures: [],
+          unplanned: [],
+          abandoned: false,
+        }),
+      },
+    })
+
+    await clickText(wrapper, 'Rerun lane')
+    await clickInBody('run 1 cell')
+
+    expect(asked(live, 'run')).toEqual([
+      {
+        flow: FLOW,
+        branch: 'main',
+        force: false,
+        intent: 'rerun main',
+      },
+    ])
+    wrapper.unmount()
+  })
+})
+
 describe('stop is honest about what it stopped', () => {
   async function running(awaiting: number): Promise<Bench> {
     const bench = await workbench({

@@ -159,6 +159,19 @@ def test_the_mcp_only_loop_never_materializes_a_worktree(talk: Talk, workspace: 
     assert answered(answers, 2)["written_to_files"] is False
 
 
+def test_run_tool_accepts_no_target_and_runs_the_lane(talk: Talk) -> None:
+    answers = talk(
+        hello(),
+        tool(1, "init-flow", {"name": "churn"}),
+        tool(2, "new-cell", {"slug": "score", "source": SCORE_CELL, "intent": "score"}),
+        tool(3, "run"),
+    )
+
+    outcome = answered(answers, 3)
+    assert outcome["targets"] == ["score"]
+    assert outcome["executed"] == ["score"]
+
+
 def test_the_session_is_named_after_the_client_and_ends_when_it_hangs_up(talk: Talk):
     """Detected, never declared: the pair panel reads both of these off the
     journal, and a session that only calls the API holds no files."""
@@ -542,6 +555,7 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert tools["move-cell"]["inputSchema"]["required"] == ["slug"]
     assert {"before", "after"} <= set(tools["move-cell"]["inputSchema"]["properties"])
     assert "lane" in tools["run"]["inputSchema"]["properties"]
+    assert "target" not in tools["run"]["inputSchema"].get("required", [])
     assert "directory" in tools["status"]["inputSchema"]["properties"]
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND

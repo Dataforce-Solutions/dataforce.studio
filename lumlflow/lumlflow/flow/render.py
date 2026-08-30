@@ -272,6 +272,20 @@ def preflight(payload: dict[str, Any]) -> list[str]:
 
 def outcome(payload: dict[str, Any]) -> list[str]:
     """What the run did. A failure is a recorded state, not an exception."""
+    failures = list(payload.get("failures") or [])
+    if not failures and payload.get("failed"):
+        failures.append(str(payload["failed"]))
+    unplanned = list(payload.get("unplanned") or [])
+    if (
+        "targets" in payload
+        and not payload["executed"]
+        and not payload["cached"]
+        and not failures
+        and not unplanned
+        and not payload["abandoned"]
+    ):
+        return ["nothing to do. every leaf is current"]
+
     lines = []
     if payload["executed"]:
         lines.append(f"ran     {_names(payload['executed'])}")
@@ -279,12 +293,14 @@ def outcome(payload: dict[str, Any]) -> list[str]:
         lines.append(f"reused  {_names(payload['cached'])}")
     if payload["pruned"]:
         lines.append(f"skipped {_names(payload['pruned'])} · already current")
-    if payload["failed"]:
+    for failed in failures:
         # The pointer stays inside the quickstart's vocabulary: an agent that
         # only read those twenty lines has to be able to follow it.
-        lines.append(
-            f"failed  `{payload['failed']}` · run `lumlflow context` for the traceback"
-        )
+        lines.append(f"failed  `{failed}` · run `lumlflow context` for the traceback")
+    lines.extend(
+        f"could not plan `{failure['target']}` · {failure['error']}"
+        for failure in unplanned
+    )
     if payload["abandoned"]:
         lines.append("left the run. another lane is still waiting on it")
     return lines or ["nothing to do"]

@@ -27,7 +27,10 @@ type Result<M extends keyof FlowMethods> = Promise<FlowMethods[M]['result']>
 
 export interface FlowOps {
   preflight: (targets: string | string[], branch: string) => Promise<Preflight>
-  run: (target: string, options: { branch: string; force?: boolean }) => Promise<RunOutcome>
+  run: (
+    target: string | undefined,
+    options: { branch: string; force?: boolean },
+  ) => Promise<RunOutcome>
   cancel: (branch: string) => Result<'cancel'>
   edit: (
     slug: string,
@@ -100,9 +103,9 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
       session.request('run', {
         flow: flow(),
         branch,
-        target,
+        ...(target ? { target } : {}),
         force,
-        intent: force ? `force rerun ${target}` : `run ${target}`,
+        intent: `${force ? 'force rerun' : target ? 'run' : 'rerun'} ${target ?? branch}`,
       }),
 
     // Named for what it is: leaving a run, which only stops it when no other

@@ -912,6 +912,120 @@ async def test_preflight_names_the_closure_the_run_then_executes(tmp_path: Path)
     assert after["recompute"] == []
 
 
+async def test_run_without_a_target_runs_lane_leaves_and_prunes_current_ones(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+    write_cell(flow, "independent", INDEPENDENT_EVALUATE_CELL)
+
+    async with daemon_api(root) as api:
+        first = await api.run({"flow": "churn"})
+        write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.95"))
+        changed = await api.run({"flow": "churn"})
+        current = await api.run({"flow": "churn"})
+
+    assert first["targets"] == ["independent", "report"]
+    assert set(first["executed"]) == {"independent", "score", "report"}
+    assert changed["executed"] == ["score", "report"]
+    assert changed["pruned"] == ["independent"]
+    assert current["executed"] == []
+    assert current["pruned"] == ["independent", "report"]
+
+
+async def test_run_without_a_target_continues_after_an_independent_failure(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "broken", BROKEN_CELL)
+    write_cell(flow, "independent", INDEPENDENT_EVALUATE_CELL)
+
+    async with daemon_api(root) as api:
+        outcome = await api.run({"flow": "churn"})
+
+    assert outcome["failures"] == ["broken"]
+    assert outcome["failed"] == "broken"
+    assert outcome["executed"] == ["independent"]
+
+
+async def test_run_without_a_target_reports_one_unplannable_leaf_and_runs_the_rest(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(
+        flow,
+        "dangling",
+        """
+        class Dangling:
+            consumes = {"value": "missing.value"}
+            produces = {"result": "asset"}
+
+            def materialize(self, ctx, value):
+                return {"result": value}
+        """,
+    )
+    write_cell(flow, "independent", INDEPENDENT_EVALUATE_CELL)
+
+    async with daemon_api(root) as api:
+        outcome = await api.run({"flow": "churn"})
+
+    assert outcome["executed"] == ["independent"]
+    assert [failure["target"] for failure in outcome["unplanned"]] == ["dangling"]
+    assert "missing.value" in outcome["unplanned"][0]["error"]
+
+
+async def test_cancelling_a_lane_run_does_not_start_its_next_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    first_marker = tmp_path / "first"
+    later_marker = tmp_path / "later"
+    for slug, marker in (("a_first", first_marker), ("z_later", later_marker)):
+        write_cell(
+            flow,
+            slug,
+            f"""
+            class Leaf:
+                produces = {{"value": "asset"}}
+
+                def materialize(self, ctx):
+                    from pathlib import Path
+
+                    Path({str(marker)!r}).touch()
+                    return {{"value": 1}}
+            """,
+        )
+
+    async with daemon_api(root) as api:
+        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        ensure_started = session.kernel.ensure_started
+        starting = asyncio.Event()
+        resume = asyncio.Event()
+
+        async def delayed_start() -> dict[str, Any]:
+            starting.set()
+            await resume.wait()
+            return await ensure_started()
+
+        monkeypatch.setattr(session.kernel, "ensure_started", delayed_start)
+        running = asyncio.create_task(api.run({"flow": "churn"}))
+        await asyncio.wait_for(starting.wait(), timeout=5)
+        left = await api.cancel({"flow": "churn"})
+        resume.set()
+        outcome = await running
+
+    assert (left["left"], left["stopped"]) == (1, True)
+    assert outcome["targets"] == ["a_first", "z_later"]
+    assert outcome["abandoned"] is True
+    assert not first_marker.exists()
+    assert not later_marker.exists()
+
+
 async def test_forcing_a_run_spends_the_cost_the_store_would_have_saved(
     tmp_path: Path,
 ):

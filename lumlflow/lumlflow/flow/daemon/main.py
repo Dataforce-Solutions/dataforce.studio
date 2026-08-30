@@ -60,6 +60,7 @@ class Daemon:
             self.hub,
             directory=self.directory,
             stop=self.stop,
+            attachments=self._attachments,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -321,6 +322,24 @@ class Daemon:
             )
         if attached:
             print(f"stopping with attached clients: {'; '.join(attached)}", flush=True)
+
+    def _attachments(self, flow_path: str) -> dict[str, Any]:
+        excluded = Path(flow_path).resolve() if flow_path else None
+        leases = {
+            lease
+            for client_leases in self._client_leases.values()
+            for lease in client_leases
+        }
+        open_flows = sorted(
+            session.ref.address
+            for session in self.hub.opened()
+            if excluded is None or session.ref.path != excluded
+        )
+        return {
+            "leased_sessions": len(leases),
+            "stream_subscribers": self.streams.watchers,
+            "open_flows": open_flows,
+        }
 
     async def _end_calls(self) -> None:
         calls = [call for call in self._calls if not call.done()]

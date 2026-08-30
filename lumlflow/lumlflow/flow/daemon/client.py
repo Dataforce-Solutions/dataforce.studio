@@ -31,8 +31,15 @@ class DaemonClient:
     """`timeout` of None waits as long as the call takes — a ten-minute run is
     a normal run, and only liveness checks have a deadline worth having."""
 
-    def __init__(self, record: DaemonRecord, *, timeout: float | None = None) -> None:
+    def __init__(
+        self,
+        record: DaemonRecord,
+        *,
+        timeout: float | None = None,
+        started: bool = False,
+    ) -> None:
         self.record = record
+        self.started = started
         try:
             self._sock = socket.create_connection(
                 ("127.0.0.1", record.port), timeout=timeout or _CONNECT_TIMEOUT_S
@@ -106,8 +113,10 @@ class DaemonClient:
             raise ServerError("the connection to lumlflow dropped") from dropped
 
 
-def attach(record: DaemonRecord, *, timeout: float | None = None) -> DaemonClient:
-    return DaemonClient(record, timeout=timeout)
+def attach(
+    record: DaemonRecord, *, timeout: float | None = None, started: bool = False
+) -> DaemonClient:
+    return DaemonClient(record, timeout=timeout, started=started)
 
 
 def is_alive(record: DaemonRecord) -> bool:
@@ -149,7 +158,8 @@ def connect(directory: Path | None = None, *, start: bool = True) -> DaemonClien
         return attach(record)
     if not start:
         raise ServerError("the lumlflow daemon is not running")
-    return attach(start_daemon((directory or Path.cwd()).resolve()))
+    record, started = _start_daemon((directory or Path.cwd()).resolve())
+    return attach(record, started=started)
 
 
 def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
@@ -177,7 +187,28 @@ def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
     return False
 
 
+def wait_stopped(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
+    """Wait for a daemon that already accepted a graceful shutdown request."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        current = workspace.read_record()
+        if current is not None and current.instance_id != record.instance_id:
+            return True
+        if not workspace.lock_held():
+            if current is not None and current.instance_id == record.instance_id:
+                workspace.clear_record(instance_id=record.instance_id)
+            return True
+        time.sleep(_POLL_S)
+    return False
+
+
 def start_daemon(directory: Path, *, timeout: float = START_TIMEOUT_S) -> DaemonRecord:
+    return _start_daemon(directory, timeout=timeout)[0]
+
+
+def _start_daemon(
+    directory: Path, *, timeout: float = START_TIMEOUT_S
+) -> tuple[DaemonRecord, bool]:
     """Spawn a background server and wait for the singleton that wins the lock.
 
     Not necessarily the one spawned here: two verbs firing at once each start a
@@ -196,9 +227,10 @@ def start_daemon(directory: Path, *, timeout: float = START_TIMEOUT_S) -> Daemon
     log.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout
     for _ in range(_START_ATTEMPTS):
-        record = _await_registration(_spawn(directory, log), deadline)
+        process = _spawn(directory, log)
+        record = _await_registration(process, deadline)
         if record is not None:
-            return record
+            return record, record.pid == process.pid
         if time.monotonic() >= deadline:
             break
     if workspace.lock_held():

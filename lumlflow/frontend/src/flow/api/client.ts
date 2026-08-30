@@ -239,7 +239,7 @@ export interface FlowMethods {
     BranchScoped & { slug: string; eager: boolean },
     { flow: string; branch: string; slug: string; eager: boolean }
   >
-  run: Method<Intentful & { target: string; force?: boolean }, RunOutcome>
+  run: Method<Intentful & { target?: string; force?: boolean }, RunOutcome>
   /** `targets` is one closure over several leaves — what rerunning a branch costs. */
   preflight: Method<BranchScoped & { target?: string; targets?: string[] }, Preflight>
   cancel: Method<BranchScoped, Abandoned>

@@ -12,9 +12,12 @@ below is checked for them.
 """
 
 import asyncio
+import contextlib
 import json
 import re
+import subprocess
 import sys
+import time
 from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -22,14 +25,18 @@ from typing import Any
 
 import pytest
 import typer.main
+import websockets.sync.client
 import yaml
 from lumlflow.cli import app
 from lumlflow.flow import render
-from lumlflow.flow.daemon import client
+from lumlflow.flow.daemon import client, web
+from lumlflow.flow.daemon import workspace as daemon_workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
+from lumlflow.flow.daemon.workspace import DaemonRecord
 from typer.testing import CliRunner, Result
 
+from tests.daemon.conftest import Reap
 from tests.daemon.helpers import (
     BROKEN_CELL,
     FRAME_CELL,
@@ -361,6 +368,209 @@ def test_force_spends_the_cost_the_store_would_have_saved(cli: Invoke, workspace
     assert "skipped `score` · already current" in again.output
     assert "ran     `score`" in forced.output
     _no_internals(forced)
+
+
+def test_run_without_a_target_runs_the_lane_and_reports_when_it_is_current(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    flow = workspace / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    write_cell(flow, "report", REPORT_CELL)
+
+    ran = cli("run")
+    current = cli("run")
+    write_cell(flow, "broken", BROKEN_CELL)
+    write_cell(flow, "other_broken", BROKEN_CELL)
+    failed = cli("run")
+
+    assert ran.exit_code == 0, ran.output
+    assert "`score`" in ran.output and "`report`" in ran.output
+    assert current.exit_code == 0, current.output
+    assert "nothing to do. every leaf is current" in current.output
+    assert failed.exit_code == 1
+    assert "failed  `broken`" in failed.output
+    assert "failed  `other_broken`" in failed.output
+
+
+def test_run_without_a_target_exits_one_when_a_leaf_cannot_be_planned(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    write_cell(
+        workspace / "churn.flow",
+        "dangling",
+        """
+        class Dangling:
+            consumes = {"value": "missing.value"}
+            produces = {"result": "asset"}
+
+            def materialize(self, ctx, value):
+                return {"result": value}
+        """,
+    )
+
+    failed = cli("run")
+
+    assert failed.exit_code == 1
+    assert "could not plan `dangling`" in failed.output
+    assert "missing.value" in failed.output
+
+
+def test_run_stops_only_the_daemon_it_started(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    monkeypatch.chdir(root)
+    runner = CliRunner()
+
+    stopped = runner.invoke(app, ["run"])
+
+    assert stopped.exit_code == 0, stopped.output
+    assert daemon_workspace.read_record() is None
+    assert not daemon_workspace.lock_held()
+
+    refused = runner.invoke(app, ["run", "missing"])
+    assert refused.exit_code == 1
+    assert daemon_workspace.read_record() is None
+    assert not daemon_workspace.lock_held()
+
+    kept = runner.invoke(app, ["run", "--keep-daemon"])
+    record = _answering_daemon()
+    reused = runner.invoke(app, ["run"])
+
+    assert kept.exit_code == 0, kept.output
+    assert reused.exit_code == 0, reused.output
+    assert daemon_workspace.read_record() == record
+    assert client.is_alive(record)
+
+
+def test_agent_begin_leaves_its_started_daemon_for_agent_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    monkeypatch.chdir(root)
+    runner = CliRunner()
+
+    begun = runner.invoke(app, ["agent", "begin", "--label", "codex"])
+    record = _answering_daemon()
+    ended = runner.invoke(app, ["agent", "end", "--actor", "codex"])
+
+    assert begun.exit_code == 0, begun.output
+    assert ended.exit_code == 0, ended.output
+    assert daemon_workspace.read_record() == record
+    assert client.is_alive(record)
+
+
+@pytest.mark.parametrize(
+    ("attachment", "fails", "expected"),
+    [
+        ("lease", False, "leased agent session"),
+        ("stream", True, "stream subscriber"),
+        ("flow", False, "other open flow"),
+    ],
+)
+def test_run_leaves_its_daemon_when_an_attachment_arrives(
+    tmp_path: Path,
+    servers: Reap,
+    attachment: str,
+    fails: bool,
+    expected: str,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=("churn", "other"))
+    flow = root / "churn.flow"
+    ending = (
+        'raise RuntimeError("pipeline failed")'
+        if fails
+        else 'return {"summary": {"auc": 0.91}}'
+    )
+    write_cell(
+        flow,
+        "gated",
+        f"""
+        class Gated:
+            produces = {{"summary": "asset"}}
+
+            def materialize(self, ctx):
+                import time
+
+                while not (ctx.workspace_dir / "go").exists():
+                    time.sleep(0.05)
+                {ending}
+        """,
+    )
+    running = subprocess.Popen(
+        [sys.executable, "-m", "lumlflow.cli", "run", "--flow", "churn"],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    servers(running)
+    record = _answering_daemon()
+    try:
+        with contextlib.ExitStack() as stack:
+            paired = None
+            opener = None
+            stream = None
+            _wait_for_running(record)
+            if attachment == "lease":
+                paired = stack.enter_context(client.attach(record))
+                paired.call(
+                    "agent.begin",
+                    {
+                        "flow": str(flow),
+                        "actor": "codex",
+                        "label": "Codex",
+                        "lease": True,
+                    },
+                )
+            elif attachment == "stream":
+                stream = stack.enter_context(
+                    websockets.sync.client.connect(
+                        f"ws://127.0.0.1:{record.web_port}{web.STREAM_PATH}"
+                        f"?token={record.token}",
+                        open_timeout=30,
+                    )
+                )
+                stream.send(json.dumps({"subscribe": "journal", "flow": str(flow)}))
+                _receive_caught_up(stream)
+            else:
+                opener = stack.enter_context(client.attach(record))
+                opener.call(
+                    "flow.open",
+                    {"flow": str(root / "other.flow"), "worktree": False},
+                )
+
+            (root / "go").touch()
+            output, errors = running.communicate(timeout=90)
+
+            assert running.returncode == (1 if fails else 0), errors
+            assert "left the daemon running" in output
+            assert expected in output
+            assert client.is_alive(record)
+            if paired is not None:
+                ended = paired.call(
+                    "agent.end", {"flow": str(flow), "actor": "codex"}
+                )
+                assert ended["actor"] == "codex"
+            elif stream is not None:
+                stream.send(
+                    json.dumps({"subscribe": "journal", "flow": str(flow)})
+                )
+                _receive_caught_up(stream)
+            else:
+                assert opener is not None
+                opened = opener.call(
+                    "flow.open",
+                    {"flow": str(root / "other.flow"), "worktree": False},
+                )
+                assert opened["path"] == str(root / "other.flow")
+    finally:
+        (root / "go").touch()
+
+    assert client.is_alive(record)
 
 
 @pytest.mark.parametrize(
@@ -977,6 +1187,37 @@ def test_importing_something_that_is_not_an_export_says_what_writes_one(
     assert "not a lumlflow export" in refused.output
     assert missing.exit_code == 1
     assert "cannot read" in missing.output
+
+
+def _answering_daemon(timeout: float = 30.0) -> DaemonRecord:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        record = daemon_workspace.read_record()
+        if record is not None and client.is_alive(record):
+            return record
+        time.sleep(0.05)
+    raise AssertionError("the daemon did not start")
+
+
+def _wait_for_running(record: DaemonRecord, timeout: float = 30.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with client.attach(record) as live:
+            if live.call("ping")["running"]:
+                return
+        time.sleep(0.05)
+    raise AssertionError("the pipeline did not start")
+
+
+def _receive_caught_up(
+    stream: "websockets.sync.client.ClientConnection", timeout: float = 30.0
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        frame = json.loads(stream.recv(timeout=timeout))
+        if frame.get("type") == "caught_up":
+            return
+    raise AssertionError("the stream did not catch up")
 
 
 def _stored_values(flow: Path) -> list[str]:

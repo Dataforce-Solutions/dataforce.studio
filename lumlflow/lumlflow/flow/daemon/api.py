@@ -29,13 +29,14 @@ from lumlflow.flow.errors import (
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
-from lumlflow.flow.scheduler.planner import Preflight
+from lumlflow.flow.scheduler.planner import Preflight, reading_order
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
+AttachmentCheck = Callable[[str], dict[str, Any]]
 
 # One pass names every cell an imported file holds, a second binds the
 # references the first could not see yet. Nothing a third would find.
@@ -49,6 +50,7 @@ class Api:
         *,
         directory: Path | None = None,
         stop: Callable[[], None] | None = None,
+        attachments: AttachmentCheck | None = None,
         instance_id: str = "",
     ) -> None:
         self.hub = hub
@@ -59,6 +61,7 @@ class Api:
         # naming a port nothing answers on.
         self.web: str | None = None
         self._stop = stop
+        self._attachments = attachments
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -103,6 +106,7 @@ class Api:
             "cancel": self.cancel,
             "kernel.restart": self.kernel_restart,
             "journal.since": self.journal_since,
+            "shutdown.if_idle": self.shutdown_if_idle,
             "shutdown": self.shutdown,
         }
 
@@ -793,25 +797,81 @@ class Api:
         }
 
     async def run(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Run a target's closure. `force` drops memoization for this plan.
+        """Run a target's closure, or every leaf's closure when none is named.
 
         Forcing is what a surface offers when the recorded result is suspect —
         a cell that reads something the store does not hash — and it is never
         the default: it spends the whole closure's cost again on purpose.
         """
         session, branch = await self._read(params)
-        outcome = await session.queue.submit(
-            _target(params),
-            branch=branch,
-            actor=_actor(params),
-            force=bool(params.get("force")),
-        )
+        target = _named(params.get("target"))
+        if target is None:
+            result = await self._run_leaves(session, branch, params)
+        else:
+            outcome = await session.queue.submit(
+                target,
+                branch=branch,
+                actor=_actor(params),
+                force=bool(params.get("force")),
+            )
+            result = _outcome(outcome)
         self.hub.document()
         # A result the user paid for is what makes the cheap cells under it
         # affordable: running the expensive parent is the gesture that lets
         # reactivity take the plot below it.
         session.reactor.arm()
-        return _outcome(outcome)
+        return {"path": session.ref.address} | result
+
+    async def _run_leaves(
+        self, session: FlowSession, branch: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        targets = _leaves(session, branch)
+        executed: list[str] = []
+        cached: list[str] = []
+        pruned: list[str] = []
+        failures: list[str] = []
+        unplanned: list[dict[str, str]] = []
+        abandoned = False
+
+        for target in targets:
+            try:
+                plan = session.planner.plan(target, branch=branch)
+            except FlowError as failure:
+                unplanned.append({"target": target, "error": str(failure)})
+                continue
+            if failures and any(step.slug in failures for step in plan.steps):
+                continue
+            try:
+                outcome = await session.queue.submit(
+                    target,
+                    branch=branch,
+                    actor=_actor(params),
+                    force=bool(params.get("force")),
+                )
+            except FlowError as failure:
+                unplanned.append({"target": target, "error": str(failure)})
+                continue
+            executed.extend(outcome.executed)
+            cached.extend(outcome.cached)
+            pruned.extend(outcome.pruned)
+            if outcome.failed is not None:
+                failures.append(outcome.failed)
+            abandoned = abandoned or outcome.abandoned
+            if outcome.abandoned:
+                break
+
+        return {
+            "branch": branch,
+            "target": ", ".join(targets),
+            "targets": targets,
+            "executed": list(dict.fromkeys(executed)),
+            "cached": list(dict.fromkeys(cached)),
+            "pruned": list(dict.fromkeys(pruned)),
+            "failed": failures[0] if failures else None,
+            "failures": list(dict.fromkeys(failures)),
+            "unplanned": unplanned,
+            "abandoned": abandoned,
+        }
 
     async def eval(self, params: dict[str, Any]) -> dict[str, Any]:
         """Scratch code against a branch's values — a read, never a write.
@@ -893,6 +953,16 @@ class Api:
         if self._stop is not None:
             self._stop()
         return {"stopping": True}
+
+    async def shutdown_if_idle(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Stop a daemon a pipeline started only while nobody else needs it."""
+        path = str(params.get("path") or "")
+        attached = self._attachments(path) if self._attachments is not None else {}
+        if any(attached.values()):
+            return {"stopping": False, "attached": attached}
+        if self._stop is not None:
+            self._stop()
+        return {"stopping": True, "attached": attached}
 
     def resolve(self, name: str | None, *, directory: Path | None = None) -> FlowRef:
         return workspace.select_flow(directory or self.directory, name=name)
@@ -1280,6 +1350,21 @@ def _actor(params: dict[str, Any]) -> str:
 def _branch(session: FlowSession, params: dict[str, Any]) -> str:
     branch = params.get("branch")
     return str(branch) if branch else session.branch
+
+
+def _leaves(session: FlowSession, branch: str) -> list[str]:
+    here = queries.read(session, branch)
+    consumed = {
+        ref.uid
+        for version in here.versions.values()
+        for ref in version.manifest.consumes.values()
+        if ref.uid in here.versions
+    }
+    return [
+        here.versions[uid].slug
+        for uid in reading_order(here.versions)
+        if uid not in consumed and here.versions[uid].manifest.classification != "note"
+    ]
 
 
 def _target(params: dict[str, Any]) -> str:

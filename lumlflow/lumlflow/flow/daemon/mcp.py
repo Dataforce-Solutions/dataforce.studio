@@ -234,11 +234,12 @@ TOOLS: tuple[_Tool, ...] = (
     _Tool(
         "run",
         "run",
-        "Run a cell, and whatever it needs first. Answers with what ran, what "
-        "came from the cache, and what failed.",
+        "Run a cell, or every leaf on the lane when no cell is named, and "
+        "whatever it needs first. Answers with what ran, what came from the "
+        "cache, and what failed.",
         (
             _Arg(
-                "target", "string", "A cell, as `cell` or `cell.output`.", required=True
+                "target", "string", "A cell, as `cell` or `cell.output`."
             ),
         ),
         writes=True,

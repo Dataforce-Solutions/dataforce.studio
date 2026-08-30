@@ -580,7 +580,11 @@ async function onBranchPreflight(): Promise<void> {
 }
 
 async function onRerunBranch(payload: { force: boolean }): Promise<void> {
-  for (const leaf of leaves.value) await onRun(leaf, payload)
+  try {
+    await ops.run(undefined, { branch: viewedBranch.value, force: payload.force })
+  } catch (failure) {
+    refused(failure)
+  }
 }
 
 /**

@@ -22,7 +22,7 @@ import subprocess
 import sys
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Never
 
 import typer
 
@@ -177,15 +177,22 @@ def graph(
 
 
 def run(
-    target: str = typer.Argument(..., help="A cell, as `cell` or `cell.output`."),
+    target: str | None = typer.Argument(
+        None, help="A cell, as `cell` or `cell.output`. Runs the lane when omitted."
+    ),
     force: bool = typer.Option(
         False, "--force", help="Recompute even what is cached or already current."
+    ),
+    keep_daemon: bool = typer.Option(
+        False,
+        "--keep-daemon",
+        help="Keep a daemon this run had to start.",
     ),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Run a cell, and whatever it needs, first.
+    """Run a cell, or every leaf on the lane, and whatever they need first.
 
     This verb takes no `-m`. A run records the runtime's own fact instead:
     `ran features`, `features failed`, or `reused a cached features`. That is
@@ -194,10 +201,30 @@ def run(
     `--force` spends the closure's cost again on purpose. It drops memoization
     for this run, so the store serves nothing and every cell computes.
     """
+    from lumlflow.flow.daemon import workspace
+
+    root = Path.cwd().resolve()
+    try:
+        selected = workspace.select_flow(root, name=flow).address
+    except FlowError as failure:
+        _fail(failure, as_json)
     params = {"target": target, "branch": lane, "force": force}
-    result = _call("run", params, flow=flow, as_json=as_json)
-    _emit(result, as_json, render.outcome)
-    if result.get("failed"):
+    with _daemon(as_json, flow=selected) as daemon:
+        result: dict[str, Any] | None = None
+        lifecycle: dict[str, Any] | None = None
+        try:
+            result = daemon.call("run", params)
+        finally:
+            lifecycle = _finish_run_daemon(
+                daemon,
+                path=selected,
+                keep=keep_daemon,
+            )
+        if lifecycle is not None:
+            result["daemon"] = lifecycle
+    assert result is not None
+    _emit(result, as_json, _run_lines(result))
+    if _run_failed(result):
         raise typer.Exit(1)
 
 
@@ -849,6 +876,34 @@ class _Daemon:
         return self.live.call(method, payload)
 
 
+def _finish_run_daemon(
+    daemon: _Daemon, *, path: str, keep: bool
+) -> dict[str, Any] | None:
+    if not bool(getattr(daemon.live, "started", False)):
+        return None
+    lifecycle: dict[str, Any] = {"started": True, "stopped": False}
+    if keep:
+        lifecycle["kept"] = True
+        return lifecycle
+
+    shutdown = daemon.call(
+        "shutdown.if_idle",
+        {"path": path},
+        scoped=False,
+    )
+    lifecycle.update(shutdown)
+    if not shutdown["stopping"]:
+        return lifecycle
+
+    from lumlflow.flow.daemon import client
+
+    record = getattr(daemon.live, "record", None)
+    if record is None or not client.wait_stopped(record):
+        raise FlowError("the lumlflow daemon did not stop after the run")
+    lifecycle["stopped"] = True
+    return lifecycle
+
+
 @contextlib.contextmanager
 def _daemon(
     as_json: bool,
@@ -894,7 +949,36 @@ def _emit(result: Any, as_json: bool, lines: Any) -> None:
         typer.echo(line)
 
 
-def _fail(failure: FlowError, as_json: bool) -> None:
+def _run_lines(result: dict[str, Any]) -> list[str]:
+    lines = render.outcome(result)
+    daemon = result.get("daemon") or {}
+    attached = daemon.get("attached") or {}
+    if daemon.get("started") and not daemon.get("stopped") and attached:
+        parts: list[str] = []
+        leased = int(attached.get("leased_sessions") or 0)
+        if leased:
+            parts.append(f"{leased} leased agent session{'s' if leased != 1 else ''}")
+        streams = int(attached.get("stream_subscribers") or 0)
+        if streams:
+            parts.append(f"{streams} stream subscriber{'s' if streams != 1 else ''}")
+        flows = len(attached.get("open_flows") or [])
+        if flows:
+            parts.append(f"{flows} other open flow{'s' if flows != 1 else ''}")
+        if parts:
+            lines.append(f"left the daemon running · {', '.join(parts)} attached")
+    return lines
+
+
+def _run_failed(result: dict[str, Any]) -> bool:
+    return bool(
+        result.get("failed")
+        or result.get("failures")
+        or result.get("unplanned")
+        or result.get("abandoned")
+    )
+
+
+def _fail(failure: FlowError, as_json: bool) -> Never:
     if as_json:
         typer.echo(
             json.dumps({"error": str(failure), "kind": type(failure).__name__}),

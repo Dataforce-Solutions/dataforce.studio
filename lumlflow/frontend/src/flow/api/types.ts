@@ -706,12 +706,17 @@ export interface Preflight {
 }
 
 export interface RunOutcome {
+  path?: string
   branch: string
   target: string
+  /** Present when the whole lane was requested rather than one target. */
+  targets?: string[]
   executed: string[]
   cached: string[]
   pruned: string[]
   failed: string | null
+  failures?: string[]
+  unplanned?: { target: string; error: string }[]
   abandoned: boolean
 }
 
