@@ -20,9 +20,10 @@ import { Toast } from 'primevue'
 import ToastService from 'primevue/toastservice'
 
 import { FlowApiError, type EnvReport } from '@/flow/api/client'
-import type { BranchRecord, CellSummary, TrackerExperiment } from '@/flow/api/types'
+import type { AgentHarness, BranchRecord, CellSummary, TrackerExperiment } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import FlowCanvas from '@/flow/workbench/components/canvas/FlowCanvas.vue'
+import EmptyFlowState from '@/flow/workbench/pages/EmptyFlowState.vue'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
 import AgentTaskLine from '@/flow/workbench/components/panel/AgentTaskLine.vue'
 import {
@@ -164,6 +165,22 @@ const ENV: EnvReport = {
       behind: [],
     },
   ],
+}
+
+const CLAUDE_HARNESS: AgentHarness = {
+  id: 'claude-code',
+  display_name: 'Claude Code',
+  state: 'not set up',
+  config_path: '/home/dana/.claude.json',
+  snippet: '{"mcpServers":{"lumlflow":{"command":"lumlflow","args":["mcp"]}}}',
+  can_setup: true,
+  action: 'setup',
+  consent_required: true,
+  consent_prompt: 'Allow lumlflow to update /home/dana/.claude.json and keep its entry current?',
+  post_write_hint: 'approve the server when Claude Code asks',
+  shell: true,
+  shell_hint: 'also works without setup: run `lumlflow guide` in it',
+  error: null,
 }
 
 interface Bench {
@@ -333,6 +350,114 @@ async function clickBranchVerb(branch: string, verb: string): Promise<void> {
   button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   await settle()
 }
+
+describe('agent setup', () => {
+  it('detects agents whenever the section is opened directly', async () => {
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'agents.harnesses': () => ({ harnesses: [CLAUDE_HARNESS] }),
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: [],
+        }),
+      },
+    })
+
+    await openPanel(wrapper, 'agents')
+
+    expect(asked(live, 'agents.harnesses')).toEqual([{}])
+    expect(wrapper.text()).toContain('Claude Code')
+
+    const header = wrapper
+      .findAll('[data-pc-name="accordionheader"]')
+      .find((node) => node.text().startsWith('agents'))
+    await header?.trigger('click')
+    await settle()
+    await header?.trigger('click')
+    await settle()
+
+    expect(asked(live, 'agents.harnesses')).toEqual([{}, {}])
+    wrapper.unmount()
+  })
+
+  it('opens the Agents section from the empty-flow pairing button', async () => {
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'agents.harnesses': () => ({ harnesses: [CLAUDE_HARNESS] }),
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: [],
+        }),
+      },
+    })
+
+    const empty = wrapper.getComponent(EmptyFlowState)
+    const pair = empty.findAll('button').find((button) => button.text() === 'pair an agent')
+    expect(pair, 'no pair link on the empty flow').toBeTruthy()
+    await pair?.trigger('click')
+    await settle()
+
+    const agentsHeader = wrapper
+      .findAll('[data-pc-name="accordionheader"]')
+      .find((node) => node.text().startsWith('agents'))
+    expect(agentsHeader?.attributes('aria-expanded')).toBe('true')
+    expect(asked(live, 'agents.harnesses')).toEqual([{}])
+    wrapper.unmount()
+  })
+
+  it('goes from detected to set up and shows the label when the agent connects', async () => {
+    let listed = CLAUDE_HARNESS
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'agents.harnesses': () => ({ harnesses: [listed] }),
+        'cells.list': (params) => ({
+          flow: 'churn',
+          branch: String(params.branch),
+          cells: [],
+        }),
+        'agents.setup': () => {
+          listed = {
+            ...CLAUDE_HARNESS,
+            state: 'set up',
+            action: null,
+            consent_required: false,
+            consent_prompt: null,
+          }
+          return listed
+        },
+      },
+    })
+
+    await clickText(wrapper, 'button', 'pair an agent')
+
+    expect(asked(live, 'agents.harnesses')).toEqual([{}])
+    expect(wrapper.text()).toContain('Claude Code')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await clickText(wrapper, 'button', 'Set up')
+    await clickInOverlay('Allow and set up')
+
+    expect(asked(live, 'agents.setup')).toEqual([{ harness: 'claude-code', consent: true }])
+    expect(wrapper.text()).toContain('approve the server when Claude Code asks')
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 3,
+      transaction: transaction(3, {
+        actor: 'claude-code-1',
+        intent: 'Claude Code started working',
+        ops: [{ op: 'agent_begin', actor: 'claude-code-1', label: 'Claude Code agent' }],
+      }),
+    })
+    await settle()
+
+    expect(wrapper.text()).toContain('Claude Code agent')
+    wrapper.unmount()
+  })
+})
 
 describe('staleness leads with the direct cause', () => {
   it('names what is unsynced, counts what sits below it, and keeps the two apart', async () => {

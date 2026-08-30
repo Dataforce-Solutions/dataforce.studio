@@ -104,10 +104,10 @@
 
     <GallerySpecimen
       title="Copyable block"
-      caption="Its multi-line sibling, for what a reader reads before pasting: the prompt that pairs an agent. The block is the preview and the copy at once, in one affordance in the corner."
+      caption="Its multi-line sibling, for a manual MCP snippet the Agents section could not install. The block is the preview and the copy at once, in one affordance in the corner."
     >
       <div class="max-w-lg">
-        <CopyBlock :value="CONNECT_PROMPT" label="copy the connect prompt" />
+        <CopyBlock :value="MCP_SNIPPET" label="copy the MCP snippet" />
       </div>
     </GallerySpecimen>
 
@@ -126,7 +126,6 @@
 </template>
 
 <script setup lang="ts">
-import { CONNECT_PROMPT } from '../../components/session/connectPrompt'
 import { claude, user } from '../../fixtures'
 import { formatBytes, formatCost, formatMetric } from '../../model/format'
 import type { AssetKind, FlowState } from '../../model/types'
@@ -155,6 +154,8 @@ const kinds: AssetKind[] = [
   'html',
   'unknown',
 ]
+
+const MCP_SNIPPET = '{"mcpServers":{"lumlflow":{"command":"lumlflow","args":["mcp"]}}}'
 
 const flowStates: FlowState[] = ['running', 'idle', 'unpaired', 'kernel-not-started', 'daemon-down']
 

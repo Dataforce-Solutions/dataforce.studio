@@ -465,23 +465,14 @@ function pairHarness(session: Parameters<typeof pairedAgent>[0], now: number) {
 }
 
 describe('pairing is detected, not declared', () => {
-  it('flips from the pairing prompt to the agent on an agent_begin transaction', async () => {
+  it('flips from the Agents-section link to the agent on an agent_begin transaction', async () => {
     const { session, socket } = await attach()
     const wrapper = mount(pairHarness(session, Date.parse(BEGAN_AT) + 5_000))
 
-    // Unpaired is one line and one link; the prompt is behind the link.
+    // Unpaired is one line and one link into the Agents section.
     expect(wrapper.text()).toContain('not paired')
     const pair = wrapper.findAll('button').find((node) => node.text() === 'pair an agent')
     expect(pair, 'no pair link while unpaired').toBeTruthy()
-    expect(wrapper.text()).not.toContain('mcpServers')
-
-    await pair?.trigger('click')
-    await nextTick()
-    // One prompt, one way to take it — said once, in the overlay.
-    expect(
-      document.body.querySelectorAll('button[aria-label="copy the connect prompt"]'),
-    ).toHaveLength(1)
-    expect(document.body.textContent).toContain('mcpServers')
 
     socket.deliver({
       channel: 'journal',
@@ -603,8 +594,8 @@ describe('the empty state is a heading and one line, not a void', () => {
 
     const labels = wrapper.findAll('button').map((button) => button.text())
     for (const way of ways) expect(labels).toContain(way)
-    // The one command an empty flow is about is on screen; the pairing prompt
-    // is behind its link, because it is not what an empty flow needs first.
+    // The one command an empty flow is about is on screen; harness setup lives
+    // in the panel rather than taking over the empty surface.
     expect(wrapper.text()).toContain('lumlflow cells new load_data')
     expect(wrapper.text()).not.toContain('mcpServers')
     // No grid of cards and no outline around the emptiness.
@@ -639,12 +630,7 @@ describe('the empty state is a heading and one line, not a void', () => {
     wrapper.unmount()
   })
 
-  /**
-   * The door an empty flow offers pairing through. Opening it is the ask a page
-   * answers with the workspace's own prompt — and with no page behind it, the
-   * fixture arm still hands over a whole one rather than an empty popover.
-   */
-  it('opens the pairing prompt and says so, on the fixture arm too', async () => {
+  it('hands the pairing link to the page that opens the Agents section', async () => {
     const wrapper = mount(EmptyFlowState)
 
     await wrapper
@@ -654,10 +640,7 @@ describe('the empty state is a heading and one line, not a void', () => {
     await nextTick()
 
     expect(wrapper.emitted('pair')).toHaveLength(1)
-    expect(
-      document.body.querySelectorAll('button[aria-label="copy the connect prompt"]'),
-    ).toHaveLength(1)
-    expect(document.body.textContent).toContain('mcpServers')
+    expect(document.body.textContent).not.toContain('mcpServers')
     wrapper.unmount()
   })
 })

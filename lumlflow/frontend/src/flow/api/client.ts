@@ -15,6 +15,7 @@
  */
 
 import type {
+  AgentHarness,
   AssetPage,
   AssetView,
   BranchDiff,
@@ -23,7 +24,6 @@ import type {
   CellDetail,
   CellLogs,
   CellSummary,
-  ConnectPrompt,
   EvalResult,
   FlagCode,
   FlowBrief,
@@ -270,12 +270,9 @@ export interface FlowMethods {
     Intentful & { slug: string; to: string },
     Projected & { slug: string; renamed_from: string; branch: string; rewired: string[] }
   >
-  /**
-   * The prompt that pairs an agent with this flow. Flow-scoped: an agent
-   * connects to the workspace, not to a branch or a cell, and the connection
-   * itself is the session — nothing here launches or wraps a process.
-   */
-  'agent.connect': Method<FlowScoped, ConnectPrompt>
+  'agents.harnesses': Method<Record<string, never>, { harnesses: AgentHarness[] }>
+  'agents.setup': Method<{ harness: string; consent: boolean }, AgentHarness>
+  'agents.remove': Method<{ harness: string }, AgentHarness>
   /** Stored cell context, including a trimmed traceback when the cell failed. */
   'agent.payload': Method<BranchScoped & { slug: string }, CellContextPayload>
   /** A read against a branch's values — never a version, never a journal line. */

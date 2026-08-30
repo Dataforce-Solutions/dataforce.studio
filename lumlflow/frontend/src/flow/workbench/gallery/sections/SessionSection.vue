@@ -1,11 +1,11 @@
 <template>
   <div class="flex flex-col gap-12 max-w-4xl">
     <GallerySpecimen
-      title="Pair link"
-      caption="One direction only: the flow hands over the prompt that pairs an agent, whatever harness it runs in, and then detects the agent_begin transaction the connection files. Unpaired is a working state, not an error: it gets a link and a popover, never a panel."
+      title="Pairing entry"
+      caption="Unpaired is a working state, not an error. The link opens the Agents section for setup; an agent_begin transaction replaces it with the connected agent's label and current task."
     >
       <div class="flex flex-col gap-3">
-        <AgentTaskLine viewed-branch="main" :connect="CONNECT_PROMPT" />
+        <AgentTaskLine viewed-branch="main" />
         <AgentTaskLine :paired="session.paired" viewed-branch="main" />
       </div>
     </GallerySpecimen>
@@ -116,7 +116,6 @@ import EnvMismatchBanner from '../../components/session/EnvMismatchBanner.vue'
 import JournalFeed from '../../components/session/JournalFeed.vue'
 import KernelStartHint from '../../components/session/KernelStartHint.vue'
 import NotConnectedNotice from '../../components/session/NotConnectedNotice.vue'
-import { CONNECT_PROMPT } from '../../components/session/connectPrompt'
 import AgentTaskLine from '../../components/panel/AgentTaskLine.vue'
 import SocketReconnectBanner from '../../components/session/SocketReconnectBanner.vue'
 import StaleSummary from '../../components/session/StaleSummary.vue'

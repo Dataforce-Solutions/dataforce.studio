@@ -125,19 +125,9 @@ function builtPayload(params: Record<string, unknown>): Record<string, unknown> 
   }
 }
 
-/** The prompt the daemon would have built — the workspace's facts, not ours. */
-const CONNECT_TEXT =
-  'You are paired with the lumlflow flow `churn` in `/tmp/project`, on branch `main`.'
-
 function reads(overrides: Handlers = {}): Handlers {
   return {
     'agent.payload': builtPayload,
-    'agent.connect': () => ({
-      flow: 'churn',
-      workspace: '/tmp/project',
-      command: '/tmp/project/.venv/bin/lumlflow',
-      text: CONNECT_TEXT,
-    }),
     tree: () => ({ flow: 'churn', branch: 'main', branches: BRANCHES }),
     'env.status': () => ENV,
     'settings.set': (params) => ({
@@ -370,33 +360,6 @@ describe('one card gesture copies the daemon’s context', () => {
     await settle()
 
     expect(asked(live, 'agent.payload')).toHaveLength(2)
-    wrapper.unmount()
-  })
-})
-
-// --- pairing -----------------------------------------------------------------
-
-/**
- * Pairing is a prompt the reader hands their agent, and the agent connects back
- * over it — so the prompt is the workspace's to build for the same reason a
- * handoff payload is: it names where the workspace is, which branch the files
- * hold, and which `lumlflow` a config can actually spawn.
- */
-describe('the connect prompt is the daemon’s, and flow-scoped', () => {
-  it('asks the workspace for it whenever the pairing link is used', async () => {
-    const { wrapper, live } = await workbench()
-
-    await clickText(wrapper, 'pair an agent')
-
-    // No branch and no gesture: an agent connects to the workspace.
-    expect(asked(live, 'agent.connect')).toEqual([{ flow: FLOW }])
-    expect(overlays()).toContain(CONNECT_TEXT)
-    // Nothing here runs the agent, so nothing here is a command to run one.
-    expect(overlays()).not.toContain('agent exec')
-
-    // Asked again rather than quoting the branch the files used to hold.
-    await clickText(wrapper, 'pair an agent')
-    expect(asked(live, 'agent.connect')).toHaveLength(2)
     wrapper.unmount()
   })
 })

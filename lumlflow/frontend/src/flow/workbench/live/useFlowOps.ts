@@ -14,7 +14,6 @@
 import type { EditedCell, FlowMethods } from '@/flow/api/client'
 import type {
   CellContextPayload,
-  ConnectPrompt,
   EvalResult,
   FlowBrief,
   FlowSettingsReport,
@@ -64,8 +63,6 @@ export interface FlowOps {
   archive: (branch: string) => Result<'archive'>
   /** A read copied from one card; it carries no intent because it journals nothing. */
   copyContext: (slug: string, branch: string) => Promise<CellContextPayload>
-  /** Flow-scoped: an agent connects to the workspace, not to a branch. */
-  connect: () => Promise<ConnectPrompt>
   evaluate: (code: string, branch: string) => Promise<EvalResult>
   saveSettings: (settings: Partial<FlowSettingsReport>) => Result<'settings.set'>
   restartKernel: () => Result<'kernel.restart'>
@@ -216,10 +213,6 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
 
     copyContext: (slug, branch) =>
       session.request('agent.payload', { flow: flow(), branch, slug }),
-
-    // The prompt names the branch the files are on, which is the workspace's
-    // fact and not this screen's — so the viewed branch is deliberately absent.
-    connect: () => session.request('agent.connect', { flow: flow() }),
 
     // A read of what the branch already observed. The names hydrate as copies,
     // so this writes no version, no materialization and no journal line.

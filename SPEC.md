@@ -1277,9 +1277,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Add the agents API and sync pass
   - [x] API `agents.harnesses` / `agents.setup` / `agents.remove` and CLI `lumlflow agents list/setup/remove`; consent record in the state dir covering later automatic rewrites, cleared by Remove; sync on daemon start and on section open rewriting owned entries without a prompt, *out of date* with **Update** only when the rewrite could not be applied; missing config file or directory created; *removed by you* honoured; post-write hints
   - [x] Tests: API states, consent declined writes nothing, Remove clears owned entries and consent, the sync pass rewrites an entry that names a directory to the one static entry, a detect-only harness listed with snippet and path and no setup, "nothing written under the workspace"
-- [ ] Add the Agents panel section
-  - [ ] An Agents section in the left panel replacing `PairLink.vue`/`connectPrompt.ts` (`components/session/`); the pair-an-agent buttons open it; the *pairing hands over a prompt* block of `flow-workbench-ui.spec.ts` goes here, with the prompt it tested
-  - [ ] Tests: a panel spec; an end-to-end detected → set up → agent connects → panel shows label
+- [x] Add the Agents panel section
+  - [x] An Agents section in the left panel replacing `PairLink.vue`/`connectPrompt.ts` (`components/session/`); the pair-an-agent buttons open it; the *pairing hands over a prompt* block of `flow-workbench-ui.spec.ts` goes here, with the prompt it tested
+  - [x] Tests: a panel spec; an end-to-end detected → set up → agent connects → panel shows label
 - [ ] Serve the agent guide and attribute shell agents
   - [ ] MCP `instructions` (drop *nothing here writes files*; say an edit on the checked-out lane is written at once) and `lumlflow://guide` resource from `docs.CHEATSHEET` (updated for lanes, the tracker sentence, new verbs, and the MCP entry with no workspace argument); `lumlflow guide`; `context` pointer and its last-rewrite-of-`cells/` line; scaffold comment line
   - [ ] Delete `connect.py`'s prompt builder, `api.agent_connect`, `docs.refresh_workspace`, the `hub.document` calls, `lumlflow/AGENTS.md`, and `tests/daemon/test_connect.py`'s seven prompt-builder tests — its eighth, which spawns the executable and asserts the MCP `initialize` reply, moves beside the harness writers' tests since D9.2's entry command depends on it, spawning `lumlflow mcp` with no workspace argument

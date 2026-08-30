@@ -40,12 +40,19 @@
           :journal="records.journal.value"
           :behind="openedBehind"
           :branch-busy="branchBusy"
-          :connect="connectPrompt"
+          :agents="agents"
+          :agents-loading="agentsLoading"
+          :agents-error="agentsError"
+          :agents-busy="agentBusyIds"
           @open-graph="graphVisible = true"
           @new-branch="onNewBranch"
           @rewind="onRewind"
           @checkpoint="onCheckpoint"
           @pair="onPair"
+          @open-agents="onOpenAgents"
+          @setup-agents="onSetupAgents"
+          @update-agent="onUpdateAgent"
+          @remove-agent="onRemoveAgent"
           @select-cell="onSelect"
           @update-settings="onUpdateSettings"
           @restart-kernel="onRestartKernel"
@@ -93,7 +100,6 @@
           <EmptyFlowState
             v-else-if="!cells.length"
             :paired="records.overview.value.paired"
-            :connect="connectPrompt"
             @notebook="selection.view.value = 'notebook'"
             @cheatsheet="onCheatsheet"
             @create="onAddCell()"
@@ -193,7 +199,7 @@ import { Plus, Terminal } from 'lucide-vue-next'
 
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
-import type { CellSummary } from '@/flow/api/types'
+import type { AgentHarness, CellSummary } from '@/flow/api/types'
 import NewBranchDialog from '../components/branch/NewBranchDialog.vue'
 import FlowCanvas, { type CanvasSessionState } from '../components/canvas/FlowCanvas.vue'
 import AgentEndedBanner from '../components/card/AgentEndedBanner.vue'
@@ -587,18 +593,80 @@ async function onRerunBranch(payload: { force: boolean }): Promise<void> {
   }
 }
 
-/**
- * What pairing hands over. The workspace builds it — where it is, which branch
- * the files hold, which `lumlflow` a config can spawn — and the surfaces that
- * offer pairing render that one answer rather than each assembling a guess.
- */
-const connectPrompt = ref<string | null>(null)
+const agents = ref<AgentHarness[]>([])
+const agentsLoading = ref(false)
+const agentsError = ref<string | null>(null)
+const agentBusy = ref<Set<string>>(new Set())
+const agentBusyIds = computed(() => [...agentBusy.value])
+let agentRead = 0
 
-async function onPair(): Promise<void> {
+function onPair(): void {
+  if (!panelOpen.value.includes('agents')) {
+    panelOpen.value = [...panelOpen.value, 'agents']
+    return
+  }
+  void onOpenAgents()
+}
+
+async function onOpenAgents(): Promise<void> {
+  const read = ++agentRead
+  agentsLoading.value = true
+  agentsError.value = null
   try {
-    connectPrompt.value = (await ops.connect()).text
+    const answer = await session.request('agents.harnesses', {})
+    if (read === agentRead) agents.value = answer.harnesses
+  } catch (failure) {
+    if (read === agentRead) {
+      agentsError.value = failure instanceof Error ? failure.message : String(failure)
+    }
+  } finally {
+    if (read === agentRead) agentsLoading.value = false
+  }
+}
+
+function setAgentBusy(id: string, busy: boolean): void {
+  const next = new Set(agentBusy.value)
+  if (busy) next.add(id)
+  else next.delete(id)
+  agentBusy.value = next
+}
+
+function applyHarness(next: AgentHarness): void {
+  const at = agents.value.findIndex((harness) => harness.id === next.id)
+  if (at < 0) {
+    agents.value = [...agents.value, next]
+    return
+  }
+  agents.value = agents.value.map((harness, index) => (index === at ? next : harness))
+}
+
+async function setupAgent(id: string, consent: boolean): Promise<void> {
+  setAgentBusy(id, true)
+  try {
+    applyHarness(await session.request('agents.setup', { harness: id, consent }))
   } catch (failure) {
     refused(failure)
+  } finally {
+    setAgentBusy(id, false)
+  }
+}
+
+async function onSetupAgents(ids: string[], consent: boolean): Promise<void> {
+  for (const id of ids) await setupAgent(id, consent)
+}
+
+function onUpdateAgent(id: string): void {
+  void setupAgent(id, false)
+}
+
+async function onRemoveAgent(id: string): Promise<void> {
+  setAgentBusy(id, true)
+  try {
+    applyHarness(await session.request('agents.remove', { harness: id }))
+  } catch (failure) {
+    refused(failure)
+  } finally {
+    setAgentBusy(id, false)
   }
 }
 

@@ -15,7 +15,6 @@
       <AgentTaskLine
         :paired="session.paired"
         :viewed-branch="viewedBranch"
-        :connect="connect"
         @pair="emit('pair')"
       />
     </div>
@@ -36,6 +35,26 @@
           </AccordionHeader>
           <AccordionContent :pt="CONTENT_PT">
             <InventoryRows :rows="lens.rows" @select="emit('select-cell', $event)" />
+          </AccordionContent>
+        </AccordionPanel>
+
+        <AccordionPanel value="agents">
+          <AccordionHeader :pt="HEADER_PT">
+            <span class="flex min-w-0 items-center gap-2 text-base">
+              agents
+              <span v-if="agents.length" class="text-muted-color">{{ agents.length }}</span>
+            </span>
+          </AccordionHeader>
+          <AccordionContent :pt="CONTENT_PT">
+            <AgentsPanel
+              :harnesses="agents"
+              :loading="agentsLoading"
+              :load-error="agentsError"
+              :busy-ids="agentsBusy"
+              @setup="onSetupAgents"
+              @update="emit('update-agent', $event)"
+              @remove="emit('remove-agent', $event)"
+            />
           </AccordionContent>
         </AccordionPanel>
 
@@ -103,9 +122,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
 import { TriangleAlert } from 'lucide-vue-next'
+import type { AgentHarness } from '@/flow/api/types'
 import { formatMetric } from '../../model/format'
 import { primaryOutput } from '../../model/registry'
 import type {
@@ -119,6 +139,7 @@ import type {
 } from '../../model/types'
 import JournalFeed from '../session/JournalFeed.vue'
 import AgentTaskLine from './AgentTaskLine.vue'
+import AgentsPanel from './AgentsPanel.vue'
 import BranchIdentifier from './BranchIdentifier.vue'
 import InventoryRows, { type InventoryRow } from './InventoryRows.vue'
 import PackagesPanel from './PackagesPanel.vue'
@@ -129,21 +150,31 @@ import PanelSettings from './PanelSettings.vue'
  * the inventory lenses (all over the same cells — never a second store), and
  * the flow settings. Switching the viewed branch re-scopes all of it.
  */
-const props = defineProps<{
-  branches: BranchInfo[]
-  cells: FlowCell[]
-  viewedBranch: string
-  session: WorkbenchSession
-  env: EnvState
-  settings: FlowSettings
-  journal: JournalEntry[]
-  /** Head entries that landed while this browser was away — frozen by the page. */
-  behind?: number
-  /** A branch op is in flight — the timeline's verbs wait rather than race it. */
-  branchBusy?: boolean
-  /** The prompt that pairs an agent, once the daemon has answered for it. */
-  connect?: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    branches: BranchInfo[]
+    cells: FlowCell[]
+    viewedBranch: string
+    session: WorkbenchSession
+    env: EnvState
+    settings: FlowSettings
+    journal: JournalEntry[]
+    agents?: AgentHarness[]
+    agentsLoading?: boolean
+    agentsError?: string | null
+    agentsBusy?: string[]
+    /** Head entries that landed while this browser was away — frozen by the page. */
+    behind?: number
+    /** A branch op is in flight — the timeline's verbs wait rather than race it. */
+    branchBusy?: boolean
+  }>(),
+  {
+    agents: () => [],
+    agentsLoading: false,
+    agentsError: null,
+    agentsBusy: () => [],
+  },
+)
 
 const emit = defineEmits<{
   'open-graph': []
@@ -153,6 +184,10 @@ const emit = defineEmits<{
   /** Mark this point under the user's own words. */
   checkpoint: [intent: string]
   pair: []
+  'open-agents': []
+  'setup-agents': [ids: string[], consent: boolean]
+  'update-agent': [id: string]
+  'remove-agent': [id: string]
   'select-cell': [slug: string]
   'update-settings': [settings: FlowSettings]
   'restart-kernel': []
@@ -163,6 +198,18 @@ const emit = defineEmits<{
  * reader, or by the page when the catch-up marker sends them to the journal.
  */
 const open = defineModel<string[]>('open', { default: () => ['cells'] })
+
+watch(
+  () => open.value.includes('agents'),
+  (opened) => {
+    if (opened) emit('open-agents')
+  },
+  { immediate: true },
+)
+
+function onSetupAgents(ids: string[], consent: boolean): void {
+  emit('setup-agents', ids, consent)
+}
 
 const ACCORDION_PT = { root: { class: 'text-base' } }
 const HEADER_PT = { root: { class: 'px-3 py-2.5 text-base font-normal' } }

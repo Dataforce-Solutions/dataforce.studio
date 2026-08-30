@@ -5,12 +5,12 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import ToastService from 'primevue/toastservice'
 
 import { TOKEN_STORAGE_KEY } from '@/flow/api/token'
+import type { AgentHarness } from '@/flow/api/types'
 import CellCard from '@/flow/workbench/components/card/CellCard.vue'
 import CellOpRow from '@/flow/workbench/components/card/CellOpRow.vue'
 import CodeView from '@/flow/workbench/components/card/CodeView.vue'
+import AgentsPanel from '@/flow/workbench/components/panel/AgentsPanel.vue'
 import LeftPanel from '@/flow/workbench/components/panel/LeftPanel.vue'
-import PairLink from '@/flow/workbench/components/session/PairLink.vue'
-import { CONNECT_PROMPT } from '@/flow/workbench/components/session/connectPrompt'
 import {
   branches,
   cellsByBranch,
@@ -44,6 +44,26 @@ import { FakeSocket, fakeDaemon, flowStatus, settle } from './fakes'
 /** The flow document every workbench route in this suite is addressed by. */
 const FLOW = 'churn.flow'
 
+const CLAUDE_HARNESS: AgentHarness = {
+  id: 'claude-code',
+  display_name: 'Claude Code',
+  state: 'not set up',
+  config_path: '/home/dana/.claude.json',
+  snippet: '{"mcpServers":{"lumlflow":{"command":"lumlflow","args":["mcp"]}}}',
+  can_setup: true,
+  action: 'setup',
+  consent_required: true,
+  consent_prompt: 'Allow lumlflow to update /home/dana/.claude.json and keep its entry current?',
+  post_write_hint: 'approve the server when Claude Code asks',
+  shell: true,
+  shell_hint: 'also works without setup: run `lumlflow guide` in it',
+  error: null,
+}
+
+function agentHarness(overrides: Partial<AgentHarness>): AgentHarness {
+  return { ...CLAUDE_HARNESS, ...overrides }
+}
+
 /**
  * A flow lives inside somebody's git repository, so no word this product puts
  * on screen may be one of git's — a reader should never have to work out which
@@ -71,34 +91,7 @@ const unexpected = (spy: { mock: { calls: unknown[][] } }): string[] =>
 
 const Empty = defineComponent({ template: '<div />' })
 
-/**
- * jsdom ships no clipboard, and what a copy affordance carries is the only
- * string on these surfaces worth asserting: the block is handed a payload and
- * the button must put *that* on the clipboard, whatever the prose around it.
- */
-const written: string[] = []
-
-Object.defineProperty(navigator, 'clipboard', {
-  configurable: true,
-  value: {
-    writeText: (text: string) => {
-      written.push(text)
-      return Promise.resolve()
-    },
-  },
-})
-
-function copied(): string[] {
-  return written
-}
-
-/** Copy buttons in the teleported overlay, by the label they announce. */
-function copyAffordances(): HTMLElement[] {
-  return [...document.body.querySelectorAll<HTMLElement>('button[aria-label^="copy the"]')]
-}
-
 beforeEach(() => {
-  written.length = 0
   document.body.innerHTML = ''
 })
 
@@ -436,23 +429,6 @@ describe('every disclosure answers the keyboard', () => {
     wrapper.unmount()
   })
 
-  it('names the pairing link as the overlay trigger it is', async () => {
-    const wrapper = mount(PairLink)
-    const trigger = wrapper.find('button')
-
-    expect(trigger.attributes('aria-haspopup')).toBe('dialog')
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-
-    await trigger.trigger('click')
-    await nextTick()
-    // Pairing is one thing handed over, so the popover offers one way to take
-    // it — a second command beside it is what this surface used to be.
-    expect(copyAffordances()).toHaveLength(1)
-    // Opening it is the ask: a live surface fetches the real prompt here.
-    expect(wrapper.emitted('open')).toHaveLength(1)
-    wrapper.unmount()
-  })
-
   it('names the card overflow as the menu it opens', async () => {
     const wrapper = mount(CellOpRow, {
       props: { cell: trainModel, density: 'canvas' },
@@ -470,38 +446,91 @@ describe('every disclosure answers the keyboard', () => {
   })
 })
 
-/**
- * Pairing hands the agent a prompt it connects back over — nothing here runs
- * the agent, so nothing here is a command. What the popover must get right is
- * that the block the reader copies carries exactly the prompt it was handed.
- */
-describe('pairing hands over a prompt, not a command', () => {
-  const DAEMON_PROMPT = 'You are paired with the lumlflow flow `churn` in `/tmp/project`.'
-
-  async function openPairing(prompt?: string) {
-    const wrapper = mount(PairLink, { props: { prompt } })
-    await wrapper.find('button').trigger('click')
-    await nextTick()
-    return wrapper
+describe('the Agents panel', () => {
+  function panelButton(wrapper: ReturnType<typeof mount>, label: string) {
+    const found = wrapper.findAll('button').find((candidate) => candidate.text() === label)
+    expect(found, `no button labelled "${label}"`).toBeTruthy()
+    return found!
   }
 
-  it('carries the prompt the surface was handed into the clipboard', async () => {
-    const wrapper = await openPairing(DAEMON_PROMPT)
+  function overlayButton(label: string): HTMLButtonElement {
+    const found = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
+      (candidate) => candidate.textContent?.trim() === label,
+    )
+    expect(found, `no overlay button labelled "${label}"`).toBeTruthy()
+    return found!
+  }
 
-    await copyAffordances()[0].click()
+  it('selects harnesses, names the config in consent, and waits for approval', async () => {
+    const wrapper = mount(AgentsPanel, { props: { harnesses: [CLAUDE_HARNESS] } })
 
-    expect(copied()).toEqual([DAEMON_PROMPT])
+    expect(wrapper.text()).toContain('Claude Code')
+    expect(wrapper.text()).toContain('not set up')
+    expect(wrapper.text()).toContain('lumlflow guide')
+
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await panelButton(wrapper, 'Set up').trigger('click')
+    await nextTick()
+
+    expect(document.body.textContent).toContain('/home/dana/.claude.json')
+    overlayButton('Not now').click()
+    await nextTick()
+    expect(wrapper.emitted('setup')).toBeUndefined()
+
+    await panelButton(wrapper, 'Set up').trigger('click')
+    await nextTick()
+    overlayButton('Allow and set up').click()
+    await nextTick()
+
+    expect(wrapper.emitted('setup')).toEqual([[['claude-code'], true]])
     wrapper.unmount()
   })
 
-  it('falls back to the flow’s own prompt where nothing has answered', async () => {
-    // The gallery mounts it with no answer in hand, and a popover that is dead
-    // there is the bug §3 records — not an empty state.
-    const wrapper = await openPairing()
+  it('offers state-specific actions and manual repair details', async () => {
+    const wrapper = mount(AgentsPanel, {
+      props: {
+        harnesses: [
+          agentHarness({
+            id: 'cursor',
+            display_name: 'Cursor',
+            state: 'out of date',
+            action: 'update',
+            consent_required: false,
+            consent_prompt: null,
+            error: 'the config does not parse',
+          }),
+          agentHarness({
+            id: 'jetbrains-ai',
+            display_name: 'JetBrains AI',
+            can_setup: false,
+            action: null,
+            config_path: 'Settings > Tools > AI Assistant > MCP',
+            shell: false,
+            shell_hint: null,
+          }),
+          agentHarness({
+            state: 'set up',
+            action: null,
+            consent_required: false,
+            consent_prompt: null,
+          }),
+        ],
+      },
+    })
 
-    await copyAffordances()[0].click()
+    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0)
+    expect(wrapper.text()).toContain('the config does not parse')
+    expect(wrapper.text()).toContain('Settings > Tools > AI Assistant > MCP')
+    expect(wrapper.text()).toContain('mcpServers')
+    expect(
+      wrapper.findAll('button').filter((candidate) => candidate.text() === 'Set up'),
+    ).toHaveLength(0)
 
-    expect(copied()).toEqual([CONNECT_PROMPT])
+    await panelButton(wrapper, 'Update').trigger('click')
+    await panelButton(wrapper, 'Remove').trigger('click')
+
+    expect(wrapper.emitted('update')).toEqual([['cursor']])
+    expect(wrapper.emitted('remove')).toEqual([['claude-code']])
     wrapper.unmount()
   })
 })

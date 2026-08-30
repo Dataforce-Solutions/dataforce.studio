@@ -9,7 +9,7 @@
         <Button link label="add one here" :pt="LINK_PT" @click="emit('create')" />
         <span>·</span>
         <template v-if="!paired">
-          <PairLink :prompt="connect" @open="emit('pair')" />
+          <Button link label="pair an agent" :pt="LINK_PT" @click="emit('pair')" />
           <span>·</span>
         </template>
         <Button link label="AGENTS.md" :pt="LINK_PT" @click="emit('cheatsheet')" />
@@ -22,17 +22,14 @@
 
 <script setup lang="ts">
 import { Button } from 'primevue'
-import PairLink from '../components/session/PairLink.vue'
 import type { PairedAgent } from '../model/types'
 import CopyField from '../ui/CopyField.vue'
 
 // An empty surface gets a heading and one line of options — not a grid of
 // cards, not a dashed frame. The command is copyable; everything else is a
-// link, and the prompt that pairs an agent lives behind one of them.
+// link, and agent setup stays in the left panel.
 defineProps<{
   paired?: PairedAgent
-  /** The prompt that pairs one, once the daemon has answered for it. */
-  connect?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -40,7 +37,6 @@ const emit = defineEmits<{
   notebook: []
   /** Scaffold the first cell through the daemon rather than the terminal. */
   create: []
-  /** The pairing popover opened: this is when a live surface goes and asks. */
   pair: []
 }>()
 

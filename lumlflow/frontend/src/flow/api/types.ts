@@ -720,25 +720,27 @@ export interface RunOutcome {
   abandoned: boolean
 }
 
-/**
- * `agent.connect`: the paste-ready prompt that pairs an agent with this flow.
- *
- * Flow-scoped and nothing else — connecting is not a gesture against a branch,
- * and the branch the prompt names is whichever one the files hold. The prompt
- * is built where the facts are, so no surface has to guess at the line the
- * reader is about to paste into a harness's config.
- */
-export interface ConnectPrompt {
-  flow: string
-  workspace: string
-  /**
-   * The `lumlflow` a config snippet can actually spawn — already inside `text`.
-   * It crosses on its own because an install into a venv answers to no bare
-   * `lumlflow`, and only the workspace knows which interpreter serves it.
-   */
-  command: string
-  /** The whole prompt. One copy block, copied as-is. */
-  text: string
+export type AgentHarnessState =
+  | 'not set up'
+  | 'set up'
+  | 'out of date'
+  | 'broken'
+  | 'removed by you'
+
+export interface AgentHarness {
+  id: string
+  display_name: string
+  state: AgentHarnessState
+  config_path: string
+  snippet: string
+  can_setup: boolean
+  action: 'setup' | 'update' | null
+  consent_required: boolean
+  consent_prompt: string | null
+  post_write_hint: string | null
+  shell: boolean
+  shell_hint: string | null
+  error: string | null
 }
 
 /** `agent.payload`: the stored context copied from one cell card. */

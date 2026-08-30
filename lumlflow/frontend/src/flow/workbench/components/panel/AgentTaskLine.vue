@@ -23,14 +23,14 @@
          pairs one is behind the link rather than on screen five times over. -->
     <div v-else class="flex items-center gap-1 text-base text-muted-color">
       <span>not paired ·</span>
-      <PairLink :prompt="connect" @open="emit('pair')" />
+      <Button link label="pair an agent" :pt="LINK_PT" @click="emit('pair')" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Button } from 'primevue'
 import type { PairedAgent } from '../../model/types'
-import PairLink from '../session/PairLink.vue'
 import ActorChip from '../../ui/ActorChip.vue'
 import BranchTag from '../../ui/BranchTag.vue'
 
@@ -38,12 +38,11 @@ import BranchTag from '../../ui/BranchTag.vue'
 defineProps<{
   paired?: PairedAgent
   viewedBranch: string
-  /** The prompt that pairs one, once the daemon has answered for it. */
-  connect?: string | null
 }>()
 
 const emit = defineEmits<{
-  /** The pairing popover opened: this is when a live surface goes and asks. */
   pair: []
 }>()
+
+const LINK_PT = { root: { class: 'p-0 text-base font-normal' } }
 </script>
