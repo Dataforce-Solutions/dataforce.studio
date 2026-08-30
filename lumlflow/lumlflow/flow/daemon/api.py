@@ -602,10 +602,15 @@ class Api:
             actor=_actor(params),
             intent=params.get("intent"),
         )
+        parent_record = session.store.branches.get(parent)
+        found = session.store.index.last_step_on(
+            parent_record.branch_id, at_or_before=created.fork_step
+        )
         return {
             "branch": created.name,
             "from_branch": parent,
             "forked_at_step": created.fork_step,
+            "parent_step": created.fork_step if found is None else found,
             "cells": len(session.store.index.selections(created.branch_id)),
         }
 

@@ -348,7 +348,7 @@ def lane_new(
         as_json,
         [
             f"started `{result['branch']}` from `{result['from_branch']}` "
-            f"at step {result['forked_at_step']} · {result['cells']} cells, "
+            f"at step {result['parent_step']} · {result['cells']} cells, "
             "pinned as they were"
         ],
     )

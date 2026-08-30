@@ -239,7 +239,7 @@ def tree(payload: dict[str, Any]) -> list[str]:
     for branch in payload.get("branches") or []:
         marker = "*" if branch["checked_out"] else " "
         family = (
-            f"started from {branch['parent']} at step {branch['forked_at_step']}"
+            f"started from {branch['parent']} at step {branch['parent_step']}"
             if branch.get("parent")
             else "a root lane"
         )

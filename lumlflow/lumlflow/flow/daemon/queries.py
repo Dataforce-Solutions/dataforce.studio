@@ -850,6 +850,12 @@ def _branch(
         if record.parent_branch_id is not None
         else None
     )
+    parent_step: int | None = None
+    if parent is not None:
+        # The fork line belongs to the child, so it cannot mask the parent's
+        # newest line at the same global step.
+        found = index.last_step_on(parent.branch_id, at_or_before=record.fork_step)
+        parent_step = record.fork_step if found is None else found
     states: dict[str, int] = {}
     for verdict in verdicts.values():
         states[verdict.state] = states.get(verdict.state, 0) + 1
@@ -861,6 +867,7 @@ def _branch(
         "branch_id": record.branch_id,
         "parent": parent.name if parent is not None else None,
         "forked_at_step": record.fork_step,
+        "parent_step": parent_step,
         "archived": record.archived,
         "checked_out": checked_out,
         "cells": len(verdicts),

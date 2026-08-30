@@ -579,6 +579,18 @@ class Index:
                     return CellsRewriteRow(verb=verb, step=int(row["step"]))
         return None
 
+    def last_step_on(self, branch_id: str, *, at_or_before: int) -> int | None:
+        """The branch's newest own line at or before a global step.
+
+        This is the state a fork copied from the branch.
+        """
+        row = self._conn.execute(
+            "SELECT step FROM transactions WHERE branch = ? AND step <= ? "
+            "ORDER BY step DESC LIMIT 1",
+            (branch_id, at_or_before),
+        ).fetchone()
+        return int(row["step"]) if row is not None else None
+
     def checkpoint(self, branch_id: str) -> TransactionRow | None:
         """The branch's last marked or settled step.
 

@@ -713,6 +713,29 @@ def test_starting_from_another_lane_says_which_one_it_started_from(
     assert "beta" in shown.output and "started from alpha" in shown.output
 
 
+def test_starting_a_lane_and_listing_it_quote_the_same_parent_step(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
+    before = json.loads(cli("lane", "list", "--json").output)
+    main = next(branch for branch in before["branches"] if branch["branch"] == "main")
+    parent_step = main["last_intent"]["step"]
+
+    started = cli("lane", "new", "sweep")
+    listed = cli("lane", "list")
+    payload = json.loads(cli("lane", "list", "--json").output)
+    sweep = next(
+        branch for branch in payload["branches"] if branch["branch"] == "sweep"
+    )
+
+    assert f"started `sweep` from `main` at step {parent_step}" in started.output
+    assert f"started from main at step {parent_step}" in listed.output
+    assert "a root lane" in listed.output
+    assert sweep["parent_step"] == parent_step
+    assert sweep["forked_at_step"] > parent_step
+
+
 def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path):
     """Persist-everything is what makes the verb prompt-free: every value the
     older step referenced is still in the store, so there is no preflight to

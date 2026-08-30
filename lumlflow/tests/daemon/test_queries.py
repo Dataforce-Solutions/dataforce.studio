@@ -142,6 +142,58 @@ async def test_the_fork_tree_says_where_each_branch_split_and_how_it_stands(
     assert sweep["last_intent"]["intent"] == "try it higher"
 
 
+async def test_the_fork_tree_carries_the_parent_step_the_child_copied(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        marked_main = await api.checkpoint(
+            {"flow": "churn", "branch": "main", "intent": "main at the split"}
+        )
+        await api.checkpoint(
+            {"flow": "churn", "branch": "sweep", "intent": "sweep moved on"}
+        )
+        forked = await api.fork(
+            {"flow": "churn", "name": "exp/lr", "from_branch": "main"}
+        )
+        at_fork = await api.tree({"flow": "churn"})
+        await api.checkpoint(
+            {"flow": "churn", "branch": "main", "intent": "main moved on"}
+        )
+        after_main_moved = await api.tree({"flow": "churn"})
+
+    main = _branch(at_fork, "main")
+    experiment = _branch(at_fork, "exp/lr")
+    assert main["parent"] is None and main["parent_step"] is None
+    assert forked["parent_step"] == marked_main["step"]
+    assert experiment["parent_step"] == marked_main["step"]
+    assert forked["forked_at_step"] == experiment["forked_at_step"]
+    assert forked["forked_at_step"] > marked_main["step"]
+    assert _branch(after_main_moved, "exp/lr")["parent_step"] == marked_main["step"]
+
+
+async def test_a_fork_right_after_its_parent_uses_the_parents_creation_step(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        fresh = await api.fork({"flow": "churn", "name": "fresh"})
+        nested = await api.fork(
+            {"flow": "churn", "name": "fresh/a", "from_branch": "fresh"}
+        )
+        tree = await api.tree({"flow": "churn"})
+
+    assert nested["parent_step"] == fresh["forked_at_step"]
+    assert _branch(tree, "fresh/a")["parent_step"] == fresh["forked_at_step"]
+
+
 async def test_the_fork_tree_carries_the_key_the_journal_scopes_by(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)

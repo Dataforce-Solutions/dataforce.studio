@@ -49,6 +49,18 @@ class TestFold:
         assert json.loads(row["ops"])[0]["op"] == "flow_init"
         assert index.last_step == 4
 
+    def test_finds_a_branch_newest_line_at_or_before_a_step(self, index: Index) -> None:
+        index.apply(transaction(1, branch="A"))
+        index.apply(transaction(2, branch="B"))
+        index.apply(transaction(3, branch="A"))
+        index.apply(transaction(4))
+        index.apply(transaction(5, branch="B"))
+
+        assert index.last_step_on("A", at_or_before=5) == 3
+        assert index.last_step_on("A", at_or_before=2) == 1
+        assert index.last_step_on("B", at_or_before=1) is None
+        assert index.last_step_on("unknown", at_or_before=5) is None
+
     def test_accepting_a_cell_creates_the_cell_and_its_version(
         self, index: Index
     ) -> None:
