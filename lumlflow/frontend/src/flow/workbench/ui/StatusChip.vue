@@ -3,7 +3,7 @@
     <Tag :severity="severity" :pt="tagPt" :class="subdued ? 'opacity-60' : ''">
       <span class="inline-flex items-center gap-1">
         <span
-          v-if="status === 'running'"
+          v-if="status === 'running' || status === 'refreshing'"
           class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
         />
         {{ label }}
@@ -44,6 +44,7 @@ const severity = computed(() => {
     case 'materialized':
       return 'success'
     case 'running':
+    case 'refreshing':
       return 'info'
     case 'stale':
       return 'warn'

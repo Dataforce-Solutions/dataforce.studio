@@ -288,6 +288,12 @@ class TestReactivity:
         flow.store.manifest.settings.eager.append(plot.uid)
 
         assert flow.planner.auto_targets(MAIN_BRANCH) == []
+        verdict = flow.planner.auto_verdicts(MAIN_BRANCH)[plot.uid]
+        assert verdict.reason == "blocked"
+        assert verdict.detail == (
+            "blocked by failed parent `features`. "
+            "edit `features` to unblock auto-refresh."
+        )
 
     async def test_a_note_is_never_an_auto_target(self, flow: Flow) -> None:
         flow.note("readme")

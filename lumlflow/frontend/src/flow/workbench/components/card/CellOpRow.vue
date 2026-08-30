@@ -1,14 +1,14 @@
 <template>
   <div class="flex shrink-0 items-center gap-0.5">
     <PreflightPopover
-      v-if="!cell.isNote && cell.status !== 'running'"
+      v-if="!cell.isNote && cell.status !== 'running' && cell.status !== 'refreshing'"
       :preflight="preflight ?? null"
       :target="cell.slug"
       @open="emit('preflight')"
       @run="emit('run', $event)"
     />
     <Button
-      v-if="!cell.isNote && cell.status === 'running'"
+      v-if="!cell.isNote && (cell.status === 'running' || cell.status === 'refreshing')"
       v-tooltip.top="stopTooltip"
       text
       rounded

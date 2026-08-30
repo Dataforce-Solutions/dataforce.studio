@@ -463,6 +463,35 @@ describe('the activity feed is read-only and opens at the cursor', () => {
     wrapper.unmount()
   })
 
+  it('shows a refresh-failure cell note as one activity line', async () => {
+    const sentence = 'could not refresh: the workspace interpreter cannot start'
+    const { wrapper } = await workbench({
+      journal: [
+        transaction(11, {
+          actor: 'system',
+          intent: sentence,
+          ops: [
+            {
+              op: 'cell_noted',
+              uid: 'cell-features',
+              kind: 'refresh_failed',
+              sentence,
+              version_id: 'version-features',
+            },
+          ],
+        }),
+      ],
+      caughtUpAt: 11,
+    })
+
+    await openPanel(wrapper, 'activity')
+    const entry = wrapper.findAll('li').find((item) => item.text().includes(sentence))
+
+    expect(entry, 'no refresh failure in the activity feed').toBeTruthy()
+    expect(entry?.text().split(sentence)).toHaveLength(2)
+    expect(entry?.find('p').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })
 
 // --- the scratch REPL --------------------------------------------------------

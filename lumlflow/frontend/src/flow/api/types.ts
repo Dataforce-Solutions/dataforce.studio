@@ -441,7 +441,13 @@ export interface CellSummary {
  * failure below it that nothing has changed since.
  */
 export interface AutoDeclined {
-  reason: 'blocked' | 'never-timed' | 'too-expensive' | 'dangling-experiment'
+  reason:
+    | 'blocked'
+    | 'never-timed'
+    | 'too-expensive'
+    | 'dangling-experiment'
+    | 'unresolvable-reference'
+    | 'refresh-failed'
   /** The closure's estimate, over the timed cells only. */
   estimate_seconds: number
   /** Cells in the closure the flow has never run, by slug. */

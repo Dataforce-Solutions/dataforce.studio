@@ -392,6 +392,116 @@ describe('staleness leads with the direct cause', () => {
   })
 })
 
+describe('reactivity state and gates', () => {
+  it('shows refreshing from the state frame until the run starts', async () => {
+    const { wrapper, live } = await workbench()
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      state: 'refreshing',
+      flow: FLOW,
+      lane: 'main',
+      cell: 'features',
+      step: 14,
+    })
+    await settle()
+
+    expect(cardFor(wrapper, 'features')).toContain('refreshing')
+    expect(cardFor(wrapper, 'features')).not.toContain('running')
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'kernel',
+      event: 'started',
+      flow: FLOW,
+      run_id: 'run-features',
+      slug: 'features',
+      step: 14,
+    })
+    await settle()
+
+    expect(cardFor(wrapper, 'features')).toContain('running')
+    expect(cardFor(wrapper, 'features')).not.toContain('refreshing')
+    wrapper.unmount()
+  })
+
+  it('renders each gate on its card and counts gates in the top bar', async () => {
+    const gated = [
+      cellSummary('first_run', {
+        state: 'unmaterialized',
+        cost_seconds: null,
+        auto_declined: {
+          reason: 'never-timed',
+          estimate_seconds: 0,
+          untimed: ['first_run'],
+        },
+      }),
+      cellSummary('untimed', {
+        state: 'unsynced',
+        causes: ['`untimed` was edited'],
+        auto_declined: {
+          reason: 'never-timed',
+          estimate_seconds: 0,
+          untimed: ['untimed'],
+        },
+      }),
+      cellSummary('threshold', {
+        state: 'unsynced',
+        causes: ['`threshold` was edited'],
+        auto_declined: {
+          reason: 'too-expensive',
+          estimate_seconds: 600,
+          untimed: [],
+        },
+      }),
+      cellSummary('blocked', {
+        state: 'unsynced',
+        causes: ['parent `failed_parent` rematerialized'],
+        auto_declined: {
+          reason: 'blocked',
+          estimate_seconds: 0,
+          untimed: [],
+          detail:
+            'blocked by failed parent `failed_parent`. edit `failed_parent` to unblock auto-refresh.',
+        },
+      }),
+      cellSummary('refresh_failed', {
+        state: 'unsynced',
+        causes: ['`refresh_failed` was edited'],
+        auto_declined: {
+          reason: 'refresh-failed',
+          estimate_seconds: 0,
+          untimed: [],
+          detail: 'could not refresh: the workspace interpreter cannot start',
+        },
+      }),
+    ]
+    const { wrapper } = await workbench({
+      handlers: {
+        'cells.list': () => ({ flow: 'churn', branch: 'main', cells: gated }),
+      },
+    })
+
+    expect(cardFor(wrapper, 'first_run')).toContain(
+      'never run yet — run it once to enable auto-refresh',
+    )
+    expect(cardFor(wrapper, 'untimed')).toContain('never run here, so its cost is unknown')
+    expect(cardFor(wrapper, 'threshold')).toContain('too expensive to refresh on its own')
+    expect(cardFor(wrapper, 'blocked')).toContain('edit `failed_parent` to unblock auto-refresh')
+    expect(cardFor(wrapper, 'refresh_failed')).toContain(
+      'could not refresh: the workspace interpreter cannot start',
+    )
+
+    const summary = wrapper.get('[data-testid="stale-summary"]').text()
+    expect(summary).toContain('1 waiting on threshold')
+    expect(summary).toContain('1 never timed')
+    expect(summary).toContain('1 blocked by a failure')
+    expect(summary).toContain('1 could not refresh')
+    wrapper.unmount()
+  })
+})
+
 describe('canvas and notebook are two densities over one slice', () => {
   it('draws the same cells either way, in effective order down the notebook', async () => {
     const { wrapper } = await workbench()

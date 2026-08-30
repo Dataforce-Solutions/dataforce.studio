@@ -636,6 +636,88 @@ describe('a cell reactivity left alone says so on the card', () => {
     wrapper.unmount()
   })
 
+  it('gives an unmaterialized cell the first-run wording', () => {
+    const wrapper = mount(CellCard, {
+      props: {
+        cell: {
+          ...declined({ reason: 'never-timed', estimateSeconds: 0, untimed: ['train_model'] }),
+          status: 'unmaterialized',
+        },
+        density: 'canvas' as const,
+      },
+      global: { plugins: [testRouter(), ToastService] },
+    })
+
+    expect(wrapper.text()).toContain('never run yet — run it once to enable auto-refresh')
+    expect(wrapper.text()).not.toContain('cost is unknown')
+    wrapper.unmount()
+  })
+
+  it('names the failed parent and the edit that unblocks it', () => {
+    const detail = 'blocked by failed parent `features`. edit `features` to unblock auto-refresh.'
+    const wrapper = mount(CellCard, {
+      props: {
+        cell: declined({
+          reason: 'blocked',
+          estimateSeconds: 0,
+          untimed: [],
+          detail,
+        }),
+        density: 'canvas' as const,
+      },
+      global: { plugins: [testRouter(), ToastService] },
+    })
+
+    expect(wrapper.text()).toContain(detail)
+    wrapper.unmount()
+  })
+
+  it('shows the active refresh-failure note instead of a cost gate', () => {
+    const wrapper = mount(CellCard, {
+      props: {
+        cell: {
+          ...declined({
+            reason: 'refresh-failed',
+            estimateSeconds: 0,
+            untimed: [],
+            detail: 'could not refresh: the workspace interpreter cannot start',
+          }),
+          status: 'unmaterialized',
+        },
+        density: 'canvas' as const,
+      },
+      global: { plugins: [testRouter(), ToastService] },
+    })
+
+    expect(wrapper.text()).toContain('could not refresh: the workspace interpreter cannot start')
+    expect(wrapper.text()).not.toContain('never run yet')
+    expect(wrapper.text()).not.toContain('too expensive')
+    wrapper.unmount()
+  })
+
+  it('shows an unresolvable reference as the gate the daemon named', () => {
+    const wrapper = mount(CellCard, {
+      props: {
+        cell: {
+          ...declined({
+            reason: 'unresolvable-reference',
+            estimateSeconds: 0,
+            untimed: [],
+            detail: '`report` needs `nowhere.summary`, which nothing on `main` produces',
+          }),
+          status: 'unmaterialized',
+        },
+        density: 'canvas' as const,
+      },
+      global: { plugins: [testRouter(), ToastService] },
+    })
+
+    expect(wrapper.text()).toContain('nowhere.summary')
+    expect(wrapper.text()).not.toContain('never run yet')
+    expect(wrapper.text()).not.toContain('too expensive')
+    wrapper.unmount()
+  })
+
   it('names the removed experiment that makes automatic refresh unsafe', () => {
     const wrapper = mount(CellCard, {
       props: {

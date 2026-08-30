@@ -299,9 +299,37 @@ const staleCounts = computed<StaleCounts | undefined>(() => {
     unsynced: unsynced.value.length,
     downstream: transitive.value.length,
     unmaterialized: unmaterialized.value.length,
+    waitingOnThreshold: 0,
+    neverTimed: 0,
+    blockedByFailure: 0,
+    refreshFailed: 0,
     cause: unsynced.value[0]?.causes[0],
   }
-  return counts.unsynced || counts.downstream || counts.unmaterialized ? counts : undefined
+  for (const cell of slice.cells.value) {
+    switch (cell.auto_declined?.reason) {
+      case 'too-expensive':
+        counts.waitingOnThreshold += 1
+        break
+      case 'never-timed':
+        if (cell.state !== 'unmaterialized') counts.neverTimed += 1
+        break
+      case 'blocked':
+        counts.blockedByFailure += 1
+        break
+      case 'refresh-failed':
+        counts.refreshFailed += 1
+        break
+    }
+  }
+  const total =
+    counts.unsynced +
+    counts.downstream +
+    counts.unmaterialized +
+    counts.waitingOnThreshold +
+    counts.neverTimed +
+    counts.blockedByFailure +
+    counts.refreshFailed
+  return total > 0 ? counts : undefined
 })
 
 // --- selection and cross-navigation -----------------------------------------

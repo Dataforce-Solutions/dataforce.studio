@@ -154,6 +154,7 @@ const KINDS: [FlowOp['op'], JournalKind][] = [
   ['adopted', 'adopt'],
   ['renamed', 'rename'],
   ['cell_removed', 'delete'],
+  ['cell_noted', 'note'],
   ['env_changed', 'env'],
   ['agent_begin', 'agent-begin'],
   ['agent_end', 'agent-end'],

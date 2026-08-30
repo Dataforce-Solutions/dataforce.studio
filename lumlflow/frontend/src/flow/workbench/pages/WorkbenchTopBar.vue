@@ -34,6 +34,10 @@
       :unsynced="stale.unsynced"
       :downstream="stale.downstream"
       :unmaterialized="stale.unmaterialized"
+      :waiting-on-threshold="stale.waitingOnThreshold"
+      :never-timed="stale.neverTimed"
+      :blocked-by-failure="stale.blockedByFailure"
+      :refresh-failed="stale.refreshFailed"
       :cause="stale.cause"
     />
 

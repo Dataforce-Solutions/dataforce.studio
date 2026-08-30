@@ -373,8 +373,24 @@ class Planner:
                 reason="refresh-failed",
                 detail=refresh_failure,
             )
-        if any(_stalled(over.verdicts[step.uid]) for step in plan.steps):
-            return AutoVerdict(verdict.slug, taken=False, reason="blocked")
+        stalled = next(
+            (
+                over.verdicts[step.uid]
+                for step in plan.steps
+                if _stalled(over.verdicts[step.uid])
+            ),
+            None,
+        )
+        if stalled is not None:
+            return AutoVerdict(
+                verdict.slug,
+                taken=False,
+                reason="blocked",
+                detail=(
+                    f"blocked by failed parent `{stalled.slug}`. "
+                    f"edit `{stalled.slug}` to unblock auto-refresh."
+                ),
+            )
         cost = self._preflight(plan, over.here)
         if uid in settings.eager:
             return AutoVerdict(

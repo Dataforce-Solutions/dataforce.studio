@@ -25,7 +25,10 @@
             <span class="min-w-0 break-words text-base font-medium">{{ entry.intent }}</span>
             <MetaBadge v-if="entry.settled" variant="settled" />
           </div>
-          <p class="min-w-0 break-words text-sm text-muted-color">
+          <p
+            v-if="entry.summary || entry.failedAttempts"
+            class="min-w-0 break-words text-sm text-muted-color"
+          >
             <span v-html="monoHtml(entry.summary)" />
             <span v-if="entry.failedAttempts">
               · {{ formatCount(entry.failedAttempts, 'failed attempt') }}
@@ -49,6 +52,7 @@ import {
   Split,
   TextCursorInput,
   Trash2,
+  TriangleAlert,
   WifiOff,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -66,6 +70,7 @@ defineProps<{ entries: JournalEntry[] }>()
 
 const GLYPHS: Record<JournalKind, LucideIcon> = {
   edit: Pencil,
+  note: TriangleAlert,
   run: Play,
   checkpoint: Flag,
   fork: Split,

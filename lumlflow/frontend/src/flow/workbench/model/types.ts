@@ -47,7 +47,13 @@ export type AssetKind =
   | 'html'
   | 'unknown'
 
-export type CellStatus = 'materialized' | 'running' | 'stale' | 'unmaterialized' | 'failed'
+export type CellStatus =
+  | 'materialized'
+  | 'refreshing'
+  | 'running'
+  | 'stale'
+  | 'unmaterialized'
+  | 'failed'
 
 export type StaleKind =
   | 'definition-changed'
@@ -57,13 +63,17 @@ export type StaleKind =
 
 /**
  * What a branch owes, counted for the one line in the top bar that says so.
- * The three counts are kept apart because they are three different claims —
- * and `unmaterialized` is not a flavour of stale.
+ * Staleness and automatic-refresh gates stay separate: a cell can be stale
+ * because it changed and gated because refreshing it would cross a threshold.
  */
 export interface StaleCounts {
   unsynced: number
   downstream: number
   unmaterialized: number
+  waitingOnThreshold: number
+  neverTimed: number
+  blockedByFailure: number
+  refreshFailed: number
   /** The first stale cell's cause, in the daemon's own words. */
   cause?: string
 }
@@ -87,7 +97,13 @@ export interface StaleInfo {
  * identical otherwise, and that is what made auto mode read as broken.
  */
 export interface AutoDeclinedInfo {
-  reason: 'blocked' | 'never-timed' | 'too-expensive' | 'dangling-experiment'
+  reason:
+    | 'blocked'
+    | 'never-timed'
+    | 'too-expensive'
+    | 'dangling-experiment'
+    | 'unresolvable-reference'
+    | 'refresh-failed'
   /** Seconds the timed part of the closure is expected to take. */
   estimateSeconds: number
   /** Cells in the closure this flow has never run, by slug. */
@@ -433,6 +449,7 @@ export interface BranchInfo {
 
 export type JournalKind =
   | 'edit'
+  | 'note'
   | 'run'
   | 'checkpoint'
   | 'fork'

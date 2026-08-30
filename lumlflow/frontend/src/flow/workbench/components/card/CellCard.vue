@@ -317,11 +317,23 @@ const timingLine = computed(() => {
 const autoLine = computed(() => {
   const declined = props.cell.autoDeclined
   if (!declined) return ''
+  if (props.cell.status === 'unmaterialized' && declined.reason === 'never-timed') {
+    return 'never run yet — run it once to enable auto-refresh'
+  }
   if (declined.reason === 'blocked') {
-    return 'waiting on a failed cell above it. reactivity retries after the next edit.'
+    return (
+      declined.detail ??
+      'blocked by a failed cell above it. edit that failed cell to unblock auto-refresh.'
+    )
   }
   if (declined.reason === 'never-timed') {
     return 'never run here, so its cost is unknown. run it once and it keeps itself fresh.'
+  }
+  if (declined.reason === 'refresh-failed') {
+    return declined.detail ?? 'could not refresh. repair the cause or run it explicitly to retry.'
+  }
+  if (declined.reason === 'unresolvable-reference') {
+    return declined.detail ?? 'one of its inputs is not available on this lane.'
   }
   if (declined.reason === 'dangling-experiment') {
     return (

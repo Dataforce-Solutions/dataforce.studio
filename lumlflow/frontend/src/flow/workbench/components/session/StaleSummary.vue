@@ -61,6 +61,14 @@ const props = defineProps<{
   downstream: number
   /** No recorded result anywhere; counted apart, never a flavour of stale. */
   unmaterialized: number
+  /** Timed, but over the automatic refresh threshold. */
+  waitingOnThreshold?: number
+  /** The closure contains work the flow has not measured yet. */
+  neverTimed?: number
+  /** A failed producer has not changed since it failed. */
+  blockedByFailure?: number
+  /** The reactor could not bring the cell to its own execution. */
+  refreshFailed?: number
   /** The first stale cell's own words, e.g. 'you edited it'. */
   cause?: string
 }>()
@@ -75,6 +83,10 @@ const counts = computed(() => {
   if (props.unsynced) parts.push(`${props.unsynced} stale`)
   if (props.downstream) parts.push(`${props.downstream} downstream`)
   if (props.unmaterialized) parts.push(`${props.unmaterialized} never materialized`)
+  if (props.waitingOnThreshold) parts.push(`${props.waitingOnThreshold} waiting on threshold`)
+  if (props.neverTimed) parts.push(`${props.neverTimed} never timed`)
+  if (props.blockedByFailure) parts.push(`${props.blockedByFailure} blocked by a failure`)
+  if (props.refreshFailed) parts.push(`${props.refreshFailed} could not refresh`)
   return parts
 })
 

@@ -18,7 +18,7 @@
  * payload is worth pulling is exactly the question the tab strip answers.
  */
 
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { FlowStream } from '@/flow/api/stream'
@@ -97,6 +97,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   const refusal = ref<string | null>(null)
   const showing = ref<CellTabId>('')
   const wantsLogs = ref(false)
+  const refreshing = ref(false)
 
   const slug = computed(() => summary.value.slug)
   const flow = () => session.brief.value?.path
@@ -105,6 +106,31 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     () => session.running.value.find((entry) => entry.slug === slug.value)?.run_id ?? null,
   )
   const streaming = useRunLogs(session, stream, runId)
+
+  const stopState = session.onState((frame) => {
+    if (
+      frame.state === 'refreshing' &&
+      frame.lane === branch.value &&
+      frame.cell === slug.value &&
+      runId.value === null
+    ) {
+      refreshing.value = true
+    }
+  })
+  if (getCurrentScope()) onScopeDispose(stopState)
+
+  watch([slug, branch], () => {
+    refreshing.value = false
+  })
+  watch(runId, (id) => {
+    if (id !== null) refreshing.value = false
+  })
+  watch(
+    () => summary.value.auto_declined?.reason,
+    (reason) => {
+      if (reason === 'refresh-failed') refreshing.value = false
+    },
+  )
 
   // Loads run one after another: a tab change during a refetch would otherwise
   // ask for the same source twice and race over which answer lands.
@@ -304,6 +330,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
       logs: logs.value,
       console: streaming.text.value,
       running: runId.value !== null,
+      refreshing: refreshing.value,
       attempts: session.attempts.value[slug.value],
     })
     return {
@@ -343,6 +370,7 @@ export interface CellFacts {
   logs: string | null
   console: string
   running: boolean
+  refreshing?: boolean
   /** Runs of this cell this session watched fail before the one standing now. */
   attempts?: number
 }
@@ -370,7 +398,7 @@ export function build(facts: CellFacts): FlowCell {
     source: detail?.source ?? '',
     outputs: outputs(facts, doc),
     primaryOutput: summary.primary ?? undefined,
-    status: status(summary, facts.running),
+    status: status(summary, facts.running, facts.refreshing ?? false),
     stale: stale(summary),
     authoredStep: summary.created_step,
     order: summary.order,
@@ -394,8 +422,9 @@ export function summarized(summary: CellSummary, running = false): FlowCell {
   return build({ summary, detail: null, previews: new Map(), logs: null, console: '', running })
 }
 
-function status(summary: CellSummary, running: boolean): CellStatus {
+function status(summary: CellSummary, running: boolean, refreshing: boolean): CellStatus {
   if (running) return 'running'
+  if (refreshing) return 'refreshing'
   switch (summary.state) {
     case 'failed':
       return 'failed'
