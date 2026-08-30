@@ -124,27 +124,21 @@ export const sweepCompare: CompareView = {
       affectedBranches: ['exp/lr-3e4', 'exp/lr-1e3', 'exp/lr-3e3'],
     },
   ],
-  artifacts: [
+  trackerLinks: [
     {
+      branch: 'main',
       slug: 'train_model',
       output: 'run',
-      kind: 'experiment',
-      label: 'churn-xgb experiment',
-      href: '/experiments',
-    },
-    {
-      slug: 'train_model',
-      output: 'model',
-      kind: 'model',
-      label: 'churn model',
-      href: '/experiments',
-    },
-    {
-      slug: 'holdout_eval',
-      output: 'auc',
-      kind: 'metric',
-      label: 'holdout auc',
-      href: '',
+      tracker: {
+        id: 'run-main',
+        group: 'churn',
+        state: 'ok',
+        url: '/experiments/churn/run-main',
+        store: 'experiments',
+        tags: ['main', 'train_model'],
+        sentence: '',
+        recorded_step: 22,
+      },
     },
   ],
 }

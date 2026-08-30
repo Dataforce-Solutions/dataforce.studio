@@ -1254,10 +1254,10 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Warn on deleting a flow-produced experiment
   - [x] The `lumlflow` metadata reaches the Experiments screen on the experiment payload or through a metadata read the tracker API gains; the delete confirmation in `lumlflow/frontend/src/confirm/confirm.ts` and its two callers under `src/components/experiments/experiment/` names flow, cell and lane
   - [x] Tests: the API read; a spec in `lumlflow/frontend/tests` for the confirmation text
-- [ ] Show tracker experiments in the workbench
-  - [ ] `tracker: {id, group, state, url, store}` on `cells.list`/`cells.show`/`asset.preview`, `url` null unless `ok`; `previewFrom` yields `experiment` for stored kind `experiment`; `ExperimentRenderer` live with the first logged metric as the headline, no direction arrow, and a routed link; `ExpandDrawer` state line replaces `href="#"`; the SDK-version warning the run record carries (D6.6) shown as one warning line on the card; no download/export on experiment cards
-  - [ ] Experiments lens lists the lane's tracker experiments with badges; `ArtifactLinks.vue` becomes tracker links fed by `useCompare`
-  - [ ] Specs: renderer with live data, drawer states, the warning line, lens (badges, a memo hit's experiment tagged with the recording lane), compare links
+- [x] Show tracker experiments in the workbench
+  - [x] `tracker: {id, group, state, url, store}` on `cells.list`/`cells.show`/`asset.preview`, `url` null unless `ok`; `previewFrom` yields `experiment` for stored kind `experiment`; `ExperimentRenderer` live with the first logged metric as the headline, no direction arrow, and a routed link; `ExpandDrawer` state line replaces `href="#"`; the SDK-version warning the run record carries (D6.6) shown as one warning line on the card; no download/export on experiment cards
+  - [x] Experiments lens lists the lane's tracker experiments with badges; `ArtifactLinks.vue` becomes tracker links fed by `useCompare`
+  - [x] Specs: renderer with live data, drawer states, the warning line, lens (badges, a memo hit's experiment tagged with the recording lane), compare links
 - [ ] Stream asset downloads over HTTP
   - [ ] Authenticated GET route in `daemon/web.py` addressed by flow path (query parameter, as `brief.path`), branch and `<slug>.<output>`, with kind→extension mapping and `Content-Disposition`; the kernel records a `file` output's original name on the output record through `RunRecorded`, with the `<slug>.<output>` fallback; 401 on a bad token, 400 for a bare flow name, 404 for an unknown path, an unstored value and an experiment output
   - [ ] Workbench downloads through the route (`ExpandDrawer`, `FileRenderer`); drop *saved to `<path>`*

@@ -143,6 +143,7 @@ export function cellSummary(slug: string, overrides: Partial<CellSummary> = {}):
     changed_step: 1,
     eager: false,
     auto_declined: null,
+    tracker: null,
     ...overrides,
   }
 }
@@ -167,6 +168,7 @@ export function cellDetail(slug: string, overrides: Partial<CellDetail> = {}): C
         persisted: true,
       },
     ],
+    sdk_version_warning: null,
     error: null,
     failed_by: null,
     provenance: {

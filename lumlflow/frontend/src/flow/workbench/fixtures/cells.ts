@@ -159,6 +159,13 @@ const sweepConfig: FlowCell = {
   timing: { costSeconds: 0.1, cached: true, finishedAgo: '1h ago' },
 }
 
+const trackedTrainingRun = experimentPreview(
+  'churn-xgb-lr3e4',
+  0.841,
+  { lr: '3e-4', epochs: 24, max_depth: 6 },
+  'exp-0142',
+)
+
 export const trainModel: FlowCell = {
   slug: 'train_model',
   doc: 'Train the churn XGBoost model on engineered features.',
@@ -201,12 +208,7 @@ export const trainModel: FlowCell = {
       name: 'run',
       declared: 'experiment',
       kind: 'experiment',
-      preview: experimentPreview(
-        'churn-xgb-lr3e4',
-        0.841,
-        { lr: '3e-4', epochs: 24, max_depth: 6 },
-        'exp-0142',
-      ),
+      preview: trackedTrainingRun,
     },
     {
       name: 'checkpoint',
@@ -252,6 +254,7 @@ export const trainModel: FlowCell = {
     '[14:32:31] epoch 20/24 · train_loss 0.335 · val_auc 0.840',
     '[14:32:44] epoch 21/24 · train_loss 0.333 · val_auc 0.841',
   ],
+  tracker: trackedTrainingRun.tracker,
 }
 
 const holdoutEval: FlowCell = {

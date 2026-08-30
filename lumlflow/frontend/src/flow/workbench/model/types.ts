@@ -17,7 +17,8 @@
  *   never as bare enum values.
  */
 
-import type { FlagCode } from '@/flow/api/types'
+import type { FlagCode, TrackerExperiment } from '@/flow/api/types'
+import type { MetricValue } from './format'
 
 export type Slug = string
 export type BranchName = string
@@ -191,11 +192,11 @@ export interface ModelPreview {
 export interface ExperimentPreview {
   type: 'experiment'
   runName: string
-  mainMetric: { name: string; value: number; higherIsBetter: boolean }
+  mainMetric?: { name: string; value: MetricValue }
+  metrics: { name: string; value: MetricValue }[]
   config: Record<string, ParamValue>
   curves: { name: string; points: [number, number][] }[]
-  /** Present when the experiment has a tracker destination. */
-  trackerRef?: string
+  tracker?: TrackerExperiment
 }
 
 export interface EvalPreview {
@@ -395,6 +396,8 @@ export interface FlowCell {
    * worse than none.
    */
   autoDeclined?: AutoDeclinedInfo
+  tracker?: TrackerExperiment
+  sdkVersionWarning?: string
   /** Note cells render prose and skip the op row's run controls. */
   isNote?: boolean
 }
@@ -601,13 +604,11 @@ export interface CompareWarning {
   affectedBranches: BranchName[]
 }
 
-export interface CompareArtifactLink {
+export interface CompareTrackerLink {
+  branch: BranchName
   slug: Slug
   output: string
-  kind: 'experiment' | 'model' | 'dataset' | 'metric'
-  label: string
-  /** Tracker route, per the fallback chain. */
-  href: string
+  tracker: TrackerExperiment
 }
 
 export interface CompareView {
@@ -617,5 +618,5 @@ export interface CompareView {
   materializationRows: MaterializationRow[]
   shapelessDifferences: ShapelessDifference[]
   warnings: CompareWarning[]
-  artifacts: CompareArtifactLink[]
+  trackerLinks: CompareTrackerLink[]
 }

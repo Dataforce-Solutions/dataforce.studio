@@ -373,6 +373,22 @@ export type StreamFrame =
 /** `unmaterialized` is its own state: no baseline exists to claim a change against. */
 export type StaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'
 
+export type TrackerExperimentState = 'ok' | 'missing' | 'unreachable'
+
+export interface TrackerExperiment {
+  id: string
+  group: string
+  state: TrackerExperimentState
+  url: string | null
+  store: string
+  /** Tracker tags stay with a memo hit, including the lane that recorded it. */
+  tags: string[]
+  /** The daemon's actionable explanation when the tracker cannot serve the record. */
+  sentence: string
+  /** Flow step at which the referenced materialization was recorded. */
+  recorded_step: number | null
+}
+
 /** One card's worth of facts. Causes are sentences, never bare enum values. */
 export interface CellSummary {
   /** Stable identity on cell queries; workspace status keeps internals out. */
@@ -414,6 +430,8 @@ export interface CellSummary {
    * is off, the cell is current, or it is about to refresh itself.
    */
   auto_declined: AutoDeclined | null
+  /** The experiment selected by this lane's materialization, if it produced one. */
+  tracker: TrackerExperiment | null
 }
 
 /**
@@ -472,6 +490,7 @@ export interface CellDetail extends CellSummary {
   author: string
   produces: Record<string, OutputSpec>
   materialized: MaterializedOutput[]
+  sdk_version_warning: string | null
   error: string | null
   /** Who wrote the version that failed — not necessarily whoever wrote the head. */
   failed_by: string | null
@@ -506,6 +525,7 @@ export interface AssetView {
   size: number | null
   persisted: boolean | null
   preview: StoredPreview | null
+  tracker: TrackerExperiment | null
 }
 
 /** `asset.page`: a window into the value itself. This one starts a kernel. */

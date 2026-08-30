@@ -122,6 +122,9 @@ async def test_an_unreadable_tracker_store_is_a_renderable_state(
         monkeypatch.setattr(tracker, "read_experiment", unreadable)
         state = queries.experiment_state(session, ref)
         shown = await api.cells_show({"flow": "churn", "slug": "evaluate"})
+        previewed = await api.asset_preview(
+            {"flow": "churn", "target": "evaluate.metrics"}
+        )
 
         assert state.state == "unreachable"
         assert str(tracker.store_path) in state.sentence
@@ -129,6 +132,11 @@ async def test_an_unreadable_tracker_store_is_a_renderable_state(
         assert f"uses {SDK_VERSION}" in state.sentence
         assert "upgrade lumlflow" in state.sentence
         assert shown["state"] == "synced"
+        assert shown["tracker"] == previewed["tracker"]
+        assert shown["tracker"]["state"] == "unreachable"
+        assert shown["tracker"]["url"] is None
+        assert shown["tracker"]["store"] == str(tracker.store_path)
+        assert shown["tracker"]["sentence"] == state.sentence
         assert ops_of(session, RunRecorded)[-1].state == "succeeded"
         assert root.exists()
 
@@ -151,6 +159,7 @@ async def test_an_experiment_from_a_different_store_is_unreachable(
     assert f"different tracker store (`{ref.store}`)" in state.sentence
     assert "lumlflow daemon stop" in state.sentence
     assert shown["state"] == "synced"
+    assert shown["tracker"]["sentence"] == state.sentence
 
 
 async def test_an_external_delete_expires_and_flow_open_drops_the_cache(
@@ -167,6 +176,12 @@ async def test_an_external_delete_expires_and_flow_open_drops_the_cache(
 
         session.experiment_states.max_age_s = 0
         assert queries.experiment_state(session, ref).state == "missing"
+        missing = await api.cells_list({"flow": "churn"})
+        tracked = _cell(missing, "evaluate")["tracker"]
+        assert tracked["state"] == "missing"
+        assert tracked["url"] is None
+        assert tracked["tags"] == ["main", "evaluate"]
+        assert tracked["recorded_step"] is not None
 
         await api.run({"flow": "churn", "target": "evaluate"})
         replacement = _tracker_ref(api)

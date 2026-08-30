@@ -615,7 +615,7 @@ describe('a cell reactivity left alone says so on the card', () => {
         cell: declined({ reason: 'too-expensive', estimateSeconds: 615, untimed: [] }),
         density: 'canvas' as const,
       },
-      global: { plugins: [ToastService] },
+      global: { plugins: [testRouter(), ToastService] },
     })
 
     expect(wrapper.text()).toContain('too expensive to refresh on its own')
@@ -629,7 +629,7 @@ describe('a cell reactivity left alone says so on the card', () => {
         cell: declined({ reason: 'never-timed', estimateSeconds: 0, untimed: ['train_model'] }),
         density: 'canvas' as const,
       },
-      global: { plugins: [ToastService] },
+      global: { plugins: [testRouter(), ToastService] },
     })
 
     expect(wrapper.text()).toContain('never run here, so its cost is unknown')
@@ -647,7 +647,7 @@ describe('a cell reactivity left alone says so on the card', () => {
         }),
         density: 'canvas' as const,
       },
-      global: { plugins: [ToastService] },
+      global: { plugins: [testRouter(), ToastService] },
     })
 
     expect(wrapper.text()).toContain('evaluate')
@@ -659,7 +659,7 @@ describe('a cell reactivity left alone says so on the card', () => {
   it('renders nothing at all when reactivity has no verdict to give', () => {
     const wrapper = mount(CellCard, {
       props: { cell: declined(undefined), density: 'canvas' as const },
-      global: { plugins: [ToastService] },
+      global: { plugins: [testRouter(), ToastService] },
     })
 
     expect(wrapper.text()).not.toContain('refresh on its own')

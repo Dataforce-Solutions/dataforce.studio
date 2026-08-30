@@ -214,7 +214,9 @@ describe('the comparison collapses a wide sweep', () => {
       },
     })
     const router = testRouter()
-    await router.push(`/flow/${encodeURIComponent(path)}/compare?branch=main&compare=main,exp/lr-3e4`)
+    await router.push(
+      `/flow/${encodeURIComponent(path)}/compare?branch=main&compare=main,exp/lr-3e4`,
+    )
     await router.isReady()
     const wrapper = mount(LiveCompare, {
       props: { session: live.session },
@@ -375,7 +377,7 @@ describe('the comparison collapses a wide sweep', () => {
     wrapper.unmount()
   })
 
-  it('lists what neither divergence shape covers, and what left the flow', async () => {
+  it('lists what neither divergence shape covers', async () => {
     const { wrapper } = await compare()
 
     // Absences and renames are exhaustive but secondary — behind a disclosure,
@@ -389,21 +391,60 @@ describe('the comparison collapses a wide sweep', () => {
     expect(wrapper.text()).toContain('summary')
     expect(wrapper.text()).toContain('not on exp/lr-3e4')
 
-    // Artifacts are the focused cell's outputs that leave the flow, in the word
-    // each was declared under — a `metric` the flow keeps inline is not one —
-    // and no link where no screen answers. Links are a follow-up action, so
-    // the section starts folded.
+    wrapper.unmount()
+  })
+
+  it('links each lane’s tracked experiment when available and badges it otherwise', async () => {
+    const branches = ['main', 'exp/lr-3e4']
+    const { wrapper } = await compare({
+      compared: branches,
+      handlers: {
+        'asset.preview': (params) => {
+          const branch = String(params.branch)
+          const missing = branch === 'exp/lr-3e4'
+          return {
+            flow: 'churn',
+            branch,
+            slug: 'train_model',
+            output: 'run',
+            state: 'synced',
+            kind: 'experiment',
+            size: 2048,
+            persisted: true,
+            preview: storedPreview('experiment', [
+              { block: 'markdown', text: '**metrics**' },
+              { block: 'kv', entries: { auc: missing ? 0.85 : 0.84 } },
+            ]),
+            tracker: {
+              id: missing ? 'experiment-shared' : 'experiment-main',
+              group: 'churn',
+              state: missing ? ('missing' as const) : ('ok' as const),
+              url: missing ? null : '/experiments/group-1/experiment-main',
+              store: '/tmp/experiments',
+              tags: ['main', 'train_model'],
+              sentence: missing
+                ? 'experiment `experiment-shared` was removed from tracker store `/tmp/experiments`.'
+                : '',
+              recorded_step: 12,
+            },
+          }
+        },
+      },
+    })
+
     await wrapper
       .findAll('[data-pc-name="accordionheader"]')
-      .find((header) => header.text().startsWith('Links'))!
+      .find((header) => header.text().startsWith('Experiments'))!
       .trigger('click')
     await settle()
-    const artifacts = wrapper.text().slice(wrapper.text().indexOf('Links'))
-    expect(artifacts).toContain('run · experiment')
-    expect(artifacts).toContain('model · model')
-    expect(artifacts).not.toContain('scores')
-    expect(artifacts).not.toContain('uploaded')
-    expect(wrapper.find('a[href="/experiments"]').exists()).toBe(false)
+
+    const experiments = wrapper.text().slice(wrapper.text().indexOf('Experiments'))
+    for (const branch of branches) expect(experiments).toContain(branch)
+    expect(experiments.match(/train_model\.run/g)).toHaveLength(2)
+    expect(experiments).not.toContain('ok')
+    expect(experiments).toContain('removed')
+    expect(wrapper.find('a[href="/experiments/group-1/experiment-main"]').exists()).toBe(true)
+    expect(wrapper.findAll('a').filter((link) => link.text() === 'train_model.run')).toHaveLength(1)
 
     wrapper.unmount()
   })

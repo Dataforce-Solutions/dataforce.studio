@@ -15,9 +15,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
+import { defineComponent } from 'vue'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { FlowApiError } from '@/flow/api/client'
-import type { CellDetail, CellSummary, StoredPreview } from '@/flow/api/types'
+import type { CellDetail, CellSummary, StoredPreview, TrackerExperiment } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import { NEWER_FORMAT_NOTE, previewFrom } from '@/flow/workbench/live/preview'
 import type { BlocksPreview, KvPreview } from '@/flow/workbench/model/types'
@@ -42,8 +44,10 @@ const TRAINED = ['model', 'run', 'checkpoint', 'curves']
 
 const PREVIEWS: Record<string, StoredPreview> = {
   run: storedPreview('experiment', [
+    { block: 'markdown', text: '**params**' },
+    { block: 'kv', entries: { lr: 0.0003 } },
     { block: 'markdown', text: '**metrics**' },
-    { block: 'kv', entries: { auc: 0.91 } },
+    { block: 'kv', entries: { auc: 0.91, loss: 0.17 } },
   ]),
   model: storedPreview('checkpoint', [{ block: 'kv', entries: { flavor: 'xgboost' } }]),
   checkpoint: storedPreview('file', [
@@ -60,6 +64,17 @@ const PREVIEWS: Record<string, StoredPreview> = {
       total_points: 2,
     },
   ]),
+}
+
+const TRACKER: TrackerExperiment = {
+  id: 'experiment-1',
+  group: 'churn',
+  state: 'ok',
+  url: '/experiments/group-1/experiment-1',
+  store: '/tmp/experiments',
+  tags: ['main', 'train_model'],
+  sentence: '',
+  recorded_step: 12,
 }
 
 function trainer(over: Partial<CellSummary> = {}): CellSummary {
@@ -89,6 +104,8 @@ interface Card {
   wrapper: VueWrapper
   live: Attached
 }
+
+const Empty = defineComponent({ template: '<div />' })
 
 async function card(
   options: {
@@ -122,11 +139,18 @@ async function card(
           size: 128,
           persisted: true,
           preview: PREVIEWS[output] ?? null,
+          tracker: summary.tracker,
         }
       },
       ...options.handlers,
     },
   })
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/:pathMatch(.*)*', component: Empty }],
+  })
+  await router.push('/')
+  await router.isReady()
   const wrapper = mount(LiveCellCard, {
     props: {
       session: live.session,
@@ -135,6 +159,7 @@ async function card(
       summary,
       density: options.density ?? 'canvas',
     },
+    global: { plugins: [router] },
   })
   await settle()
   return { wrapper, live }
@@ -181,6 +206,45 @@ describe('a cell with four outputs is one card', () => {
     // And exactly one preview was pulled: the card's face. Twenty cards each
     // fetching four payloads is what a canvas cannot afford.
     expect(asked(live, 'asset.preview').map((params) => params.target)).toEqual(['train_model.run'])
+    wrapper.unmount()
+  })
+
+  it('renders a tracked experiment from live data without inventing a metric direction', async () => {
+    const { wrapper } = await card({
+      summary: trainer({ tracker: TRACKER }),
+      detail: trainerDetail({ tracker: TRACKER }),
+    })
+
+    expect(wrapper.text()).toContain('train_model')
+    expect(wrapper.find('.text-3xl').text()).toBe('0.910')
+    expect(wrapper.text()).toContain('loss')
+    expect(wrapper.text()).toContain('lr=0.0003')
+    expect(wrapper.find(`a[href="${TRACKER.url}"]`).exists()).toBe(true)
+    expect(wrapper.find('.lucide-arrow-up, .lucide-arrow-down').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows the SDK version mismatch once on the card', async () => {
+    const warning = 'tracker SDK mismatch: daemon luml-sdk 0.4.0, project venv luml-sdk 0.5.0'
+    const { wrapper } = await card({ detail: trainerDetail({ sdk_version_warning: warning }) })
+
+    expect(wrapper.text().match(new RegExp(warning, 'g'))).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it("links a failed run's experiment from the logs tab", async () => {
+    const { wrapper } = await card({
+      summary: trainer({ state: 'failed', tracker: TRACKER }),
+      detail: trainerDetail({
+        state: 'failed',
+        tracker: TRACKER,
+        error: 'RuntimeError: training failed',
+      }),
+    })
+
+    await clickTab(wrapper, 'logs')
+
+    expect(wrapper.find(`a[href="${TRACKER.url}"]`).text()).toBe('open experiment in Experiments')
     wrapper.unmount()
   })
 
@@ -672,13 +736,34 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 
   it('downloads a stored value and says where it landed', async () => {
     const made = await card({
+      summary: trainer({
+        outputs: ['model'],
+        kinds: { model: 'model' },
+        primary: 'model',
+      }),
+      detail: trainerDetail({
+        outputs: ['model'],
+        kinds: { model: 'model' },
+        primary: 'model',
+        produces: { model: { type: 'model', kind: null, persist: true } },
+        materialized: [
+          {
+            name: 'model',
+            kind: 'checkpoint',
+            kind_source: 'matcher',
+            declared: 'model',
+            size: 128,
+            persisted: true,
+          },
+        ],
+      }),
       handlers: {
         'asset.download': () => ({
           slug: 'train_model',
-          output: 'run',
-          kind: 'experiment',
+          output: 'model',
+          kind: 'checkpoint',
           size: 128,
-          path: '/home/dana/project/train_model.run',
+          path: '/home/dana/project/train_model.model',
         }),
       },
     })
@@ -690,8 +775,77 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     download?.click()
     await settle()
 
-    expect(asked(made.live, 'asset.download')[0].target).toBe('train_model.run')
-    expect(document.body.textContent).toContain('saved to /home/dana/project/train_model.run')
+    expect(asked(made.live, 'asset.download')[0].target).toBe('train_model.model')
+    expect(document.body.textContent).toContain('saved to /home/dana/project/train_model.model')
+    made.wrapper.unmount()
+  })
+
+  it.each([
+    {
+      case: 'available experiment',
+      state: 'ok' as const,
+      url: TRACKER.url,
+      sentence: '',
+      line: null,
+    },
+    {
+      case: 'removed experiment',
+      state: 'missing' as const,
+      url: null,
+      sentence: '',
+      line: `the numbers below are what it recorded at step ${TRACKER.recorded_step}`,
+    },
+    {
+      case: 'experiment in a different store',
+      state: 'unreachable' as const,
+      url: null,
+      sentence: `experiment \`${TRACKER.id}\` was recorded in a different tracker store (\`${TRACKER.store}\`). stop the daemon (\`lumlflow daemon stop\`) and start \`lumlflow ui --path ${TRACKER.store}\` with that store, or run the cell again here.`,
+      line: `recorded in a different tracker store (\`${TRACKER.store}\`). stop the daemon`,
+    },
+    {
+      case: 'store written by an unreadable SDK',
+      state: 'unreachable' as const,
+      url: null,
+      sentence: `experiment \`${TRACKER.id}\` is unreachable in tracker store \`${TRACKER.store}\`: store schema was written by luml-sdk 99.0. upgrade lumlflow to read a store written by a newer SDK.`,
+      line: 'store schema was written by luml-sdk 99.0. upgrade lumlflow',
+    },
+  ])(
+    'shows the tracker state in the drawer for an $case',
+    async ({ state, url, sentence, line }) => {
+      const tracker = { ...TRACKER, state, url, sentence }
+      const made = await card({
+        summary: trainer({ tracker }),
+        detail: trainerDetail({ tracker }),
+      })
+
+      await expand(made)
+
+      const body = document.body.textContent ?? ''
+      if (line) expect(body).toContain(line)
+      if (state === 'missing') expect(body).toContain('removed')
+      if (url) {
+        expect(document.body.querySelector(`a[href="${url}"]`)).toBeTruthy()
+      } else {
+        expect(document.body.querySelector('a[href="#"]')).toBeNull()
+        expect(body).not.toContain('open in Experiments')
+      }
+      made.wrapper.unmount()
+    },
+  )
+
+  it('offers no download or export for an experiment', async () => {
+    const made = await card({
+      summary: trainer({ tracker: TRACKER }),
+      detail: trainerDetail({ tracker: TRACKER }),
+    })
+
+    await expand(made)
+
+    const actions = [...document.body.querySelectorAll('button')].map(
+      (button) => button.textContent ?? '',
+    )
+    expect(actions.some((label) => /download|export/i.test(label))).toBe(false)
+    expect(asked(made.live, 'asset.download')).toEqual([])
     made.wrapper.unmount()
   })
 
@@ -737,17 +891,18 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 
   it('offers no download for a value the cell declares it never keeps', async () => {
     const made = await card({
-      summary: trainer({ outputs: ['run'], primary: 'run' }),
+      summary: trainer({ outputs: ['model'], kinds: { model: 'model' }, primary: 'model' }),
       detail: trainerDetail({
-        outputs: ['run'],
-        primary: 'run',
-        produces: { run: { type: 'asset', kind: null, persist: false } },
+        outputs: ['model'],
+        kinds: { model: 'model' },
+        primary: 'model',
+        produces: { model: { type: 'model', kind: null, persist: false } },
         materialized: [
           {
-            name: 'run',
-            kind: 'experiment',
+            name: 'model',
+            kind: 'checkpoint',
             kind_source: 'matcher',
-            declared: 'asset',
+            declared: 'model',
             size: 0,
             persisted: false,
           },
@@ -836,9 +991,7 @@ describe('what the card holds keeps up with the journal', () => {
       base: 'definition-before-burst',
     })
 
-    releaseRefresh(
-      trainerDetail({ ...flagged, source, definition_hash: 'definition-after-burst' }),
-    )
+    releaseRefresh(trainerDetail({ ...flagged, source, definition_hash: 'definition-after-burst' }))
     await settle()
     made.wrapper.unmount()
   })

@@ -51,10 +51,22 @@ export function experimentPreview(
   return {
     type: 'experiment',
     runName,
-    mainMetric: { name: 'val_auc', value: auc, higherIsBetter: true },
+    mainMetric: { name: 'val_auc', value: auc },
+    metrics: [],
     config,
     curves: trainingCurves(auc),
-    trackerRef,
+    tracker: trackerRef
+      ? {
+          id: trackerRef,
+          group: 'churn',
+          state: 'ok',
+          url: '/experiments/churn/run',
+          store: 'experiments',
+          tags: ['main', 'train_model'],
+          sentence: '',
+          recorded_step: 22,
+        }
+      : undefined,
   }
 }
 

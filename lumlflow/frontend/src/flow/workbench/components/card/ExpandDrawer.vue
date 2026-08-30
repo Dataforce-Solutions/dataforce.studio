@@ -75,16 +75,25 @@
         </div>
       </div>
 
-      <a
-        v-if="hasExperiment"
-        href="#"
-        class="inline-flex items-center gap-1.5 text-base text-primary hover:underline self-start"
-      >
-        <ExternalLink :size="14" />
-        open in tracker
-      </a>
+      <div v-if="tracker" class="flex flex-col items-start gap-1.5 text-sm">
+        <div class="inline-flex items-center gap-2">
+          <TrackerStateBadge
+            v-if="!tracker.url && selectedOutput?.preview.type !== 'experiment'"
+            :state="tracker.state"
+          />
+          <RouterLink
+            v-if="tracker.url"
+            :to="tracker.url"
+            class="inline-flex items-center gap-1.5 text-base text-primary hover:underline"
+          >
+            <ExternalLink :size="14" />
+            open in Experiments
+          </RouterLink>
+        </div>
+        <p v-if="trackerStateLine" class="text-muted-color">{{ trackerStateLine }}</p>
+      </div>
 
-      <div class="flex flex-col gap-1.5">
+      <div v-if="!isExperiment" class="flex flex-col gap-1.5">
         <div class="flex items-center gap-2.5 flex-wrap">
           <Button
             v-if="!selectedOutput?.neverPersisted"
@@ -120,6 +129,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Button, Dialog, type DialogPassThroughOptions } from 'primevue'
 import { ChevronLeft, ChevronRight, Download, ExternalLink, Info, X } from 'lucide-vue-next'
 import { formatCost } from '../../model/format'
@@ -127,6 +137,7 @@ import { primaryOutput } from '../../model/registry'
 import { terminalText } from '../../model/terminal'
 import type { FlowCell, FramePreview, ParamValue, ValuePage } from '../../model/types'
 import { KIND_ICONS } from '../../ui/kinds'
+import TrackerStateBadge from '../../ui/TrackerStateBadge.vue'
 import RendererHost from '../../renderers/RendererHost.vue'
 import CellTabStrip, { type CellTab } from './CellTabStrip.vue'
 
@@ -282,11 +293,31 @@ const configEntries = computed<[string, string][]>(() => {
   ])
 })
 
-const hasExperiment = computed(() =>
-  props.cell.outputs.some(
-    (output) => output.kind === 'experiment' || output.preview.type === 'experiment',
-  ),
+const isExperiment = computed(
+  () =>
+    selectedOutput.value?.kind === 'experiment' ||
+    selectedOutput.value?.preview.type === 'experiment',
 )
+
+const tracker = computed(() => {
+  if (!isExperiment.value) return undefined
+  const preview = selectedOutput.value?.preview
+  return preview?.type === 'experiment'
+    ? (preview.tracker ?? props.cell.tracker)
+    : props.cell.tracker
+})
+
+const trackerStateLine = computed(() => {
+  const tracked = tracker.value
+  if (!tracked || tracked.state === 'ok') return ''
+  if (tracked.state === 'missing') {
+    const recorded = tracked.recorded_step
+      ? `the numbers below are what it recorded at step ${tracked.recorded_step}`
+      : 'the numbers below are what it recorded'
+    return `${recorded}. run ${props.cell.slug} to record it again.`
+  }
+  return tracked.sentence
+})
 
 const renderedLogs = computed(() => terminalText(props.cell.logs ?? '').trimEnd())
 

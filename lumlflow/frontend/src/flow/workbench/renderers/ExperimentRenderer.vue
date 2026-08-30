@@ -1,27 +1,37 @@
 <template>
-  <div class="flex flex-col gap-2.5 min-w-0">
+  <div
+    class="flex flex-col gap-2.5 min-w-0"
+    :class="preview.tracker && preview.tracker.state !== 'ok' ? 'opacity-60' : ''"
+  >
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
       <span class="font-mono text-base truncate">{{ preview.runName }}</span>
-      <a v-if="preview.trackerRef" class="link text-sm whitespace-nowrap" href="/experiments">
-        {{ preview.trackerRef }}
-      </a>
+      <RouterLink
+        v-if="preview.tracker?.url"
+        class="link text-sm whitespace-nowrap"
+        :to="preview.tracker.url"
+      >
+        open in Experiments
+      </RouterLink>
+      <TrackerStateBadge v-else-if="preview.tracker" :state="preview.tracker.state" />
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div v-if="preview.mainMetric" class="flex flex-col gap-1">
+      <span class="text-sm text-muted-color">metrics</span>
       <span
         class="font-medium tabular-nums leading-none"
         :class="density === 'drawer' ? 'text-4xl' : 'text-3xl'"
       >
         {{ formatMetric(preview.mainMetric.value) }}
       </span>
-      <span class="inline-flex items-center gap-1 text-sm text-muted-color">
-        <component
-          :is="preview.mainMetric.higherIsBetter ? ArrowUp : ArrowDown"
-          v-tooltip.top="preview.mainMetric.higherIsBetter ? 'higher is better' : 'lower is better'"
-          :size="14"
-        />
-        <span>{{ preview.mainMetric.name }}</span>
-      </span>
+      <span class="text-sm text-muted-color">{{ preview.mainMetric.name }}</span>
+    </div>
+    <p v-else class="text-sm text-muted-color">no metrics recorded</p>
+
+    <div v-if="preview.metrics.length" class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+      <template v-for="metric in preview.metrics" :key="metric.name">
+        <span class="font-mono text-muted-color">{{ metric.name }}</span>
+        <span class="font-mono tabular-nums">{{ formatMetric(metric.value) }}</span>
+      </template>
     </div>
 
     <div v-if="configChips.length" class="flex flex-wrap gap-1.5">
@@ -45,9 +55,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowDown, ArrowUp } from 'lucide-vue-next'
+import { RouterLink } from 'vue-router'
 import { formatMetric } from '../model/format'
 import type { ExperimentPreview } from '../model/types'
+import TrackerStateBadge from '../ui/TrackerStateBadge.vue'
 import MiniChart from './MiniChart.vue'
 import { chartHeight, formatParam, type RenderDensity } from './shared'
 

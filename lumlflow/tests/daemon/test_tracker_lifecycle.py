@@ -97,15 +97,35 @@ async def test_materialized_experiment_records_identity_and_tracker_ref(
         (version,) = session.store.index.slice_versions(
             session.store.branches.get("main").branch_id
         ).values()
+        listed = await api.cells_list({"flow": "churn"})
+        shown = await api.cells_show({"flow": "churn", "slug": "evaluate"})
+        previewed = await api.asset_preview(
+            {"flow": "churn", "target": "evaluate.metrics"}
+        )
 
     experiment = _only_experiment(tracker)
     identity = experiment.metadata["lumlflow"]
+    tracker_view = {
+        "id": experiment.id,
+        "group": "churn",
+        "state": "ok",
+        "url": f"/experiments/{experiment.group_id}/{experiment.id}",
+        "store": str(tracker.store_path),
+        "tags": ["main", "evaluate"],
+        "sentence": "",
+        "recorded_step": run.finished_step,
+    }
     assert outcome["executed"] == ["evaluate"]
     assert run.experiment_id == experiment.id
     assert run.experiment_store == str(tracker.store_path)
     assert run.outputs["metrics"].tracker_ref is not None
     assert run.outputs["metrics"].tracker_ref.experiment_id == experiment.id
+    assert run.outputs["metrics"].tracker_ref.group == "churn"
     assert run.outputs["metrics"].tracker_ref.store == str(tracker.store_path)
+    assert run.outputs["metrics"].tracker_ref.tags == ["main", "evaluate"]
+    assert listed["cells"][0]["tracker"] == tracker_view
+    assert shown["tracker"] == tracker_view
+    assert previewed["tracker"] == tracker_view
     assert identity == {
         "flow": "churn",
         "flow_id": session.store.manifest.flow_id,
@@ -140,7 +160,13 @@ async def test_failed_run_and_cell_show_keep_the_experiment_id(
     assert run.experiment_store == str(tracker.store_path)
     assert shown["tracker"] == {
         "id": experiment.id,
+        "group": "churn",
+        "state": "ok",
+        "url": f"/experiments/{experiment.group_id}/{experiment.id}",
         "store": str(tracker.store_path),
+        "tags": ["main", "evaluate"],
+        "sentence": "",
+        "recorded_step": run.finished_step,
     }
     assert experiment.status == "error"
 
@@ -303,6 +329,7 @@ async def test_experiment_memo_hit_creates_nothing_and_reuses_the_ref(
     assert run.outputs["metrics"].tracker_ref is not None
     assert run.outputs["metrics"].tracker_ref.experiment_id == experiment.id
     assert shown["tracker"]["id"] == experiment.id
+    assert shown["tracker"]["tags"] == ["main", "evaluate"]
 
 
 async def test_identical_experiment_snapshots_keep_consumers_synced(

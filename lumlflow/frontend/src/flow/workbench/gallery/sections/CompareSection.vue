@@ -48,10 +48,10 @@
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Links"
-      caption="The fallback chain: experiment → the tracker experiment screen, model → the model card, dataset → the dataset view, anything else → the main metric."
+      title="Experiments"
+      caption="Each lane's tracked experiment links to Experiments while it is available and keeps its state badge when it is not."
     >
-      <ArtifactLinks :artifacts="sweepCompare.artifacts" />
+      <ArtifactLinks :links="sweepCompare.trackerLinks" />
     </GallerySpecimen>
 
     <GallerySpecimen

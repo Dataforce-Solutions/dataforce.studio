@@ -437,7 +437,12 @@ class RunQueue:
                 if record.value_ref
             ],
         )
-        outputs = _recorded_outputs(step, result)
+        outputs = _recorded_outputs(
+            step,
+            result,
+            group=self._store.manifest.name,
+            branch=plan.branch,
+        )
         self._store.commit(
             [
                 RunRecorded(
@@ -595,13 +600,21 @@ def _validate_experiment_outputs(plan: Plan) -> None:
             )
 
 
-def _recorded_outputs(step: Step, result: RunResult) -> dict[str, OutputRecord]:
+def _recorded_outputs(
+    step: Step,
+    result: RunResult,
+    *,
+    group: str,
+    branch: str,
+) -> dict[str, OutputRecord]:
     records = dict(result.outputs)
     if result.experiment_id is None or result.experiment_store is None:
         return records
     tracker_ref = TrackerRef(
         experiment_id=result.experiment_id,
+        group=group,
         store=result.experiment_store,
+        tags=[branch, step.slug],
     )
     for name, spec in step.version.manifest.produces.items():
         if spec.type == "experiment" and name in records:

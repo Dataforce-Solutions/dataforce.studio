@@ -20,6 +20,7 @@ from functools import cached_property
 from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import quote
 
 from luml import __version__ as SDK_VERSION
 
@@ -328,7 +329,9 @@ def cells(
         "flow": session.ref.name,
         "branch": branch,
         "cells": [
-            cell(here, uid) | ({"uid": uid} if include_uid else {})
+            cell(here, uid)
+            | {"tracker": _cell_tracker(session, here, uid)}
+            | ({"uid": uid} if include_uid else {})
             for uid in here.ordered()
             if not unsynced or not here.verdicts[uid].synced
         ],
@@ -360,7 +363,7 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
             for name, spec in version.manifest.produces.items()
         },
         "materialized": _outputs(mat, version),
-        "tracker": _run_tracker(mat),
+        "tracker": _cell_tracker(session, here, uid),
         "sdk_version_warning": (mat.sdk_version_warning if mat is not None else None),
         "error": failure(session, mat),
         # Who wrote the version that broke, which need not be whoever wrote the
@@ -557,6 +560,14 @@ def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
     """
     here = read(session, branch)
     slug, output, record = locate(here, target)
+    uid = here.uid_of(slug)
+    version = here.versions[uid]
+    mat = here.mats.get(uid)
+    tracker = (
+        _materialization_tracker(session, mat, record)
+        if version.manifest.produces[output].type == "experiment"
+        else None
+    )
     return {
         "flow": session.ref.name,
         "branch": branch,
@@ -567,6 +578,7 @@ def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
         "size": record.size if record is not None else None,
         "persisted": record.persisted if record is not None else None,
         "preview": _preview(session, record),
+        "tracker": tracker,
     }
 
 
@@ -937,10 +949,68 @@ def _outputs(
     ]
 
 
-def _run_tracker(mat: MaterializationRow | None) -> dict[str, str] | None:
-    if mat is None or mat.experiment_id is None or mat.experiment_store is None:
+def _materialization_tracker(
+    session: "FlowSession",
+    mat: MaterializationRow | None,
+    output: OutputRecord | None = None,
+) -> dict[str, Any] | None:
+    if mat is None:
         return None
-    return {"id": mat.experiment_id, "store": mat.experiment_store}
+    ref = output.tracker_ref if output is not None else None
+    if ref is None:
+        ref = next(
+            (
+                record.tracker_ref
+                for record in mat.outputs.values()
+                if record.tracker_ref is not None
+            ),
+            None,
+        )
+    if ref is None:
+        if mat.experiment_id is None or mat.experiment_store is None:
+            return None
+        branch = session.store.index.branch_by_id(mat.branch_id)
+        version = session.store.index.version(mat.version_id)
+        ref = TrackerRef(
+            experiment_id=mat.experiment_id,
+            group=session.ref.name,
+            store=mat.experiment_store,
+            tags=[
+                branch.name if branch is not None else "",
+                version.slug if version is not None else "",
+            ],
+        )
+    state = experiment_state(session, ref)
+    record = state.record
+    group = str(getattr(record, "group_name", None) or ref.group)
+    group_id = getattr(record, "group_id", None)
+    url = None
+    if state.state == "ok" and group_id:
+        url = (
+            f"/experiments/{quote(str(group_id), safe='')}"
+            f"/{quote(ref.experiment_id, safe='')}"
+        )
+    return {
+        "id": ref.experiment_id,
+        "group": group,
+        "state": state.state,
+        "url": url,
+        "store": ref.store,
+        "tags": [tag for tag in ref.tags if tag],
+        "sentence": state.sentence,
+        "recorded_step": mat.finished_step or mat.started_step,
+    }
+
+
+def _cell_tracker(
+    session: "FlowSession", here: Slice, uid: str
+) -> dict[str, Any] | None:
+    version = here.versions[uid]
+    if not any(
+        spec.type == "experiment" for spec in version.manifest.produces.values()
+    ):
+        return None
+    return _materialization_tracker(session, here.mats.get(uid))
 
 
 def _failures(

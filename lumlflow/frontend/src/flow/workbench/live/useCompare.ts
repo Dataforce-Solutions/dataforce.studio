@@ -19,20 +19,19 @@
  * measured; the reader picks the winner and the adopt bar carries it out.
  */
 
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
 import type {
+  AssetView,
   BranchDiff,
   BranchRecord,
-  DiffSide,
   DiffVersionSide,
   StaleState,
-  StoredPreview,
 } from '@/flow/api/types'
 import type {
-  CompareArtifactLink,
   CompareBranchColumn,
+  CompareTrackerLink,
   CompareView,
   DefinitionDivergence,
   MaterializationRow,
@@ -63,11 +62,8 @@ const EMPTY: CompareView = {
   materializationRows: [],
   shapelessDifferences: [],
   warnings: [],
-  artifacts: [],
+  trackerLinks: [],
 }
-
-/** What leaves the flow, and therefore what a tracker screen could hold. */
-const NATIVE = new Set(['experiment', 'model', 'dataset'])
 
 export function useCompare(
   session: FlowSessionHandle,
@@ -76,7 +72,7 @@ export function useCompare(
 ): CompareHandle {
   const diff = shallowRef<BranchDiff | null>(null)
   const records = ref<BranchRecord[]>([])
-  const previews = shallowRef<Record<string, StoredPreview | null>>({})
+  const views = shallowRef<Record<string, AssetView | null>>({})
   /** Which asset the previews in hand are of — none, until a read lands. */
   const shown = ref<string | null>(null)
   const loading = ref(false)
@@ -141,7 +137,7 @@ export function useCompare(
     const generation = (read += 1)
     const target = focused.value
     if (!target) {
-      previews.value = {}
+      views.value = {}
       shown.value = null
       return
     }
@@ -150,7 +146,7 @@ export function useCompare(
       branches.value.map(async (branch) => {
         try {
           const view = await session.request('asset.preview', { flow, branch, target })
-          return [branch, view.preview] as const
+          return [branch, view] as const
         } catch {
           // A branch that does not carry the cell is not a failed comparison —
           // the shapeless table is where that difference is already reported.
@@ -161,7 +157,7 @@ export function useCompare(
     // Columns of one asset beside a heading naming another is the one way this
     // screen could mislead outright; a superseded read is dropped instead.
     if (generation !== read) return
-    previews.value = Object.fromEntries(answers)
+    views.value = Object.fromEntries(answers)
     shown.value = target
   }
 
@@ -175,7 +171,7 @@ export function useCompare(
       records.value.map((record) => [record.branch, record.last_intent?.settled ?? false]),
     )
     const columns = compared.branches.map((branch) =>
-      column(branch, previews.value[branch] ?? null, settled.get(branch) ?? false),
+      column(branch, views.value[branch]?.preview ?? null, settled.get(branch) ?? false),
     )
     return {
       branches: columns,
@@ -188,9 +184,16 @@ export function useCompare(
         message: warning.message,
         affectedBranches: warning.branches,
       })),
-      artifacts: artifacts(compared, focused.value),
+      trackerLinks: trackerLinks(compared.branches, views.value),
     }
   })
+
+  const stopState = session.onState((frame) => {
+    if (frame.state !== 'experiment_removed') return
+    if (frame.lane && !branches.value.includes(frame.lane)) return
+    void loadPreviews()
+  })
+  if (getCurrentScope()) onScopeDispose(stopState)
 
   return {
     compare,
@@ -230,10 +233,31 @@ const SECTION = /^\*\*(.+)\*\*$/
  */
 function column(
   branch: string,
-  stored: StoredPreview | null,
+  stored: AssetView['preview'],
   settled: boolean,
 ): CompareBranchColumn {
   const preview = previewFrom(stored)
+  if (preview.type === 'experiment') {
+    const recorded = [preview.mainMetric, ...preview.metrics].filter(
+      (metric): metric is NonNullable<typeof metric> => metric !== undefined,
+    )
+    const scores = Object.fromEntries(
+      recorded.flatMap((metric) =>
+        typeof metric.value === 'number' ? [[metric.name, metric.value]] : [],
+      ),
+    )
+    return {
+      branch,
+      headlineMetric:
+        recorded.length === 1 && typeof recorded[0].value === 'number'
+          ? { name: recorded[0].name, value: recorded[0].value }
+          : undefined,
+      scores,
+      curve: preview.curves.find((curve) => curve.points.length),
+      settled,
+      heldKind: 'experiment',
+    }
+  }
   const sections = new Map<string, Record<string, number>>()
   let section = ''
   let curve: CompareBranchColumn['curve']
@@ -346,33 +370,22 @@ function shapeless(entry: BranchDiff['shapeless'][number]): ShapelessDifference 
   }
 }
 
-// --- what left the flow -----------------------------------------------------
-
-/**
- * The focused asset's outputs that leave the flow, and where each branch's
- * stands. There is no artifact screen to open from here, so the row says what
- * it is; a link that went nowhere would be worse than the sentence.
- */
-function artifacts(compared: BranchDiff, slug: string | null): CompareArtifactLink[] {
-  if (slug === null) return []
-  const sides: DiffSide[] =
-    compared.definition.find((entry) => entry.slug === slug)?.versions ??
-    compared.materialization.find((entry) => entry.slug === slug)?.results ??
-    []
-  const kinds = new Map<string, string>()
-  for (const side of sides) {
-    for (const output of side.outputs) {
-      if (NATIVE.has(output.declared)) kinds.set(output.name, output.declared)
-    }
-  }
-  return [...kinds].map(([output, kind]) => ({
-    slug,
-    output,
-    kind: kind as CompareArtifactLink['kind'],
-    // What it is, in the four-word vocabulary the cell declared it under.
-    label: `${output} · ${kind}`,
-    href: '',
-  }))
+function trackerLinks(
+  branches: string[],
+  views: Record<string, AssetView | null>,
+): CompareTrackerLink[] {
+  return branches.flatMap((branch) => {
+    const view = views[branch]
+    if (!view?.tracker) return []
+    return [
+      {
+        branch,
+        slug: view.slug,
+        output: view.output,
+        tracker: view.tracker,
+      },
+    ]
+  })
 }
 
 function params(declared: Record<string, unknown>): Record<string, ParamValue> {

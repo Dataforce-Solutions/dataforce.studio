@@ -88,10 +88,10 @@
         </AccordionContent>
       </AccordionPanel>
 
-      <AccordionPanel v-if="compare.artifacts.length" value="artifacts">
-        <AccordionHeader><span class="text-lg">Links</span></AccordionHeader>
+      <AccordionPanel v-if="compare.trackerLinks.length" value="experiments">
+        <AccordionHeader><span class="text-lg">Experiments</span></AccordionHeader>
         <AccordionContent>
-          <ArtifactLinks :artifacts="compare.artifacts" />
+          <ArtifactLinks :links="compare.trackerLinks" />
         </AccordionContent>
       </AccordionPanel>
     </Accordion>

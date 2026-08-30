@@ -161,6 +161,16 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   // transaction that moved it, so the head watcher above does not cover this.
   watch(() => [summary.value.state, summary.value.primary, summary.value.note] as const, pull)
 
+  watch(
+    () => summary.value.tracker?.state,
+    () => {
+      generation += 1
+      detailGeneration = -1
+      previews.value = new Map()
+      pull()
+    },
+  )
+
   watch(showing, () => {
     // A window read out of one output says nothing about the next one.
     const shown = shownOutput()
@@ -192,7 +202,10 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
         }),
       )
       if (view && current(here)) {
-        previews.value = new Map(previews.value).set(wanted, previewFrom(view.preview))
+        previews.value = new Map(previews.value).set(
+          wanted,
+          previewFrom(view.preview, { runName: view.slug, tracker: view.tracker }),
+        )
       }
     }
     if ((showing.value === 'logs' || wantsLogs.value) && logs.value === null) {
@@ -365,6 +378,8 @@ export function build(facts: CellFacts): FlowCell {
     externalInput: summary.external || undefined,
     eager: summary.eager || undefined,
     autoDeclined: declined(summary),
+    tracker: summary.tracker ?? detail?.tracker ?? undefined,
+    sdkVersionWarning: detail?.sdk_version_warning ?? undefined,
     isNote: summary.note,
   }
 }

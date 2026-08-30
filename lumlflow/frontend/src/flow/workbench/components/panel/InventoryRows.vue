@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { TrackerExperimentState } from '@/flow/api/types'
 import type { AssetKind, CellStatus, StaleInfo } from '../../model/types'
 
 /** One lens row: always addressed by the producing cell's slug. */
@@ -14,14 +15,17 @@ export interface InventoryRow {
   stale?: StaleInfo
   /** volatility: external — the store cannot know when its bytes change. */
   external?: boolean
+  trackerState?: TrackerExperimentState
+  tags?: string[]
 }
 </script>
 
 <script setup lang="ts">
-import { Button } from 'primevue'
+import { Button, Tag } from 'primevue'
 import KindBadge from '../../ui/KindBadge.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
 import StatusChip from '../../ui/StatusChip.vue'
+import TrackerStateBadge from '../../ui/TrackerStateBadge.vue'
 
 defineProps<{ rows: InventoryRow[] }>()
 
@@ -46,6 +50,13 @@ const ROW_PT = { root: { class: 'w-full justify-start gap-2.5 px-1.5 py-1.5 font
           {{ row.title }}
         </span>
         <MetaBadge v-if="row.external" variant="external" />
+        <Tag
+          v-for="tag in row.tags"
+          :key="tag"
+          :value="tag"
+          severity="secondary"
+          :pt="{ root: { class: 'text-sm font-normal px-1.5 py-0' } }"
+        />
         <span class="ml-auto" />
         <span v-if="row.detail" class="shrink-0 font-mono text-sm text-muted-color">
           {{ row.detail }}
@@ -57,6 +68,7 @@ const ROW_PT = { root: { class: 'w-full justify-start gap-2.5 px-1.5 py-1.5 font
           :stale="row.stale"
           compact
         />
+        <TrackerStateBadge v-if="row.trackerState" :state="row.trackerState" />
       </Button>
     </li>
   </ul>

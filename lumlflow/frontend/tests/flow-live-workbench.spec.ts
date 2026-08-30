@@ -20,7 +20,7 @@ import { Toast } from 'primevue'
 import ToastService from 'primevue/toastservice'
 
 import { FlowApiError, type EnvReport } from '@/flow/api/client'
-import type { BranchRecord, CellSummary } from '@/flow/api/types'
+import type { BranchRecord, CellSummary, TrackerExperiment } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import FlowCanvas from '@/flow/workbench/components/canvas/FlowCanvas.vue'
 import LiveWorkbench from '@/flow/workbench/pages/LiveWorkbench.vue'
@@ -651,6 +651,113 @@ describe('the left panel is scoped to the viewed branch', () => {
     wrapper.unmount()
   })
 
+  it('lists a memo-hit experiment with its recording lane and reacts to deletion', async () => {
+    let trackerState: TrackerExperiment['state'] = 'ok'
+    const tracker = (): TrackerExperiment => ({
+      id: 'experiment-main',
+      group: 'churn',
+      state: trackerState,
+      url: trackerState === 'ok' ? '/experiments/group-1/experiment-main' : null,
+      store: '/tmp/experiments',
+      tags: ['main', 'evaluate'],
+      sentence:
+        trackerState === 'ok'
+          ? ''
+          : 'experiment `experiment-main` was removed from tracker store `/tmp/experiments`.',
+      recorded_step: 14,
+    })
+    const trackedCell = (branch: string): CellSummary =>
+      cellSummary('evaluate', {
+        outputs: ['metrics'],
+        kinds: { metrics: 'experiment' },
+        primary: 'metrics',
+        reused: branch !== 'main',
+        tracker: tracker(),
+      })
+    const handlers: Handlers = {
+      'cells.list': (params) => {
+        const branch = String(params.branch)
+        return { flow: 'churn', branch, cells: [trackedCell(branch)] }
+      },
+      'cells.show': (params) => {
+        const branch = String(params.branch)
+        return cellDetail('evaluate', {
+          ...trackedCell(branch),
+          branch,
+          produces: { metrics: { type: 'experiment', kind: null, persist: true } },
+          materialized: [
+            {
+              name: 'metrics',
+              kind: 'experiment',
+              kind_source: 'declared',
+              declared: 'experiment',
+              size: 256,
+              persisted: true,
+            },
+          ],
+        })
+      },
+      'asset.preview': (params) => ({
+        flow: 'churn',
+        branch: String(params.branch),
+        slug: 'evaluate',
+        output: 'metrics',
+        state: 'synced',
+        kind: 'experiment',
+        size: 256,
+        persisted: true,
+        preview: storedPreview('experiment', [
+          { block: 'markdown', text: '**metrics**' },
+          { block: 'kv', entries: { rmse: 0.22 } },
+        ]),
+        tracker: tracker(),
+      }),
+    }
+
+    const main = await workbench({ handlers })
+    const mainBefore = await lens(main.wrapper, 'experiments')
+    expect(mainBefore.match(/evaluate\.metrics/g)).toHaveLength(1)
+    expect(mainBefore).toContain('main')
+    expect(mainBefore).toContain('ok')
+    main.wrapper.unmount()
+
+    const memoHit = await workbench({
+      at: `/flow/${FLOW}?branch=exp%2Flr-sweep`,
+      handlers,
+    })
+    const hitBefore = await lens(memoHit.wrapper, 'experiments')
+    expect(hitBefore.match(/evaluate\.metrics/g)).toHaveLength(1)
+    expect(hitBefore).toContain('main')
+    expect(hitBefore).toContain('ok')
+
+    trackerState = 'missing'
+    memoHit.live.socket.deliver({
+      channel: 'journal',
+      type: 'state',
+      flow: FLOW,
+      lane: 'exp/lr-sweep',
+      cell: 'evaluate',
+      state: 'experiment_removed',
+      step: 14,
+    })
+    await settle()
+
+    const hitAfter = await lens(memoHit.wrapper, 'experiments')
+    expect(hitAfter.match(/evaluate\.metrics/g)).toHaveLength(1)
+    expect(hitAfter).toContain('main')
+    expect(hitAfter).toContain('removed')
+    expect(cardFor(memoHit.wrapper, 'evaluate')).toContain('removed')
+    expect(liveCard(memoHit.wrapper, 'evaluate').find('.opacity-60').exists()).toBe(true)
+    memoHit.wrapper.unmount()
+
+    const mainAfterDelete = await workbench({ handlers })
+    const mainAfter = await lens(mainAfterDelete.wrapper, 'experiments')
+    expect(mainAfter.match(/evaluate\.metrics/g)).toHaveLength(1)
+    expect(mainAfter).toContain('main')
+    expect(mainAfter).toContain('removed')
+    mainAfterDelete.wrapper.unmount()
+  })
+
   it('shows the intents of the viewed branch, and the workspace ones under it', async () => {
     const { wrapper, live } = await workbench()
 
@@ -786,9 +893,7 @@ describe('the left panel is scoped to the viewed branch', () => {
     await clickText(wrapper, 'button[aria-label^="Open the lane map"]', '')
     await clickBranchVerb('exp/lr-sweep', 'use here')
 
-    expect(asked(live, 'switch')).toEqual([
-      expect.objectContaining({ branch: 'exp/lr-sweep' }),
-    ])
+    expect(asked(live, 'switch')).toEqual([expect.objectContaining({ branch: 'exp/lr-sweep' })])
     expect(asked(live, 'switch')[0]).not.toHaveProperty('force')
     wrapper.unmount()
   })

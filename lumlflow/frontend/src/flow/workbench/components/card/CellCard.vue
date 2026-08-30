@@ -102,6 +102,14 @@
         <span>{{ autoLine }}</span>
       </p>
 
+      <p
+        v-if="cell.sdkVersionWarning"
+        class="flex items-start gap-1.5 text-sm text-(--p-message-warn-color)"
+      >
+        <TriangleAlert :size="14" class="mt-0.5 shrink-0" />
+        <span>{{ cell.sdkVersionWarning }}</span>
+      </p>
+
       <ConflictMenu v-if="cell.conflict" @resolve="emit('resolve-conflict', $event)" />
 
       <Message v-if="loudError" severity="error" size="small">
@@ -134,7 +142,12 @@
           @edit-start="emit('edit-start')"
         />
         <ConsoleView v-else-if="activeTab === 'console'" :lines="cell.console ?? []" />
-        <LogsView v-else-if="activeTab === 'logs'" :logs="cell.logs" :error="cell.error" />
+        <LogsView
+          v-else-if="activeTab === 'logs'"
+          :logs="cell.logs"
+          :error="cell.error"
+          :tracker="cell.tracker"
+        />
 
         <!-- Demoted agent failure, notebook density only: code is the subject, so
              the summary may sit under it — quiet, no red wash. -->

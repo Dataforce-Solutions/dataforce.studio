@@ -80,6 +80,8 @@ class InputRef(_Frozen):
 class TrackerRef(_Frozen):
     experiment_id: str
     store: str
+    group: str = ""
+    tags: list[str] = Field(default_factory=list)
 
 
 class OutputRecord(_Frozen):

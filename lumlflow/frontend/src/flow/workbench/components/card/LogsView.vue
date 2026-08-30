@@ -1,5 +1,8 @@
 <template>
   <div class="flex flex-col gap-2">
+    <RouterLink v-if="tracker?.url" :to="tracker.url" class="link text-sm self-start">
+      open experiment in Experiments
+    </RouterLink>
     <pre v-if="renderedLogs" :class="blockClass">{{ renderedLogs }}</pre>
     <p v-else class="text-sm text-muted-color">no logs</p>
     <template v-if="error">
@@ -11,6 +14,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import type { TrackerExperiment } from '@/flow/api/types'
 import type { CellErrorInfo } from '../../model/types'
 import { terminalText } from '../../model/terminal'
 
@@ -19,7 +24,11 @@ import { terminalText } from '../../model/terminal'
  * previous run's output (the live stream is the console tab). Tracebacks land
  * here for every failure — demotion hides them from the card face, not from logs.
  */
-const props = defineProps<{ logs?: string; error?: CellErrorInfo }>()
+const props = defineProps<{
+  logs?: string
+  error?: CellErrorInfo
+  tracker?: TrackerExperiment
+}>()
 
 const renderedLogs = computed(() => terminalText(props.logs ?? '').trimEnd())
 

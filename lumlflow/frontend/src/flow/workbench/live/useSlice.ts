@@ -83,7 +83,7 @@ export function useSlice(
   }
 
   const stopState = session.onState((frame) => {
-    if (frame.state !== 'order_changed') return
+    if (frame.state !== 'order_changed' && frame.state !== 'experiment_removed') return
     cached.clear()
     const name = branch.value
     if (name) void load(name, true)

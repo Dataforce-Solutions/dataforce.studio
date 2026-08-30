@@ -85,10 +85,7 @@
             </span>
           </AccordionHeader>
           <AccordionContent :pt="CONTENT_PT">
-            <PackagesPanel
-              :env="env"
-              @restart-kernel="emit('restart-kernel')"
-            />
+            <PackagesPanel :env="env" @restart-kernel="emit('restart-kernel')" />
           </AccordionContent>
         </AccordionPanel>
 
@@ -222,7 +219,7 @@ const cellRows = computed<InventoryRow[]>(() =>
  * one has been read, but a lens that waited for previews would list nothing
  * until every card on the branch had fetched its payload.
  */
-function lensRows(kind: 'experiment' | 'model' | 'dataset'): InventoryRow[] {
+function lensRows(kind: 'model' | 'dataset'): InventoryRow[] {
   return props.cells.flatMap((cell) =>
     cell.outputs
       .filter((output) => output.kind === kind)
@@ -230,9 +227,8 @@ function lensRows(kind: 'experiment' | 'model' | 'dataset'): InventoryRow[] {
         key: `${cell.slug}.${output.name}`,
         slug: cell.slug,
         kind,
-        title: titleOf(cell, output),
-        // Addresses are mono; a run's own name is prose the author chose.
-        mono: output.preview.type !== 'experiment',
+        title: `${cell.slug}.${output.name}`,
+        mono: true,
         detail: detailOf(output),
         // Reading outside the store is a fact about an input, and the badge
         // belongs to the lens that is about inputs.
@@ -241,24 +237,30 @@ function lensRows(kind: 'experiment' | 'model' | 'dataset'): InventoryRow[] {
   )
 }
 
-/** An experiment names its run; everything else is addressed as `slug.output`. */
-function titleOf(cell: FlowCell, output: CellOutput): string {
-  if (output.preview.type === 'experiment') return output.preview.runName
-  return `${cell.slug}.${output.name}`
-}
-
 /** The headline number, when a preview has been read and carries one. */
 function detailOf(output: CellOutput): string | undefined {
-  const metric =
-    output.preview.type === 'experiment'
-      ? output.preview.mainMetric
-      : output.preview.type === 'model'
-        ? output.preview.headlineMetric
-        : undefined
+  const metric = output.preview.type === 'model' ? output.preview.headlineMetric : undefined
   return metric ? `${metric.name} ${formatMetric(metric.value)}` : undefined
 }
 
-const experimentRows = computed<InventoryRow[]>(() => lensRows('experiment'))
+const experimentRows = computed<InventoryRow[]>(() =>
+  props.cells.flatMap((cell) => {
+    const tracker = cell.tracker
+    const output = cell.outputs.find((candidate) => candidate.kind === 'experiment')
+    if (!tracker || !output) return []
+    return [
+      {
+        key: `${cell.slug}.${output.name}.${tracker.id}`,
+        slug: cell.slug,
+        kind: 'experiment' as const,
+        title: `${cell.slug}.${output.name}`,
+        mono: true,
+        trackerState: tracker.state,
+        tags: tracker.tags.slice(0, 1),
+      },
+    ]
+  }),
+)
 
 const modelRows = computed<InventoryRow[]>(() => lensRows('model'))
 

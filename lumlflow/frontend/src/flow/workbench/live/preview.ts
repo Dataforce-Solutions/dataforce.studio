@@ -14,15 +14,17 @@
  * nobody measured.
  */
 
-import type { StoredPreview } from '@/flow/api/types'
+import type { StoredPreview, TrackerExperiment } from '@/flow/api/types'
 import type {
   AssetKind,
   BlocksPreview,
+  ExperimentPreview,
   KvPreview,
   ParamValue,
   PreviewBlock,
   PreviewValue,
 } from '../model/types'
+import type { MetricValue } from '../model/format'
 
 /** The envelope version this build renders block for block. */
 export const PREVIEW_SCHEMA = 1
@@ -50,12 +52,53 @@ export function assetKindOf(kind: string | null | undefined): AssetKind {
   return (kind && KINDS[kind]) || 'unknown'
 }
 
-export function previewFrom(stored: StoredPreview | null | undefined): PreviewValue {
+export interface PreviewContext {
+  runName?: string
+  tracker?: TrackerExperiment | null
+}
+
+export function previewFrom(
+  stored: StoredPreview | null | undefined,
+  context: PreviewContext = {},
+): PreviewValue {
   const kind = assetKindOf(stored?.kind)
   if (!stored || !Array.isArray(stored.blocks)) return empty(kind)
   if (!(stored.schema <= PREVIEW_SCHEMA)) return newerFormat(stored)
   const blocks = stored.blocks.map(readBlock).filter((block): block is PreviewBlock => !!block)
+  if (kind === 'experiment') return experimentFrom(blocks, context)
   return { type: 'blocks', kind, blocks, truncated: stored.truncated }
+}
+
+const SECTION = /^\*\*(params|metrics)\*\*$/
+
+function experimentFrom(blocks: PreviewBlock[], context: PreviewContext): ExperimentPreview {
+  const sections = new Map<string, Record<string, ParamValue>>()
+  let section = ''
+  for (const block of blocks) {
+    if (block.block === 'markdown') {
+      section = SECTION.exec(block.text.trim())?.[1] ?? section
+    } else if (block.block === 'kv' && section) {
+      sections.set(section, { ...(sections.get(section) ?? {}), ...block.entries })
+    }
+  }
+  const metrics = Object.entries(sections.get('metrics') ?? {}).flatMap(([name, value]) => {
+    const metric = metricValue(value)
+    return metric === null ? [] : [{ name, value: metric }]
+  })
+  return {
+    type: 'experiment',
+    runName: context.runName ?? 'experiment',
+    mainMetric: metrics[0],
+    metrics: metrics.slice(1),
+    config: sections.get('params') ?? {},
+    curves: [],
+    tracker: context.tracker ?? undefined,
+  }
+}
+
+function metricValue(value: ParamValue): MetricValue | null {
+  if (typeof value === 'number') return value
+  return value === 'nan' || value === 'inf' || value === '-inf' ? value : null
 }
 
 function empty(kind: AssetKind): BlocksPreview {
