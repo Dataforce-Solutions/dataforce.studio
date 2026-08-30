@@ -69,7 +69,12 @@ async def ensure_interpreter(workspace_dir: Path) -> Interpreter:
     python = venv_python(environment_dir)
     if python is not None:
         return Interpreter(python=python, source="venv")
-    if not (environment_dir / VENV_DIRNAME).exists() and shutil.which("uv"):
+    if not (environment_dir / VENV_DIRNAME).exists():
+        if shutil.which("uv") is None:
+            raise EnvError(
+                f"could not find `uv` on PATH to prepare {environment_dir}; "
+                "install `uv` and try again"
+            )
         await uv_sync(environment_dir)
         python = venv_python(environment_dir)
         if python is not None:
@@ -237,13 +242,19 @@ def sync(
 async def uv(workspace_dir: Path, *args: str) -> str:
     """Run uv in the workspace and hand back what it said."""
     spelled = " ".join(("uv", *args))
-    process = await asyncio.create_subprocess_exec(
-        "uv",
-        *args,
-        cwd=str(workspace_dir),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "uv",
+            *args,
+            cwd=str(workspace_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+    except FileNotFoundError:
+        raise EnvError(
+            f"could not find `uv` on PATH to prepare {workspace_dir}; "
+            "install `uv` and try again"
+        ) from None
     try:
         stdout, _ = await asyncio.wait_for(
             process.communicate(), timeout=_SYNC_TIMEOUT_S

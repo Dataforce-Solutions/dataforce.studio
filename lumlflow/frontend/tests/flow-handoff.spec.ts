@@ -534,6 +534,19 @@ describe('the packages panel and settings', () => {
     wrapper.unmount()
   })
 
+  it('names the absence of a uv-managed environment', async () => {
+    const { wrapper } = await workbench({
+      handlers: {
+        'env.status': () => ({ ...ENV, packages: [] }),
+      },
+    })
+
+    await openPanel(wrapper, 'packages')
+
+    expect(wrapper.text()).toContain('no uv-managed environment here')
+    wrapper.unmount()
+  })
+
   it('writes reactivity and renders the daemon’s answer', async () => {
     const { wrapper, live } = await workbench()
     await openPanel(wrapper, 'settings')

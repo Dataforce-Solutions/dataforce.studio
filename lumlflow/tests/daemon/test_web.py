@@ -96,19 +96,26 @@ class Downloads:
     }
 
     def materialize(self, ctx):
-        import matplotlib.pyplot as plt
         import numpy
         import pandas
+        import sys
+        import types
+
+        class Figure:
+            def savefig(self, buffer, **kwargs):
+                buffer.write(b"\\x89PNG\\r\\n\\x1a\\n")
+
+        figure_module = types.ModuleType("matplotlib.figure")
+        figure_module.Figure = Figure
+        sys.modules["matplotlib.figure"] = figure_module
 
         report = ctx.tempdir() / "report.csv"
         report.write_text("name,score\\na,0.9\\n")
-        figure, axes = plt.subplots()
-        axes.plot([0, 1], [1, 0])
         return {
             "frame": pandas.DataFrame({"score": [0.9]}),
             "metric": {"auc": 0.9},
             "evaluation": [{"name": "a", "score": 0.9}],
-            "plot_png": figure,
+            "plot_png": Figure(),
             "plot_json": {"data": [{"x": 1}], "mark": "point"},
             "note": "# report",
             "checkpoint": {"weight": numpy.array([1.0])},

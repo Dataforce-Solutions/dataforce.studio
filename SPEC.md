@@ -1285,9 +1285,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
   - [x] Delete `connect.py`'s prompt builder, `api.agent_connect`, `docs.refresh_workspace`, the `hub.document` calls, `lumlflow/AGENTS.md`, and `tests/daemon/test_connect.py`'s seven prompt-builder tests — its eighth, which spawns the executable and asserts the MCP `initialize` reply, moves beside the harness writers' tests since D9.2's entry command depends on it, spawning `lumlflow mcp` with no workspace argument
   - [x] Actor precedence for bare verbs (`LUMLFLOW_ACTOR`, the harness's registry id on its environment marker, `user` — also for a harness with no verified marker); no session registered; the MCP label defaults to the registry id when `clientInfo.name` matches an entry, after `--label` and `LUMLFLOW_ACTOR`, which still win
   - [x] Tests in `test_mcp.py`, `test_docs.py`, `test_cli.py`
-- [ ] Fix packaging and dependencies
-  - [ ] Drop `scikit-learn`/`matplotlib`, add `pyarrow`; frame serialization names `pyarrow` when missing; `uv` absence is a `FlowError`; Packages panel *no uv-managed environment here*
-  - [ ] Tests: a new root-level test module beside `tests/test_packaging.py` (which covers only the hatch build hook) for the dependency set, `test_envs.py` for missing `uv`, a kernel test for missing `pyarrow`
+- [x] Fix packaging and dependencies
+  - [x] Drop `scikit-learn`/`matplotlib`, add `pyarrow`; frame serialization names `pyarrow` when missing; `uv` absence is a `FlowError`; Packages panel *no uv-managed environment here*
+  - [x] Tests: a new root-level test module beside `tests/test_packaging.py` (which covers only the hatch build hook) for the dependency set, `test_envs.py` for missing `uv`, a kernel test for missing `pyarrow`
 - [ ] Add doctor and rotated daemon logs
   - [ ] Size-rotated daemon log for foreground and background daemons alike, with the path printed by `ui` and shown in the daemon-down banner; the daemon's exception tracebacks — the HTTP and socket doors' included (D4.3) — go to it and never to the `lumlflow ui` terminal; `lumlflow doctor` printing the fields of D11.6 — the state directory, the one record, the lock state and the handshake result among them — and the non-loopback warning of D11.3 when the daemon is bound that way
   - [ ] Tests: doctor output fields, rotation, an HTTP-door traceback in the log and not on stderr

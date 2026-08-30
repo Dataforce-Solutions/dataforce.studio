@@ -89,12 +89,11 @@ class FrameKind:
         return _frame_flavor(value) is not None
 
     def serialize(self, value: Any) -> bytes | Path:
-        import pyarrow as pa
-
+        pa = _import_pyarrow()
         flavor = _frame_flavor(value)
         if flavor is None:
             raise TypeError("a frame value must be a pandas or polars DataFrame")
-        table = _arrow_table(value)
+        table = _arrow_table(value, pa)
         metadata = dict(table.schema.metadata or {})
         metadata[_FRAME_FLAVOR_METADATA] = flavor.encode("ascii")
         table = table.replace_schema_metadata(metadata)
@@ -104,8 +103,7 @@ class FrameKind:
         return sink.getvalue().to_pybytes()
 
     def deserialize(self, source: Path) -> Any:
-        import pyarrow as pa
-
+        pa = _import_pyarrow()
         with pa.OSFile(str(source), "rb") as handle:
             table = pa.ipc.open_file(handle).read_all()
         flavor = (table.schema.metadata or {}).get(_FRAME_FLAVOR_METADATA)
@@ -420,12 +418,23 @@ def _frame_flavor(value: Any) -> str | None:
     return None
 
 
-def _arrow_table(value: Any) -> Any:
-    import pyarrow as pa
+def _import_pyarrow() -> Any:
+    try:
+        import pyarrow
+    except ImportError as failure:
+        interpreter = Path(sys.executable).absolute()
+        raise RuntimeError(
+            "could not import `pyarrow` in the workspace environment "
+            f"at `{interpreter}`; install `pyarrow` there before running "
+            f"a frame cell ({failure})"
+        ) from None
+    return pyarrow
 
+
+def _arrow_table(value: Any, pyarrow: Any) -> Any:
     if _frame_flavor(value) == "polars":
         return value.to_arrow()
-    return pa.Table.from_pandas(value)
+    return pyarrow.Table.from_pandas(value)
 
 
 def _frame_schema(value: Any) -> tuple[list[str], list[str]]:

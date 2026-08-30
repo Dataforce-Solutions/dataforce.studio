@@ -16,10 +16,9 @@ dependencies = [
     "pyyaml>=6.0.3",
     "watchdog>=6.0.0",
     "websockets>=17.0.1",
-    "scikit-learn>=1.9.0",
-    "matplotlib>=3.11.1",
     "pathspec>=0.12.1,<2.0.0",
     "tomli-w>=1.2.0",
+    "pyarrow>=25.0.1",
 ]
 
 [project.optional-dependencies]
@@ -120,10 +119,9 @@ indent-style = "space"
 module = "luml.*"
 ignore_missing_imports = true
 
-# The serde libraries the kernel's kinds import lazily belong to the workspace
-# venv, not to this project — they may not be installed here at all.
+# The optional libraries the kernel's kinds import lazily may not be installed.
 [[tool.mypy.overrides]]
-module = ["pyarrow.*", "polars.*", "cloudpickle.*"]
+module = ["pyarrow.*", "polars.*", "cloudpickle.*", "PIL.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

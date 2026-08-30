@@ -111,6 +111,16 @@ async def test_interpreter_resolution_without_a_project_uses_lumlflow(
     )
 
 
+async def test_interpreter_resolution_names_uv_when_a_project_cannot_sync(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"pyproject.toml": "[project]"})
+    monkeypatch.setattr(envs.shutil, "which", lambda command: None)
+
+    with pytest.raises(EnvError, match="uv"):
+        await envs.ensure_interpreter(root)
+
+
 @stubbed_uv
 async def test_uv_sync_creates_the_venv_the_kernel_then_runs_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

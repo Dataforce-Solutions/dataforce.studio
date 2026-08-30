@@ -9,6 +9,7 @@ reports it in events.
 
 from __future__ import annotations
 
+import builtins
 import contextlib
 import importlib
 import json
@@ -202,6 +203,41 @@ def test_paging_a_stored_frame_returns_the_window_and_the_true_total(
     assert page["rows"] == [[10], [11], [12], [13], [14]]
     assert page["offset"] == 10
     assert page["total_rows"] == 50
+
+
+def test_a_frame_without_pyarrow_names_the_package_to_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("pandas")
+    kernel, _ = make_kernel(tmp_path)
+    real_import = builtins.__import__
+
+    def import_without_pyarrow(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "pyarrow" or name.startswith("pyarrow."):
+            raise ModuleNotFoundError("No module named 'pyarrow'", name="pyarrow")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_pyarrow)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame({"n": [1, 2]})}
+        """,
+        produces={"rows": {"kind": "frame"}},
+    )
+
+    assert record["state"] == "failed"
+    assert "install `pyarrow`" in record["error"]["message"]
+    assert "workspace environment" in record["error"]["message"]
 
 
 def test_paging_a_kind_that_has_no_pager_is_refused(tmp_path: Path) -> None:

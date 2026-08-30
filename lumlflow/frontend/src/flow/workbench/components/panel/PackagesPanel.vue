@@ -20,7 +20,9 @@
         </span>
       </li>
     </ul>
-    <p v-if="!env.packages.length" class="px-1.5 text-sm text-muted-color">none installed yet</p>
+    <p v-if="!env.packages.length" class="px-1.5 text-sm text-muted-color">
+      no uv-managed environment here
+    </p>
 
     <!-- The version is the running kernel's; there is none to name until one runs. -->
     <p v-if="env.pythonVersion" class="px-1.5 text-sm text-muted-color">
