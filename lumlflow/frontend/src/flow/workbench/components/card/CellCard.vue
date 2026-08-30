@@ -128,7 +128,11 @@
             not materialized on this lane
           </div>
           <div v-else class="overflow-auto" :class="density === 'canvas' ? 'max-h-72' : 'max-h-80'">
-            <RendererHost :preview="selectedOutput.preview" :density="density" />
+            <RendererHost
+              :preview="selectedOutput.preview"
+              :density="density"
+              :download-url="selectedOutput.downloadUrl"
+            />
           </div>
         </template>
         <CodeView
@@ -164,7 +168,11 @@
           v-if="density === 'notebook' && activeTab === 'code' && primary && !cell.isNote"
           class="mt-3 max-h-64 overflow-auto border-t border-surface-200 pt-2.5 dark:border-surface-700"
         >
-          <RendererHost :preview="primary.preview" density="notebook" />
+          <RendererHost
+            :preview="primary.preview"
+            density="notebook"
+            :download-url="primary.downloadUrl"
+          />
         </div>
       </div>
     </div>

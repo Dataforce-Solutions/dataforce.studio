@@ -193,21 +193,36 @@ async function onPage(request: { output: string; move: PageMove }): Promise<void
 
 /**
  * Download, and the run that has to happen first when this branch holds no
- * value yet. Both outcomes are stated: a path, or the sentence the daemon
- * refused with.
+ * value yet. Stored bytes cross the browser route; nothing is copied into the
+ * daemon's working directory.
  */
 async function onDownload(request: { output: string; materialize: boolean }): Promise<void> {
   downloading.value = true
   notice.value = request.materialize ? `materializing ${slug.value}…` : null
   try {
-    if (request.materialize) await ops.run(slug.value, { branch: props.branch })
-    const saved = await live.download(request.output)
-    notice.value = `saved to ${saved.path}`
+    if (request.materialize) {
+      const outcome = await ops.run(slug.value, { branch: props.branch })
+      if (outcome.failed) {
+        notice.value = null
+        return
+      }
+    }
+    startDownload(live.downloadUrl(request.output))
+    notice.value = null
   } catch (refused) {
     notice.value = said(refused)
   } finally {
     downloading.value = false
   }
+}
+
+function startDownload(url: string): void {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = ''
+  document.body.append(link)
+  link.click()
+  link.remove()
 }
 
 /**

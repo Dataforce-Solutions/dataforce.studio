@@ -33,7 +33,7 @@ from lumlflow.flow.scheduler.planner import Preflight
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.index import VersionRow
-from lumlflow.flow.store.models import AgentBegin, AgentEnd, Reactivity
+from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 
@@ -443,23 +443,17 @@ class Api:
 
     async def asset_page(self, params: dict[str, Any]) -> dict[str, Any]:
         """Read into a value. This is the gesture that starts a kernel."""
-        session, branch = await self._read(params)
-        here = queries.read(session, branch)
-        slug, output, record = queries.locate(here, _target(params))
-        if record is None or record.value_ref is None:
-            raise ValueNotStored(_unstored(slug, output, record is not None))
+        session, _, slug, output, record = await self.stored_output(params)
+        value_ref = record.value_ref
+        assert value_ref is not None
         page = await session.kernel.page(
-            record.value_ref, record.kind, dict(params.get("query") or {})
+            value_ref, record.kind, dict(params.get("query") or {})
         )
         return {"slug": slug, "output": output, "kind": record.kind, "page": page}
 
     async def asset_download(self, params: dict[str, Any]) -> dict[str, Any]:
         """Copy a stored value out of the flow, under a name of the caller's."""
-        session, branch = await self._read(params)
-        here = queries.read(session, branch)
-        slug, output, record = queries.locate(here, _target(params))
-        if record is None or record.value_ref is None:
-            raise ValueNotStored(_unstored(slug, output, record is not None))
+        session, _, slug, output, record = await self.stored_output(params)
         destination = Path(str(params.get("to") or "")).expanduser()
         if not destination.is_absolute():
             raise FlowError("`to` must be an absolute path for `asset.download`")
@@ -471,7 +465,9 @@ class Api:
                 f"`{destination}` already exists. use `--force` to overwrite it"
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(session.store.values.path(record.value_ref), destination)
+        value_ref = record.value_ref
+        assert value_ref is not None
+        shutil.copyfile(session.store.values.path(value_ref), destination)
         return {
             "slug": slug,
             "output": output,
@@ -479,6 +475,16 @@ class Api:
             "size": record.size,
             "path": str(destination),
         }
+
+    async def stored_output(
+        self, params: dict[str, Any]
+    ) -> tuple[FlowSession, str, str, str, OutputRecord]:
+        session, branch = await self._read(params)
+        here = queries.read(session, branch)
+        slug, output, record = queries.locate(here, _target(params))
+        if record is None or record.value_ref is None:
+            raise ValueNotStored(_unstored(slug, output, record is not None))
+        return session, branch, slug, output, record
 
     async def export(self, params: dict[str, Any]) -> dict[str, Any]:
         """A branch's cells as one file. A read: nothing is written anywhere."""

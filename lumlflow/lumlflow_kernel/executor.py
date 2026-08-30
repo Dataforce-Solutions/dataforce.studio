@@ -458,6 +458,8 @@ class Executor:
             "preview_ref": preview_ref,
             "persisted": spec.persist,
         }
+        if resolution.kind == "file":
+            record["filename"] = Path(value).name
         if not spec.persist:
             # Declared unpersisted: a token unique to this materialization
             # stands in for the content hash, so no consumer ever memo-hits

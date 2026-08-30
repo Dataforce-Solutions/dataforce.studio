@@ -116,6 +116,7 @@ export interface FlowSessionHandle {
     method: M,
     params: FlowMethods[M]['params'],
   ) => Promise<FlowMethods[M]['result']>
+  downloadUrl: (branch: string, target: string) => string
 }
 
 export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
@@ -396,5 +397,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       arrears.value = 0
     },
     request,
+    downloadUrl: (branch, target) =>
+      options.api.downloadUrl({ flow: path.value, branch, target }),
   }
 }

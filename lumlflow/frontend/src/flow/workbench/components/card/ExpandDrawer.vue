@@ -21,6 +21,7 @@
           v-else-if="selectedOutput"
           :preview="selectedOutput.preview"
           density="drawer"
+          :download-url="selectedOutput.downloadUrl"
         />
       </div>
 
@@ -95,8 +96,17 @@
 
       <div v-if="!isExperiment" class="flex flex-col gap-1.5">
         <div class="flex items-center gap-2.5 flex-wrap">
+          <a
+            v-if="downloadUrl && !needsRun"
+            class="inline-flex items-center gap-2 rounded-md border border-primary px-3 py-2 text-sm text-primary hover:bg-primary/5"
+            :href="downloadUrl"
+            download
+          >
+            <Download :size="14" />
+            download
+          </a>
           <Button
-            v-if="!selectedOutput?.neverPersisted"
+            v-else-if="!selectedOutput?.neverPersisted"
             outlined
             :label="downloadLabel"
             :disabled="downloading"
@@ -217,6 +227,7 @@ const selectedOutput = computed(() =>
 )
 
 const outputName = computed(() => selectedOutput.value?.name ?? '')
+const downloadUrl = computed(() => selectedOutput.value?.downloadUrl)
 
 watch([visible, outputName], ([open, name]) => open && name && emit('tab', name), {
   immediate: true,

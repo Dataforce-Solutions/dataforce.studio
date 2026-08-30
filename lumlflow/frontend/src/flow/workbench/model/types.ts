@@ -342,6 +342,8 @@ export interface CellOutput {
   preview: PreviewValue
   /** Value was never persisted → download becomes materialize-and-download. */
   neverPersisted?: boolean
+  /** Authenticated route for the stored bytes. */
+  downloadUrl?: string
 }
 
 export interface FlowCell {

@@ -20,18 +20,20 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Frame, Streams, Subscription
 from lumlflow.flow.errors import FlowError, FlowNotFound
+from lumlflow.flow.store.models import OutputRecord
 
 TOKEN_HEADER = "x-lumlflow-token"
 TOKEN_PARAM = "token"
 
 RPC_PATH = "/api/flow/rpc"
 STREAM_PATH = "/api/flow/stream"
+DOWNLOAD_PATH = "/api/flow/download"
 
 UNAUTHORIZED = 401
 # The close code that separates "you may not" from "the socket dropped" — the
@@ -40,6 +42,16 @@ WS_UNAUTHORIZED = 4401
 _REFUSED = 400
 _NO_METHOD = 404
 _INTERNAL = 500
+
+_DOWNLOAD_EXTENSIONS = {
+    "frame": ".arrow",
+    "metric": ".json",
+    "eval": ".json",
+    "note": ".md",
+    "checkpoint": ".pkl",
+    "pickle": ".pkl",
+}
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def build_app(
@@ -102,6 +114,41 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             traceback.print_exc()
             return _failed(str(failure), status=_INTERNAL)
         return JSONResponse({"result": result})
+
+    @router.get(DOWNLOAD_PATH)
+    async def download(request: Request) -> Response:
+        if not _authorized(request, token):
+            return _unauthorized()
+        flow = str(request.query_params.get("flow") or "")
+        if not Path(flow).is_absolute():
+            return _failed(
+                "downloads address a flow by its absolute path, not a bare name",
+                status=_REFUSED,
+                kind="FlowError",
+            )
+        params = {
+            "flow": flow,
+            "branch": request.query_params.get("branch"),
+            "target": request.query_params.get("target"),
+        }
+        try:
+            session, _, slug, output, record = await api.stored_output(params)
+            if record.kind == "experiment":
+                raise FlowError(
+                    f"`{slug}.{output}` is an experiment output and is not downloadable"
+                )
+            value_ref = record.value_ref
+            assert value_ref is not None
+            path = session.store.values.path(value_ref)
+            filename = _download_name(slug, output, record, path)
+        except FlowError as failure:
+            return _failed(str(failure), status=_NO_METHOD, kind=type(failure).__name__)
+        except asyncio.CancelledError:
+            raise
+        except Exception as failure:
+            traceback.print_exc()
+            return _failed(str(failure), status=_INTERNAL)
+        return FileResponse(path, filename=filename)
 
     @router.websocket(STREAM_PATH)
     async def stream(socket: WebSocket) -> None:
@@ -276,3 +323,15 @@ def _failed(message: str, *, status: int, kind: str | None = None) -> JSONRespon
     if kind is not None:
         error["kind"] = kind
     return JSONResponse({"error": error}, status_code=status)
+
+
+def _download_name(slug: str, output: str, record: OutputRecord, path: Path) -> str:
+    if record.kind == "file":
+        original = Path(record.filename or "").name
+        return original if original not in ("", ".", "..") else f"{slug}.{output}"
+    extension = _DOWNLOAD_EXTENSIONS.get(record.kind, "")
+    if record.kind == "plot":
+        with path.open("rb") as stored:
+            is_png = stored.read(len(_PNG_SIGNATURE)) == _PNG_SIGNATURE
+        extension = ".png" if is_png else ".json"
+    return f"{slug}.{output}{extension}"

@@ -23,7 +23,6 @@ import type { ComputedRef, Ref } from 'vue'
 
 import type { FlowStream } from '@/flow/api/stream'
 import type {
-  AssetDownload,
   CellDetail,
   CellSummary,
   MaterializedOutput,
@@ -80,7 +79,7 @@ export interface LiveCellHandle {
   readPage: (output: string, move: PageMove) => Promise<void>
   /** Pull the run's log artifact even when the reader is not on the logs tab. */
   readLogs: () => void
-  download: (output: string) => Promise<AssetDownload>
+  downloadUrl: (output: string) => string
   /** The last refusal a gesture on this card met, in the daemon's words. */
   refusal: Ref<string | null>
 }
@@ -293,16 +292,12 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     }
   }
 
-  async function download(output: string): Promise<AssetDownload> {
-    return session.request('asset.download', {
-      flow: flow(),
-      branch: branch.value,
-      target: `${slug.value}.${output}`,
-    })
+  function downloadUrl(output: string): string {
+    return session.downloadUrl(branch.value, `${slug.value}.${output}`)
   }
 
-  const cell = computed<FlowCell>(() =>
-    build({
+  const cell = computed<FlowCell>(() => {
+    const built = build({
       summary: summary.value,
       detail: detail.value,
       previews: previews.value,
@@ -310,8 +305,18 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
       console: streaming.text.value,
       running: runId.value !== null,
       attempts: session.attempts.value[slug.value],
-    }),
-  )
+    })
+    return {
+      ...built,
+      outputs: built.outputs.map((output) => ({
+        ...output,
+        downloadUrl:
+          output.kind === 'experiment' || output.neverPersisted
+            ? undefined
+            : downloadUrl(output.name),
+      })),
+    }
+  })
 
   return {
     cell,
@@ -326,7 +331,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
       wantsLogs.value = true
       pull()
     },
-    download,
+    downloadUrl,
     refusal,
   }
 }

@@ -89,6 +89,7 @@ class OutputRecord(_Frozen):
     kind: str
     kind_source: KindSource
     size: int
+    filename: str | None = None
     preview_ref: str | None = None
     value_ref: str | None = None
     persisted: bool = True

@@ -543,15 +543,6 @@ export interface AssetPage {
   }
 }
 
-/** `asset.download`: the daemon copied the bytes out, and where they landed. */
-export interface AssetDownload {
-  slug: string
-  output: string
-  kind: string
-  size: number
-  path: string
-}
-
 /** `cells.logs`: the console of the run this branch observed, not the newest. */
 export interface CellLogs {
   flow: string

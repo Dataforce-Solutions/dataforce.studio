@@ -46,6 +46,7 @@ def test_a_declared_path_moves_into_the_store_and_scratch_does_not_survive(
 
     assert record["state"] == "succeeded"
     assert record["outputs"]["checkpoint"]["kind"] == "file"
+    assert record["outputs"]["checkpoint"]["filename"] == "epoch3.pt"
     assert stored_value(kernel, record, "checkpoint") == b"weights"
     scratch = kernel.flow_dir / ".lumlflow" / "kernel" / "scratch"
     assert list(scratch.iterdir()) == []

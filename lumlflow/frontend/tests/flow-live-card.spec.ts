@@ -18,7 +18,7 @@ import type { VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import { FlowApiError } from '@/flow/api/client'
+import { DOWNLOAD_PATH } from '@/flow/api/client'
 import type { CellDetail, CellSummary, StoredPreview, TrackerExperiment } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
 import { NEWER_FORMAT_NOTE, previewFrom } from '@/flow/workbench/live/preview'
@@ -114,11 +114,13 @@ async function card(
     handlers?: Handlers
     kernel?: 'running' | 'stopped'
     density?: 'canvas' | 'notebook'
+    flowPath?: string
   } = {},
 ): Promise<Card> {
   const summary = options.summary ?? trainer()
   const live = await attach({
     status: flowStatus({
+      path: options.flowPath ?? FLOW,
       kernel: {
         state: options.kernel ?? 'running',
         restart_required: false,
@@ -734,8 +736,10 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     made.wrapper.unmount()
   })
 
-  it('downloads a stored value and says where it landed', async () => {
+  it('downloads a stored value through the authenticated byte route', async () => {
+    const flowPath = '/home/dana/project/churn.flow'
     const made = await card({
+      flowPath,
       summary: trainer({
         outputs: ['model'],
         kinds: { model: 'model' },
@@ -757,26 +761,36 @@ describe('browsing needs no kernel; expand says when one starts', () => {
           },
         ],
       }),
-      handlers: {
-        'asset.download': () => ({
-          slug: 'train_model',
-          output: 'model',
-          kind: 'checkpoint',
-          size: 128,
-          path: '/home/dana/project/train_model.model',
-        }),
-      },
     })
 
     await expand(made)
-    const download = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('download'),
+    const download = [...document.body.querySelectorAll<HTMLAnchorElement>('a[download]')].find(
+      (link) => link.textContent?.includes('download'),
     )
-    download?.click()
-    await settle()
+    const url = new URL(download?.href ?? '', 'http://localhost')
 
-    expect(asked(made.live, 'asset.download')[0].target).toBe('train_model.model')
-    expect(document.body.textContent).toContain('saved to /home/dana/project/train_model.model')
+    expect(url.pathname).toBe(DOWNLOAD_PATH)
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      token: 'the-token',
+      flow: flowPath,
+      branch: 'main',
+      target: 'train_model.model',
+    })
+    expect(asked(made.live, 'asset.download')).toEqual([])
+    expect(document.body.textContent).not.toContain('saved to')
+    made.wrapper.unmount()
+  })
+
+  it('wires the file renderer download link to the output route', async () => {
+    const made = await card()
+
+    await clickTab(made.wrapper, 'checkpoint')
+    const link = made.wrapper.find<HTMLAnchorElement>('a[download]')
+    const url = new URL(link.element.href, 'http://localhost')
+
+    expect(url.pathname).toBe(DOWNLOAD_PATH)
+    expect(url.searchParams.get('target')).toBe('train_model.checkpoint')
+    expect(link.text()).toContain('download')
     made.wrapper.unmount()
   })
 
@@ -849,7 +863,13 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     made.wrapper.unmount()
   })
 
-  it('materializes first when this branch holds nothing, and repeats a refusal verbatim', async () => {
+  it('materializes first when this branch holds nothing, then starts the route download', async () => {
+    const clicked: string[] = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push(this.href)
+    })
     const made = await card({
       summary: trainer({ state: 'unmaterialized', outputs: ['run'], primary: 'run' }),
       detail: trainerDetail({ outputs: ['run'], primary: 'run', materialized: [] }),
@@ -863,11 +883,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
           failed: null,
           abandoned: false,
         }),
-        'asset.download': () => {
-          throw new FlowApiError('nothing is stored for `train_model.run` yet — run it first', {
-            status: 409,
-          })
-        },
       },
     })
 
@@ -885,7 +900,9 @@ describe('browsing needs no kernel; expand says when one starts', () => {
       target: 'train_model',
       intent: 'run train_model',
     })
-    expect(document.body.textContent).toContain('nothing is stored for')
+    expect(asked(made.live, 'asset.download')).toEqual([])
+    expect(new URL(clicked[0]).searchParams.get('target')).toBe('train_model.run')
+    expect(document.body.textContent).not.toContain('saved to')
     made.wrapper.unmount()
   })
 

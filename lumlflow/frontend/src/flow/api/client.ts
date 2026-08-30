@@ -15,7 +15,6 @@
  */
 
 import type {
-  AssetDownload,
   AssetPage,
   AssetView,
   BranchDiff,
@@ -41,6 +40,7 @@ import type {
 import { rejectToken } from './token'
 
 export const RPC_PATH = '/api/flow/rpc'
+export const DOWNLOAD_PATH = '/api/flow/download'
 export const TOKEN_HEADER = 'x-lumlflow-token'
 
 /** The daemon's answer to a token it does not hold. */
@@ -211,7 +211,6 @@ export interface FlowMethods {
     BranchScoped & { target: string; query?: { offset?: number; limit?: number } },
     AssetPage
   >
-  'asset.download': Method<BranchScoped & { target: string; to?: string }, AssetDownload>
   'cells.new': Method<
     Intentful & {
       slug?: string
@@ -340,6 +339,11 @@ export class FlowApi {
       throw new FlowApiError(`lumlflow refused \`${method}\``, { status: answer.status })
     }
     return (body as { result: FlowMethods[M]['result'] }).result
+  }
+
+  downloadUrl(params: { flow: string; branch: string; target: string }): string {
+    const query = new URLSearchParams({ token: this.token, ...params })
+    return `${this.baseUrl}${DOWNLOAD_PATH}?${query.toString()}`
   }
 }
 

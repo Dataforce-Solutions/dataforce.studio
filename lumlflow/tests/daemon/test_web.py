@@ -17,12 +17,14 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client as daemon_client
 from lumlflow.flow.daemon import queries, web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
+from lumlflow.flow.store.models import OutputRecord
 from lumlflow.tracker import TrackerProvider
 from starlette.testclient import WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
@@ -61,6 +63,58 @@ class Evaluate:
     def materialize(self, ctx):
         ctx.tracker.log_metric("rmse", 0.4)
         return {"metrics": ctx.tracker.record}
+"""
+
+MODEL_DOWNLOAD_CELL = """
+class TrainModel:
+    produces = {"model": "model"}
+
+    def materialize(self, ctx):
+        return {"model": ("weights", 1)}
+"""
+
+UNPERSISTED_CELL = """
+class Ephemeral:
+    produces = {"value": {"type": "asset", "persist": False}}
+
+    def materialize(self, ctx):
+        return {"value": "temporary"}
+"""
+
+DOWNLOAD_KINDS_CELL = """
+class Downloads:
+    produces = {
+        "frame": "asset",
+        "metric": "asset",
+        "evaluation": "asset",
+        "plot_png": "asset",
+        "plot_json": "asset",
+        "note": "asset",
+        "checkpoint": "asset",
+        "pickle": "asset",
+        "report": "asset",
+    }
+
+    def materialize(self, ctx):
+        import matplotlib.pyplot as plt
+        import numpy
+        import pandas
+
+        report = ctx.tempdir() / "report.csv"
+        report.write_text("name,score\\na,0.9\\n")
+        figure, axes = plt.subplots()
+        axes.plot([0, 1], [1, 0])
+        return {
+            "frame": pandas.DataFrame({"score": [0.9]}),
+            "metric": {"auc": 0.9},
+            "evaluation": [{"name": "a", "score": 0.9}],
+            "plot_png": figure,
+            "plot_json": {"data": [{"x": 1}], "mark": "point"},
+            "note": "# report",
+            "checkpoint": {"weight": numpy.array([1.0])},
+            "pickle": ("opaque", 1),
+            "report": report,
+        }
 """
 
 
@@ -143,6 +197,25 @@ def until(socket: WebSocketTestSession, wanted: Callable[[Any], bool]) -> Any:
 
 def flow_address(served: Served, name: str = "churn") -> str:
     return str(served.root / f"{name}.flow")
+
+
+def download(
+    served: Served,
+    target: str,
+    *,
+    flow: str | None = None,
+    branch: str = "main",
+    token: str = TOKEN,
+) -> Response:
+    return served.http.get(
+        web.DOWNLOAD_PATH,
+        params={
+            "token": token,
+            "flow": flow or flow_address(served),
+            "branch": branch,
+            "target": target,
+        },
+    )
 
 
 def test_the_spa_and_the_tracker_share_the_port_with_the_flow_api(served: Served):
@@ -447,6 +520,127 @@ def test_http_refuses_asset_download_without_writing_anywhere(
         assert "asset.download" in answer.json()["error"]["message"]
     assert not destination.exists()
     assert list(daemon_cwd.iterdir()) == []
+
+
+def test_asset_download_route_requires_the_token_and_an_absolute_flow_path(
+    served: Served,
+) -> None:
+    missing_key = served.http.get(
+        web.DOWNLOAD_PATH,
+        params={
+            "flow": flow_address(served),
+            "branch": "main",
+            "target": "score.summary",
+        },
+    )
+    wrong_key = download(served, "score.summary", token="guess")
+    bare_name = download(served, "score.summary", flow="churn")
+    unknown_path = download(
+        served,
+        "score.summary",
+        flow=str(served.root / "missing.flow"),
+    )
+
+    assert (missing_key.status_code, wrong_key.status_code) == (401, 401)
+    assert bare_name.status_code == 400
+    assert "path" in bare_name.json()["error"]["message"]
+    assert unknown_path.status_code == 404
+    assert "missing.flow" in unknown_path.json()["error"]["message"]
+
+
+def test_asset_download_route_refuses_missing_values_lanes_and_experiments(
+    served: Served,
+) -> None:
+    write_cell(served.root / "churn.flow", "evaluate", TRACKED_EXPERIMENT_CELL)
+    write_cell(served.root / "churn.flow", "ephemeral", UNPERSISTED_CELL)
+    served.rpc("flow.open", {"flow": "churn"})
+
+    unstored = download(served, "score.summary")
+    assert unstored.status_code == 404
+    assert "nothing is stored" in unstored.json()["error"]["message"]
+
+    served.rpc("run", {"flow": "churn", "target": "score"})
+    unknown_lane = download(served, "score.summary", branch="missing")
+    assert unknown_lane.status_code == 404
+    assert "missing" in unknown_lane.json()["error"]["message"]
+
+    served.rpc("run", {"flow": "churn", "target": "ephemeral"})
+    unpersisted = download(served, "ephemeral.value")
+    assert unpersisted.status_code == 404
+    assert "not to persist" in unpersisted.json()["error"]["message"]
+
+    served.rpc("run", {"flow": "churn", "target": "evaluate"})
+    experiment = download(served, "evaluate.metrics")
+    assert experiment.status_code == 404
+    assert "experiment" in experiment.json()["error"]["message"]
+
+
+def test_asset_download_route_streams_each_kind_under_its_download_name(
+    served: Served,
+) -> None:
+    write_cell(served.root / "churn.flow", "downloads", DOWNLOAD_KINDS_CELL)
+    served.rpc("flow.open", {"flow": "churn"})
+    served.rpc("run", {"flow": "churn", "target": "downloads"})
+    paths_before = {path.relative_to(served.root) for path in served.root.rglob("*")}
+
+    expected_names = {
+        "frame": "downloads.frame.arrow",
+        "metric": "downloads.metric.json",
+        "evaluation": "downloads.evaluation.json",
+        "plot_png": "downloads.plot_png.png",
+        "plot_json": "downloads.plot_json.json",
+        "note": "downloads.note.md",
+        "checkpoint": "downloads.checkpoint.pkl",
+        "pickle": "downloads.pickle.pkl",
+        "report": "report.csv",
+    }
+    responses = {
+        output: download(served, f"downloads.{output}") for output in expected_names
+    }
+
+    for output, expected_name in expected_names.items():
+        response = responses[output]
+        assert response.status_code == 200, response.text
+        assert response.headers["content-disposition"].startswith("attachment")
+        assert expected_name in response.headers["content-disposition"]
+    assert responses["plot_png"].content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert responses["plot_json"].json()["mark"] == "point"
+    assert responses["report"].text == "name,score\na,0.9\n"
+    paths_after = {path.relative_to(served.root) for path in served.root.rglob("*")}
+    assert paths_after == paths_before
+
+
+def test_a_model_download_is_an_attachment_and_writes_nothing_to_the_workspace(
+    served: Served,
+) -> None:
+    write_cell(served.root / "churn.flow", "train_model", MODEL_DOWNLOAD_CELL)
+    served.rpc("flow.open", {"flow": "churn"})
+    served.rpc("run", {"flow": "churn", "target": "train_model"})
+    paths_before = {path.relative_to(served.root) for path in served.root.rglob("*")}
+
+    response = download(served, "train_model.model")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"].startswith("attachment")
+    assert "train_model.model.pkl" in response.headers["content-disposition"]
+    paths_after = {path.relative_to(served.root) for path in served.root.rglob("*")}
+    assert paths_after == paths_before
+
+
+def test_a_file_download_without_a_recorded_name_uses_the_output_name(
+    tmp_path: Path,
+) -> None:
+    stored = tmp_path / "value"
+    stored.write_bytes(b"report")
+    record = OutputRecord(
+        content_hash="hash",
+        kind="file",
+        kind_source="matcher",
+        size=6,
+        value_ref="value",
+    )
+
+    assert web._download_name("report", "csv", record, stored) == "report.csv"
 
 
 def test_a_non_finite_metric_preview_crosses_the_http_door_as_a_string(

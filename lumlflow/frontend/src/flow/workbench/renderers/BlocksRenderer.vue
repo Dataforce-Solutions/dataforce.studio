@@ -24,7 +24,12 @@
         :config="block.entries"
         :metrics="preview.kind === 'metric'"
       />
-      <FileRenderer v-else :preview="asFile(block)" :density="density" />
+      <FileRenderer
+        v-else
+        :preview="asFile(block)"
+        :density="density"
+        :download-url="downloadUrl"
+      />
     </template>
 
     <p v-if="preview.truncated" class="text-sm text-muted-color">
@@ -64,6 +69,7 @@ import { chartHeight, type RenderDensity } from './shared'
 defineProps<{
   preview: BlocksPreview
   density?: RenderDensity
+  downloadUrl?: string
 }>()
 
 function asFrame(block: TableBlock): FramePreview {

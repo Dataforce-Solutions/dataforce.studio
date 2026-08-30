@@ -11,7 +11,12 @@
         {{ formatBytes(preview.sizeBytes) }} · {{ preview.contentType }}
       </span>
     </span>
-    <a class="link text-sm inline-flex items-center gap-1 shrink-0" href="#" @click.prevent>
+    <a
+      v-if="downloadUrl"
+      class="link text-sm inline-flex items-center gap-1 shrink-0"
+      :href="downloadUrl"
+      download
+    >
       <Download :size="14" />
       download
     </a>
@@ -28,6 +33,7 @@ import type { RenderDensity } from './shared'
 const props = defineProps<{
   preview: FilePreview
   density?: RenderDensity
+  downloadUrl?: string
 }>()
 
 const icon = computed<LucideIcon>(() => {
