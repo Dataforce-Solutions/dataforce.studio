@@ -19,6 +19,7 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "matplotlib>=3.11.1",
     "pathspec>=0.12.1,<2.0.0",
+    "tomli-w>=1.2.0",
 ]
 
 [project.optional-dependencies]
