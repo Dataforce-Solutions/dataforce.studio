@@ -185,6 +185,8 @@ async function openMark(): Promise<void> {
   markInput.value?.$el.focus()
 }
 
+defineExpose({ openMark })
+
 function confirmMark(): void {
   const intent = markIntent.value.trim()
   if (!intent) return

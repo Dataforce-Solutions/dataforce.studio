@@ -30,11 +30,7 @@
       </span>
     </Button>
 
-    <!--
-      The two verbs that move this branch through its own history, beside the
-      count they are about. The graph above is where branches sit next to each
-      other; this is where one branch's steps do.
-    -->
+    <!-- The actions for this lane and its steps, beside the count they are about. -->
     <div class="flex items-center gap-0.5">
       <Button
         ref="stepsButton"
@@ -60,10 +56,24 @@
       >
         <template #icon><Plus :size="14" /></template>
       </Button>
+      <Button
+        text
+        severity="secondary"
+        size="small"
+        label="mark this point"
+        :pt="ACTION_PT"
+        :disabled="busy"
+        aria-haspopup="dialog"
+        :aria-label="`Mark this point on ${branch.name}`"
+        @click="onMark"
+      >
+        <template #icon><Flag :size="14" /></template>
+      </Button>
     </div>
 
     <Popover ref="steps" @show="stepsOpen = true" @hide="stepsOpen = false">
       <StepTimeline
+        ref="timeline"
         :branch="branch.name"
         :entries="journal"
         :children="children"
@@ -78,9 +88,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { Button, Popover } from 'primevue'
-import { ChevronRight, History, Plus } from 'lucide-vue-next'
+import { ChevronRight, Flag, History, Plus } from 'lucide-vue-next'
 import { formatCount } from '../../model/format'
 import type { BranchInfo, JournalEntry } from '../../model/types'
 import BranchTag from '../../ui/BranchTag.vue'
@@ -115,6 +125,7 @@ const ROOT_PT = { root: { class: 'w-full justify-start px-1.5 py-1 font-normal' 
 const ACTION_PT = { root: { class: 'px-1.5 py-1 font-normal' } }
 
 const steps = useTemplateRef<InstanceType<typeof Popover>>('steps')
+const timeline = useTemplateRef<InstanceType<typeof StepTimeline>>('timeline')
 const stepsOpen = ref(false)
 
 const familyLine = computed(() => {
@@ -135,6 +146,15 @@ const viewingOnly = computed(() => props.branch.name !== props.worktreeBranch)
 function onSteps(event: Event): void {
   stepsOpen.value = !stepsOpen.value
   steps.value?.toggle(event)
+}
+
+async function onMark(event: Event): Promise<void> {
+  if (!stepsOpen.value) {
+    stepsOpen.value = true
+    steps.value?.show(event)
+  }
+  await nextTick()
+  await timeline.value?.openMark()
 }
 
 function onRewind(step: number): void {

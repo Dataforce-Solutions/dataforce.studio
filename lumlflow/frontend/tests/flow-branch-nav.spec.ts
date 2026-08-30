@@ -631,6 +631,107 @@ describe('a lane fork is visible from both sides', () => {
 })
 
 describe('a checkpoint is a marker with the user words on it', () => {
+  it('marks from the lane identifier and reads the flagged row back from the stream', async () => {
+    const intent = 'before I rewrite the scorer'
+    const { wrapper, live } = await workbench({
+      handlers: {
+        checkpoint: (params) => ({
+          branch: 'main',
+          step: 15,
+          intent: String(params.intent),
+          ts: '2026-08-13T09:15:00Z',
+          settled: false,
+        }),
+      },
+    })
+
+    const mark = wrapper.find('button[aria-label="Mark this point on main"]')
+    expect(mark.exists()).toBe(true)
+    await mark.trigger('click')
+    await settle()
+    await typeInto('what this point is', intent)
+    await clickOverlayButton('mark this point')
+
+    expect(asked(live, 'checkpoint')).toEqual([
+      expect.objectContaining({ branch: 'main', intent }),
+    ])
+
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 15,
+      transaction: transaction(15, {
+        branch: 'branch-main',
+        actor: 'user',
+        intent,
+        ops: [{ op: 'checkpointed', branch_id: 'branch-main' }],
+      }),
+    })
+    await settle()
+    await openTimeline(wrapper)
+
+    const row = document.body.querySelector(
+      `[data-testid="step-row"][aria-label="step 15 · ${intent}"]`,
+    )
+    expect(row).toBeTruthy()
+    expect(row?.querySelector('.lucide-flag')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('marks the viewed lane without moving the files onto it', async () => {
+    const { wrapper, live } = await workbench({
+      handlers: {
+        checkpoint: (params) => ({
+          branch: String(params.branch),
+          step: 15,
+          intent: String(params.intent),
+          ts: '2026-08-13T09:15:00Z',
+          settled: false,
+        }),
+      },
+    })
+
+    await openSwitcher(wrapper)
+    await pickBranch('exp/lr-sweep')
+    const mark = wrapper.find('button[aria-label="Mark this point on exp/lr-sweep"]')
+    expect(mark.exists()).toBe(true)
+    await mark.trigger('click')
+    await settle()
+    await typeInto('what this point is', 'baseline')
+    await clickOverlayButton('mark this point')
+
+    expect(asked(live, 'checkpoint')).toEqual([
+      expect.objectContaining({ branch: 'exp/lr-sweep', intent: 'baseline' }),
+    ])
+    expect(asked(live, 'switch')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('disables and does not submit a blank marker from the lane identifier', async () => {
+    const { wrapper, live } = await workbench()
+
+    const mark = wrapper.find('button[aria-label="Mark this point on main"]')
+    expect(mark.exists()).toBe(true)
+    await mark.trigger('click')
+    await settle()
+    await typeInto('what this point is', '   ')
+
+    const field = document.body.querySelector<HTMLInputElement>(
+      'input[aria-label="what this point is"]',
+    )
+    const confirm = [...(field?.parentElement?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent?.includes('mark this point'),
+    )
+    expect(confirm).toBeInstanceOf(HTMLButtonElement)
+    expect((confirm as HTMLButtonElement).disabled).toBe(true)
+
+    await clickOverlayButton('mark this point')
+
+    expect(asked(live, 'checkpoint')).toEqual([])
+    wrapper.unmount()
+  })
+
   it('marks the point under the sentence typed for it', async () => {
     const { wrapper, live } = await workbench({
       handlers: {
