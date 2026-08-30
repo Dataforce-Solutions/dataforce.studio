@@ -636,6 +636,7 @@ export interface BranchRecord {
   branch_id: string
   parent: string | null
   forked_at_step: number
+  parent_step: number | null
   archived: boolean
   checked_out: boolean
   cells: number

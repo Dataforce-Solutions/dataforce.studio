@@ -246,7 +246,13 @@ export interface FlowMethods {
   cancel: Method<BranchScoped, Abandoned>
   fork: Method<
     Intentful & { name: string; from_branch?: string },
-    { branch: string; from_branch: string; forked_at_step: number; cells: number }
+    {
+      branch: string
+      from_branch: string
+      forked_at_step: number
+      parent_step: number
+      cells: number
+    }
   >
   switch: Method<Intentful & { branch: string }, Projected & FlowBrief>
   rewind: Method<

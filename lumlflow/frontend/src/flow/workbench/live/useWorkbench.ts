@@ -131,6 +131,7 @@ function branchInfo(record: BranchRecord): BranchInfo {
     // A root branch was forked from nothing; the graph draws it as a lane that
     // starts at the origin rather than one that split off something.
     forkedAtStep: record.parent === null ? null : record.forked_at_step,
+    parentStep: record.parent === null ? null : record.parent_step,
     headStep: record.last_intent?.step ?? record.forked_at_step,
     lastIntent: record.last_intent?.intent ?? '',
     settled: record.last_intent?.settled ?? false,

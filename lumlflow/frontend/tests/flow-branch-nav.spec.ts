@@ -39,6 +39,7 @@ function branchRecord(overrides: Partial<BranchRecord> & { branch: string }): Br
     branch_id: `branch-${overrides.branch}`,
     parent: null,
     forked_at_step: 0,
+    parent_step: null,
     archived: false,
     checked_out: false,
     cells: 1,
@@ -63,6 +64,7 @@ const BRANCHES: BranchRecord[] = [
     branch: 'exp/lr-sweep',
     parent: 'main',
     forked_at_step: 6,
+    parent_step: 5,
     last_intent: {
       step: 10,
       ts: '2026-08-13T09:10:00Z',
@@ -444,6 +446,182 @@ describe('the step timeline is where a branch moves through its own history', ()
     const { wrapper, live } = await withHistory()
 
     await openTimeline(wrapper)
+    await clickOverlayButton('step 14 · edited features')
+
+    expect(overlay()).not.toContain('rewind to step 14')
+    expect(asked(live, 'rewind')).toEqual([])
+    wrapper.unmount()
+  })
+})
+
+describe('a lane fork is visible from both sides', () => {
+  const TREE = [
+    branchRecord({ branch: 'main', checked_out: true }),
+    branchRecord({
+      branch: 'exp/lr-sweep',
+      parent: 'main',
+      forked_at_step: 13,
+      parent_step: 12,
+      last_intent: {
+        step: 13,
+        ts: '2026-08-13T09:13:00Z',
+        actor: 'user',
+        intent: 'started the learning-rate sweep',
+        offline: false,
+        settled: false,
+      },
+    }),
+    branchRecord({
+      branch: 'exp/b',
+      parent: 'main',
+      forked_at_step: 15,
+      parent_step: 12,
+      last_intent: {
+        step: 15,
+        ts: '2026-08-13T09:15:00Z',
+        actor: 'user',
+        intent: 'started another experiment',
+        offline: false,
+        settled: false,
+      },
+    }),
+    branchRecord({
+      branch: 'exp/head',
+      parent: 'main',
+      forked_at_step: 16,
+      parent_step: 14,
+      last_intent: {
+        step: 16,
+        ts: '2026-08-13T09:16:00Z',
+        actor: 'user',
+        intent: 'started from the head',
+        offline: false,
+        settled: false,
+      },
+    }),
+    branchRecord({
+      branch: 'exp/lr-sweep-2',
+      parent: 'exp/lr-sweep',
+      forked_at_step: 17,
+      parent_step: 13,
+      last_intent: {
+        step: 17,
+        ts: '2026-08-13T09:17:00Z',
+        actor: 'user',
+        intent: 'continued the sweep',
+        offline: false,
+        settled: false,
+      },
+    }),
+  ]
+
+  const HISTORY = [
+    transaction(12, { branch: 'branch-main', actor: 'user', intent: 'added features' }),
+    transaction(13, {
+      branch: 'branch-exp/lr-sweep',
+      actor: 'user',
+      intent: 'started the learning-rate sweep',
+      ops: [
+        {
+          op: 'branch_created',
+          branch_id: 'branch-exp/lr-sweep',
+          name: 'exp/lr-sweep',
+          parent_branch_id: 'branch-main',
+          fork_step: 13,
+        },
+      ],
+    }),
+    transaction(14, { branch: 'branch-main', actor: 'user', intent: 'edited features' }),
+  ]
+
+  async function withForkHistory(): Promise<Bench> {
+    const bench = await workbench({ branches: TREE })
+    for (const entry of HISTORY) {
+      bench.live.socket.deliver({
+        channel: 'journal',
+        type: 'transaction',
+        flow: FLOW,
+        step: entry.step,
+        transaction: entry,
+      })
+    }
+    await settle()
+    return bench
+  }
+
+  function stepRow(step: number): Element | undefined {
+    return [...document.body.querySelectorAll('[data-testid="step-row"]')].find((row) =>
+      row.getAttribute('aria-label')?.startsWith(`step ${step} ·`),
+    )
+  }
+
+  it("quotes the parent's own step in the child's header", async () => {
+    const { wrapper } = await withForkHistory()
+
+    await openSwitcher(wrapper)
+    await pickBranch('exp/lr-sweep')
+
+    expect(wrapper.text()).toContain('started from main · step 12 · 1 step ago')
+    wrapper.unmount()
+  })
+
+  it('marks every direct child that started from the same parent row', async () => {
+    const { wrapper } = await withForkHistory()
+
+    await openTimeline(wrapper)
+
+    expect(stepRow(12)?.querySelector('[data-testid="started-here"]')?.textContent).toContain(
+      'exp/lr-sweep, exp/b started here',
+    )
+    expect(
+      [...document.body.querySelectorAll('[data-testid="started-here"]')].filter((marker) =>
+        marker.textContent?.includes('exp/lr-sweep'),
+      ),
+    ).toHaveLength(1)
+    expect(stepRow(13)).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it("shows a grandchild only on its direct parent's timeline", async () => {
+    const { wrapper } = await withForkHistory()
+
+    await openTimeline(wrapper)
+    expect(overlay()).not.toContain('exp/lr-sweep-2 started here')
+    await wrapper.find('button[aria-label="Steps on main"]').trigger('click')
+    await settle()
+
+    await openSwitcher(wrapper)
+    await pickBranch('exp/lr-sweep')
+    await openTimeline(wrapper, 'exp/lr-sweep')
+
+    expect(stepRow(13)?.querySelector('[data-testid="started-here"]')?.textContent).toContain(
+      'exp/lr-sweep-2 started here',
+    )
+    wrapper.unmount()
+  })
+
+  it('rewinds a marked row exactly like any other row', async () => {
+    const { wrapper, live } = await withForkHistory()
+
+    await openTimeline(wrapper)
+    await clickOverlayButton('step 12 · added features')
+    expect(overlay()).toContain('restores the cells')
+    await clickOverlayButton('rewind to step 12')
+
+    expect(asked(live, 'rewind')).toEqual([
+      expect.objectContaining({ branch: 'main', to_step: 12 }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('marks the current row without offering a no-op rewind', async () => {
+    const { wrapper, live } = await withForkHistory()
+
+    await openTimeline(wrapper)
+    expect(stepRow(14)?.textContent).toContain('current')
+    expect(stepRow(14)?.querySelector('[data-testid="started-here"]')?.textContent).toContain(
+      'exp/head started here',
+    )
     await clickOverlayButton('step 14 · edited features')
 
     expect(overlay()).not.toContain('rewind to step 14')

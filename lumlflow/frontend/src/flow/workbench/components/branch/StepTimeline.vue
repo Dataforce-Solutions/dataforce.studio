@@ -66,6 +66,14 @@
               <span class="font-mono">step {{ entry.step }}</span>
               · {{ entry.time }} · {{ entry.actor.label }}
             </span>
+            <span
+              v-if="startedHere.has(entry.step)"
+              data-testid="started-here"
+              class="flex items-center gap-1 text-sm text-muted-color"
+            >
+              <Split :size="14" aria-hidden="true" />
+              {{ startedHere.get(entry.step)?.join(', ') }} started here
+            </span>
           </span>
         </Button>
 
@@ -96,10 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { Button, InputText, Tag } from 'primevue'
-import { Dot, Flag } from 'lucide-vue-next'
-import type { JournalEntry } from '../../model/types'
+import { Dot, Flag, Split } from 'lucide-vue-next'
+import type { BranchInfo, JournalEntry } from '../../model/types'
 
 /**
  * Where a branch stands and where it can go: its steps, newest first, with the
@@ -117,17 +125,21 @@ import type { JournalEntry } from '../../model/types'
  * saying this point was worth naming, and the name is what the timeline reads
  * back.
  */
-const props = defineProps<{
-  branch: string
-  /** The branch's transactions, newest first, as the panel already filters them. */
-  entries: JournalEntry[]
-  /** The step the branch is on; the row that reads `current`. */
-  headStep: number
-  /** The files are on this branch, so a rewind moves them too. */
-  checkedOut?: boolean
-  /** An op is in flight; a second one would race it. */
-  busy?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    branch: string
+    /** The branch's transactions, newest first, as the panel already filters them. */
+    entries: JournalEntry[]
+    children?: BranchInfo[]
+    /** The step the branch is on; the row that reads `current`. */
+    headStep: number
+    /** The files are on this branch, so a rewind moves them too. */
+    checkedOut?: boolean
+    /** An op is in flight; a second one would race it. */
+    busy?: boolean
+  }>(),
+  { children: () => [] },
+)
 
 const emit = defineEmits<{
   rewind: [step: number]
@@ -139,6 +151,16 @@ const TAG_PT = { root: { class: 'text-sm font-normal px-1.5 py-0 shrink-0' } }
 
 /** The step whose confirm is open. One at a time — this is a decision, not a list. */
 const pending = ref<number | null>(null)
+
+/** Which lanes started from each of this lane's own steps, in tree order. */
+const startedHere = computed(() => {
+  const at = new Map<number, string[]>()
+  for (const child of props.children) {
+    if (child.parentStep === null) continue
+    at.set(child.parentStep, [...(at.get(child.parentStep) ?? []), child.name])
+  }
+  return at
+})
 
 const marking = ref(false)
 const markIntent = ref('')

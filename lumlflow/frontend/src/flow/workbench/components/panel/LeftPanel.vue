@@ -6,6 +6,7 @@
         :branch="branch"
         :worktree-branch="session.worktreeBranch"
         :journal="onThisBranch"
+        :children="children"
         :busy="branchBusy"
         @open="emit('open-graph')"
         @new-branch="emit('new-branch')"
@@ -221,6 +222,9 @@ const HEADER_PT = { root: { class: 'px-3 py-2.5 text-base font-normal' } }
 const CONTENT_PT = { content: { class: 'px-1.5 pb-3 pt-0' } }
 
 const branch = computed(() => props.branches.find((b) => b.name === props.viewedBranch))
+const children = computed(() =>
+  props.branches.filter((candidate) => candidate.parent === props.viewedBranch),
+)
 
 const interpreterSentence = computed(() => {
   const interpreter = props.env.interpreter

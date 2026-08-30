@@ -115,6 +115,7 @@ function branchRecords(): BranchRecord[] {
     branch_id: `branch-${index}`,
     parent: index === 0 ? null : 'main',
     forked_at_step: index === 0 ? 0 : 12,
+    parent_step: index === 0 ? null : 12,
     archived: false,
     checked_out: index === 0,
     cells: 5,

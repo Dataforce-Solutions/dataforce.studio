@@ -66,6 +66,7 @@
       <StepTimeline
         :branch="branch.name"
         :entries="journal"
+        :children="children"
         :head-step="branch.headStep"
         :checked-out="branch.checkedOut"
         :busy="busy"
@@ -98,6 +99,7 @@ const props = defineProps<{
   worktreeBranch: string
   /** This branch's transactions, newest first — what the timeline navigates. */
   journal: JournalEntry[]
+  children: BranchInfo[]
   /** An op is in flight; the timeline's verbs wait rather than race it. */
   busy?: boolean
 }>()
@@ -116,9 +118,9 @@ const steps = useTemplateRef<InstanceType<typeof Popover>>('steps')
 const stepsOpen = ref(false)
 
 const familyLine = computed(() => {
-  const { parent, forkedAtStep, headStep } = props.branch
-  if (parent === null || forkedAtStep === null) return 'root lane'
-  return `started from ${parent} · ${formatCount(headStep - forkedAtStep, 'step')} ago`
+  const { parent, forkedAtStep, parentStep, headStep } = props.branch
+  if (parent === null || forkedAtStep === null || parentStep === null) return 'root lane'
+  return `started from ${parent} · step ${parentStep} · ${formatCount(headStep - parentStep, 'step')} ago`
 })
 
 const stepsLabel = computed(() => formatCount(props.branch.headStep, 'step'))

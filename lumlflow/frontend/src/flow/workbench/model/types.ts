@@ -428,6 +428,8 @@ export interface BranchInfo {
   name: BranchName
   parent: BranchName | null
   forkedAtStep: number | null
+  /** The parent's own step this branch copied; null on a root branch. */
+  parentStep: number | null
   headStep: number
   lastIntent: string
   /** Fully materialized and consistent — a quality badge, never a gate. */
