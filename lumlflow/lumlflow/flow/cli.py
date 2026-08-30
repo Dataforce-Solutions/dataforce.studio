@@ -71,6 +71,7 @@ def register(app: typer.Typer) -> None:
         preflight,
         cancel,
         rewind,
+        checkpoint,
         adopt,
         diff,
         rename,
@@ -389,6 +390,24 @@ def rewind(
             f"{result['cells']} cells",
             *_projected(result),
         ],
+    )
+
+
+def checkpoint(
+    intent: str = typer.Option(
+        ..., "-m", "--intent", help="What this point is. Recorded in the journal."
+    ),
+    flow: str | None = _FLOW,
+    lane: str | None = _LANE,
+    as_json: bool = _JSON,
+) -> None:
+    """Mark this point on a lane under a one-line intent. Nothing is copied."""
+    params = {"branch": lane, "intent": intent}
+    result = _call("checkpoint", params, flow=flow, as_json=as_json)
+    _emit(
+        result,
+        as_json,
+        [f"marked `{result['branch']}` at step {result['step']} · {result['intent']}"],
     )
 
 

@@ -736,6 +736,84 @@ def test_starting_a_lane_and_listing_it_quote_the_same_parent_step(
     assert sweep["forked_at_step"] > parent_step
 
 
+def test_checkpoint_marks_the_lane_on_disk(cli: Invoke, workspace: Path) -> None:
+    cli("init", "churn")
+    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
+
+    marked = cli("checkpoint", "-m", "the one that scored")
+    match = re.search(
+        r"marked `main` at step (\d+) · the one that scored", marked.output
+    )
+    context = json.loads(cli("context", "--json").output)
+
+    assert marked.exit_code == 0, marked.output
+    assert match is not None
+    assert context["checkpoint"]["step"] == int(match.group(1))
+    assert context["checkpoint"]["intent"] == "the one that scored"
+    _no_internals(marked)
+
+
+def test_checkpoint_marks_another_lane(cli: Invoke) -> None:
+    cli("init", "churn")
+    cli("lane", "new", "sweep")
+
+    marked = cli("checkpoint", "--lane", "sweep", "-m", "baseline")
+    match = re.search(r"marked `sweep` at step (\d+) · baseline", marked.output)
+    tree = json.loads(cli("lane", "list", "--json").output)
+    by_name = {branch["branch"]: branch for branch in tree["branches"]}
+
+    assert marked.exit_code == 0, marked.output
+    assert match is not None
+    assert by_name["sweep"]["checkpoint"] == int(match.group(1))
+    assert by_name["main"]["checkpoint"] != int(match.group(1))
+
+
+def test_checkpoint_requires_an_intent_without_writing(cli: Invoke) -> None:
+    cli("init", "churn")
+    before = json.loads(cli("context", "--json").output)["recent"]
+
+    refused = cli("checkpoint")
+    after = json.loads(cli("context", "--json").output)["recent"]
+
+    assert refused.exit_code == 2
+    assert "--intent" in refused.output
+    assert after == before
+
+
+def test_checkpoint_passes_a_blank_intent_to_the_daemon(cli: Invoke) -> None:
+    cli("init", "churn")
+
+    refused = cli("checkpoint", "-m", "   ")
+
+    assert refused.exit_code == 1
+    assert "a checkpoint needs a one-line intent" in refused.output
+
+
+def test_checkpoint_refuses_an_unknown_lane_without_writing(cli: Invoke) -> None:
+    cli("init", "churn")
+    before = json.loads(cli("context", "--json").output)["recent"]
+
+    refused = cli("checkpoint", "--lane", "nowhere", "-m", "x")
+    after = json.loads(cli("context", "--json").output)["recent"]
+
+    assert refused.exit_code == 1
+    assert "no lane named nowhere" in refused.output
+    assert "Traceback" not in refused.output
+    assert after == before
+
+
+def test_checkpoint_returns_json(cli: Invoke) -> None:
+    cli("init", "churn")
+
+    marked = cli("checkpoint", "-m", "baseline", "--json")
+    payload = json.loads(marked.output)
+
+    assert marked.exit_code == 0, marked.output
+    assert set(payload) == {"branch", "step", "intent", "ts", "settled"}
+    assert payload["branch"] == "main"
+    assert payload["intent"] == "baseline"
+
+
 def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path):
     """Persist-everything is what makes the verb prompt-free: every value the
     older step referenced is still in the store, so there is no preflight to
@@ -1462,6 +1540,7 @@ def test_no_verb_prints_the_vocabulary_git_owns(cli: Invoke, workspace: Path):
         ("graph",),
         ("preflight", "score"),
         ("diff", "main", "sweep"),
+        ("checkpoint", "-m", "worth keeping"),
         ("lane", "use", "sweep"),
         ("lane", "archive", "sweep"),
     ]
