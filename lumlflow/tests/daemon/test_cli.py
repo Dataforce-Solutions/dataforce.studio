@@ -149,6 +149,22 @@ def test_json_carries_the_identifiers_the_printed_form_leaves_out(cli: Invoke):
     _no_internals(printed)
 
 
+def test_status_env_and_context_name_the_interpreter_and_its_source(
+    cli: Invoke, workspace: Path
+) -> None:
+    cli("init", "churn")
+    expected = f"python    {Path(sys.executable)} · source lumlflow's own interpreter"
+
+    shown = [cli("status"), cli("env", "status"), cli("context")]
+    context_payload = json.loads(cli("context", "--json").output)
+
+    assert all(expected in result.output for result in shown)
+    assert context_payload["python"] == {
+        "path": str(Path(sys.executable)),
+        "source": "lumlflow",
+    }
+
+
 def test_a_flow_that_fails_says_so_in_words_and_exits_nonzero(cli: Invoke):
     cli("init", "churn")
 

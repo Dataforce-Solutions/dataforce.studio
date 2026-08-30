@@ -34,9 +34,9 @@ STATES = {
 def status(payload: dict[str, Any]) -> list[str]:
     """The workspace, its flows, and where each one stands."""
     lines = [f"workspace {payload['workspace']}"]
-    interpreter = payload.get("python") or {}
-    if interpreter.get("path"):
-        lines.append(f"python    {interpreter['path']}")
+    interpreter = _python_line(payload.get("python") or {})
+    if interpreter is not None:
+        lines.append(interpreter)
     for flow in payload.get("flows") or []:
         lines += ["", *_flow_heading(flow), *cell_lines(flow.get("cells") or [])]
     return lines
@@ -144,12 +144,13 @@ def cell(payload: dict[str, Any]) -> list[str]:
 
 def env(payload: dict[str, Any]) -> list[str]:
     """The workspace's packages, and any kernel still holding older ones."""
-    interpreter = payload.get("python") or {}
+    interpreter = _python_line(payload.get("python") or {})
     packages = payload.get("packages") or []
     counted = f"{len(packages)} package" + ("" if len(packages) == 1 else "s")
-    lines = [
-        f"workspace {payload['workspace']}",
-        f"python    {interpreter.get('path', '')}",
+    lines = [f"workspace {payload['workspace']}"]
+    if interpreter is not None:
+        lines.append(interpreter)
+    lines += [
         "",
         counted if packages else "no packages locked here",
         *_indent(f"{entry['name']} {entry['version']}" for entry in packages),
@@ -166,11 +167,16 @@ def env(payload: dict[str, Any]) -> list[str]:
 
 def context(payload: dict[str, Any]) -> list[str]:
     """The orientation brief, in the order a reader needs it."""
+    interpreter = _python_line(payload.get("python") or {})
     lines = [
         f"{payload['flow']} · {payload['branch']}"
         + ("" if payload["checked_out"] else " (not on disk)")
         + (f" · {payload['agent']} is working here" if payload.get("agent") else ""),
         f"workspace {payload['workspace']}",
+    ]
+    if interpreter is not None:
+        lines.append(interpreter)
+    lines += [
         f"cells {payload['cells']}",
         "checkpoint "
         + (
@@ -215,6 +221,17 @@ def context(payload: dict[str, Any]) -> list[str]:
         ]
     lines += ["", "full agent guide: `lumlflow guide`"]
     return lines
+
+
+def _python_line(interpreter: dict[str, Any]) -> str | None:
+    path = interpreter.get("path")
+    if not path:
+        return None
+    source = interpreter.get("source")
+    if source == "lumlflow":
+        source = "lumlflow's own interpreter"
+    suffix = f" · source {source}" if source else ""
+    return f"python    {path}{suffix}"
 
 
 def tree(payload: dict[str, Any]) -> list[str]:

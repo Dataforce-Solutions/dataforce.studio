@@ -1294,8 +1294,8 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Wire lumlflow gc and pin outputs before staging
   - [x] `lumlflow gc` wired to `gc.sweep` for the flows beneath the directory it is run in, reporting bytes reclaimed; output refs pinned before the kernel stages them (or in-flight scratch and staged blobs excluded from the sweep) so a sweep during a run unlinks nothing of it
   - [x] Tests: gc reports reclaimed bytes; gc never removes an in-flight run's bytes
-- [ ] Show the interpreter and its source in the Packages header
-  - [ ] `render.py`'s `status` and `env` interpreter lines gain the source and `context` gains the line, its query payload gaining the interpreter it lacks today; the Packages header shows interpreter path and source from the env description (`envs.describe`, as `status` and `_env()` already report it) with that sentence (D11.7)
-  - [ ] Tests: the three CLI lines, a header spec
+- [x] Show the interpreter and its source in the Packages header
+  - [x] `render.py`'s `status` and `env` interpreter lines gain the source and `context` gains the line, its query payload gaining the interpreter it lacks today; the Packages header shows interpreter path and source from the env description (`envs.describe`, as `status` and `_env()` already report it) with that sentence (D11.7)
+  - [x] Tests: the three CLI lines, a header spec
 - [ ] Align the documentation with the shipped behaviour
   - [ ] `lumlflow/docs/user-guide.md`, `lumlflow/README.md`, `docs/docs/apps/lumlflow/lumlflow.md` per D12, including the *what to commit / what a clone sees* section — the `<name>.flow/.gitignore` write and its `.git`-ancestor condition, how a git revert of a cell file is completed and made to stick, the refused-store line with the re-initialise sentence, the `luml-sdk`-in-a-project-venv sentence, and the project-first quickstart — and the `--host` warning line in the README

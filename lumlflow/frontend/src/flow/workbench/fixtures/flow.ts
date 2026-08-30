@@ -350,6 +350,7 @@ export const session: WorkbenchSession = {
 
 export const env: EnvState = {
   pythonVersion: '3.12.4',
+  interpreter: { path: '/workspace/.venv/bin/python', source: 'venv' },
   packages: [
     { name: 'pandas', version: '2.2.3' },
     { name: 'xgboost', version: '2.1.1' },

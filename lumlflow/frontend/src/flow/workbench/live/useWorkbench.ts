@@ -263,6 +263,7 @@ function envState(report: EnvReport | null, flow: string, kernel: KernelReport |
     // The running kernel's own version. Absent until one has started, and left
     // absent rather than guessed from the interpreter the daemon would spawn.
     pythonVersion: kernel?.python ?? '',
+    interpreter: report?.python,
     packages: (report?.packages ?? []).map((pkg) => ({
       name: pkg.name,
       version: pkg.version,

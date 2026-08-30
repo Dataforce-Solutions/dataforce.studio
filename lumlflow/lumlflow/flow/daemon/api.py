@@ -184,7 +184,13 @@ class Api:
     async def context(self, params: dict[str, Any]) -> dict[str, Any]:
         """The orientation brief: where you are, what is unsynced, what broke."""
         session, branch = await self._read(params)
-        return queries.context(session, branch)
+        interpreter = envs.describe(session.workspace_dir)
+        return queries.context(session, branch) | {
+            "python": {
+                "path": str(interpreter.python),
+                "source": interpreter.source,
+            }
+        }
 
     async def tree(self, params: dict[str, Any]) -> dict[str, Any]:
         session, _ = await self._read(params)

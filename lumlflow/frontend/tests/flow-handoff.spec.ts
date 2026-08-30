@@ -284,10 +284,10 @@ describe('one card gesture copies the daemon’s context', () => {
     await wrapper.get('button[aria-label="copy context"]').trigger('click')
     await settle()
 
-    expect(asked(live, 'agent.payload')).toEqual([
-      { flow: FLOW, branch: 'main', slug: 'features' },
+    expect(asked(live, 'agent.payload')).toEqual([{ flow: FLOW, branch: 'main', slug: 'features' }])
+    expect(copied).toEqual([
+      'Daemon-built cell context.\n\n```lumlflow-context\nlane: main\nslug: features\nstep: 8\n```',
     ])
-    expect(copied).toEqual(['Daemon-built cell context.\n\n```lumlflow-context\nlane: main\nslug: features\nstep: 8\n```'])
     expect(wrapper.findAll('button[aria-label="copy context"]')).toHaveLength(1)
     expect(overlays()).not.toContain('copy the payload')
     wrapper.unmount()
@@ -322,9 +322,7 @@ describe('one card gesture copies the daemon’s context', () => {
     await wrapper.get('button[aria-label="copy context"]').trigger('click')
     await settle()
 
-    expect(asked(live, 'agent.payload')).toEqual([
-      { flow: FLOW, branch: 'main', slug: 'features' },
-    ])
+    expect(asked(live, 'agent.payload')).toEqual([{ flow: FLOW, branch: 'main', slug: 'features' }])
     expect(copied).toHaveLength(1)
     expect(wrapper.text()).not.toContain('Fix this')
     wrapper.unmount()
@@ -400,7 +398,7 @@ describe('the activity feed is read-only and opens at the cursor', () => {
 
   it('shows a projection-completion cell note in the activity feed', async () => {
     const sentence =
-      'projection completed for `features`; use `rewind` to keep the file\'s bytes instead'
+      "projection completed for `features`; use `rewind` to keep the file's bytes instead"
     const { wrapper } = await workbench({
       journal: [
         transaction(11, {
@@ -520,6 +518,33 @@ describe('the scratch REPL reads the viewed branch', () => {
 // --- packages and the flow's settings -----------------------------------------
 
 describe('the packages panel and settings', () => {
+  it('names the interpreter and source in the folded packages header', async () => {
+    const venv = await workbench()
+    const venvHeader = venv.wrapper
+      .findAll('[data-pc-name="accordionheader"]')
+      .find((header) => header.text().startsWith('packages'))!
+
+    expect(venvHeader.text()).toContain('python /tmp/project/.venv/bin/python · source venv')
+    venv.wrapper.unmount()
+
+    const own = await workbench({
+      handlers: {
+        'env.status': () => ({
+          ...ENV,
+          python: { path: '/opt/lumlflow/bin/python', source: 'lumlflow' },
+        }),
+      },
+    })
+    const ownHeader = own.wrapper
+      .findAll('[data-pc-name="accordionheader"]')
+      .find((header) => header.text().startsWith('packages'))!
+
+    expect(ownHeader.text()).toContain(
+      "python /opt/lumlflow/bin/python · source lumlflow's own interpreter",
+    )
+    own.wrapper.unmount()
+  })
+
   it('lists packages without package-manager controls', async () => {
     const { wrapper, live } = await workbench()
 

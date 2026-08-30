@@ -512,6 +512,7 @@ export interface PackageInfo {
 
 export interface EnvState {
   pythonVersion: string
+  interpreter?: { path: string; source: string }
   packages: PackageInfo[]
   /**
    * The running kernel imported packages the workspace has moved since, so it

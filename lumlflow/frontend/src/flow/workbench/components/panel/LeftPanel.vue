@@ -12,11 +12,7 @@
         @rewind="emit('rewind', $event)"
         @checkpoint="emit('checkpoint', $event)"
       />
-      <AgentTaskLine
-        :paired="session.paired"
-        :viewed-branch="viewedBranch"
-        @pair="emit('pair')"
-      />
+      <AgentTaskLine :paired="session.paired" :viewed-branch="viewedBranch" @pair="emit('pair')" />
     </div>
 
     <!--
@@ -91,16 +87,25 @@
 
         <AccordionPanel value="packages">
           <AccordionHeader :pt="HEADER_PT">
-            <span class="flex min-w-0 items-center gap-2 text-base">
-              packages
-              <span class="text-muted-color">{{ env.packages.length }}</span>
-              <TriangleAlert
-                v-if="env.mismatch"
-                v-tooltip.top="'The running kernel is behind the env'"
-                :size="14"
-                class="text-(--p-message-warn-color)"
-                aria-label="env mismatch"
-              />
+            <span class="flex min-w-0 flex-1 flex-col items-start">
+              <span class="flex min-w-0 items-center gap-2 text-base">
+                packages
+                <span class="text-muted-color">{{ env.packages.length }}</span>
+                <TriangleAlert
+                  v-if="env.mismatch"
+                  v-tooltip.top="'The running kernel is behind the env'"
+                  :size="14"
+                  class="text-(--p-message-warn-color)"
+                  aria-label="env mismatch"
+                />
+              </span>
+              <span
+                v-if="interpreterSentence"
+                class="block max-w-full truncate font-mono text-xs text-muted-color"
+                :title="interpreterSentence"
+              >
+                {{ interpreterSentence }}
+              </span>
             </span>
           </AccordionHeader>
           <AccordionContent :pt="CONTENT_PT">
@@ -216,6 +221,14 @@ const HEADER_PT = { root: { class: 'px-3 py-2.5 text-base font-normal' } }
 const CONTENT_PT = { content: { class: 'px-1.5 pb-3 pt-0' } }
 
 const branch = computed(() => props.branches.find((b) => b.name === props.viewedBranch))
+
+const interpreterSentence = computed(() => {
+  const interpreter = props.env.interpreter
+  if (!interpreter?.path) return ''
+  const source =
+    interpreter.source === 'lumlflow' ? "lumlflow's own interpreter" : interpreter.source
+  return `python ${interpreter.path}${source ? ` · source ${source}` : ''}`
+})
 
 /**
  * The viewed branch's history — plus what happened to the workspace under all

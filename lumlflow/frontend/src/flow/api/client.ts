@@ -122,6 +122,7 @@ export interface BranchTree {
 
 export interface ContextBrief {
   workspace: string
+  python: { path: string; source: string }
   flow: string
   branch: string
   checked_out: boolean
