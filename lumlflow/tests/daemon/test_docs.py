@@ -1,9 +1,4 @@
-"""The generated workspace guide.
-
-The quickstart's length is a contract, not a preference — Tier-0 says an agent
-learns the whole loop from it, and a cheatsheet nobody finishes reading teaches
-nothing.
-"""
+"""The agent guide served without writing into the workspace."""
 
 from pathlib import Path
 
@@ -19,17 +14,20 @@ from tests.daemon.helpers import (
     write_cell,
 )
 
-QUICKSTART_LINES = 22
 USER_GUIDE = Path(__file__).resolve().parents[2] / "docs" / "user-guide.md"
 
 
-def test_the_quickstart_fits_in_about_twenty_lines_and_names_the_three_gestures():
-    lines = docs.QUICKSTART.strip().splitlines()
+def test_the_served_guide_names_the_current_agent_surface() -> None:
+    guide = docs.CHEATSHEET
 
-    assert len(lines) <= QUICKSTART_LINES
-    assert "lumlflow run <cell>" in docs.QUICKSTART
-    assert "lumlflow status" in docs.QUICKSTART
-    assert "lumlflow context" in docs.QUICKSTART
+    assert "Experiments tracker" in guide
+    assert "returns a reference" in guide
+    assert "lumlflow cells move" in guide
+    assert "lumlflow agents list" in guide
+    assert "lumlflow guide" in guide
+    assert "lumlflow mcp" in guide
+    assert "--workspace" not in guide
+    assert "lane" in guide
 
 
 def test_the_user_guide_does_not_describe_the_removed_file_lock() -> None:
@@ -39,42 +37,32 @@ def test_the_user_guide_does_not_describe_the_removed_file_lock() -> None:
     assert "saved · not yet written to files" not in guide
 
 
-async def test_agents_md_lands_at_the_workspace_root_and_names_every_flow(
+async def test_flow_operations_write_no_agent_guide_into_the_workspace(
     tmp_path: Path,
-):
+) -> None:
     root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
+        assert "agent.connect" not in api.methods
         await api.status({})
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "score"})
 
-    generated = (root / docs.AGENTS_NAME).read_text("utf-8")
-    assert "`churn`" in generated and "`sales`" in generated
-    assert docs.QUICKSTART in generated
-    # The authoring defaults an agent has to know before it writes a cell.
-    assert "The four words are `model`" in generated
-    assert "Promote later" not in generated
-    assert "Always name a cell" in generated
-    assert "immutable" in generated
+    assert not (root / "AGENTS.md").exists()
 
 
-async def test_a_teams_own_instructions_survive_the_generated_block(tmp_path: Path):
+async def test_a_teams_own_instructions_are_never_rewritten(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
-    (root / docs.AGENTS_NAME).write_text(
-        "# Our house rules\n\nRun the linter before you finish.\n", encoding="utf-8"
-    )
+    path = root / "AGENTS.md"
+    original = "# Our house rules\n\nRun the linter before you finish.\n"
+    path.write_text(original, encoding="utf-8")
 
     async with daemon_api(root) as api:
         await api.status({})
-        first = (root / docs.AGENTS_NAME).read_text("utf-8")
-        await api.status({})
-        again = (root / docs.AGENTS_NAME).read_text("utf-8")
+        await api.flow_open({"flow": "churn"})
 
-    assert first.startswith("# Our house rules")
-    assert "Run the linter before you finish." in first
-    assert docs.BEGIN_MARKER in first and docs.END_MARKER in first
-    # Regenerating is idempotent, or every verb would rewrite a watched file.
-    assert again == first
+    assert path.read_text("utf-8") == original
 
 
 async def test_flow_operations_do_not_write_a_checkout_sidecar(tmp_path: Path) -> None:
@@ -90,15 +78,5 @@ async def test_flow_operations_do_not_write_a_checkout_sidecar(tmp_path: Path) -
     assert not (store_dir(flow) / "CHECKOUT.md").exists()
 
 
-async def test_the_generated_block_never_speaks_the_vocabulary_git_owns(
-    tmp_path: Path,
-):
-    """`AGENTS.md` sits at the root of a git repository. It teaches our words."""
-    root = make_workspace(tmp_path / "project", flows=("churn",))
-
-    async with daemon_api(root) as api:
-        await api.flow_open({"flow": "churn"})
-
-    no_git_words((root / docs.AGENTS_NAME).read_text("utf-8"), "AGENTS.md")
-    no_git_words(docs.QUICKSTART, "the quickstart")
+def test_the_served_guide_never_speaks_the_vocabulary_git_owns() -> None:
     no_git_words(docs.CHEATSHEET, "the cheatsheet")

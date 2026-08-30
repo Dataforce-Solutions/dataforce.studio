@@ -901,12 +901,11 @@ function onCompare(names: string[]): void {
   })
 }
 
-/** The cheatsheet is a file in the workspace; the browser has no viewer for one. */
 function onCheatsheet(): void {
   toast.add({
     severity: 'secondary',
-    summary: 'AGENTS.md',
-    detail: 'it sits at the workspace root. open it from your editor or your agent.',
+    summary: 'agent guide',
+    detail: 'run `lumlflow guide` in a terminal, or read `lumlflow://guide` over MCP.',
     life: 4000,
   })
 }

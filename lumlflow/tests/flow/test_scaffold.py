@@ -25,6 +25,7 @@ def test_a_source_cell_scaffolds_with_no_inputs():
     assert cell.consumes == {}
     assert list(cell.produces) == ["result"]
     assert "def materialize(self, ctx):" in source
+    assert source.count("lumlflow guide") == 1
 
 
 def test_after_prefills_the_wiring_and_the_matching_signature():

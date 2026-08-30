@@ -1,12 +1,16 @@
 import json
 import os
 import stat
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
 
 import pytest
 from lumlflow.flow.daemon import harnesses
+
+from tests.daemon.helpers import make_workspace
 
 
 def _executable(path: Path) -> str:
@@ -316,6 +320,29 @@ def test_registry_records_only_verified_shell_markers() -> None:
     assert all(entry.verification for entry in harnesses.HARNESSES)
 
 
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [
+        ({"CLAUDECODE": "1"}, "claude-code"),
+        ({"CURSOR_AGENT": ""}, "cursor"),
+        ({"GEMINI_CLI": "true"}, "gemini"),
+        ({"CODEX_SHELL": "1"}, "user"),
+        ({}, "user"),
+    ],
+)
+def test_shell_actor_uses_only_verified_environment_markers(
+    environment: dict[str, str], expected: str
+) -> None:
+    assert harnesses.shell_actor(environment) == expected
+
+
+def test_lumlflow_actor_precedes_a_harness_environment_marker() -> None:
+    assert (
+        harnesses.shell_actor({"LUMLFLOW_ACTOR": "pair-1", "CLAUDECODE": "1"})
+        == "pair-1"
+    )
+
+
 def test_registry_records_verified_cwd_behavior_and_agent_classes() -> None:
     cwd_behavior = {entry.id: entry.cwd_is_project for entry in harnesses.HARNESSES}
     shell_harnesses = {entry.id for entry in harnesses.HARNESSES if entry.shell}
@@ -521,3 +548,36 @@ def test_writer_rereads_after_creating_the_first_backup(
     assert document["late-key"] == "kept"
     assert document["mcpServers"]["foreign"] == {"command": "node"}
     assert document["mcpServers"]["lumlflow"]["args"] == ["mcp"]
+
+
+def test_the_harness_entry_command_serves_mcp_without_a_workspace_argument(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    installed = Path(sys.executable).with_name("lumlflow")
+    command = harnesses.resolve_executable(installed, search_path="")
+    if not Path(command).exists():
+        pytest.skip("lumlflow is not installed as a console script here")
+    handshake = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "probe", "version": "1.0"},
+        },
+    }
+
+    answered = subprocess.run(
+        [command, "mcp"],
+        input=json.dumps(handshake) + "\n",
+        capture_output=True,
+        text=True,
+        cwd=root,
+        timeout=60,
+    )
+    hello = json.loads(answered.stdout.splitlines()[0])
+
+    assert hello["result"]["serverInfo"]["name"] == "lumlflow"
+    assert hello["result"]["capabilities"] == {"tools": {}, "resources": {}}

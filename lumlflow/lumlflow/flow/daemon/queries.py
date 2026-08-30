@@ -703,7 +703,9 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
     # Both facts are about the files, and the files are one branch's: a brief on
     # a branch nobody checked out must not claim the agent working in `main` is
     # working in it.
-    checked_out = _same(session.store.branches.bound_branch(), here.branch)
+    bound = session.store.branches.bound_branch()
+    checked_out = _same(bound, here.branch)
+    rewrite = index.last_cells_rewrite(bound.branch_id) if bound is not None else None
     return {
         "workspace": str(session.workspace_dir),
         "flow": session.ref.name,
@@ -711,6 +713,11 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
         "checked_out": checked_out,
         "agent": agent.label if (checked_out and agent is not None) else None,
         "checkpoint": _transaction(checkpoint) if checkpoint is not None else None,
+        "last_cells_rewrite": (
+            {"verb": rewrite.verb, "lane": bound.name, "step": rewrite.step}
+            if rewrite is not None and bound is not None
+            else None
+        ),
         "cells": len(here.versions),
         "unsynced": [
             {

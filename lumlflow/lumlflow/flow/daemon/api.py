@@ -16,7 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, get_args
 
-from lumlflow.flow.daemon import connect, envs, handoff, harnesses, queries, workspace
+from lumlflow.flow.daemon import envs, handoff, harnesses, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
@@ -102,7 +102,6 @@ class Api:
             "agent.begin": self.agent_begin,
             "agent.end": self.agent_end,
             "agent.payload": self.agent_payload,
-            "agent.connect": self.agent_connect,
             "settings.set": self.settings_set,
             "env.status": self.env_status,
             "run": self.run,
@@ -243,7 +242,6 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
-        self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
 
     async def flow_delete(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -635,7 +633,6 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
-        self.hub.document()
         return await self._flow_brief(session) | _projection(projection)
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -763,21 +760,6 @@ class Api:
             "label": registered.label,
         }
 
-    async def agent_connect(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The prompt that pairs an agent with this flow, whatever harness it is.
-
-        Built here for the same reason a handoff is: the facts are here — the
-        workspace's path, the branch the files hold, the interpreter this is
-        served by — and a surface that assembled them itself would be guessing
-        at the one thing the reader is about to paste into a config.
-
-        No quiesce: nothing in it resolves a version, and reconciling the file
-        plane to answer "how do I connect" would make opening a popover cost
-        what running a verb costs.
-        """
-        session = self._session(params, actor=_actor(params))
-        return connect.prompt(session, workspace_dir=session.workspace_dir)
-
     async def agent_payload(self, params: dict[str, Any]) -> dict[str, Any]:
         """The stored context copied from one cell card."""
         session, branch = await self._read(params)
@@ -837,7 +819,6 @@ class Api:
                 force=bool(params.get("force")),
             )
             result = _outcome(outcome)
-        self.hub.document()
         # A result the user paid for is what makes the cheap cells under it
         # affordable: running the expensive parent is the gesture that lets
         # reactivity take the plot below it.
@@ -1073,7 +1054,6 @@ class Api:
     ) -> dict[str, Any]:
         """What a daemon-originated edit did, including its file projection."""
         written = session.worktree.project_cell(branch=branch)
-        self.hub.document()
         session.reactor.arm()
         return {
             "slug": accepted.slug,
@@ -1092,7 +1072,6 @@ class Api:
 
     def _reproject(self, session: FlowSession, branch: str) -> Projection | None:
         """Carry a slice change into the files, when it is this branch's files."""
-        self.hub.document()
         # Switching, forking, rewinding, adopting and deleting all move which
         # versions the branch selects, which is the other half of what a verdict
         # is derived from. Reactivity has a new answer after every one of them.

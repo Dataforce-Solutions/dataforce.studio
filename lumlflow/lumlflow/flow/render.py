@@ -144,6 +144,14 @@ def context(payload: dict[str, Any]) -> list[str]:
             + (" · offline" if entry.get("offline") else "")
             for entry in payload["recent"]
         )
+    rewrite = payload.get("last_cells_rewrite")
+    if rewrite is not None:
+        lines += [
+            "",
+            f"last `cells/` rewrite: {rewrite['verb']} · `{rewrite['lane']}` · "
+            f"step {rewrite['step']}",
+        ]
+    lines += ["", "full agent guide: `lumlflow guide`"]
     return lines
 
 

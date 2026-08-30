@@ -29,7 +29,7 @@ import websockets.sync.client
 import yaml
 from lumlflow.cli import app
 from lumlflow.flow import render
-from lumlflow.flow.daemon import client, web
+from lumlflow.flow.daemon import client, docs, web
 from lumlflow.flow.daemon import workspace as daemon_workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
@@ -232,6 +232,13 @@ def test_agents_cli_lists_consents_sets_up_and_removes(
     assert removed.exit_code == 0, removed.output
     assert "removed lumlflow from Claude Code" in removed.output
     assert json.loads(config.read_text("utf-8"))["mcpServers"] == {}
+
+
+def test_guide_prints_the_same_text_the_mcp_resource_serves(cli: Invoke) -> None:
+    guided = cli("guide")
+
+    assert guided.exit_code == 0
+    assert guided.output == docs.CHEATSHEET
 
 
 def test_status_from_each_cwd_reaches_one_daemon_and_lists_only_that_directory(
@@ -703,6 +710,8 @@ def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path
 
     rewound = cli("rewind", str(at), "-m", "back to the one that scored", stdin="")
     listed = cli("cells", "list", "--json")
+    context_json = json.loads(cli("context", "--json").output)
+    context_text = cli("context")
 
     assert rewound.exit_code == 0
     assert f"is back at step {at}" in rewound.output
@@ -711,6 +720,16 @@ def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path
     # the rewind cost a selection write and no execution.
     states = [entry["state"] for entry in json.loads(listed.output)["cells"]]
     assert states == ["synced"]
+    assert context_json["last_cells_rewrite"] == {
+        "verb": "rewind",
+        "lane": "main",
+        "step": context_json["recent"][0]["step"],
+    }
+    assert (
+        f"last `cells/` rewrite: rewind · `main` · step "
+        f"{context_json['last_cells_rewrite']['step']}"
+    ) in context_text.output
+    assert context_text.output.rstrip().endswith("full agent guide: `lumlflow guide`")
     _no_internals(rewound)
 
 
@@ -856,12 +875,45 @@ def test_lumlflow_actor_owns_a_reconcile_triggered_by_a_verb(
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
     cli("cells", "list")
+    monkeypatch.setenv("CLAUDECODE", "1")
     monkeypatch.setenv("LUMLFLOW_ACTOR", "codex-2")
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
 
     shown = cli("cells", "show", "score", "--json")
 
     assert json.loads(shown.output)["provenance"]["last_edited_by"] == "codex-2"
+
+
+def test_a_bare_verb_uses_the_harness_marker_without_registering_a_session(
+    cli: Invoke,
+    workspace: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flow = workspace / "churn.flow"
+    cli("init", "churn")
+    write_cell(flow, "score", SCORE_CELL)
+    cli("cells", "list")
+    for marker in ("CLAUDECODE", "CURSOR_AGENT", "GEMINI_CLI"):
+        monkeypatch.delenv(marker, raising=False)
+    monkeypatch.delenv("LUMLFLOW_ACTOR", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+
+    edited = cli(
+        "cells",
+        "edit",
+        "score",
+        "-m",
+        "raise score",
+        stdin=SCORE_CELL.replace("0.91", "0.93"),
+    )
+    shown = json.loads(cli("cells", "show", "score", "--json").output)
+    context_json = json.loads(cli("context", "--json").output)
+
+    assert edited.exit_code == 0, edited.output
+    assert shown["provenance"]["last_edited_by"] == "claude-code"
+    assert context_json["recent"][0]["actor"] == "claude-code"
+    assert context_json["agent"] is None
+    assert (flow / "cells" / "score.py").exists()
 
 
 def test_a_working_agent_does_not_block_switching_the_files(

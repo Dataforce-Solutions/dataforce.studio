@@ -18,7 +18,7 @@ from typing import Any
 from urllib.parse import quote
 
 import pytest
-from lumlflow.flow.daemon import client, mcp
+from lumlflow.flow.daemon import client, docs, mcp
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.errors import ServerError
@@ -235,12 +235,15 @@ def test_a_flow_with_no_files_still_has_one_plain_registration(
     assert all("worktree" not in op.model_dump() for op in ops_of(live, AgentBegin))
 
 
-def test_the_label_a_configuration_gave_wins_over_the_clients_own_name(talk: Talk):
+def test_the_label_a_configuration_gave_wins_over_environment_and_client_name(
+    talk: Talk, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A harness that spawns every MCP server under one generic name is told
     apart by what its configuration says, which is the deliberate answer."""
+    monkeypatch.setenv("LUMLFLOW_ACTOR", "from-environment")
     session = talk.held(label="pair-1")
 
-    session(hello(name="node"), tool(1, "init-flow", {"name": "churn"}))
+    session(hello(name="Claude Code"), tool(1, "init-flow", {"name": "churn"}))
     session(tool(2, "new-cell", {"slug": "score", "source": SCORE_CELL, "intent": "s"}))
     live = talk.flow("churn")
     session.close()
@@ -249,6 +252,35 @@ def test_the_label_a_configuration_gave_wins_over_the_clients_own_name(talk: Tal
     assert {version.author for version in slice_of(live, "main").values()} == {
         ops_of(live, AgentBegin)[0].actor
     }
+
+
+def test_environment_then_registry_id_precede_the_raw_mcp_client_name(
+    talk: Talk, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    explicit = talk.held()
+    monkeypatch.setenv("LUMLFLOW_ACTOR", "named-shell")
+    explicit(
+        hello(name="Claude Code"),
+        tool(1, "init-flow", {"name": "explicit"}),
+        tool(2, "context", {"flow": "explicit"}),
+    )
+    explicit.close()
+
+    monkeypatch.delenv("LUMLFLOW_ACTOR")
+    matched = talk.held()
+    matched(
+        hello(name="Claude Code"),
+        tool(1, "init-flow", {"name": "matched"}),
+        tool(2, "context", {"flow": "matched"}),
+    )
+    matched.close()
+
+    assert [op.label for op in ops_of(talk.flow("explicit"), AgentBegin)] == [
+        "named-shell"
+    ]
+    assert [op.label for op in ops_of(talk.flow("matched"), AgentBegin)] == [
+        "claude-code"
+    ]
 
 
 def test_use_lane_moves_this_session_and_leaves_the_files_alone(
@@ -491,7 +523,7 @@ class Train:
     assert "def materialize(self, ctx, model, run):" in report
 
 
-def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
+def test_resources_serve_the_guide_and_flow_data_and_refuse_removed_focus(
     talk: Talk, workspace: Path
 ):
     """The read-only half: what the flow holds, without invoking anything."""
@@ -508,14 +540,17 @@ def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
         request(7, "resources/read", {"uri": f"{root}/previews/score.summary"}),
         request(8, "resources/read", {"uri": "session://focus"}),
         request(9, "resources/read", {"uri": "flow://churn/cells/nowhere"}),
+        request(10, "resources/read", {"uri": "lumlflow://guide"}),
     )
 
     listed = {resource["uri"] for resource in answers[4]["result"]["resources"]}
     manifest = read(answers, 5)
     source = answers[6]["result"]["contents"][0]
     preview = read(answers, 7)
+    guide = answers[10]["result"]["contents"][0]
 
     assert listed == {
+        "lumlflow://guide",
         f"{root}/manifest",
         f"{root}/cells/score",
         f"{root}/previews/score.summary",
@@ -524,6 +559,11 @@ def test_resources_serve_flow_data_and_refuse_the_removed_focus_resource(
     assert source["mimeType"] == "text/x-python"
     assert "class Score" in source["text"]
     assert preview["kind"] == "metric" and preview["preview"]["blocks"]
+    assert guide == {
+        "uri": "lumlflow://guide",
+        "mimeType": "text/markdown",
+        "text": docs.CHEATSHEET,
+    }
     assert answers[8]["error"]["code"] == mcp.RESOURCE_NOT_FOUND
     # A name the flow does not know reads as a missing resource, not as a
     # runtime that failed — the client can tell a stale URI from a broken one.
@@ -559,6 +599,17 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert "directory" in tools["status"]["inputSchema"]["properties"]
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND
+
+
+def test_the_handshake_tells_an_agent_what_to_read_and_when_files_move(talk: Talk):
+    instructions = talk(hello())[0]["result"]["instructions"]
+
+    assert "`context` first" in instructions
+    assert "`lumlflow://guide`" in instructions
+    assert "checked-out lane" in instructions
+    assert "written to `cells/` at once" in instructions
+    assert all(verb in instructions for verb in ("lane use", "rewind", "adopt"))
+    assert "Nothing here writes files" not in instructions
 
 
 def test_only_conflict_resolution_tools_declare_force() -> None:

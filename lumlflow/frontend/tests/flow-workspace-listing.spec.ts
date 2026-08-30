@@ -587,13 +587,14 @@ describe('pairing is detected, not declared', () => {
 // --- the empty flow ----------------------------------------------------------
 
 describe('the empty state is a heading and one line, not a void', () => {
-  const ways = ['add one here', 'pair an agent', 'AGENTS.md', 'notebook view']
+  const ways = ['add one here', 'pair an agent', 'agent guide', 'notebook view']
 
   it('offers every way in on one line, with the command copyable', () => {
     const wrapper = mount(EmptyFlowState)
 
     const labels = wrapper.findAll('button').map((button) => button.text())
     for (const way of ways) expect(labels).toContain(way)
+    expect(labels).not.toContain('AGENTS.md')
     // The one command an empty flow is about is on screen; harness setup lives
     // in the panel rather than taking over the empty surface.
     expect(wrapper.text()).toContain('lumlflow cells new load_data')
@@ -610,7 +611,7 @@ describe('the empty state is a heading and one line, not a void', () => {
 
     const labels = wrapper.findAll('button').map((button) => button.text())
     expect(labels).not.toContain('pair an agent')
-    for (const way of ['add one here', 'AGENTS.md', 'notebook view']) {
+    for (const way of ['add one here', 'agent guide', 'notebook view']) {
       expect(labels).toContain(way)
     }
     wrapper.unmount()
@@ -621,7 +622,7 @@ describe('the empty state is a heading and one line, not a void', () => {
 
     const buttons = wrapper.findAll('button')
     await buttons.find((button) => button.text() === 'add one here')?.trigger('click')
-    await buttons.find((button) => button.text() === 'AGENTS.md')?.trigger('click')
+    await buttons.find((button) => button.text() === 'agent guide')?.trigger('click')
     await buttons.find((button) => button.text() === 'notebook view')?.trigger('click')
 
     expect(wrapper.emitted('create')).toHaveLength(1)

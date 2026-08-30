@@ -24,7 +24,7 @@ import websockets.exceptions
 import websockets.sync.client
 from lumlflow import __version__
 from lumlflow.cli import app
-from lumlflow.flow.daemon import client, connect, web, workspace
+from lumlflow.flow.daemon import client, harnesses, web, workspace
 from lumlflow.flow.daemon.main import ALREADY_RUNNING, INVALID_REQUEST
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowNotFound, ServerError
@@ -745,7 +745,9 @@ def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
     """
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
-    command = connect.executable()
+    command = harnesses.resolve_executable(
+        Path(sys.executable).with_name("lumlflow"), search_path=""
+    )
     if not Path(command).exists():
         pytest.skip("lumlflow is not installed as a console script here")
 

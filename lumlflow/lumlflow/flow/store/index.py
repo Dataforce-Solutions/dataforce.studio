@@ -13,6 +13,7 @@ from collections.abc import Collection, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from lumlflow.flow.hashing import canonical_json
 from lumlflow.flow.store.models import (
@@ -233,6 +234,15 @@ class TransactionRow:
     # Somebody marked this step on purpose, as opposed to `settled`, which the
     # commit computes. The two answer the same question from opposite ends.
     marker: bool = False
+
+
+CellsRewriteVerb = Literal["use", "rewind", "adopt"]
+
+
+@dataclass(frozen=True)
+class CellsRewriteRow:
+    verb: CellsRewriteVerb
+    step: int
 
 
 @dataclass(frozen=True)
@@ -551,6 +561,23 @@ class Index:
                 arguments,
             )
         ]
+
+    def last_cells_rewrite(self, branch_id: str) -> CellsRewriteRow | None:
+        verbs: dict[str, CellsRewriteVerb] = {
+            "worktree_bound": "use",
+            "rewound": "rewind",
+            "adopted": "adopt",
+        }
+        rows = self._conn.execute(
+            "SELECT step, ops FROM transactions WHERE branch = ? ORDER BY step DESC",
+            (branch_id,),
+        )
+        for row in rows:
+            for operation in json.loads(row["ops"]):
+                verb = verbs.get(operation.get("op"))
+                if verb is not None:
+                    return CellsRewriteRow(verb=verb, step=int(row["step"]))
+        return None
 
     def checkpoint(self, branch_id: str) -> TransactionRow | None:
         """The branch's last marked or settled step.

@@ -12,7 +12,7 @@
           <Button link label="pair an agent" :pt="LINK_PT" @click="emit('pair')" />
           <span>·</span>
         </template>
-        <Button link label="AGENTS.md" :pt="LINK_PT" @click="emit('cheatsheet')" />
+        <Button link label="agent guide" :pt="LINK_PT" @click="emit('cheatsheet')" />
         <span>·</span>
         <Button link label="notebook view" :pt="LINK_PT" @click="emit('notebook')" />
       </div>

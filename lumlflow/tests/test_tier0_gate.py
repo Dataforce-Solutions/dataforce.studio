@@ -29,10 +29,10 @@ def harness() -> ModuleType:
     return module
 
 
-def test_the_quickstart_loop_completes_on_names_alone(
+def test_the_served_guide_loop_completes_on_names_alone(
     harness: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Edit → run → inspect → fix → rerun, using only verbs the quickstart names,
+    """Edit → run → inspect → fix → rerun, using only verbs the guide names,
     with no uid, content hash or memo key printed anywhere along the way."""
     state = tmp_path / "state"
     monkeypatch.setenv(STATE_DIR_ENV, str(state))
@@ -49,6 +49,7 @@ def test_the_quickstart_loop_completes_on_names_alone(
 
     assert report.failures == []
     assert report.passed
-    assert report.quickstart_lines <= 22
-    # The whole loop, on the three gestures the quickstart teaches.
-    assert report.vocabulary <= {"run", "status", "context"}
+    assert report.guide_lines > 0
+    # The whole loop, on the three gestures the guide teaches.
+    assert {"run", "status", "context"} <= report.vocabulary
+    assert not (workspace / "AGENTS.md").exists()

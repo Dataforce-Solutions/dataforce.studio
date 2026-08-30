@@ -15,13 +15,12 @@ absolute path and a flow elsewhere opens in the same hub.
 """
 
 import asyncio
-import contextlib
 import shutil
 import traceback
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import docs, envs, queries, workspace
+from lumlflow.flow.daemon import envs, queries
 from lumlflow.flow.daemon import reconcile as reconciliation
 from lumlflow.flow.daemon.kernel_proc import KernelProcess
 from lumlflow.flow.daemon.projections import Worktree
@@ -235,7 +234,6 @@ class Hub:
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])
         session.reconcile(tier="cold", actor=actor)
-        self.document(ref.path.parent)
         # Opening is where reactivity catches up on a workspace nobody was
         # watching: the offline edits have just landed, and cells left unsynced
         # by the last session are unsynced still. Armed whatever the cold start
@@ -328,24 +326,6 @@ class Hub:
             # A cell, shared-code, or environment fact moved, so a previously
             # declined refresh may now be safe to try.
             session.reactor.arm()
-        self.document(session.workspace_dir)
-
-    def document(self, directory: Path | None = None) -> None:
-        """Keep the generated workspace guide current.
-
-        A workspace nobody can write to is not a reason to refuse the op that
-        asked; the guide is a convenience over facts the store already holds.
-        """
-        directories = (
-            {directory.resolve()}
-            if directory is not None
-            else {session.workspace_dir for session in self._sessions.values()}
-        )
-        for current in directories:
-            with contextlib.suppress(OSError):
-                docs.refresh_workspace(
-                    current, [ref.name for ref in workspace.find_flows(current)]
-                )
 
     def init_flow(self, directory: Path, name: str) -> FlowSession:
         """Scaffold a new flow in the workspace, unbound.
@@ -360,7 +340,6 @@ class Hub:
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
-        self.document(directory)
         return session
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
@@ -391,7 +370,6 @@ class Hub:
             self.watches.release(session.watch.root)
             await session.close()
         shutil.rmtree(ref.path)
-        self.document(ref.path.parent)
 
     async def close(self) -> None:
         self._closed = True

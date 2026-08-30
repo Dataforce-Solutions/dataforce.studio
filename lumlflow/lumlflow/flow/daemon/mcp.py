@@ -31,7 +31,7 @@ from typing import Any, Literal, TextIO
 from urllib.parse import quote, unquote, urlsplit
 
 from lumlflow import __version__
-from lumlflow.flow.daemon import client
+from lumlflow.flow.daemon import client, docs, harnesses
 from lumlflow.flow.daemon.client import DaemonClient
 from lumlflow.flow.errors import (
     BranchNotFound,
@@ -47,6 +47,7 @@ PROTOCOL_VERSION = "2025-06-18"
 _SPOKEN = frozenset({"2024-11-05", "2025-03-26", PROTOCOL_VERSION})
 
 _FLOW_SCHEME = "flow"
+GUIDE_URI = "lumlflow://guide"
 
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
@@ -55,10 +56,12 @@ PARSE_ERROR = -32700
 RESOURCE_NOT_FOUND = -32002
 
 INSTRUCTIONS = (
-    "Read `context` first. It names the lane you are on, what is stale and "
-    "why, and what broke. Address a cell by name (`features`), an output as "
-    "`cell.output`, and a lane by name. Your edits land in the store. "
-    "Nothing here writes files or puts a lane on disk."
+    "Call `context` first, then read `lumlflow://guide`. Context names the lane, "
+    "what is stale and why, what broke, and the last whole rewrite of `cells/`. "
+    "An edit on the checked-out lane is written to `cells/` at once; an edit "
+    "on another lane stays in the store. `lumlflow lane use` rewrites `cells/` "
+    "for the lane it checks out, while `lumlflow rewind` and `lumlflow adopt` "
+    "rewrite them when they target the checked-out lane."
 )
 
 Scope = Literal["workspace", "flow", "branch"]
@@ -202,8 +205,8 @@ TOOLS: tuple[_Tool, ...] = (
     _Tool(
         "edit-cell",
         "cells.edit",
-        "Replace a cell's source. lumlflow writes the version to the store "
-        "and attributes it to this session.",
+        "Replace a cell's source. On the checked-out lane lumlflow writes it "
+        "to `cells/` at once, and attributes it to this session.",
         (
             _Arg("slug", "string", "The cell to replace.", required=True),
             _Arg("source", "string", "Its new source, in full.", required=True),
@@ -433,7 +436,9 @@ class Server:
         """
         info = params.get("clientInfo") or {}
         named = str(info.get("name") or "").strip()
-        self.label = self.given or named or "mcp"
+        explicit = os.environ.get(harnesses.ACTOR_ENV, "").strip()
+        registered = harnesses.client_harness_id(named)
+        self.label = self.given or explicit or registered or named or "mcp"
         self.actor = f"{self.label}-{os.getpid()}"
         asked = str(params.get("protocolVersion") or "")
         return {
@@ -507,7 +512,14 @@ class Server:
         Enumerated against the branch this session is on rather than whichever
         one has files, so a session that switched reads its own branch back.
         """
-        listed: list[dict[str, Any]] = []
+        listed: list[dict[str, Any]] = [
+            {
+                "uri": GUIDE_URI,
+                "name": "lumlflow agent guide",
+                "description": "The cell DSL, lane rules, tools and CLI verbs.",
+                "mimeType": "text/markdown",
+            }
+        ]
         for flow in self._all_flows():
             listed.append(
                 {
@@ -547,6 +559,12 @@ class Server:
         than as a failure, which is what lets a client tell a stale URI from a
         runtime that is not answering.
         """
+        if uri == GUIDE_URI:
+            return {
+                "uri": uri,
+                "mimeType": "text/markdown",
+                "text": docs.CHEATSHEET,
+            }
         parts = urlsplit(uri)
         if parts.scheme != _FLOW_SCHEME or not parts.netloc:
             raise _Refused(RESOURCE_NOT_FOUND, f"nothing is served at `{uri}`")

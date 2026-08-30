@@ -62,6 +62,7 @@ def register(app: typer.Typer) -> None:
         init,
         status,
         context,
+        guide,
         graph,
         run,
         eval,
@@ -158,6 +159,13 @@ def context(
     params = {"branch": lane}
     result = _call("context", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.context)
+
+
+def guide() -> None:
+    """The cell DSL, lane rules, tools and CLI verbs for an agent."""
+    from lumlflow.flow.daemon import docs
+
+    typer.echo(docs.CHEATSHEET, nl=False)
 
 
 @lane_app.command("list")
@@ -515,7 +523,7 @@ def mcp(
     raise typer.Exit(
         server.serve(
             directory=Path.cwd().resolve(),
-            label=label or os.environ.get(ACTOR_ENV),
+            label=label,
         )
     )
 
@@ -941,7 +949,9 @@ class _Daemon:
         if scoped and self.flow is not None:
             payload.setdefault("flow", self.flow)
         payload.setdefault("directory", str(self.root))
-        payload.setdefault("actor", os.environ.get(ACTOR_ENV) or "user")
+        from lumlflow.flow.daemon import harnesses
+
+        payload.setdefault("actor", harnesses.shell_actor())
         return self.live.call(method, payload)
 
 

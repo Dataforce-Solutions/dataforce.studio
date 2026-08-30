@@ -23,6 +23,7 @@ from lumlflow.flow.errors import FlowError
 SERVER_NAME = "lumlflow"
 MANAGED_ENV = "LUMLFLOW_MANAGED"
 DAEMON_EXECUTABLE_ENV = "LUMLFLOW_DAEMON_EXECUTABLE"
+ACTOR_ENV = "LUMLFLOW_ACTOR"
 CONSENT_RECORD_NAME = "agents.json"
 
 Platform = Literal["linux", "darwin", "win32"]
@@ -348,6 +349,35 @@ def harness_by_id(harness_id: str) -> Harness:
         if harness.id == harness_id:
             return harness
     raise HarnessConfigError(f"unknown agent harness `{harness_id}`")
+
+
+def shell_actor(environment: Mapping[str, str] | None = None) -> str:
+    inherited = environment if environment is not None else os.environ
+    explicit = inherited.get(ACTOR_ENV, "").strip()
+    if explicit:
+        return explicit
+    for harness in HARNESSES:
+        marker = harness.environment_marker
+        if marker is not None and marker in inherited:
+            return harness.id
+    return "user"
+
+
+def client_harness_id(name: str) -> str | None:
+    normalized = _normalized_name(name)
+    if not normalized:
+        return None
+    for harness in HARNESSES:
+        if normalized in {
+            _normalized_name(harness.id),
+            _normalized_name(harness.display_name),
+        }:
+            return harness.id
+    return None
+
+
+def _normalized_name(name: str) -> str:
+    return "".join(character for character in name.casefold() if character.isalnum())
 
 
 def resolve_executable(

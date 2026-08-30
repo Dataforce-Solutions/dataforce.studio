@@ -16,6 +16,7 @@ TYPING_MODULE = "lumlflow_typing"
 
 _HEADER = """from __future__ import annotations
 
+# Run `lumlflow guide` for the cell DSL and commands.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

@@ -1,10 +1,10 @@
-"""The Tier-0 release gate: can an agent drive this from the quickstart alone?
+"""The Tier-0 release gate: can an agent drive this from the served guide alone?
 
 The contract the whole CLI is measured against says a Haiku-class agent, given
-nothing but the ~20-line quickstart in the generated `AGENTS.md`, completes
-edit → run → inspect → fix-a-failure. This harness is the scripted stand-in for
-that agent: it reads the quickstart, and may then use only the commands the
-quickstart names. Any verb it needs that the quickstart never mentioned is a
+nothing but `lumlflow guide`, completes edit → run → inspect → fix-a-failure.
+This harness is the scripted stand-in for that agent: it reads the guide, and
+may then use only the commands the guide names. Any verb it needs that the
+guide never mentioned is a
 gate failure — that is what "three gestures" has to mean to be worth claiming.
 
 Two things are checked as it goes. Whether the loop completes at all, and
@@ -70,7 +70,7 @@ class Step:
 class Report:
     steps: list[Step] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
-    quickstart_lines: int = 0
+    guide_lines: int = 0
     vocabulary: set[str] = field(default_factory=set)
 
     @property
@@ -80,7 +80,7 @@ class Report:
     def summary(self) -> str:
         lines = [
             f"{len(self.steps)} commands, "
-            f"quickstart {self.quickstart_lines} lines, "
+            f"guide {self.guide_lines} lines, "
             f"{len(self.vocabulary)} verbs used",
             *(f"  FAIL {failure}" for failure in self.failures),
         ]
@@ -120,8 +120,8 @@ class Agent:
             )
         if self.allowed and not self._documented(step.argv):
             self.report.failures.append(
-                f"`lumlflow {verb}` is not in the quickstart — Tier-0 is what the "
-                "quickstart teaches, and nothing else"
+                f"`lumlflow {verb}` is not in the guide — Tier-0 is what the "
+                "guide teaches, and nothing else"
             )
         if "--json" in step.argv:
             return
@@ -138,25 +138,25 @@ class Agent:
             words[0] in self.allowed or " ".join(words[:2]) in self.allowed
         )
 
-    def learn(self, quickstart: str) -> None:
-        """Take the verbs from the quickstart. Nothing else may be used after."""
-        self.allowed = set(COMMAND.findall(quickstart))
+    def learn(self, guide: str) -> None:
+        """Take the verbs from the guide. Nothing else may be used after."""
+        self.allowed = set(COMMAND.findall(guide))
         self.report.vocabulary = self.allowed
 
 
 def gate(workspace: Path) -> Report:
-    """Drive edit → run → inspect → fix → rerun, from the quickstart alone."""
+    """Drive edit → run → inspect → fix → rerun from the served guide."""
     report = Report()
     agent = Agent(workspace, report)
 
-    # Everything before the agent reads the quickstart is the human's setup.
+    # Everything before the agent reads the guide is the human's setup.
     agent.run("init", "churn")
-    quickstart = _quickstart(workspace / "AGENTS.md")
-    report.quickstart_lines = len(quickstart.strip().splitlines())
-    if not quickstart:
-        report.failures.append("no quickstart in the generated AGENTS.md")
+    guide = agent.run("guide").output
+    report.guide_lines = len(guide.strip().splitlines())
+    if not guide:
+        report.failures.append("`lumlflow guide` returned no guide")
         return report
-    agent.learn(quickstart)
+    agent.learn(guide)
 
     cells = workspace / "churn.flow" / "cells"
     cells.mkdir(parents=True, exist_ok=True)
@@ -187,17 +187,6 @@ def gate(workspace: Path) -> Report:
     _expect(report, "nothing is left unsynced", payload["unsynced"] == [])
     _expect(report, "the failure is behind us", payload["failures"] == [])
     return report
-
-
-def _quickstart(agents_md: Path) -> str:
-    if not agents_md.exists():
-        return ""
-    text = agents_md.read_text("utf-8")
-    start = text.find("## lumlflow quickstart")
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start:] if end == -1 else text[start:end]
 
 
 def _expect(report: Report, what: str, held: bool) -> None:
