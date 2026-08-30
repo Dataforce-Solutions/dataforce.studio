@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from lumlflow.flow.daemon import docs
+from lumlflow.flow.daemon.workspace import NON_LOOPBACK_WARNING
 from lumlflow.flow.store.flowstore import store_dir
 
 from tests.daemon.helpers import (
@@ -15,6 +16,15 @@ from tests.daemon.helpers import (
 )
 
 USER_GUIDE = Path(__file__).resolve().parents[2] / "docs" / "user-guide.md"
+README = Path(__file__).resolve().parents[2] / "README.md"
+PUBLIC_GUIDE = (
+    Path(__file__).resolve().parents[3]
+    / "docs"
+    / "docs"
+    / "apps"
+    / "lumlflow"
+    / "lumlflow.md"
+)
 
 
 def test_the_served_guide_names_the_current_agent_surface() -> None:
@@ -35,6 +45,63 @@ def test_the_user_guide_does_not_describe_the_removed_file_lock() -> None:
 
     assert '"The agent is working in the files."' not in guide
     assert "saved · not yet written to files" not in guide
+
+
+def test_user_facing_docs_describe_the_shipped_flow_boundaries() -> None:
+    guide = USER_GUIDE.read_text("utf-8")
+    readme = README.read_text("utf-8")
+    public_guide = PUBLIC_GUIDE.read_text("utf-8")
+
+    assert "## What to commit and what a clone sees" in guide
+    for phrase in (
+        "experiment itself lives only in the tracker",
+        "declares or consumes an `experiment` output needs `luml-sdk`",
+        "listing filter, not a daemon boundary",
+        "directory containing its `<name>.flow` directory",
+        "**Settings** has two controls",
+        "user-level configuration",
+        "entry has no workspace argument",
+        "cells/*.py",
+        "flow.yaml",
+        ".lumlflow/",
+        ".gitignore",
+        "git init",
+        "fresh history under that flow id",
+        "projection completed",
+        "lumlflow rewind",
+        "uv add luml-sdk",
+        "schema version and the version supported",
+        "re-initialise the flow from `cells/` and `flow.yaml`",
+        "lumlflow doctor",
+        "daemon log",
+    ):
+        assert phrase in guide
+    for removed in (
+        "generated `AGENTS.md`",
+        "`lumlflow promote",
+        "`lumlflow asset diff",
+        "`lumlflow root`",
+        "Models link to their model card",
+        "edit params from the card",
+    ):
+        assert removed not in guide
+
+    assert "&directory=" in guide
+    assert "&log=" in guide
+
+    quickstart = [
+        readme.index("uv tool install lumlflow"),
+        readme.index("pipx install lumlflow"),
+        readme.index("uv init"),
+        readme.index("uv add pandas pyarrow"),
+        readme.index("lumlflow ui"),
+    ]
+    assert quickstart == sorted(quickstart)
+    assert NON_LOOPBACK_WARNING in readme
+    assert "## Workspace / flows" in readme
+    assert "docs/user-guide.md" in readme
+    assert "## Workspace / flows" in public_guide
+    assert "lumlflow/docs/user-guide.md" in public_guide
 
 
 async def test_flow_operations_write_no_agent_guide_into_the_workspace(

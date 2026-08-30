@@ -37,43 +37,53 @@ A flow answers those three problems directly. The flow keeps every version of ev
 
 The cost is declaration overhead and the loss of ambient globals. For a ten-line throwaway, a notebook is less ceremony. Flows pay off when the results outlive the session. They pay off when several lanes are in flight. They pay off when an agent writes most of the code.
 
-Flows sit next to Experiments, the tracker half of lumlflow. Flows do not replace Experiments. A cell that declares an `experiment` output produces a real tracked experiment. The workbench links out to its experiment screen.
+Flows sit next to Experiments, the tracker half of lumlflow. Flows do not replace Experiments. A cell that declares an `experiment` output writes a real tracked experiment through `ctx.tracker`. `ctx.tracker.record` returns a reference to that experiment. The flow store keeps the reference and a preview snapshot, while the experiment itself lives only in the tracker. The workbench links the output to its experiment screen.
+
+The kernel uses the environment resolved for the flow. If that environment is a project virtual environment, a cell that declares or consumes an `experiment` output needs `luml-sdk` installed there. Add it to a `uv` project with `uv add luml-sdk`. lumlflow does not install it into the project on your behalf.
 
 ## Getting started
 
-Install lumlflow. Start it in the directory you want to work in:
+Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool with `uv` or `pipx`:
 
 ```bash
-pip install lumlflow
+uv tool install lumlflow
+# or: pipx install lumlflow
+```
+
+Create a project before opening the workbench. This gives cells a project environment containing `pandas` and `pyarrow` rather than the isolated environment that holds the lumlflow command:
+
+```bash
+mkdir -p ~/projects/churn
 cd ~/projects/churn
+uv init
+uv add pandas pyarrow
 lumlflow ui
 ```
 
 ```
-workspace: /home/you/projects/churn
-lumlflow at http://127.0.0.1:5000/?token=8f3c1d02e4b7a95614c0fd8823ab7e51
+directory: /home/you/projects/churn
+lumlflow at http://127.0.0.1:5000/flow?token=8f3c1d02e4b7a95614c0fd8823ab7e51&directory=%2Fhome%2Fyou%2Fprojects%2Fchurn&log=%2Fhome%2Fyou%2F.local%2Fstate%2Flumlflow%2Flogs%2Fdaemon.log
+daemon log: /home/you/.local/state/lumlflow/logs/daemon.log
 press Ctrl+C to stop
 ```
 
-lumlflow runs in the foreground. Open the printed address. The address carries the key this browser needs for your workspace. Type the port by hand and the browser arrives without a key. Press Ctrl+C in that terminal when you finish. To run more than one project side by side, give each one its own port with `--port` (`-p`):
+Open the printed address. Its token authenticates flow requests from the browser. Typing the port by hand omits that token. If no daemon is running, `lumlflow ui` runs the one per-user daemon in the foreground until you press Ctrl+C. If a daemon is already running, the command opens that daemon on the requested directory and exits. The first process to start the daemon fixes its host, tracker store, and port for the daemon's lifetime. Use `lumlflow daemon stop` before changing its host or tracker store. A custom port applies when the daemon starts:
 
 ```bash
 lumlflow ui --port 5001
 ```
 
-The address opens on **Experiments**, the tracker half of lumlflow. Flows live under **Workspace**, the other tab in the header. Workspace browses the directory you launched lumlflow in. It lists folders and files for context. It lists a flow as one entry with one gesture. The row opens the flow. A flow's cells and its history are not files of the workspace. The browser therefore never walks into one.
+The address opens on **Experiments**, the tracker half of lumlflow. Flows live under **Workspace**, the other tab in the header. Workspace lists the flows found beneath the directory passed to `lumlflow ui`, or beneath the current directory when no directory is passed. This directory is a listing filter, not a daemon boundary. To list another project through the same daemon, run `lumlflow ui /path/to/project`.
 
-Browsing goes up as well as down. The up arrow above the listing walks to the directory above. It walks above that one too, and lists each directory the same way. A flow in a project next door is therefore a few clicks away. It opens exactly like the ones at home. A flow you open from up there runs against the packages and the shared code of *its own* directory. That is the point. A workspace is one environment. A flow that borrowed another workspace's environment would run under packages nobody installed for it.
+A flow's workspace is the directory containing its `<name>.flow` directory. Cell runs use that directory as their current directory. Shared-code watching starts there, and interpreter resolution walks upward from there to the nearest `.venv` or `pyproject.toml`. An existing `.venv` is used without syncing. A `pyproject.toml` without a `.venv` is synced with `uv`. With neither one above the flow, cells run with lumlflow's own interpreter. The Packages header shows the selected interpreter and where it came from.
 
-*Note: the workspace is the nearest directory at or above your launch directory that already holds flows. The packages panel, the shared `helpers.py` and the generated `AGENTS.md` belong to it. Creating a flow is the one gesture that stays inside it. The path printed on launch may not be the one you expected. Browse up to the one you meant instead of stopping lumlflow. Relaunch only when you want that directory's environment to be the one you work in.*
-
-Create a flow from the *New flow* button at the bottom of the page. Name it `churn`. You get `churn.flow/` with a `cells/` directory, a `flow.yaml`, a store, and `main` on disk in it. The same thing from a terminal:
+Create a flow from the *New flow* button at the bottom of the page. Name it `churn`. You get `churn.flow/` with a `cells/` directory, `flow.yaml`, a `.lumlflow/` store, and `main` on disk. The same thing from a terminal:
 
 ```bash
 lumlflow init churn
 ```
 
-Opening the flow lands on the workbench. An empty flow shows a heading and the command that scaffolds the first cell. It also shows one line of ways in: *add one here*, *pair an agent*, *AGENTS.md* (the generated DSL cheatsheet), and *notebook view*. *Pair an agent* hands you a prompt to paste into your agent. The agent connects itself back. Once it is paired, the canvas fills in as the journal streams its work. *Add one here* scaffolds a real file that you then fill in. The CLI equivalent is `lumlflow cells new features`. The new cell arrives under a placeholder name, `untitled_1`. The card shows that name in italics. Click it once you decide what the cell is. Naming it later costs nothing. Write a `materialize` that returns a dict matching `produces`. Then run the cell from the card's run button, or from a terminal:
+Opening the flow lands on the workbench. An empty flow offers *add one here*, *pair an agent*, *agent guide*, and *notebook view*. *Pair an agent* opens the Agents section. *Add one here* scaffolds a file under a placeholder such as `untitled_1`; the card renders that name in italics until you rename it. The CLI can create a named cell directly with `lumlflow cells new features`. Write a `materialize` method that returns a dict matching `produces`. Then run the cell from the card's run button, or from a terminal:
 
 ```bash
 lumlflow run features
@@ -81,15 +91,25 @@ lumlflow run features
 
 The result appears on the cell's card as a rendered asset. A frame renders as a table. A plot renders as a chart. A metric renders as a number with its direction. A note renders as markdown. The store keeps that preview. Browsing a flow therefore never has to start Python.
 
+## What to commit and what a clone sees
+
+The committed flow surface is `cells/*.py` and `flow.yaml`. Commit the `<name>.flow/.gitignore` file too when lumlflow creates it. The `.lumlflow/` directory contains the journal, values, previews, index, every lane, and every recorded result. It is local state and must not be committed.
+
+When a flow is created beneath a directory that already has a `.git` ancestor, `lumlflow init` creates or extends `<name>.flow/.gitignore` with `.lumlflow/`. This is the only file lumlflow writes into the repository outside the flow's cells and manifest. The rule is written only when that `.git` ancestor exists at flow creation time. If the flow was created before `git init`, add `.lumlflow/` to `<name>.flow/.gitignore` by hand.
+
+A clone receives the committed flow id and the files selected on `main`, but not the local store. Opening it starts a fresh history under that flow id from the `cells/` files and `flow.yaml` on disk. Other lanes and recorded results do not cross through Git.
+
+If `git checkout` or `git pull` restores a cell file to a known older version on the checked-out lane, the daemon completes its projection by putting the lane's current head back on disk. It records a *projection completed* note in Activity, so the change is not silent. To keep the older cell version, use `lumlflow rewind <step>` to move the lane itself to the corresponding step.
+
 ## Writing cells
 
 The filename is the cell's name, its **slug**. Everything else uses that one spelling to address the cell. There are no cell numbers. The graph is not linear, and agents rename constantly.
 
 `consumes = {"name": "producer.output"}` wires inputs. Each key becomes an argument of `materialize`. A bare `"output"` resolves when exactly one cell on the lane produces it. lumlflow then rewrites it to the full spelling for you.
 
-`produces = {"name": "asset"}` declares outputs. The four words are `model`, `dataset`, `experiment` and `asset`. They say what leaves the flow rather than what the value is. Declare `asset` unless you mean to publish, and promote later. lumlflow infers how to render a value from the value itself.
+`produces = {"name": "asset"}` declares outputs. The four words are `model`, `dataset`, `experiment` and `asset`. They describe the output's role. lumlflow infers how to store and render non-experiment values from the values themselves. An `experiment` output must be the reference returned by `ctx.tracker.record`.
 
-`params = {...}` holds declared configuration. You edit params from the card without touching source. Changing one lands a new version of the cell with a params-only difference.
+`params = {...}` holds declared configuration as part of the cell source. Changing it creates a new version of the cell.
 
 A class with a docstring and nothing else is a **note cell**. It has no `materialize` and no declarations. A note cell is versioned markdown. It travels with the flow and appears under *docs* in the left panel.
 
@@ -101,7 +121,7 @@ The workbench is one screen over one lane. The top bar names the flow. It carrie
 
 **Canvas** lays the cells out on the graph. Outputs come foremost, and source sits behind an accordion. The edges are the declared `consumes` wiring. **Notebook** is a single column. It accents the code and puts outputs below each cell, ordered topologically. The two views are two densities of the same cards over the same lane. Anything you do in one, you can do in the other. The canvas/notebook toggle in the top bar switches between them. The selected cell comes with you, and the other view opens scrolled to it. The view, the lane and the selected cell all ride the URL. A link to what you are looking at is therefore a link someone else can open.
 
-The left panel is scoped to the lane you are viewing. Switching lanes re-scopes all of it. At the top is the lane identifier. It shows the lane's name, its state, and where it started from. Clicking it opens the lane map. Its step count opens the [step timeline](#lanes). A *new lane* action sits beside it. Under it is the current agent task, taken from the intent of the last transaction on the lane. Everything below is a section you can fold. **cells** is open, and the rest wait until you ask for them. The same cells appear through three lenses: **experiments**, **models**, and **data**. Data covers dataset outputs. It also covers cells that read files from outside the store, whose freshness the store cannot know. **docs** adds the lane's note cells. A lens with nothing on the lane is not listed at all. **Activity** is the journal's one home. It lists every transaction on the lane, newest first. It draws a *since you were here* divider when you have been away. Its *Summarize lane* button hands the lane to your agent, which writes the note. Its header carries the count when something landed while you were gone. **Packages** is the workspace environment. Its own header flags a kernel that is behind that environment. **Settings** holds reactivity and its automatic-refresh cost threshold (see [Reactivity](#reactivity)).
+The left panel is scoped to the lane you are viewing. Switching lanes re-scopes all of it. At the top is the lane identifier. It shows the lane's name, its state, and where it started from. Clicking it opens the lane map. Its step count opens the [step timeline](#lanes). A *new lane* action sits beside it. Under it is the current agent task. Everything below is a section you can fold. **cells** is open, and the rest wait until you ask for them. The same cells appear through three lenses: **experiments**, **models**, and **data**. Data covers dataset outputs and cells that read files from outside the store. **docs** adds the lane's note cells. A lens with nothing on the lane is not listed. **Agents** detects supported agent harnesses and manages their user-level MCP entries. **Activity** is the journal's one home and marks transactions that arrived while you were away. **Packages** shows the flow's environment, interpreter, and any kernel that is behind it. **Settings** has two controls: reactivity and the automatic-refresh cost threshold shown when reactivity is `auto` (see [Reactivity](#reactivity)).
 
 The inventory lists cells, not files. Data files and shared helper modules beside the flow appear in Workspace, not here. The store does not version them.
 
@@ -119,7 +139,7 @@ The op row runs and changes cells. The run button opens a **preflight** first. T
 
 *Expand* is the first item of the overflow menu. It opens the full value in a right-hand drawer. The drawer holds configs, results, and paging through large frames. It holds the download for whichever output is open. A value that was never persisted offers *materialize and download* instead, with its cost. *Expand* is the first gesture that needs a live Python process. The interface says so before it starts one. Everything else on the card draws from the stored preview.
 
-Two controls ride the row: the run button and the overflow menu. The overflow menu holds the rest in four groups. The first group holds expand and send to agent. The second holds rename, add cell downstream, and duplicate. The third holds promote an inline asset to LUML and the per-asset **eager** toggle. Eager is how you exempt one cell from the reactivity threshold. The fourth holds delete, on its own at the bottom. (Downloading a value lives with the value, in the drawer that *expand* opens.) Two of these behave differently from their notebook equivalents. **Rename** is free. References bind to a cell's identity rather than to its name. Renaming rewrites the filename and every reference at once. Nothing goes stale, and nothing loses its cache. Renaming the file with `mv` does the same thing. **Delete** is per-lane. The cell drops out of this lane's selection. Every other lane keeps its own. A consumer left pointing at nothing here shows a flagged reference with a suggestion. It does not break silently.
+Three controls ride the row: run, copy context, and the overflow menu. The menu holds expand, rename, move up or down, add cell downstream, duplicate, the per-cell **eager** toggle, and delete. Topology limits moves: a cell cannot move before one of its producers or after one of its consumers. Eager exempts one cell from the reactivity threshold. Downloading a value lives in the drawer that *expand* opens. **Rename** is free because references bind to identity. It rewrites the filename and every reference without making results stale. Renaming the file with `mv` does the same thing. **Delete** is per-lane. The cell drops out of this lane's selection, while every other lane keeps its own. A consumer left pointing at nothing on this lane shows a flagged reference with a suggestion.
 
 ### What stale means
 
@@ -167,7 +187,7 @@ Inputs stay pinned at the point where the lane started. A sweep of five lanes th
 
 Reading a lane and working on a lane are two different gestures. **Viewing** any lane is free and always available. It works even while an agent is working on that lane. The **lane switcher** in the top bar is the shortcut. It lists every lane with its state and its step count. Picking one re-scopes the whole screen: panel, canvas, and URL. That re-scope is a store read. It takes no lock and starts no kernel. The **lane map** is still the map. Click the lane identifier to reach it. The map shows where each lane started. It is also where you pick two to five lanes to compare.
 
-**Use** rebinds the flow's files to a lane. It sits deliberately one gesture deeper than browsing. It is the *use here* line in the switcher's footer, which first states what it moves. It is the one gesture that has to wait for an agent that holds the files.
+**Use** rebinds the flow's files to a lane. It sits one gesture deeper than browsing as the *use here* line in the switcher's footer. The selected versions are written to `cells/` at once. Agent sessions are attribution records and do not lock or defer these writes.
 
 ```bash
 lumlflow lane use exp/lr-sweep
@@ -193,7 +213,7 @@ Select two to five lanes in the lane map. Open Compare. The comparison has three
 
 *Divergence* separates two kinds. A **definition divergence** is someone editing a cell. It is rare and structural. Compare renders it as the point where the lanes split, with both versions side by side. A **materialization divergence** is the same code over different inputs. It covers nearly everything downstream of any edit. It therefore collapses into one row per asset, with a result chip per lane. Some differences have no shape to render, such as renames, absences, and params-only changes. An exhaustive *all differences* table behind its own disclosure lists them. Nothing is unreachable just because it did not fit the layout.
 
-*Links* lists what the compared lanes produced. Each entry links out. Experiments link to their experiment screen. Models link to their model card.
+*Links* lists the tracker experiments produced on the compared lanes. A live experiment links to its experiment screen. A missing or unreachable experiment is shown with its state instead of a broken link.
 
 From here you take the winner back. **Adopt** copies one cell's version from one lane onto another:
 
@@ -207,36 +227,23 @@ To take a lane's cells out of the flow entirely, run `lumlflow export flow.py`. 
 
 ## Working with an agent
 
-lumlflow does not embed an agent. It does not launch yours either. Yours connects to it. Click *pair an agent* in the left panel's identity line, or on an empty flow. Copy the prompt it hands you into your agent's session. The prompt names the flow and workspace it pairs with. It carries the MCP server configuration for that workspace. It states the rules that hold here. It says how you edit this flow's cells. It says that runs go through the tools. It says that `input()` fails.
+lumlflow does not embed or launch an agent. The **Agents** section detects supported harnesses installed for your user. Click *pair an agent* to open that section. A harness that lumlflow can configure shows a **Set up** action. Before the first write, the panel names the user-level config file and asks for consent. lumlflow installs one static entry named `lumlflow`, whose command is `lumlflow mcp`. The entry has no workspace argument and works for every flow served by the per-user daemon.
 
-You confirm nothing in the browser. You configure nothing twice. The moment your agent connects, the line at the top of the left panel changes. It flips from *not paired* to the agent's label and what the agent is working on. Everything the agent does from then on is recorded under that name. The label is your harness's own name unless the configuration says otherwise. `--label <name>` in the arguments changes it.
+Setup changes only the harness's user-level configuration. It preserves unrelated entries, writes atomically, and keeps a backup on first touch. A harness whose configuration format cannot be verified is detect-only; the panel shows a snippet and the documented path instead of writing it. **Remove** deletes entries owned by lumlflow and clears the saved consent. No setup action creates project-level MCP configuration or agent instruction files in the repository.
 
-Reading owns nothing. A connected agent that is only orienting itself does not hold the flow's files. You can still use, rewind and adopt while it reads. The first thing the agent *changes* takes the files. That is what makes its edits to `cells/` its own rather than yours. That is also what makes the use you ask for meanwhile wait or force. The session ends when the agent disconnects, when it is killed, or when you close the terminal. The files are then free again, without anybody having to say so.
+Shell agents can work without setup. Run `lumlflow guide` in the agent's shell to print the cell DSL, lane rules, and current verbs. MCP clients read the same text from `lumlflow://guide`. Both paths direct the agent to call `context` first. The MCP entry is useful for typed tools and attribution, but it is not required for a shell agent to edit `cells/*.py` and run `lumlflow` verbs.
 
-Working without an agent is a supported state, not an error. A human editing cells is a first-class actor. The workbench says so once rather than nagging.
+When an MCP client connects, the identity line changes from *not paired* to its label and current task. A manually registered session does the same through `lumlflow agent begin --label <name>` and `lumlflow agent end`. `lumlflow agent exec -- <command>` brackets a shell command with such a session. Supported shell harnesses can also mark bare verbs with their harness id. These mechanisms affect attribution only. They do not lock `cells/`, defer UI edits, or prevent `use`, `rewind`, and `adopt` from writing the checked-out lane at once.
 
-An agent reads the generated `AGENTS.md` at the workspace root. It learns the tools, the DSL and the verbs there. Keep your own instructions in that file outside the generated markers. lumlflow preserves them.
+Every cell card has one **copy context** control. It copies the lane, slug, step, and docstring. For a failed cell it also includes traceback frames and the exception's final line, rather than the full traceback. Paste that block into the agent's existing session.
 
-An agent that is itself a CLI takes a wrapper instead. `lumlflow agent exec -- <command>` brackets the process with a session. It attributes the process's edits to that session.
-
-Talking to your agent about a specific thing is a **send-to-agent** gesture. It sits in every card's overflow menu, on every error, and on every comparison. It builds a context block and copies it for you. Paste that block into the agent's session. Each gesture carries its own payload:
-
-- **Fix this**, from a failed cell: the lane, the cell, the version step, and the traceback.
-- **Explain this**, from any card: the lane, the cell, and its docstring, as it stands right now.
-- **Explain this diff**, from a comparison: how the compared lanes actually differ.
-- **Summarize this lane**, from the left panel: the lane's cells, their states, and the intents behind them. The agent writes the summary back as a note cell, so it becomes a versioned part of the flow.
-
-The address in every payload is the slug, the lane, and the step. Internal identifiers never leave the store. The thing your agent is told to fix is therefore the thing you can name out loud.
-
-What the agent did is the **activity** section of the left panel. The catch-up marker in the top bar opens there too. Every mutation is one transaction carrying an intent string. Mutations include an edit, a run, a new lane, an adopt, a rename, and a package change. The feed is those transactions, newest first and read-only. Agent-authored failures do not interrupt you. The cell's chip goes to failed, and the traceback fills its `logs` tab. A later version by the same author may repair it. The pair then folds into one history entry (`v3→v4 · 1 failed attempt`). Failures in code you wrote surface loudly, with *Fix this* attached.
-
-Reopening the workbench after time away lands on the lane on disk. It shows how far behind you were, as *N changes since you were here*. It opens the feed at that point. Edits you make while lumlflow is not running arrive as one coarse entry attributed to you. lumlflow did not observe the individual steps.
-
-The interface does not claim to do two things. Stopping a run stops the run, not your agent. That process is not lumlflow's. Ctrl+C in its own terminal is what ends it. Cancelling work on one lane does not make an agent move on to the next. It cancels the work. It optionally hands the agent a payload saying so.
+The **Activity** section is the record of what the agent and human changed. Every mutation is a transaction with an actor and intent. Agent-authored failures leave the cell failed with its logs on the card; they do not stop the workbench. Reopening the workbench after time away marks transactions that arrived since the last visit. Edits made while the daemon was not running are accepted as one coarse entry because their individual steps were not observed. Stopping a run stops the run, not the agent process.
 
 ## Packages and the kernel
 
-Every flow under a workspace shares one environment, resolved from one lockfile. The *packages* section of the left panel lists that environment. Change it with the project's package manager, then use the CLI to inspect it:
+Each flow resolves its environment by walking upward from the directory that contains the flow. The nearest existing `.venv` is used without modification. If the nearest project has `pyproject.toml` but no `.venv`, lumlflow uses `uv` to sync it. With no project above the flow, the flow uses lumlflow's own interpreter. The Packages header and `lumlflow env status` show the interpreter path and its source.
+
+Change a project environment with `uv`, then inspect it from the flow's workspace:
 
 ```bash
 uv add lightgbm
@@ -246,62 +253,66 @@ lumlflow env status
 
 Installing or removing a package never invalidates a recorded result. A materialization keeps the environment it ran under as provenance. A card whose recorded environment differs from the current one says so on its badge.
 
+A project environment must include the packages cell code and output serialization need. Frame outputs need `pyarrow`. Cells that declare or consume an `experiment` output need `luml-sdk`. A missing package fails the run with a sentence naming the environment where it must be installed; lumlflow does not rewrite the project's package files.
+
 The live Python process does need attention. It cannot swap out packages it has already imported. After an install, the *packages* header carries a warning mark. The section shows *restart kernel to apply* with the button. Restarting loses nothing. The process holds no state that the store does not hold. lumlflow drains the queue rather than retrying it silently.
 
 You never have to start, select, or connect anything. Opening a flow is all the attaching there is. Python starts on the first gesture that actually needs it. Those gestures are expanding a value, paging a frame, diffing, and running a cell. On `auto`, a refresh that reactivity decided on is one of those gestures too. Everything else reads stored previews.
 
 ## Command reference
 
-Everything the workbench does is also a verb. Both write to the same store. The interface updates live when you run a verb in a terminal. Every verb takes `--json` for the answer verbatim. Verbs that change a cell or a lane take `-m "why"`. The history reads that message back. `--flow` picks a flow when the workspace holds several. `--lane` defaults to the lane on disk.
+Everything the workbench does is also available through a verb. Both surfaces reach the per-user daemon and update the same store. The workbench updates live when a terminal verb changes a flow. Data verbs accept `--json`; mutation verbs that accept `-m "why"` record that intent in the journal. `--flow` selects a flow when the current directory contains several. `--lane` defaults to the lane on disk.
 
 | Verb | Purpose |
 |---|---|
-| `lumlflow init [name]` | Scaffold a flow here and put `main` on disk in it |
-| `lumlflow status` | The workspace, its flows, and what is stale in each |
+| `lumlflow init [name] [directory]` | Scaffold a flow in a directory and put `main` on disk |
+| `lumlflow status [directory]` | List the flows beneath a directory and what is stale |
 | `lumlflow context` | Where you are, what is stale and why, what broke, what it will cost |
+| `lumlflow doctor [directory]` | The daemon, log, interpreter, tracker store, flow disk use, and agent entries |
+| `lumlflow gc [directory]` | Reclaim unreferenced flow values beneath a directory |
+| `lumlflow guide` | Print the cell DSL, lane rules, and agent-facing verbs |
 | `lumlflow lane list` | Every lane, where it started, and how it stands |
 | `lumlflow graph [--around <cell>] [--depth n]` | The declared wiring, the graph the scheduler runs |
-| `lumlflow run <cell[.output]> [--force]` | Run a cell, and whatever it needs, first |
+| `lumlflow run [cell[.output]] [--force]` | Run a cell, or every leaf when omitted, and whatever they need first |
 | `lumlflow preflight <cell[.output]>` | What running it would recompute, reuse, and cost |
 | `lumlflow cancel` | Stop waiting on the run this lane asked for |
 | `lumlflow eval "<python>"` | Try something against a lane's values; it writes nothing |
 | `lumlflow lane new <name> [--from <lane>]` | Start a lane; it copies no file and no value |
-| `lumlflow lane use <lane> [--force]` | Put a lane on disk: rebind the files to its selection |
-| `lumlflow rewind <step> [--force]` | Restore a lane to a step; nothing recomputes |
-| `lumlflow adopt <cell> --from <lane>` | Take one cell's version from another lane onto this one |
+| `lumlflow lane use <lane>` | Put a lane on disk by writing its selected cells |
+| `lumlflow rewind <step>` | Restore a lane to a step; nothing recomputes |
+| `lumlflow adopt <cell> --from <lane> [--force]` | Take one cell's version from another lane onto this one |
 | `lumlflow lane archive <lane>` | Put a lane away; nothing it produced is deleted |
 | `lumlflow diff <a> <b> [...]` | How two to five lanes differ |
 | `lumlflow rename <cell> <new-name>` | Rename a cell; references follow, nothing goes stale |
-| `lumlflow promote <cell[.output]>` | Publish a stored asset to LUML |
 | `lumlflow export <file.py>` | Write a lane's cells out as one Python file |
 | `lumlflow import <file.py>` | Read an exported file back into a lane, cell for cell |
 | `lumlflow cells list [--stale]` | What this lane holds |
 | `lumlflow cells show <cell>` | A cell in full: state, declarations, last run, source |
-| `lumlflow cells new <cell> [--after <producer>] [--doc]` | Scaffold a cell, wired to what it comes after |
-| `lumlflow cells edit <cell> [--source <file>]` | Replace a cell's source, attributed to you |
+| `lumlflow cells new [cell] [--after <producer>] [--anchor <cell>] [--all-outputs]` | Scaffold and place a cell, optionally wiring it downstream |
+| `lumlflow cells edit <cell> [--source <file>] [--base <version>] [--force]` | Replace a cell's source with optional conflict detection |
+| `lumlflow cells move <cell> --before <cell>` / `--after <cell>` | Reorder a cell where lane topology allows it |
 | `lumlflow cells delete <cell>` | Drop a cell from this lane; other lanes keep theirs |
 | `lumlflow asset preview <cell[.output]>` | What a cell produced, from the stored preview |
-| `lumlflow asset page <cell[.output]> [--offset --limit]` | Read into a value; this is the gesture that starts Python |
-| `lumlflow asset diff <cell> --lane a --lane b` | One cell's code and results across two lanes |
-| `lumlflow asset download <cell[.output]> [--to <path>]` | Copy a stored value out of the flow |
+| `lumlflow asset page <cell[.output]> [--offset n] [--limit n]` | Read a page from a value; this starts Python when needed |
+| `lumlflow asset download <cell[.output]> [--to <path>] [--force]` | Copy a stored value without overwriting by default |
+| `lumlflow agents list` | Detected harnesses and the state of their MCP entries |
+| `lumlflow agents setup <id>` / `agents remove <id>` | Add or remove lumlflow's user-level harness entry |
 | `lumlflow agent exec -- <command>` | Wrap an agent that is itself a CLI, with its edits attributed to it |
 | `lumlflow agent begin --label <name>` / `agent end` | Register or end a session by hand |
-| `lumlflow env status` | The workspace's packages |
+| `lumlflow env status` | The flow's packages, interpreter, and interpreter source |
 | `lumlflow flow delete <name>` | Delete a flow: its cells, its store, its history |
-| `lumlflow mcp [--workspace <dir>] [--label <name>]` | Serve this workspace to an agent over MCP (spawned by the agent's harness) |
-| `lumlflow root` | The workspace this directory belongs to |
-
-The older spellings still work. `fork`, `switch`, `tree`, `archive`, `--branch` and `--unsynced` do not appear in help.
+| `lumlflow daemon status` / `daemon stop` | Inspect or stop the one per-user daemon |
+| `lumlflow mcp [--label <name>]` | Serve every addressed flow to a harness over MCP |
 
 ## Troubleshooting
 
-**"lumlflow is not running."** The page shows the last state it knew, marked as such. Nothing updates. Start lumlflow again from the workspace directory with `lumlflow ui`. The banner carries that command. The page then reconnects. Nothing recorded is lost while lumlflow is down. lumlflow picks up the edits you made to cell files meanwhile. It records them as one entry attributed to you.
+**"lumlflow is not running."** The page shows the last state it knew, marked as such. Nothing updates. Run `lumlflow ui` from the directory whose flows you want listed. The page reconnects to the one per-user daemon. Nothing recorded is lost while it is down. Edits made to cell files meanwhile are accepted as one entry because lumlflow did not observe their individual steps.
 
 **"This tab is not connected."** The tab holds no key this run accepts. The key comes with the address `lumlflow ui` prints. It stays in the browser once a tab has taken it. Reopening the browser or opening a second tab therefore connects on its own. It does so for as long as that run is up. A port typed by hand arrives without a key. So does a bookmark. The browser takes the key back out of the address bar once a tab holds it. The browser keeps the key per address, so `localhost` is not `127.0.0.1`. Restarting lumlflow mints a new key and brings the banner back. Open the address from the terminal again either way.
 
-**The port is already in use.** Another program holds 5000. That program is often lumlflow already serving a different project. Pick another port with `lumlflow ui --port 5001`. Open the address it prints. Each project you run this way is independent.
+**The port is already in use.** If no daemon is running and another process holds the requested port, start lumlflow on another one with `lumlflow ui --port 5001`. A background daemon started automatically by another verb uses an available ephemeral port when the default is unavailable.
 
-**lumlflow answered on a different port than you asked for.** A run you started from a terminal was still in flight. `lumlflow ui` does not restart the process carrying that run. It attaches to that process instead. It prints the address that is actually serving and names the port. Work there. Or wait for the run to finish, then start `lumlflow ui` again to get the port you wanted.
+**lumlflow answered on a different port than you asked for.** One daemon already serves all of your flows. `lumlflow ui` attaches to it and reports its actual port instead of starting another process. Use that address, or run `lumlflow daemon stop` before starting a daemon on another port.
 
 **Everything reads stale after an edit.** This is expected, and not an error. A cell whose source or params changed is stale until you rerun it. So is anything the change reaches. Lead with the direct causes named on each chip. Use the run button's preflight to see what recomputing actually costs. Turn on the downstream toggle when you want the full extent. Nothing was lost. The previous results are still stored and still readable.
 
@@ -311,10 +322,14 @@ The older spellings still work. `fork`, `switch`, `tree`, `archive`, `--branch` 
 
 **The whole graph went stale after editing a helper.** lumlflow watches shared `.py` files beside the flow. Editing one marks every cell that could import it. The mark names the file as the cause. Writing an export with a `.py` extension into the workspace has the same effect. Write exports outside the workspace to avoid it.
 
-**A cell failed.** The chip reads failed. The full traceback sits in the cell's `logs` tab. `lumlflow context` prints the same thing in a terminal. If an agent is working, use *Fix this*. It hands the agent the cell and the traceback, so you retype neither.
+**A cell failed.** The chip reads failed. The full traceback sits in the cell's `logs` tab. `lumlflow context` reports the failure in a terminal. Use the card's *copy context* control to give an agent the cell, traceback frames, and final exception line.
 
 **The run died taking the whole queue with it.** A kernel that runs out of memory raises a banner. The banner names the cell that was materializing and carries a restart button. lumlflow drains the queue rather than retrying it behind your back. Nothing recorded is lost. Everything the store holds is on disk.
 
 **A card shows a flagged reference.** A cell points at something this lane does not have. This usually follows a delete or a rename on this lane only. The flag carries a suggestion. Applying it rewrites the reference. lumlflow accepts flagged versions rather than rejecting them. An agent iterating through a half-finished state therefore never loses work.
 
-**A flow is missing from Workspace.** You are looking at a different directory than you think. The path under the Workspace heading is the directory lumlflow resolved on launch. `lumlflow root` prints the same thing. Walk up with the arrow above the listing until the flow appears. Open it where it is. You stop and restart nothing. A flow opened this way runs under its own directory's packages rather than this one's. If you want it on this project's environment, relaunching there is still the move.
+**A flow is missing from Workspace.** Workspace lists only flows beneath the directory named in the current view. Run `lumlflow ui /path/that/contains/the/flow` to open the same daemon with another directory filter. The flow still runs from its own containing directory and resolves packages by walking upward from there.
+
+**A flow store is refused on open.** The error names both the store's schema version and the version supported by the running lumlflow. Upgrade lumlflow before opening a store written by a newer release. Stores written by pre-release builds are not migrated: delete `<name>.flow/.lumlflow/` to re-initialise the flow from `cells/` and `flow.yaml`.
+
+**Reporting a problem.** Run `lumlflow doctor` and include its output with the report. It names the daemon log path, which `lumlflow ui` also prints at startup. Unexpected daemon and HTTP errors write their tracebacks to that rotated daemon log rather than to the `lumlflow ui` terminal.

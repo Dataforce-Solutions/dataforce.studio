@@ -740,6 +740,7 @@ def test_a_locked_tracker_store_is_retried_then_named(
     lock.execute("BEGIN IMMEDIATE")
     real_connection = sqlite3.Connection
     second_attempt = threading.Event()
+    retry_allowed = threading.Event()
     starts = 0
     real_start = sdk_tracker.ExperimentTracker.start_experiment
 
@@ -751,6 +752,7 @@ def test_a_locked_tracker_store_is_retried_then_named(
         starts += 1
         if starts == 2:
             second_attempt.set()
+            assert retry_allowed.wait(DEADLINE_S)
         return str(real_start(client, **kwargs))
 
     monkeypatch.setattr(sdk_sqlite.sqlite3, "Connection", short_wait_connection)
@@ -780,8 +782,10 @@ def test_a_locked_tracker_store_is_retried_then_named(
         assert second_attempt.wait(DEADLINE_S)
         if release_after_timeout:
             lock.commit()
+        retry_allowed.set()
         worker.join(timeout=DEADLINE_S)
     finally:
+        retry_allowed.set()
         if lock.in_transaction:
             lock.rollback()
         lock.close()
