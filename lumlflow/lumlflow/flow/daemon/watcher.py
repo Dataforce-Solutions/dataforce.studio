@@ -43,7 +43,7 @@ races.
 
 import asyncio
 import contextlib
-import sys
+import logging
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -56,6 +56,8 @@ from watchdog.observers import Observer
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
 from lumlflow.flow.dsl.tree import WorkspaceExclusions
 from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FLOW_SUFFIX
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import Hub
@@ -243,7 +245,7 @@ class Watcher:
         except OSError as unwatchable:
             # Watching is a latency optimization; a tree the platform will not
             # notify on still reconciles on every verb.
-            print(f"not watching {root}: {unwatchable}", file=sys.stderr)
+            logger.warning("not watching %s: %s", root, unwatchable)
 
     def _unschedule(self, root: Path) -> None:
         watch = self._scheduled.pop(root, None)

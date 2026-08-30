@@ -4,18 +4,18 @@ import argparse
 import asyncio
 import contextlib
 import json
+import logging
 import secrets
 import signal
 import socket
 import sys
-import traceback
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
 import uvicorn
 
-from lumlflow.flow.daemon import web, workspace
+from lumlflow.flow.daemon import daemon_log, web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.framing import (
     STREAM_LIMIT_BYTES,
@@ -46,6 +46,8 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INTERNAL_ERROR = -32603
 FLOW_ERROR = -32000
+
+logger = logging.getLogger(__name__)
 
 
 class Daemon:
@@ -92,20 +94,22 @@ class Daemon:
         report_attached: bool = False,
     ) -> int:
         """Hold the singleton lock and serve until this process is stopped."""
+        daemon_log.configure()
         # The signals before the lock: a Ctrl-C during startup is an answer,
         # not a traceback over a workspace half taken.
         _install_signals(self.stop)
+        _install_exception_logging()
         # The lock before anything else: whoever holds it owns the stores, and
         # nothing this process does afterwards may touch them without it.
         if not self._lock.acquire():
-            print("another lumlflow daemon is already running", file=sys.stderr)
+            logger.warning("another lumlflow daemon is already running")
             return ALREADY_RUNNING
         listener: socket.socket | None = None
         try:
             try:
                 self.api.sync_agents()
             except FlowError as error:
-                print(f"agent setup sync failed: {error}", file=sys.stderr)
+                logger.warning("agent setup sync failed: %s", error)
             self._server = await asyncio.start_server(
                 self._session, "127.0.0.1", port, limit=STREAM_LIMIT_BYTES
             )
@@ -131,8 +135,10 @@ class Daemon:
             try:
                 self.watcher.start()
             except OSError as unwatchable:
-                print(f"not watching flows: {unwatchable}", file=sys.stderr)
-            (announce or self._announce)(record)
+                logger.warning("not watching flows: %s", unwatchable)
+            self._announce(record)
+            if announce is not None:
+                announce(record)
             await self._stopped.wait()
             if report_attached:
                 self._report_attached()
@@ -144,9 +150,9 @@ class Daemon:
 
     def _announce(self, record: DaemonRecord) -> None:
         """The log line a background process leaves for whoever reads its log."""
-        print(f"lumlflow daemon on 127.0.0.1:{self.port}", flush=True)
+        logger.info("lumlflow daemon on 127.0.0.1:%s", self.port)
         if self.web_port:
-            print(f"workbench on {self.api.web}", flush=True)
+            logger.info("workbench on %s", self.api.web)
 
     def _serve_web(self, listener: socket.socket) -> None:
         """Put the browser's surface on the port that was just bound.
@@ -400,7 +406,7 @@ class Daemon:
         except asyncio.CancelledError:
             raise
         except Exception as failure:
-            traceback.print_exc()
+            logger.exception("socket RPC `%s` failed", message.get("method"))
             _reply(writer, request_id, error=_error(INTERNAL_ERROR, str(failure)))
         else:
             _reply(writer, request_id, result=result)
@@ -429,15 +435,24 @@ def serve_here(
     directory: Path, *, web_host: str, web_port: int, announce: Announce
 ) -> int:
     """Run the daemon role in the visible `ui` process."""
-    return asyncio.run(
-        Daemon(directory).serve(
-            web_host=web_host,
-            web_port=web_port,
-            exact_web_port=True,
-            announce=announce,
-            report_attached=True,
+    daemon_log.configure()
+    try:
+        return asyncio.run(
+            Daemon(directory).serve(
+                web_host=web_host,
+                web_port=web_port,
+                exact_web_port=True,
+                announce=announce,
+                report_attached=True,
+            )
         )
-    )
+    except FlowError:
+        raise
+    except Exception as failure:
+        logger.exception("daemon stopped unexpectedly")
+        raise FlowError(
+            f"the lumlflow daemon failed. see {workspace.log_path()}"
+        ) from failure
 
 
 def _bind_exactly(host: str, port: int) -> socket.socket:
@@ -475,7 +490,7 @@ def _bind_web(host: str, port: int) -> socket.socket:
             listener.listen(_BACKLOG)
         except OSError as taken:
             listener.close()
-            print(f"port {wanted} is not available: {taken}", file=sys.stderr)
+            logger.warning("port %s is not available: %s", wanted, taken)
             continue
         return listener
     raise FlowError(f"web port {port} could not be bound. choose another with `--port`")
@@ -496,6 +511,24 @@ def _install_signals(stop: Any) -> None:
         except (NotImplementedError, ValueError, AttributeError):
             # Windows has no loop signal handlers; the C handler hops threads.
             signal.signal(received, lambda *_: loop.call_soon_threadsafe(stop))
+
+
+def _install_exception_logging() -> None:
+    asyncio.get_running_loop().set_exception_handler(_log_loop_exception)
+
+
+def _log_loop_exception(
+    _loop: asyncio.AbstractEventLoop, context: dict[str, Any]
+) -> None:
+    failure = context.get("exception")
+    message = str(context.get("message") or "unhandled daemon task failure")
+    if isinstance(failure, BaseException):
+        logger.error(
+            message,
+            exc_info=(type(failure), failure, failure.__traceback__),
+        )
+    else:
+        logger.error(message)
 
 
 def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) -> None:
@@ -556,11 +589,19 @@ def _error(code: int, message: str, *, data: Any = None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse(argv)
-    return asyncio.run(
-        Daemon(Path.cwd()).serve(
-            port=args.port, web_host=args.web_host, web_port=args.web_port
+    daemon_log.configure()
+    try:
+        return asyncio.run(
+            Daemon(Path.cwd()).serve(
+                port=args.port, web_host=args.web_host, web_port=args.web_port
+            )
         )
-    )
+    except FlowError as failure:
+        logger.error("daemon could not start: %s", failure)
+        return 1
+    except Exception:
+        logger.exception("daemon stopped unexpectedly")
+        return 1
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:

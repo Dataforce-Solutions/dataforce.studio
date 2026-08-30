@@ -22,6 +22,8 @@ import type { Ref } from 'vue'
 
 export const TOKEN_PARAM = 'token'
 export const TOKEN_STORAGE_KEY = 'lumlflow.flow.token'
+export const DAEMON_LOG_PARAM = 'log'
+export const DAEMON_LOG_STORAGE_KEY = 'lumlflow.flow.daemon-log'
 
 export interface TokenSource {
   /** `window.location.search`, or whatever a test hands in. */
@@ -74,6 +76,7 @@ export function rejectToken(): void {
 /** The browser's own answer to the same question. */
 export function browserToken(): string | null {
   if (typeof window === 'undefined') return null
+  browserDaemonLog()
   const token = resolveToken({
     search: window.location.search,
     storage: window.localStorage,
@@ -88,4 +91,11 @@ export function browserToken(): string | null {
   // A token in hand is one nothing has refused: the refused one was removed.
   if (token !== null) rejected.value = false
   return token
+}
+
+export function browserDaemonLog(): string | null {
+  if (typeof window === 'undefined') return null
+  const offered = new URLSearchParams(window.location.search).get(DAEMON_LOG_PARAM)
+  if (offered) window.localStorage.setItem(DAEMON_LOG_STORAGE_KEY, offered)
+  return offered ?? window.localStorage.getItem(DAEMON_LOG_STORAGE_KEY)
 }

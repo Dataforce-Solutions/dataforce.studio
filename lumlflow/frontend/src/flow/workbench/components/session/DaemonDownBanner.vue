@@ -11,6 +11,9 @@
         <span class="font-medium">lumlflow is not running.</span>
         <span>{{ ' ' }}{{ detail }}</span>
       </p>
+      <p v-if="logPath" class="min-w-0 basis-full text-sm text-muted-color">
+        daemon log <code class="font-mono">{{ logPath }}</code>
+      </p>
       <div class="min-w-56 flex-1"><CopyField value="lumlflow ui" /></div>
     </div>
   </Message>
@@ -19,6 +22,7 @@
 <script setup lang="ts">
 import { Message } from 'primevue'
 import { ServerOff } from 'lucide-vue-next'
+import { browserDaemonLog } from '@/flow/api/token'
 import CopyField from '../../ui/CopyField.vue'
 
 /**
@@ -32,4 +36,6 @@ withDefaults(
   }>(),
   { detail: 'showing last-known state' },
 )
+
+const logPath = browserDaemonLog()
 </script>

@@ -141,6 +141,30 @@ def test_a_missing_codex_directory_and_file_are_created_without_a_backup(
     assert not expected.with_name("config.toml.bak").exists()
 
 
+def test_owned_entries_lists_only_configs_lumlflow_manages(tmp_path: Path) -> None:
+    user_home = tmp_path / "home"
+    executable = _executable(tmp_path / "bin" / "lumlflow")
+    codex = harnesses.harness_by_id("codex")
+    harnesses.write_config(
+        codex,
+        executable=executable,
+        home=user_home,
+        platform="linux",
+        environment={},
+    )
+    service = harnesses.HarnessService(
+        executable,
+        home=user_home,
+        platform="linux",
+        environment={},
+        search_path="",
+    )
+
+    owned = service.owned_entries()
+
+    assert [(entry["id"], entry["state"]) for entry in owned] == [("codex", "set up")]
+
+
 def test_first_touch_backup_is_not_replaced_on_later_updates(tmp_path: Path) -> None:
     harness = harnesses.harness_by_id("gemini")
     path = tmp_path / "settings.json"

@@ -16,7 +16,14 @@ import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { DaemonUnreachable, FlowApi } from '@/flow/api/client'
 import { LogRing, RING_CHUNKS } from '@/flow/api/logs'
 import { FlowStream, WS_UNAUTHORIZED } from '@/flow/api/stream'
-import { browserToken, resolveToken, TOKEN_STORAGE_KEY, tokenRejected } from '@/flow/api/token'
+import {
+  browserDaemonLog,
+  browserToken,
+  DAEMON_LOG_STORAGE_KEY,
+  resolveToken,
+  TOKEN_STORAGE_KEY,
+  tokenRejected,
+} from '@/flow/api/token'
 import type { CellSummary, LogFrame, StateFrame } from '@/flow/api/types'
 import SessionBanners from '@/flow/workbench/components/session/SessionBanners.vue'
 import { cursorKey, readCursor, writeCursor } from '@/flow/workbench/live/cursor'
@@ -579,6 +586,15 @@ describe('the surfaces a degraded state drives', () => {
 
   it('gives the daemon-down state the command that starts one', () => {
     expect(banners(['daemon-down']).text()).toContain('lumlflow ui')
+  })
+
+  it('keeps the daemon log path visible while the daemon is down', () => {
+    window.localStorage.setItem(DAEMON_LOG_STORAGE_KEY, '/tmp/state/logs/daemon.log')
+    try {
+      expect(banners(['daemon-down']).text()).toContain('/tmp/state/logs/daemon.log')
+    } finally {
+      window.localStorage.removeItem(DAEMON_LOG_STORAGE_KEY)
+    }
   })
 
   it('promises the replay a dropped socket is owed, and nothing more', () => {
@@ -1306,16 +1322,23 @@ describe('the daemon token', () => {
    * that address survives the strip.
    */
   it('banks the token from any entry route, keeping the rest of the address', () => {
-    window.history.replaceState(null, '', '/experiments?token=abc123&sort=name#latest')
+    window.history.replaceState(
+      null,
+      '',
+      '/experiments?token=abc123&log=%2Ftmp%2Fstate%2Fdaemon.log&sort=name#latest',
+    )
 
     expect(browserToken()).toBe('abc123')
 
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('abc123')
+    expect(browserDaemonLog()).toBe('/tmp/state/daemon.log')
     expect(window.location.pathname).toBe('/experiments')
-    expect(window.location.search).toBe('?sort=name')
+    expect(window.location.search).toBe('?log=%2Ftmp%2Fstate%2Fdaemon.log&sort=name')
     expect(window.location.hash).toBe('#latest')
     // And the flow surfaces, reading it later from a route with no query.
+    window.history.replaceState(null, '', '/flow')
     expect(browserToken()).toBe('abc123')
+    expect(browserDaemonLog()).toBe('/tmp/state/daemon.log')
 
     window.localStorage.clear()
     window.history.replaceState(null, '', '/')

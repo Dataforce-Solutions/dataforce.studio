@@ -233,6 +233,7 @@ def test_a_non_loopback_host_is_bound_recorded_and_still_requires_the_token(
     assert unauthorized.status_code == web.UNAUTHORIZED
     assert authorized["result"]["workspace"] == str(root)
     assert _ui_url(record, root) in printed
+    assert f"daemon log: {workspace.log_path()}" in printed
     assert top_cli.NON_LOOPBACK_WARNING in printed
     assert errors == ""
 
@@ -675,7 +676,13 @@ def _record(*, tracker_store: str | None = None) -> DaemonRecord:
 
 
 def _ui_url(record: DaemonRecord, directory: Path) -> str:
-    query = urlencode({"token": record.token, "directory": str(directory.resolve())})
+    query = urlencode(
+        {
+            "token": record.token,
+            "directory": str(directory.resolve()),
+            "log": str(workspace.log_path()),
+        }
+    )
     return f"http://{record.web_host}:{record.web_port}/flow?{query}"
 
 

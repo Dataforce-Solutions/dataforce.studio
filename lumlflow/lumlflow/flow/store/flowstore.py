@@ -6,8 +6,8 @@ crash after it leaves an index that catches up on the next open, and a crash
 before it leaves CAS blobs no transaction references — orphans for GC.
 """
 
+import logging
 import threading
-import traceback
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -31,6 +31,8 @@ from lumlflow.flow.store.models import (
     Op,
     Transaction,
 )
+
+logger = logging.getLogger(__name__)
 
 FLOW_SUFFIX = ".flow"
 STORE_DIRNAME = ".lumlflow"
@@ -187,7 +189,7 @@ class FlowStore:
             try:
                 listener(transaction)
             except Exception:
-                traceback.print_exc()
+                logger.exception("flow-store listener failed")
 
     def _settle(self, draft: Transaction) -> Transaction:
         """Stamp the checkpoint badge: is the branch whole once this lands?

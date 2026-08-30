@@ -393,7 +393,10 @@ def test_a_second_daemon_process_steps_aside(tmp_path: Path, start: Starter):
         )
 
         assert rival.returncode == ALREADY_RUNNING
-        assert rival.stderr.strip() == "another lumlflow daemon is already running"
+        assert rival.stderr == ""
+        assert "another lumlflow daemon is already running" in (
+            workspace.log_path().read_text("utf-8")
+        )
         assert live.call("ping") == held
         assert workspace.read_record() == live.record
 
@@ -423,7 +426,10 @@ def test_a_rival_steps_aside_even_with_no_record_to_read(
 
         # The lock is what turned it away: there was no record left to read.
         assert rival.returncode == ALREADY_RUNNING
-        assert rival.stderr.strip() == "another lumlflow daemon is already running"
+        assert rival.stderr == ""
+        assert "another lumlflow daemon is already running" in (
+            workspace.log_path().read_text("utf-8")
+        )
         assert live.call("ping") == held
 
 

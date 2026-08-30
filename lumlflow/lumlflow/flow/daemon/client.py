@@ -247,16 +247,16 @@ def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
     environment[harnesses.DAEMON_EXECUTABLE_ENV] = inherited_executable or str(
         Path(sys.argv[0]).resolve()
     )
-    with log.open("ab") as output:
-        return subprocess.Popen(
-            [sys.executable, "-m", "lumlflow.flow.daemon"],
-            stdin=subprocess.DEVNULL,
-            stdout=output,
-            stderr=output,
-            cwd=str(directory),
-            env=environment,
-            **_detached(),
-        )
+    log.parent.mkdir(parents=True, exist_ok=True)
+    return subprocess.Popen(
+        [sys.executable, "-m", "lumlflow.flow.daemon"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd=str(directory),
+        env=environment,
+        **_detached(),
+    )
 
 
 def _await_registration(

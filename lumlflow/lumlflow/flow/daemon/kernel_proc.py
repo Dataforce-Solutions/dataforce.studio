@@ -14,10 +14,10 @@ run, and the only kernel control a user ever sees is a restart.
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import secrets
 import socket
-import traceback
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,6 +39,8 @@ from lumlflow.flow.scheduler.queue import RunRequest, RunResult
 from lumlflow.flow.store.cas import Cas
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import OutputRecord
+
+logger = logging.getLogger(__name__)
 
 KERNEL_DIRNAME = "kernel"
 SOCKET_NAME = "kernel.sock"
@@ -452,7 +454,7 @@ class KernelProcess:
         try:
             self._on_event(event, params)
         except Exception:
-            traceback.print_exc()
+            logger.exception("kernel event listener failed")
 
     def _answer(self, message: dict[str, Any]) -> None:
         pending = self._pending.pop(_as_int(message.get("id")), None)

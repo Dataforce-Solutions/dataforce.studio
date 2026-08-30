@@ -1,5 +1,6 @@
 """Flow discovery and the one per-user daemon record."""
 
+import ipaddress
 import json
 import os
 import platform
@@ -24,6 +25,9 @@ LOGS_DIRNAME = "logs"
 RECORD_NAME = "daemon.json"
 LOCK_NAME = "daemon.lock"
 LOG_NAME = "daemon.log"
+NON_LOOPBACK_WARNING = (
+    "The tracker API on this port is unauthenticated on a non-loopback bind."
+)
 
 _NETWORK_FILESYSTEMS = frozenset(
     {
@@ -245,6 +249,15 @@ def network_filesystem_warning(directory: Path | None = None) -> str | None:
     return (
         f"warning: {path} is on a network filesystem; file locks are unreliable there"
     )
+
+
+def is_loopback_host(host: str) -> bool:
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _filesystem_type(path: Path) -> str | None:

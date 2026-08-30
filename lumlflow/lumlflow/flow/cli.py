@@ -62,6 +62,7 @@ def register(app: typer.Typer) -> None:
         init,
         status,
         context,
+        doctor,
         guide,
         graph,
         run,
@@ -159,6 +160,29 @@ def context(
     params = {"branch": lane}
     result = _call("context", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.context)
+
+
+def doctor(
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory whose flows to inspect. Defaults to the current one.",
+    ),
+    as_json: bool = _JSON,
+) -> None:
+    """The daemon, logs, environment, stores and agent entries."""
+    from lumlflow.flow.daemon import doctor as diagnostics
+
+    try:
+        result = diagnostics.report((directory or Path.cwd()).resolve())
+    except (FlowError, OSError) as failure:
+        _fail(
+            failure if isinstance(failure, FlowError) else FlowError(str(failure)),
+            as_json,
+        )
+    _emit(result, as_json, render.doctor)
 
 
 def guide() -> None:

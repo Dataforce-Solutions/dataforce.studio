@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client as daemon_client
-from lumlflow.flow.daemon import queries, web, workspace
+from lumlflow.flow.daemon import daemon_log, queries, web, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Streams
@@ -472,21 +472,33 @@ def test_a_bad_numeric_parameter_is_a_json_refusal(
     assert captured.err == ""
 
 
-def test_an_unexpected_failure_is_json_without_its_traceback(served: Served) -> None:
+def test_an_unexpected_failure_is_json_and_logs_its_traceback(
+    served: Served, capsys: pytest.CaptureFixture[str]
+) -> None:
     async def fail(_params: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("the store failed")
 
-    served.api.methods["test.fail"] = fail
-    answer = served.http.post(
-        web.RPC_PATH,
-        json={"method": "test.fail"},
-        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
-    )
+    daemon_log.configure()
+    try:
+        served.api.methods["test.fail"] = fail
+        answer = served.http.post(
+            web.RPC_PATH,
+            json={"method": "test.fail"},
+            headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
+        )
+    finally:
+        daemon_log.close()
 
     assert answer.status_code == 500
     assert answer.headers["access-control-allow-origin"] == "*"
     assert answer.json() == {"error": {"message": "the store failed"}}
     assert "Traceback" not in answer.text
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    logged = workspace.log_path().read_text("utf-8")
+    assert "Traceback" in logged
+    assert "RuntimeError: the store failed" in logged
 
 
 def test_http_refuses_asset_download_without_writing_anywhere(
@@ -866,6 +878,7 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
     assert parse_qs(parsed.query) == {
         "token": [TOKEN],
         "directory": [str(Path.cwd())],
+        "log": [str(workspace.log_path())],
     }
     with served.http.websocket_connect(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"

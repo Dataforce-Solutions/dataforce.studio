@@ -872,6 +872,34 @@ class HarnessService:
     def list_harnesses(self) -> list[dict[str, Any]]:
         return self.sync()
 
+    def owned_entries(self) -> list[dict[str, Any]]:
+        with self._lock:
+            owned: list[dict[str, Any]] = []
+            for harness in HARNESSES:
+                if not self._can_setup(harness):
+                    continue
+                try:
+                    state = self._entry_state(harness)
+                except (HarnessConfigError, OSError):
+                    continue
+                if state not in {
+                    EntryState.SET_UP,
+                    EntryState.OUT_OF_DATE,
+                    EntryState.BROKEN,
+                }:
+                    continue
+                config_path = self._config_path(harness)
+                assert config_path is not None
+                owned.append(
+                    {
+                        "id": harness.id,
+                        "display_name": harness.display_name,
+                        "state": str(state),
+                        "config_path": str(config_path),
+                    }
+                )
+            return owned
+
     def setup(self, harness_id: str, *, consent: bool) -> dict[str, Any]:
         with self._lock:
             harness = self._detected_harness(harness_id)

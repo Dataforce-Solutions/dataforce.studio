@@ -15,7 +15,7 @@ client that is about to present it.
 import asyncio
 import contextlib
 import json
-import traceback
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +52,8 @@ _DOWNLOAD_EXTENSIONS = {
     "pickle": ".pkl",
 }
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+logger = logging.getLogger(__name__)
 
 
 def build_app(
@@ -111,7 +113,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         except asyncio.CancelledError:
             raise
         except Exception as failure:
-            traceback.print_exc()
+            logger.exception("HTTP RPC `%s` failed", method_name)
             return _failed(str(failure), status=_INTERNAL)
         return JSONResponse({"result": result})
 
@@ -146,7 +148,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         except asyncio.CancelledError:
             raise
         except Exception as failure:
-            traceback.print_exc()
+            logger.exception("HTTP download failed")
             return _failed(str(failure), status=_INTERNAL)
         return FileResponse(path, filename=filename)
 
@@ -196,7 +198,10 @@ def _reported(half: "asyncio.Task[None]") -> None:
         return
     failure = half.exception()
     if failure is not None:
-        traceback.print_exception(failure)
+        logger.error(
+            "web stream failed",
+            exc_info=(type(failure), failure, failure.__traceback__),
+        )
 
 
 async def _write(socket: WebSocket, subscription: Subscription) -> None:

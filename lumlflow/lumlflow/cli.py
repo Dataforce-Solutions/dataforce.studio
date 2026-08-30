@@ -1,4 +1,3 @@
-import ipaddress
 import os
 import webbrowser
 from pathlib import Path
@@ -8,15 +7,14 @@ from urllib.parse import urlencode
 import typer
 
 from lumlflow.flow import cli as flow_cli
+from lumlflow.flow.daemon import workspace as daemon_workspace
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.workspace import DaemonRecord
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5000
-NON_LOOPBACK_WARNING = (
-    "The tracker API on this port is unauthenticated on a non-loopback bind."
-)
+NON_LOOPBACK_WARNING = daemon_workspace.NON_LOOPBACK_WARNING
 
 app = typer.Typer(
     name="lumlflow",
@@ -55,7 +53,7 @@ def ui(
     With no daemon running, it serves http://127.0.0.1:5000 until Ctrl+C. When
     one is already running, it opens that daemon and exits.
     """
-    from lumlflow.flow.daemon import client, workspace
+    from lumlflow.flow.daemon import client
     from lumlflow.flow.daemon import main as server
     from lumlflow.flow.errors import FlowError
 
@@ -70,7 +68,7 @@ def ui(
     launch_directory = (directory or Path.cwd()).resolve()
     try:
         tracker_store = _tracker_store()
-        warning = workspace.network_filesystem_warning()
+        warning = daemon_workspace.network_filesystem_warning()
         if warning is not None:
             typer.echo(warning)
         serving = client.discover()
@@ -122,6 +120,7 @@ def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> No
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"directory: {directory}")
     typer.echo(f"lumlflow at {_url(record, directory)}")
+    _show_log_path()
     typer.echo("press Ctrl+C to stop")
     if not no_browser:
         webbrowser.open(_url(record, directory))
@@ -158,6 +157,7 @@ def _attach(
         raise typer.Exit(1)
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"lumlflow already at {_url(record, directory)}")
+    _show_log_path()
     if record.web_port != port:
         typer.echo(f"it is serving port {record.web_port}, not {port}")
     if not no_browser:
@@ -171,22 +171,23 @@ def _tracker_store() -> str:
 
 
 def _url(record: "DaemonRecord", directory: Path) -> str:
-    query = urlencode({"token": record.token, "directory": str(directory.resolve())})
+    query = urlencode(
+        {
+            "token": record.token,
+            "directory": str(directory.resolve()),
+            "log": str(daemon_workspace.log_path()),
+        }
+    )
     return f"http://{record.web_host}:{record.web_port}/flow?{query}"
 
 
+def _show_log_path() -> None:
+    typer.echo(f"daemon log: {daemon_workspace.log_path()}")
+
+
 def _warn_if_non_loopback(host: str) -> None:
-    if not _is_loopback(host):
+    if not daemon_workspace.is_loopback_host(host):
         typer.echo(f"warning: {NON_LOOPBACK_WARNING}")
-
-
-def _is_loopback(host: str) -> bool:
-    if host.casefold() == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
 
 
 @app.command(

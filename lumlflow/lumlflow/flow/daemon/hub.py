@@ -15,8 +15,8 @@ absolute path and a flow elsewhere opens in the same hub.
 """
 
 import asyncio
+import logging
 import shutil
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,8 @@ from lumlflow.flow.store.flowstore import (
 )
 from lumlflow.flow.store.models import TrackerRef
 from lumlflow.tracker import TrackerProvider
+
+logger = logging.getLogger(__name__)
 
 
 class FlowSession:
@@ -381,7 +383,7 @@ class Hub:
             except Exception:
                 # One flow that will not close is not a reason to leave the
                 # rest of the workspace open.
-                traceback.print_exc()
+                logger.exception("flow session failed to close")
         self._sessions.clear()
 
     def _remember_loop(self) -> None:

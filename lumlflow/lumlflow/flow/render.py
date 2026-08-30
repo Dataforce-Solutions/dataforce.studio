@@ -42,6 +42,58 @@ def status(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def doctor(payload: dict[str, Any]) -> list[str]:
+    state = payload["state_directory"]
+    locality = "local filesystem" if state["local"] else "network filesystem"
+    lines = [
+        f"directory       {payload['directory']}",
+        f"state directory {state['path']} · {locality}",
+    ]
+    record = payload.get("record")
+    if record is None:
+        lines.append("daemon record   none")
+    else:
+        lines.extend(
+            [
+                "daemon record",
+                f"  pid           {record['pid']}",
+                f"  instance      {record['instance_id']}",
+                f"  socket        {record['socket_address']}",
+                f"  web           {record['web_host']}:{record['web_port']}",
+                f"  tracker store {record['tracker_store']}",
+                f"  version       {record['version']}",
+            ]
+        )
+    handshake = payload["handshake"]
+    identity = f" · {handshake['instance_id']}" if handshake.get("instance_id") else ""
+    stores = payload["flow_stores"]
+    interpreter = payload["interpreter"]
+    lines.extend(
+        [
+            f"lock            {payload['lock']}",
+            f"handshake       {handshake['status']}{identity}",
+            f"daemon log      {payload['log_path']}",
+            f"interpreter     {interpreter['path']} · source {interpreter['source']}",
+            f"tracker store   {payload['tracker_store']}",
+            f"flow stores     {stores['count']} beneath {payload['directory']} · "
+            f"{_size(stores['disk_bytes'])} on disk",
+        ]
+    )
+    lines.extend(
+        f"  {flow['flow']} · {_size(flow['disk_bytes'])} · {flow['path']}"
+        for flow in stores["flows"]
+    )
+    entries = payload["harness_entries"]
+    lines.append(f"owned harness entries {len(entries)}")
+    lines.extend(
+        f"  {entry['display_name']} ({entry['id']}) · {entry['state']} · "
+        f"{entry['config_path']}"
+        for entry in entries
+    )
+    lines.extend(payload.get("warnings") or [])
+    return lines
+
+
 def cells(payload: dict[str, Any]) -> list[str]:
     listed = payload.get("cells") or []
     if not listed:

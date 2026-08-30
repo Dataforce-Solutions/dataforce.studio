@@ -18,7 +18,7 @@ before — the same cells are unsynced, and the run button says so.
 
 import asyncio
 import contextlib
-import traceback
+import logging
 from typing import TYPE_CHECKING
 
 from lumlflow.flow.errors import FlowError
@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 #: this* and answering `user` for a run the user never asked for is a lie the
 #: timeline would then render.
 AUTO_ACTOR = "auto"
+
+logger = logging.getLogger(__name__)
 
 # How long a sweep waits for the dust to settle before planning anything. An
 # edit burst from a browser or an agent arrives over milliseconds, and a
@@ -115,7 +117,7 @@ class Reactor:
             # A flow whose sweep cannot run is a flow whose cells stay unsynced
             # — which is a state the workbench already renders. It is never a
             # reason to take the daemon down with it.
-            traceback.print_exc()
+            logger.exception("reactive sweep failed")
         finally:
             self._task = None
 
