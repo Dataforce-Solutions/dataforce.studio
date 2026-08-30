@@ -34,6 +34,7 @@ from lumlflow.flow.daemon import workspace as daemon_workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.workspace import DaemonRecord
+from lumlflow.flow.store.cas import Cas
 from typer.testing import CliRunner, Result
 
 from tests.daemon.conftest import Reap
@@ -1057,6 +1058,27 @@ def test_status_says_what_the_flow_costs_on_disk(cli: Invoke, workspace: Path):
     assert as_json["flows"][0]["disk_bytes"] == on_disk
     assert "on disk" in reported.output
     _no_internals(reported)
+
+
+def test_gc_reports_reclaimed_bytes(cli: Invoke, workspace: Path) -> None:
+    cli("init", "churn")
+    values = Cas(workspace / "churn.flow" / ".lumlflow" / "values")
+    first = values.put(b"first orphan")
+
+    shown = cli("gc")
+
+    second = values.put(b"second orphan")
+    encoded = cli("gc", "--json")
+    payload = json.loads(encoded.output)
+
+    assert shown.exit_code == 0, shown.output
+    assert f"{len(b'first orphan')} bytes reclaimed" in shown.output
+    assert encoded.exit_code == 0, encoded.output
+    assert payload["freed_bytes"] == len(b"second orphan")
+    assert payload["collected"] == 1
+    assert not values.exists(first)
+    assert not values.exists(second)
+    _no_internals(shown)
 
 
 def test_status_notes_shared_code_that_wandered_into_the_flow(

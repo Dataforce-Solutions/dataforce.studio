@@ -38,15 +38,16 @@ class SweepReport:
 
 def sweep(store: "FlowStore") -> SweepReport:
     blobs = list(_blobs(store.values.root))
-    keep = store.index.pinned_values() | journal_referenced(store.journal)
-    collected = freed = kept = 0
-    for blob in blobs:
-        if blob.name in keep:
-            kept += 1
-            continue
-        freed += blob.stat().st_size
-        blob.unlink()
-        collected += 1
+    with store.index.protect_value_sweep() as pinned:
+        keep = pinned | journal_referenced(store.journal)
+        collected = freed = kept = 0
+        for blob in blobs:
+            if blob.name in keep:
+                kept += 1
+                continue
+            freed += blob.stat().st_size
+            blob.unlink()
+            collected += 1
     return SweepReport(collected=collected, freed_bytes=freed, kept=kept)
 
 

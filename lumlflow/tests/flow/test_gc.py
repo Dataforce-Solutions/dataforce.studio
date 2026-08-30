@@ -1,6 +1,9 @@
+import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
+from lumlflow.flow.hashing import hash_bytes
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import FlowStore
@@ -76,15 +79,25 @@ class TestSweep:
         staged = store.values.put(b"outputs of a run about to commit")
         store.index.pin_values("run-1", [staged])
         walk = gc.journal_referenced
+        release_started = threading.Event()
+
+        def release_pin() -> None:
+            release_started.set()
+            store.index.release_values("run-1")
+
+        worker = threading.Thread(target=release_pin)
 
         def commit_and_release(journal: Journal) -> set[str]:
-            store.index.release_values("run-1")
+            worker.start()
+            assert release_started.wait(timeout=5)
             return walk(journal)
 
         monkeypatch.setattr(gc, "journal_referenced", commit_and_release)
 
         gc.sweep(store)
+        worker.join(timeout=5)
 
+        assert not worker.is_alive()
         assert store.values.exists(staged)
 
     def test_a_run_starting_mid_sweep_keeps_its_value(
@@ -95,18 +108,80 @@ class TestSweep:
         victim."""
         walk = gc.journal_referenced
         started: dict[str, str] = {}
+        pin_started = threading.Event()
+        content = b"outputs of a run just started"
 
-        def pin_then_stage(journal: Journal) -> set[str]:
-            digest = store.values.put(b"outputs of a run just started")
+        def pin_then_stage() -> None:
+            pin_started.set()
+            digest = hash_bytes(content)
             store.index.pin_values("run-1", [digest])
+            store.values.put(content)
             started["digest"] = digest
+
+        worker = threading.Thread(target=pin_then_stage)
+
+        def start_run(journal: Journal) -> set[str]:
+            worker.start()
+            assert pin_started.wait(timeout=5)
             return walk(journal)
 
-        monkeypatch.setattr(gc, "journal_referenced", pin_then_stage)
+        monkeypatch.setattr(gc, "journal_referenced", start_run)
 
         gc.sweep(store)
+        worker.join(timeout=5)
 
+        assert not worker.is_alive()
         assert store.values.exists(started["digest"])
+
+    def test_a_run_reusing_an_orphan_mid_sweep_keeps_the_value(
+        self, store: FlowStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        content = b"an orphan a new run produces again"
+        digest = store.values.put(content)
+        journal_referenced = gc.journal_referenced
+        attempted = threading.Event()
+        sweep_finished = threading.Event()
+        failures: list[BaseException] = []
+
+        def reuse_orphan() -> None:
+            try:
+                try:
+                    with sqlite3.connect(store.index.path, timeout=0) as connection:
+                        connection.execute(
+                            "INSERT OR IGNORE INTO value_pins (run_id, digest) "
+                            "VALUES (?, ?)",
+                            ("run-1", digest),
+                        )
+                except sqlite3.OperationalError as failure:
+                    if "locked" not in str(failure):
+                        raise
+                    attempted.set()
+                    sweep_finished.wait()
+                    store.index.pin_values("run-1", [digest])
+                assert store.values.put(content) == digest
+            except BaseException as failure:
+                failures.append(failure)
+            finally:
+                attempted.set()
+
+        worker = threading.Thread(target=reuse_orphan)
+
+        def start_run(journal: Journal) -> set[str]:
+            worker.start()
+            assert attempted.wait(timeout=5)
+            return journal_referenced(journal)
+
+        monkeypatch.setattr(gc, "journal_referenced", start_run)
+        try:
+            gc.sweep(store)
+        finally:
+            sweep_finished.set()
+            worker.join(timeout=5)
+
+        assert not worker.is_alive()
+        assert failures == []
+        assert store.values.exists(digest)
+        store.index.release_values("run-1")
 
     def test_objects_previews_and_logs_are_never_pruned(self, store: FlowStore) -> None:
         orphans = [

@@ -94,6 +94,16 @@ def doctor(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def gc(payload: dict[str, Any]) -> list[str]:
+    flow_count = len(payload.get("flows") or [])
+    collected = int(payload.get("collected") or 0)
+    return [
+        f"{int(payload.get('freed_bytes') or 0)} bytes reclaimed from "
+        f"{flow_count} flow{'s' if flow_count != 1 else ''} · "
+        f"{collected} orphaned value{'s' if collected != 1 else ''} removed"
+    ]
+
+
 def cells(payload: dict[str, Any]) -> list[str]:
     listed = payload.get("cells") or []
     if not listed:

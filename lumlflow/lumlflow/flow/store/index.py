@@ -724,6 +724,19 @@ class Index:
                 [(run_id, digest) for digest in digests],
             )
 
+    @contextmanager
+    def protect_value_sweep(self) -> Iterator[set[str]]:
+        """Keep a new run from adopting a candidate while it is unlinked."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield {
+                    row["digest"]
+                    for row in self._conn.execute("SELECT digest FROM value_pins")
+                }
+            finally:
+                self._conn.rollback()
+
     def release_values(self, run_id: str) -> None:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM value_pins WHERE run_id = ?", (run_id,))

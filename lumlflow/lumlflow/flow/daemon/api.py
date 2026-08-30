@@ -32,6 +32,7 @@ from lumlflow.flow.ids import new_ulid
 from lumlflow.flow.scheduler.planner import Preflight, reading_order
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
+from lumlflow.flow.store.flowstore import FlowStore, store_dir
 from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
 
@@ -67,6 +68,7 @@ class Api:
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
+            "gc.sweep": self.gc_sweep,
             "context": self.context,
             "tree": self.tree,
             "graph": self.graph,
@@ -147,6 +149,36 @@ class Api:
             "flows": [
                 await self._flow_status(ref, actor=_actor(params)) for ref in refs
             ],
+        }
+
+    async def gc_sweep(self, params: dict[str, Any]) -> dict[str, Any]:
+        directory = self._directory(params)
+        flows: list[dict[str, Any]] = []
+        for ref in workspace.find_flows(directory):
+            session = self.hub.attached(ref.path)
+            if session is None and not store_dir(ref.path).is_dir():
+                continue
+            store = session.store if session is not None else FlowStore.open(ref.path)
+            try:
+                report = gc.sweep(store)
+            finally:
+                if session is None:
+                    store.close()
+            flows.append(
+                {
+                    "flow": ref.name,
+                    "path": ref.address,
+                    "collected": report.collected,
+                    "freed_bytes": report.freed_bytes,
+                    "kept": report.kept,
+                }
+            )
+        return {
+            "directory": str(directory),
+            "flows": flows,
+            "collected": sum(int(flow["collected"]) for flow in flows),
+            "freed_bytes": sum(int(flow["freed_bytes"]) for flow in flows),
+            "kept": sum(int(flow["kept"]) for flow in flows),
         }
 
     async def context(self, params: dict[str, Any]) -> dict[str, Any]:

@@ -63,6 +63,7 @@ def register(app: typer.Typer) -> None:
         status,
         context,
         doctor,
+        gc,
         guide,
         graph,
         run,
@@ -183,6 +184,28 @@ def doctor(
             as_json,
         )
     _emit(result, as_json, render.doctor)
+
+
+def gc(
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory whose flow stores to sweep. Defaults to the current one.",
+    ),
+    as_json: bool = _JSON,
+) -> None:
+    """Reclaim values left behind by interrupted runs."""
+    requested = (directory or Path.cwd()).resolve()
+    result = _call(
+        "gc.sweep",
+        {"directory": str(requested)},
+        as_json=as_json,
+        scoped=False,
+        directory=requested,
+    )
+    _emit(result, as_json, render.gc)
 
 
 def guide() -> None:

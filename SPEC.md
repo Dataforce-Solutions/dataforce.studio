@@ -1291,9 +1291,9 @@ Scoped to what the decisions above require: `lumlflow/docs/user-guide.md` (the t
 - [x] Add doctor and rotated daemon logs
   - [x] Size-rotated daemon log for foreground and background daemons alike, with the path printed by `ui` and shown in the daemon-down banner; the daemon's exception tracebacks — the HTTP and socket doors' included (D4.3) — go to it and never to the `lumlflow ui` terminal; `lumlflow doctor` printing the fields of D11.6 — the state directory, the one record, the lock state and the handshake result among them — and the non-loopback warning of D11.3 when the daemon is bound that way
   - [x] Tests: doctor output fields, rotation, an HTTP-door traceback in the log and not on stderr
-- [ ] Wire lumlflow gc and pin outputs before staging
-  - [ ] `lumlflow gc` wired to `gc.sweep` for the flows beneath the directory it is run in, reporting bytes reclaimed; output refs pinned before the kernel stages them (or in-flight scratch and staged blobs excluded from the sweep) so a sweep during a run unlinks nothing of it
-  - [ ] Tests: gc reports reclaimed bytes; gc never removes an in-flight run's bytes
+- [x] Wire lumlflow gc and pin outputs before staging
+  - [x] `lumlflow gc` wired to `gc.sweep` for the flows beneath the directory it is run in, reporting bytes reclaimed; output refs pinned before the kernel stages them (or in-flight scratch and staged blobs excluded from the sweep) so a sweep during a run unlinks nothing of it
+  - [x] Tests: gc reports reclaimed bytes; gc never removes an in-flight run's bytes
 - [ ] Show the interpreter and its source in the Packages header
   - [ ] `render.py`'s `status` and `env` interpreter lines gain the source and `context` gains the line, its query payload gaining the interpreter it lacks today; the Packages header shows interpreter path and source from the env description (`envs.describe`, as `status` and `_env()` already report it) with that sentence (D11.7)
   - [ ] Tests: the three CLI lines, a header spec

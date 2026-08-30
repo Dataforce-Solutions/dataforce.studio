@@ -14,6 +14,7 @@ import os
 import shutil
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -58,15 +59,28 @@ class Cas:
     def get(self, digest: str) -> bytes:
         return self.path(digest).read_bytes()
 
-    def put(self, data: bytes) -> str:
+    def put(
+        self,
+        data: bytes,
+        *,
+        before_stage: Callable[[str], None] | None = None,
+    ) -> str:
         digest = hash_bytes(data)
+        if before_stage is not None:
+            before_stage(digest)
         target = self.path(digest)
         if target.exists():
             return digest
         self._install(self._stage(data), target, discard_on_error=True)
         return digest
 
-    def put_file(self, source: Path, *, move: bool) -> str:
+    def put_file(
+        self,
+        source: Path,
+        *,
+        move: bool,
+        before_stage: Callable[[str], None] | None = None,
+    ) -> str:
         """Ingest a file without reading it into memory.
 
         `move` consumes the source — the route for a declared `Path` output
@@ -74,6 +88,8 @@ class Cas:
         under scratch is copied instead: the store never eats a user's file.
         """
         digest = hash_file(source)
+        if before_stage is not None:
+            before_stage(digest)
         target = self.path(digest)
         if target.exists():
             if move:

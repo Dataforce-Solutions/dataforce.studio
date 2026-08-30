@@ -20,6 +20,7 @@ import linecache
 import logging
 import os
 import shutil
+import sqlite3
 import sys
 import threading
 import time
@@ -108,6 +109,7 @@ class Executor:
         self._values = Cas(store / "values")
         self._previews = Cas(store / "previews")
         self._logs = Cas(store / "logs")
+        self._index_path = store / "store.sqlite"
         self._scratch_root = store / "kernel" / SCRATCH_DIRNAME
         self._cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
         self._tracker_client: tuple[Path, SdkTrackerClient] | None = None
@@ -468,19 +470,42 @@ class Executor:
             record["value_ref"] = None
             record["size"] = 0
             return record
-        value_ref, size = self._persist(asset_type.serialize(value), scratch)
+        value_ref, size = self._persist(run_id, asset_type.serialize(value), scratch)
         custom = getattr(asset_type, "content_hash", None)
         record["content_hash"] = custom(value) if custom else value_ref
         record["value_ref"] = value_ref
         record["size"] = size
         return record
 
-    def _persist(self, serialized: bytes | Path, scratch: Path) -> tuple[str, int]:
+    def _persist(
+        self, run_id: str, serialized: bytes | Path, scratch: Path
+    ) -> tuple[str, int]:
+        def pin(digest: str) -> None:
+            self._pin_value(run_id, digest)
+
         if not isinstance(serialized, Path):
-            return self._values.put(serialized), len(serialized)
+            return self._values.put(serialized, before_stage=pin), len(serialized)
         size = serialized.stat().st_size
-        moved = self._values.put_file(serialized, move=_under(serialized, scratch))
+        moved = self._values.put_file(
+            serialized,
+            move=_under(serialized, scratch),
+            before_stage=pin,
+        )
         return moved, size
+
+    def _pin_value(self, run_id: str, digest: str) -> None:
+        # A standalone kernel has no flow-store sweeper to race.
+        if not self._index_path.is_file():
+            return
+        connection = sqlite3.connect(self._index_path, timeout=30.0)
+        try:
+            with connection:
+                connection.execute(
+                    "INSERT OR IGNORE INTO value_pins (run_id, digest) VALUES (?, ?)",
+                    (run_id, digest),
+                )
+        finally:
+            connection.close()
 
     def _store_log(self, artifact: bytes) -> str | None:
         return self._logs.put(artifact) if artifact else None
