@@ -457,6 +457,51 @@ class Index:
         row = self._conn.execute("SELECT changed_step FROM workspace_tree").fetchone()
         return int(row["changed_step"]) if row is not None else 0
 
+    def env_changed_step(self) -> int:
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key = 'env_changed_step'"
+        ).fetchone()
+        return int(row["value"]) if row is not None else 0
+
+    def selection_changed_after(
+        self, branch_id: str, uids: Collection[str], step: int
+    ) -> bool:
+        if not uids:
+            return False
+        wanted = set(uids)
+        for row in self._conn.execute(
+            "SELECT ops FROM transactions WHERE branch = ? AND step > ? ORDER BY step",
+            (branch_id, step),
+        ):
+            for op in json.loads(row["ops"]):
+                kind = op.get("op")
+                if kind == "rewound":
+                    if op.get("branch_id") == branch_id and wanted.intersection(
+                        op.get("selections") or {}
+                    ):
+                        return True
+                    continue
+                if kind not in {"selection_set", "adopted", "cell_removed"}:
+                    continue
+                if op.get("branch_id") == branch_id and op.get("uid") in wanted:
+                    return True
+        return False
+
+    def explicit_run_after(self, branch_id: str, uid: str, step: int) -> bool:
+        for row in self._conn.execute(
+            "SELECT ops FROM transactions WHERE branch = ? AND actor != 'auto' "
+            "AND step > ? ORDER BY step",
+            (branch_id, step),
+        ):
+            if any(
+                op.get("op") in {"run_recorded", "memo_hit"}
+                and op.get("branch_id") == branch_id
+                and op.get("uid") == uid
+                for op in json.loads(row["ops"])
+            ):
+                return True
+        return False
+
     def workspace_tree(self) -> WorkspaceTreeRow | None:
         """The shared code every behavior hash is taken against, if any is known."""
         row = self._conn.execute("SELECT * FROM workspace_tree").fetchone()
@@ -800,6 +845,7 @@ class Index:
             case EnvChanged():
                 self._set_meta("env_lock_hash", op.lock_hash)
                 self._set_meta("env_packages", _dump(op.packages))
+                self._set_meta("env_changed_step", str(step))
             case FlagSet():
                 self._flag_version(op)
             case AgentBegin():

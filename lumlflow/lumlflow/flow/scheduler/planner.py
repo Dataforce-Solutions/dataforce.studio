@@ -31,9 +31,17 @@ from lumlflow.flow.store.models import ConsumedRef, TrackerRef
 #: store has no measurement of, which is not the same as a cheap one: a
 #: threshold cannot admit a cost nobody has ever observed. `too-expensive` is
 #: the honest one — timed, and over the line.
-AutoDecline = Literal["blocked", "never-timed", "too-expensive", "dangling-experiment"]
+AutoDecline = Literal[
+    "blocked",
+    "never-timed",
+    "too-expensive",
+    "dangling-experiment",
+    "unresolvable-reference",
+    "refresh-failed",
+]
 TrackerState = Literal["ok", "missing", "unreachable"]
 TrackerStateCheck = Callable[[TrackerRef], tuple[TrackerState, str]]
+RefreshEpoch = Callable[[], int]
 
 
 @dataclass(frozen=True)
@@ -129,9 +137,11 @@ class Planner:
         store: FlowStore,
         *,
         tracker_state: TrackerStateCheck | None = None,
+        refresh_epoch: RefreshEpoch | None = None,
     ) -> None:
         self._store = store
         self._tracker_state = tracker_state or _tracker_ok
+        self._refresh_epoch = refresh_epoch or _no_refresh_epoch
 
     def plan(self, target: str, *, branch: str) -> Plan:
         branch_id = self._store.branches.get(branch).branch_id
@@ -338,12 +348,30 @@ class Planner:
     ) -> AutoVerdict:
         settings = self._store.manifest.settings
         plan = self._plan(verdict.slug, branch=branch, branch_id=branch_id, over=over)
+        unresolved = _unresolvable(plan, over.here)
+        if unresolved is not None:
+            return AutoVerdict(
+                verdict.slug,
+                taken=False,
+                reason="unresolvable-reference",
+                detail=unresolved,
+            )
         if plan.reasons:
             return AutoVerdict(
                 verdict.slug,
                 taken=False,
                 reason="dangling-experiment",
                 detail=" ".join(plan.reasons),
+            )
+        refresh_failure = self._active_refresh_failure(
+            uid, over.here[uid], branch_id=branch_id
+        )
+        if refresh_failure is not None:
+            return AutoVerdict(
+                verdict.slug,
+                taken=False,
+                reason="refresh-failed",
+                detail=refresh_failure,
             )
         if any(_stalled(over.verdicts[step.uid]) for step in plan.steps):
             return AutoVerdict(verdict.slug, taken=False, reason="blocked")
@@ -373,6 +401,37 @@ class Planner:
             ),
             estimate_seconds=cost.estimate_seconds,
         )
+
+    def _active_refresh_failure(
+        self, uid: str, version: VersionRow, *, branch_id: str
+    ) -> str | None:
+        note = next(
+            (
+                found
+                for found in self._store.index.cell_notes(branch_id, uid)
+                if found.kind == "refresh_failed"
+            ),
+            None,
+        )
+        if note is None or note.version_id != version.version_id:
+            return None
+        index = self._store.index
+        selected_uids = {uid}
+        selected_uids.update(
+            ref.uid for ref in version.manifest.consumes.values() if ref.uid is not None
+        )
+        if (
+            self._refresh_epoch() > note.step
+            or index.workspace_code_step() > note.step
+            or index.env_changed_step() > note.step
+            or index.selection_changed_after(branch_id, selected_uids, note.step)
+            or any(
+                index.explicit_run_after(branch_id, selected_uid, note.step)
+                for selected_uid in selected_uids
+            )
+        ):
+            return None
+        return note.sentence
 
     def _with_demanded(
         self,
@@ -599,6 +658,23 @@ def _needed_outputs(kept: set[str], here: dict[str, VersionRow]) -> dict[str, se
     return needs
 
 
+def _unresolvable(plan: Plan, here: Mapping[str, VersionRow]) -> str | None:
+    for step in plan.steps:
+        for ref in step.version.manifest.consumes.values():
+            producer = here.get(ref.uid) if ref.uid is not None else None
+            if (
+                producer is not None
+                and ref.output is not None
+                and ref.output in producer.manifest.produces
+            ):
+                continue
+            return (
+                f"`{step.slug}` needs `{ref.ref}`, which nothing on "
+                f"`{plan.branch}` produces"
+            )
+    return None
+
+
 def reading_order(here: dict[str, VersionRow]) -> list[str]:
     """The whole slice, producers before consumers — how the flow reads through.
 
@@ -649,3 +725,7 @@ def _stalled(verdict: Verdict) -> bool:
 
 def _tracker_ok(_ref: TrackerRef) -> tuple[TrackerState, str]:
     return "ok", ""
+
+
+def _no_refresh_epoch() -> int:
+    return 0

@@ -76,7 +76,12 @@ class FlowSession:
             fail_experiment=tracker.fail_experiment,
             on_event=self._observed if streams is not None else None,
         )
-        self.planner = Planner(store, tracker_state=self._tracker_state)
+        self.kernel_epoch_step: int = store.next_step
+        self.planner = Planner(
+            store,
+            tracker_state=self._tracker_state,
+            refresh_epoch=lambda: self.kernel_epoch_step,
+        )
         self.queue = RunQueue(
             store,
             self.kernel,
@@ -309,17 +314,19 @@ class Hub:
         materialization imports it, or the cache is poisoned with a value
         computed from code the hash no longer describes.
         """
-        if reconciliation.sync_workspace_code(session.workspace_dir, [session]):
+        workspace_changed = bool(
+            reconciliation.sync_workspace_code(session.workspace_dir, [session])
+        )
+        if workspace_changed:
             session.kernel.evict_workspace_modules()
         # The env is recorded, never acted on: a run that starts after an
         # install records the pins it ran under, and the kernel keeps the
         # modules it already imported until somebody restarts it.
-        envs.sync(session.workspace_dir, [session])
+        env_changed = envs.sync(session.workspace_dir, [session])
         moved = session.reconcile(tier=tier, actor=actor).moved
-        if moved:
-            # An edit landed — by verb, by agent, or by the watcher noticing a
-            # file. Whichever door it came through, reactivity's question has a
-            # new answer.
+        if workspace_changed or env_changed or moved:
+            # A cell, shared-code, or environment fact moved, so a previously
+            # declined refresh may now be safe to try.
             session.reactor.arm()
         self.document(session.workspace_dir)
 

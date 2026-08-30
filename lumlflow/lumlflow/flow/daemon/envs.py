@@ -196,7 +196,7 @@ def sync(
     *,
     actor: str = "system",
     intent: str | None = None,
-) -> None:
+) -> bool:
     """Fold the workspace env into every flow that runs under it.
 
     Appended to each hosted flow's own journal, for the reason shared code is: a
@@ -211,7 +211,8 @@ def sync(
     pinned = packages(root)
     current = lock_hash(pinned)
     if current is None:
-        return
+        return False
+    changed = False
     for session in sessions:
         known = session.store.index.env()
         if known is not None and known.lock_hash == current:
@@ -229,6 +230,8 @@ def sync(
             intent=intent or changes,
             actor=actor,
         )
+        changed = True
+    return changed
 
 
 async def uv(workspace_dir: Path, *args: str) -> str:

@@ -860,6 +860,8 @@ class Api:
     async def kernel_restart(self, params: dict[str, Any]) -> dict[str, Any]:
         session = self._session(params, actor=_actor(params))
         handshake = await session.kernel.restart()
+        session.kernel_epoch_step = session.store.next_step
+        session.reactor.arm()
         return {
             "flow": session.ref.name,
             "kernel": await _kernel(session, handshake),

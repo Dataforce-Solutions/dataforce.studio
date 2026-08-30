@@ -21,6 +21,9 @@ import contextlib
 import traceback
 from typing import TYPE_CHECKING
 
+from lumlflow.flow.errors import FlowError
+from lumlflow.flow.store.models import CellNoted
+
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import FlowSession
 
@@ -125,19 +128,82 @@ class Reactor:
         describes.
         """
         session = self._session
-        branch = session.branch
+        moved = False
+        for branch in session.store.index.branches():
+            if branch.archived:
+                continue
+            moved = await self._advance_lane(branch.name) or moved
+        return moved
+
+    async def _advance_lane(self, branch: str) -> bool:
+        session = self._session
         targets = session.planner.auto_targets(branch)
         if not targets:
             return False
         moved = False
         for target in targets:
-            outcome = await session.queue.submit(
-                target, branch=branch, actor=AUTO_ACTOR
+            verdict = next(
+                (
+                    candidate
+                    for candidate in session.planner.auto_verdicts(branch).values()
+                    if candidate.slug == target
+                ),
+                None,
             )
+            if verdict is None or not verdict.taken:
+                continue
+            self._push_refreshing(branch, target)
+            try:
+                outcome = await session.queue.submit(
+                    target, branch=branch, actor=AUTO_ACTOR
+                )
+            except Exception as error:
+                self._record_refresh_failure(branch, target, error)
+                continue
             if outcome.abandoned:
                 # Somebody stopped it, or the branch edited out from under it.
                 # Either way this sweep is answering a question nobody is
                 # asking any more.
-                return False
+                break
             moved = moved or bool(outcome.executed or outcome.cached)
         return moved
+
+    def _push_refreshing(self, branch: str, target: str) -> None:
+        session = self._session
+        if session.streams is None:
+            return
+        session.streams.state(
+            session.ref.address,
+            "refreshing",
+            step=session.store.next_step - 1,
+            lane=branch,
+            cell=target,
+        )
+
+    def _record_refresh_failure(
+        self, branch: str, target: str, error: Exception
+    ) -> None:
+        session = self._session
+        try:
+            branch_id = session.store.branches.get(branch).branch_id
+            uid = session.store.branches.resolve(branch, target)
+        except FlowError:
+            return
+        version = session.store.index.slice_versions(branch_id).get(uid)
+        if version is None:
+            return
+        detail = " ".join(str(error).split()) or type(error).__name__
+        sentence = f"could not refresh: {detail}"
+        session.store.commit(
+            [
+                CellNoted(
+                    uid=uid,
+                    kind="refresh_failed",
+                    sentence=sentence,
+                    version_id=version.version_id,
+                )
+            ],
+            intent=sentence,
+            actor="system",
+            branch=branch_id,
+        )
