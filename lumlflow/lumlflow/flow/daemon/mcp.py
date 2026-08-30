@@ -289,6 +289,15 @@ TOOLS: tuple[_Tool, ...] = (
         writes=True,
     ),
     _Tool(
+        "checkpoint",
+        "checkpoint",
+        "Mark this point on the lane under your own words, so it can be found "
+        "again. Nothing is copied or frozen. `context` reads the lane's latest one "
+        "back.",
+        (_INTENT,),
+        writes=True,
+    ),
+    _Tool(
         "adopt",
         "adopt",
         "Take one cell's version from another lane onto this one.",

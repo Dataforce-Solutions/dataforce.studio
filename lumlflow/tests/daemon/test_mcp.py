@@ -320,6 +320,36 @@ def test_use_lane_moves_this_session_and_leaves_the_files_alone(
     assert cell_files(workspace / "churn.flow") == []
 
 
+def test_checkpoint_marks_the_sessions_lane_and_refuses_bad_requests(
+    talk: Talk,
+) -> None:
+    answers = talk(
+        hello(),
+        tool(1, "init-flow", {"name": "churn"}),
+        tool(2, "new-lane", {"name": "sweep", "intent": "trying a sweep"}),
+        tool(3, "use-lane", {"lane": "sweep"}),
+        tool(4, "checkpoint", {"intent": "baseline"}),
+        tool(5, "context", {}),
+        tool(6, "context", {"lane": "main"}),
+        tool(7, "checkpoint", {}),
+        tool(8, "checkpoint", {"lane": "nowhere", "intent": "x"}),
+        tool(9, "context", {}),
+    )
+
+    marked = answered(answers, 4)
+    sweep_context = answered(answers, 5)
+    main_context = answered(answers, 6)
+
+    assert marked["branch"] == "sweep"
+    assert isinstance(marked["step"], int)
+    assert marked["intent"] == "baseline"
+    assert sweep_context["checkpoint"]["step"] == marked["step"]
+    assert main_context["checkpoint"] is None
+    assert "`intent`" in failed(answers, 7)
+    assert "nowhere" in failed(answers, 8)
+    assert answered(answers, 9)["branch"] == "sweep"
+
+
 def test_a_session_starts_where_the_files_are_and_use_lane_leaves_them_there(
     talk: Talk, workspace: Path
 ):
@@ -598,6 +628,11 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert "target" not in tools["run"]["inputSchema"].get("required", [])
     assert "directory" in tools["status"]["inputSchema"]["properties"]
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]
+    checkpoint_schema = tools["checkpoint"]["inputSchema"]
+    assert checkpoint_schema["required"] == ["intent"]
+    assert {"lane", "flow"} <= set(checkpoint_schema["properties"])
+    assert "force" not in checkpoint_schema["properties"]
+    assert next(tool for tool in mcp.TOOLS if tool.name == "checkpoint").writes is True
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND
 
 

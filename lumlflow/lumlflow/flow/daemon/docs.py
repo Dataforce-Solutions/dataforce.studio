@@ -55,9 +55,12 @@ checked-out lane.
 
 Connected over MCP, lumlflow serves `context` · `status` · `init-flow` ·
 `new-cell` · `edit-cell` · `move-cell` · `run` · `asset-preview` ·
-`new-lane` · `use-lane` · `rewind` · `adopt` · `diff`. It reads back
-through `lumlflow://guide`, `flow://<path>/manifest`,
+`new-lane` · `use-lane` · `rewind` · `checkpoint` · `adopt` · `diff`. It reads
+back through `lumlflow://guide`, `flow://<path>/manifest`,
 `flow://<path>/cells/<cell>` and `flow://<path>/previews/<cell>.<output>`.
+
+Mark a point with `checkpoint` before a rewrite you may want to come back from,
+or after a result worth finding again. `context` reports the lane's latest one.
 
 Address a flow by path, a cell by name (`features`), an output as
 `cell.output`, and a lane by name. There are no ids or hashes in the agent
@@ -80,6 +83,7 @@ For an agent that is itself a CLI:
 `lumlflow lane list` · `lumlflow graph` · `lumlflow lane new <lane>` ·
 `lumlflow lane use <lane>` · `lumlflow diff <a> <b>` ·
 `lumlflow adopt <cell> --from <lane>` · `lumlflow rewind <step>` ·
+`lumlflow checkpoint -m "why"` ·
 `lumlflow agents list` · `lumlflow agents setup <harness>` ·
 `lumlflow agents remove <harness>` · `lumlflow guide`
 
