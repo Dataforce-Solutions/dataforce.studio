@@ -147,6 +147,15 @@ class DeployTask(Task):
                     except (ContainerNotFoundError, ContainerNotRunningError) as e:
                         await self._handle_deploying_error(container, task.id, dep_id, str(e))
                         return
+                    except Exception as error:  # noqa: BLE001 — Docker's silence is not a verdict
+                        # The container check only shortens the wait for a container that
+                        # died; whether the model is up is the health endpoint's call.
+                        # Failing here would leave the record pending with its container
+                        # running, which nothing reconciles.
+                        logger.warning(
+                            f"[deploy] could not inspect the container of '{dep_id}': "
+                            f"{error}; still waiting for it to answer"
+                        )
                     next_container_check = loop.time() + 5
 
                 if await client.check_health_once(dep_id):

@@ -149,6 +149,8 @@ class DockerService:
         for attempt in range(1, self.INSPECT_ATTEMPTS + 1):
             try:
                 container = await self.client.containers.get(f"sat-{deployment_id}")
+                # the container can be removed between the lookup and this read
+                container_info = await container.show()
                 break
             except DockerError as e:
                 if e.status == 404:
@@ -161,7 +163,6 @@ class DockerService:
                 )
                 await asyncio.sleep(1)
 
-        container_info = await container.show()
         status = container_info["State"]["Status"]
 
         if status != "running":

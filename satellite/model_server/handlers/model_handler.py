@@ -276,24 +276,29 @@ class ModelHandler:
         The OpenTelemetry distribution is released in lockstep and its parts refuse to
         mix versions. A model that ships any part of it — a tracing SDK pulls it in
         routinely — would pin the family to one version while the image adds its own
-        parts at another, and pip has no solution for that. So when the model pins the
-        family, the worker's parts follow that pin; only otherwise do they take the
-        image's versions.
+        parts at another, and pip has no solution for that. So when the model pins a
+        core part, the worker's parts follow that pin. When it pins only a part of the
+        0.x line — semantic-conventions, an instrumentation — the SDK release that
+        matches it is a fact of pip's index, not of this code, so the worker's parts go
+        in unpinned and the resolver picks the release that fits. Only a model that
+        says nothing about the family gets the image's versions.
         """
         pinned: dict[str, str | None] = {}
         for dep in dependencies:
             if isinstance(dep, dict) and "package" in dep:
                 pinned[cls._package_name(dep["package"])] = cls._pinned_version(dep["package"])
         family_version = next((pinned[name] for name in _OTEL_CORE if pinned.get(name)), None)
+        family_mentioned = any(name.startswith(_OTEL_FAMILY) for name in pinned)
         extra: list[dict[str, Any]] = []
         for pkg_name in WORKER_PACKAGES:
             if pkg_name in pinned:
                 continue
             if pkg_name.startswith(_OTEL_FAMILY) and family_version:
-                version = family_version
+                extra.append({"package": f"{pkg_name}=={family_version}"})
+            elif pkg_name.startswith(_OTEL_FAMILY) and family_mentioned:
+                extra.append({"package": pkg_name})
             else:
-                version = importlib_metadata.version(pkg_name)
-            extra.append({"package": f"{pkg_name}=={version}"})
+                extra.append({"package": f"{pkg_name}=={importlib_metadata.version(pkg_name)}"})
         return extra
 
     @staticmethod

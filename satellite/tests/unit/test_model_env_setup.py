@@ -38,8 +38,12 @@ def _deps(*specs: str) -> list[dict]:
     return [{"package": spec, "extra_pip_args": None, "condition": None} for spec in specs]
 
 
-def _packages(extra: list[dict]) -> dict[str, str]:
-    return {d["package"].split("==")[0]: d["package"].split("==")[1] for d in extra}
+def _packages(extra: list[dict]) -> dict[str, str | None]:
+    """name -> pinned version, or None when the requirement is left to the resolver."""
+    return {
+        d["package"].split("==")[0]: (d["package"].split("==")[1] if "==" in d["package"] else None)
+        for d in extra
+    }
 
 
 class FakeEnvManager:
@@ -89,14 +93,23 @@ class TestModelEnvSetup:
         assert "opentelemetry-api" not in names
         assert _packages(extra)["opentelemetry-sdk"] == "1.42.1"
 
-    def test_a_family_pin_without_an_exact_version_does_not_pin_the_worker(self) -> None:
-        """`>=` is a floor, not a version; only an exact pin can be followed."""
+    def test_a_family_floor_without_an_exact_pin_leaves_the_core_to_the_resolver(self) -> None:
+        """`>=` is a constraint, not a version: nothing to follow, but something to respect.
+
+        The image's pins might sit inside the floor or not; pip can tell, this code
+        cannot. So the worker's parts go in unpinned and the resolver reconciles them
+        with the model's constraint.
+        """
         with patch.object(
             model_handler_module.importlib_metadata, "version", return_value="1.43.0"
         ):
             extra = ModelHandler._worker_dependencies(_deps("opentelemetry-api>=1.30"))
 
-        assert _packages(extra)["opentelemetry-sdk"] == "1.43.0"
+        packages = _packages(extra)
+        assert packages["opentelemetry-sdk"] is None
+        assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
+        assert "opentelemetry-api" not in packages  # the model brought it
+        assert packages["uvicorn"] == "1.43.0"
 
     def test_a_beta_package_of_the_family_does_not_set_the_api_version(self) -> None:
         """semantic-conventions and the instrumentations run a 0.x line of their own.
@@ -116,7 +129,13 @@ class TestModelEnvSetup:
         assert packages["opentelemetry-api"] == "1.42.1"
         assert packages["opentelemetry-exporter-otlp-proto-grpc"] == "1.42.1"
 
-    def test_only_a_beta_package_present_leaves_the_image_versions(self) -> None:
+    def test_only_a_beta_package_present_leaves_the_core_to_the_resolver(self) -> None:
+        """The SDK pins its own semantic-conventions release exactly (1.43 ↔ 0.64b).
+
+        A model pinning only ``semantic-conventions==0.63b1`` cannot take the image's
+        1.43 SDK — the set would be unsatisfiable — and this code does not know which
+        SDK release goes with 0.63. pip does: the worker's parts go in unpinned.
+        """
         with patch.object(
             model_handler_module.importlib_metadata, "version", return_value="1.43.0"
         ):
@@ -124,7 +143,12 @@ class TestModelEnvSetup:
                 _deps("opentelemetry-semantic-conventions==0.63b1")
             )
 
-        assert _packages(extra)["opentelemetry-api"] == "1.43.0"
+        packages = _packages(extra)
+        assert packages["opentelemetry-api"] is None
+        assert packages["opentelemetry-sdk"] is None
+        assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
+        assert packages["uvicorn"] == "1.43.0"  # the image's, as before
+        assert not any("==1.43" in d["package"] for d in extra if "opentelemetry" in d["package"])
 
     def test_a_removal_that_fails_is_said_so_and_the_build_error_still_surfaces(
         self, caplog: pytest.LogCaptureFixture

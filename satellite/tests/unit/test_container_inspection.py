@@ -67,3 +67,27 @@ class TestContainerInspection:
 
         with pytest.raises(ContainerNotRunningError):
             await service.check_container_running(DEPLOYMENT_ID)
+
+    async def test_a_container_removed_between_lookup_and_read_is_not_there(self) -> None:
+        container = AsyncMock()
+        container.show = AsyncMock(side_effect=DockerError(404, {"message": "No such container"}))
+        service = _service(AsyncMock(return_value=container))
+
+        with pytest.raises(ContainerNotFoundError):
+            await service.check_container_running(DEPLOYMENT_ID)
+
+    async def test_a_hiccup_on_the_status_read_is_retried_too(self) -> None:
+        flaky = AsyncMock()
+        flaky.show = AsyncMock(
+            side_effect=[
+                DockerError(500, {"message": "daemon is busy"}),
+                {"State": {"Status": "running"}, "Config": {"Labels": {"df.model_id": "m"}}},
+            ]
+        )
+        service = _service(AsyncMock(return_value=flaky))
+
+        with patch("agent.clients.docker_client.asyncio.sleep", new=AsyncMock()):
+            labels = await service.check_container_running(DEPLOYMENT_ID)
+
+        assert labels == {"df.model_id": "m"}
+        assert flaky.show.await_count == 2
