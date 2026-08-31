@@ -91,11 +91,11 @@ class TestModelEnvSetup:
                 _deps("Uvicorn==0.30.6", "opentelemetry_api==1.42.1 ; python_version >= '3.10'")
             )
 
-        names = set(_packages(extra))
-        assert "uvicorn" not in names
-        assert "opentelemetry-api" not in names
-        # the only family pin carries a marker, so the rest of the family is the resolver's
-        assert _packages(extra)["opentelemetry-sdk"] is None
+        packages = _packages(extra)
+        assert "uvicorn" not in packages  # shipped unconditionally, however spelled
+        # mentioned only under a marker: required unconditionally, left to the resolver
+        assert packages["opentelemetry-api"] is None
+        assert packages["opentelemetry-sdk"] is None
 
     def test_a_family_floor_without_an_exact_pin_leaves_the_core_to_the_resolver(self) -> None:
         """`>=` is a constraint, not a version: nothing to follow, but something to respect.
@@ -114,6 +114,29 @@ class TestModelEnvSetup:
         assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
         assert "opentelemetry-api" not in packages  # the model brought it
         assert packages["uvicorn"] == "1.43.0"
+
+    def test_a_worker_package_mentioned_only_under_a_marker_is_still_required(self) -> None:
+        """`uvicorn ; python_version < "3.11"` installs nothing on 3.12 — and the worker
+        imports uvicorn. A conditional mention is not a guarantee, so an unconditional,
+        unpinned line goes in; pip reconciles it with the marked one where that holds."""
+        extra = ModelHandler._worker_dependencies(
+            _deps(
+                'Uvicorn[standard]==0.29.0 ; python_version < "3.11"',
+                'opentelemetry-api==1.42.1 ; python_version < "3.11"',
+            )
+        )
+
+        packages = _packages(extra)
+        assert "uvicorn" in packages and packages["uvicorn"] is None
+        assert "opentelemetry-api" in packages and packages["opentelemetry-api"] is None
+        assert packages["opentelemetry-sdk"] is None  # family mentioned, no core pin
+
+    def test_an_unconditional_line_beside_a_conditional_one_counts_as_shipped(self) -> None:
+        extra = ModelHandler._worker_dependencies(
+            _deps('uvicorn==0.29.0 ; python_version < "3.11"', "uvicorn==0.30.6")
+        )
+
+        assert "uvicorn" not in _packages(extra)
 
     def test_conditional_pins_are_left_to_the_resolver(self) -> None:
         """Mutually exclusive pins for different Pythons: which one holds inside the
@@ -134,7 +157,8 @@ class TestModelEnvSetup:
 
         packages = _packages(extra)
         assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
-        assert "opentelemetry-api" not in packages and "opentelemetry-sdk" not in packages
+        # mentioned only conditionally: required unconditionally, pinned by nobody but pip
+        assert packages["opentelemetry-api"] is None and packages["opentelemetry-sdk"] is None
 
     def test_a_beta_package_of_the_family_does_not_set_the_api_version(self) -> None:
         """semantic-conventions and the instrumentations run a 0.x line of their own.

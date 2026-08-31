@@ -291,19 +291,30 @@ class ModelHandler:
         says nothing about the family gets the image's versions.
         """
         pinned: dict[str, str | None] = {}
+        unconditional: set[str] = set()
         for dep in dependencies:
-            if isinstance(dep, dict) and "package" in dep:
-                name = cls._package_name(dep["package"])
-                version = None if dep.get("condition") else cls._pinned_version(dep["package"])
-                # a later unconditional pin may follow a conditional one; never the reverse
-                pinned[name] = version if version else pinned.get(name)
+            if not isinstance(dep, dict) or "package" not in dep:
+                continue
+            spec = dep["package"]
+            name = cls._package_name(spec)
+            conditional = bool(dep.get("condition")) or ";" in spec
+            if not conditional:
+                unconditional.add(name)
+            version = None if conditional else cls._pinned_version(spec)
+            # a later unconditional pin may follow a conditional one; never the reverse
+            pinned[name] = version if version else pinned.get(name)
         family_version = next((pinned[name] for name in _OTEL_CORE if pinned.get(name)), None)
         family_mentioned = any(name.startswith(_OTEL_FAMILY) for name in pinned)
         extra: list[dict[str, Any]] = []
         for pkg_name in WORKER_PACKAGES:
-            if pkg_name in pinned:
+            if pkg_name in unconditional:
                 continue
-            if pkg_name.startswith(_OTEL_FAMILY) and family_version:
+            if pkg_name in pinned:
+                # mentioned only under a marker that may not hold in the target
+                # environment; the worker needs it either way, and pip reconciles the
+                # unpinned line with the conditional one wherever that one applies
+                extra.append({"package": pkg_name})
+            elif pkg_name.startswith(_OTEL_FAMILY) and family_version:
                 extra.append({"package": f"{pkg_name}=={family_version}"})
             elif pkg_name.startswith(_OTEL_FAMILY) and family_mentioned:
                 extra.append({"package": pkg_name})
