@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from typing import Any
 from uuid import UUID
@@ -106,6 +106,23 @@ class ModelServerHandler:
             metadata=DeploymentMetadata.from_platform(deployment.model_dump()),
         )
         self._invalidate_openapi_cache()
+
+    def note_platform_record(
+        self, deployment_id: str, record: Deployment | Mapping[str, Any] | None
+    ) -> None:
+        """Refresh what the dashboard header shows from the Platform's latest record.
+
+        A deployment is registered from the record as it was *before* its status was
+        written — `pending` on the deploy path, `not_responding` on the recovery paths —
+        and the header repeated that stale word until the next reconciliation. The
+        PATCH that changes the status answers with the record as it now is; this is
+        where that answer lands.
+        """
+        local = self.deployments.get(deployment_id)
+        if local is None or record is None:
+            return
+        data = record.model_dump() if isinstance(record, Deployment) else record
+        local.metadata = DeploymentMetadata.from_platform(data)
 
     async def remove_deployment(self, deployment_id: UUID) -> None:
         self.deployments.pop(str(deployment_id), None)
@@ -249,8 +266,9 @@ class ModelServerHandler:
                         )
                         return
                 if await client.check_health_once(dep_id):
+                    promoted: Deployment | None = None
                     try:
-                        await platform.update_deployment(
+                        promoted = await platform.update_deployment(
                             dep_id,
                             DeploymentUpdate(
                                 status=DeploymentStatus.ACTIVE,
@@ -289,6 +307,7 @@ class ModelServerHandler:
                         monitoring_enabled=monitoring_enabled,
                         metadata=DeploymentMetadata.from_platform(dep),
                     )
+                    self.note_platform_record(dep_id, promoted)
                     logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
                     return
                 await asyncio.sleep(1)
@@ -441,9 +460,10 @@ class ModelServerHandler:
 
                 if health_ok:
                     monitoring_url = self._monitoring_url(dep)
+                    promoted: Deployment | None = None
                     if dep.get("status", "") != DeploymentStatus.ACTIVE:
                         try:
-                            await platform_client.update_deployment(
+                            promoted = await platform_client.update_deployment(
                                 dep_id,
                                 DeploymentUpdate(
                                     status=DeploymentStatus.ACTIVE,
@@ -486,6 +506,7 @@ class ModelServerHandler:
                         monitoring_enabled=monitoring_enabled,
                         metadata=DeploymentMetadata.from_platform(dep),
                     )
+                    self.note_platform_record(dep_id, promoted)
                 elif self._recovery_marked(dep):
                     recovering.append(dep)
                 else:

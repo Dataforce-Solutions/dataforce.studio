@@ -132,6 +132,8 @@ class TestContainerRelaunch:
         # once it answers, the deployment is serving again and known locally
         assert DEPLOYMENT_ID in handler.deployments
         assert handler.deployments[DEPLOYMENT_ID].monitoring_enabled is True
+        # …and the header shows the record the promotion answered with, not the snapshot
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "active"
         # recovering while it boots, active once it answers — and never `pending`, which
         # reconciliation skips: an Agent dying mid-recovery must not strand the deployment
         updates = [call.request.read() for call in patch_route.calls]
@@ -265,7 +267,7 @@ class TestContainerRelaunch:
         _mock_platform(record=record)
         _mock_model_server()
         patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
-            return_value=httpx.Response(200, json=record)
+            return_value=httpx.Response(200, json=record | {"status": "active"})
         )
         docker = _running_docker()
 
@@ -275,6 +277,8 @@ class TestContainerRelaunch:
         # it answers on its own, so it is promoted without touching the container
         docker.run_model_container.assert_not_awaited()
         assert b'"active"' in patch_route.calls[-1].request.read()
+        # the header follows the Platform's answer, not the not_responding snapshot
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "active"
 
     async def test_a_recovery_the_agent_did_not_live_to_finish_is_settled_by_the_next_start(
         self,
@@ -478,6 +482,8 @@ class TestContainerRelaunch:
 
         assert DEPLOYMENT_ID in handler.deployments
         docker.remove_model_container.assert_not_awaited()
+        # served locally, but the header does not claim a status the Platform never wrote
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "not_responding"
 
     @respx.mock
     async def test_a_rate_limited_promotion_is_a_blip_not_a_refusal(self) -> None:

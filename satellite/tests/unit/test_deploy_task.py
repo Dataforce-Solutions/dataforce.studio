@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from agent.handlers.handler_instances import ms_handler
 from agent.handlers.tasks import TaskHandler
 from agent.schemas import (
     Deployment,
@@ -31,7 +32,9 @@ def _task() -> SatelliteQueueTask:
     )
 
 
-def _deployment(monitoring_mode: str) -> Deployment:
+def _deployment(
+    monitoring_mode: str, status: str = "pending", inference_url: str | None = None
+) -> Deployment:
     return Deployment(
         id=DEPLOYMENT_ID,
         orbit_id="orbit-1",
@@ -41,7 +44,8 @@ def _deployment(monitoring_mode: str) -> Deployment:
         artifact_id=ARTIFACT_ID,
         artifact_name="model",
         collection_id="col-1",
-        status="pending",
+        status=status,
+        inference_url=inference_url,
         monitoring_mode=monitoring_mode,
         created_at="2026-01-01T00:00:00Z",
     )
@@ -97,3 +101,42 @@ class TestDeployTask:
             # cleared explicitly: the Platform honours only the fields actually sent
             "error_message": None,
         }
+
+    async def test_the_header_shows_the_record_the_platform_answered_with(
+        self, monkeypatch: pytest.MonkeyPatch, mock_model_server: object
+    ) -> None:
+        """A freshly deployed model used to sit at `pending` in the dashboard header.
+
+        The deployment is registered locally from the record fetched while it was still
+        pending, and only then flipped to active on the Platform; the header repeated
+        the stale word until the next reconciliation. The PATCH answers with the record
+        as it now is, and that is what the header shows.
+        """
+        monkeypatch.setattr(config, "MONITORING_ENABLED", True)
+        inference_url = f"/deployments/{DEPLOYMENT_ID}"
+        platform = AsyncMock()
+        platform.get_deployment.return_value = _deployment("full")  # pending, no URL yet
+        platform.get_artifact_download_url.return_value = "https://artifacts.example/model.luml"
+        platform.update_deployment.return_value = _deployment(
+            "full", status="active", inference_url=inference_url
+        )
+        docker = AsyncMock()
+        docker.run_model_container.return_value = AsyncMock()
+        client = AsyncMock()
+        client.check_health_once.return_value = True
+        client_context = AsyncMock()
+        client_context.__aenter__.return_value = client
+        task_handler = TaskHandler(platform=platform, docker=docker)._handlers[
+            SatelliteTaskType.DEPLOY
+        ]
+
+        try:
+            with patch("agent.tasks.deploy.ModelServerClient", return_value=client_context):
+                await task_handler.run(_task())
+
+            local = ms_handler.deployments[DEPLOYMENT_ID]
+            assert local.metadata.status == "active"
+            assert local.metadata.inference_url == inference_url
+            assert local.metadata.name == "dep"
+        finally:
+            ms_handler.deployments.pop(DEPLOYMENT_ID, None)

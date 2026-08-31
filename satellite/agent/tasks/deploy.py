@@ -163,7 +163,7 @@ class DeployTask(Task):
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
-            await self.platform.update_deployment(
+            activated = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
                     inference_url=inference_url,
@@ -177,6 +177,8 @@ class DeployTask(Task):
                     error_message=None,
                 ),
             )
+            # registered from the record as it was while pending; the header shows this one
+            ms_handler.note_platform_record(dep_id, activated)
             await self.platform.update_task_status(
                 task.id,
                 SatelliteTaskStatus.DONE,
