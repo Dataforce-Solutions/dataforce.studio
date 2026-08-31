@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     MODEL_SERVER_PORT: int = 8080
     MONITORING_FRAME_ANCESTORS: str = ""
     MONITORING_SESSION_TTL_SECONDS: int = 1800
+    AGENT_PORT: int = 8000
 
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     MONITORING_ENABLED: bool = True

@@ -1471,6 +1471,64 @@ async def test_update_worker_deployment_preserves_partial_fields(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
+async def test_update_worker_deployment_leaves_unsent_fields_alone(
+    mock_update_deployment: AsyncMock,
+) -> None:
+    """A status-only PATCH must not erase inference_url, schemas or tags.
+
+    The repository applies ``model_dump(exclude_unset=True)``, so the handler must not
+    mark absent fields as set by spelling them out as None — that turned every
+    reconciliation status update into an eraser for the deployment's routing metadata.
+    """
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+
+    mock_update_deployment.return_value = Mock()
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(status=DeploymentStatus.ACTIVE),
+    )
+
+    sent = mock_update_deployment.await_args.args[2]
+    assert sent.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "status": DeploymentStatus.ACTIVE,
+    }
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_worker_deployment_can_clear_error_message_explicitly(
+    mock_update_deployment: AsyncMock,
+) -> None:
+    """An explicit null is a request to clear the field, not an omission."""
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+
+    mock_update_deployment.return_value = Mock()
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(status=DeploymentStatus.ACTIVE, error_message=None),
+    )
+
+    sent = mock_update_deployment.await_args.args[2]
+    assert sent.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "status": DeploymentStatus.ACTIVE,
+        "error_message": None,
+    }
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
 async def test_update_worker_deployment_not_found(
     mock_update_deployment: AsyncMock,
 ) -> None:

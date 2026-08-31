@@ -1,8 +1,11 @@
+import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 from uuid import UUID
+
+import httpx
 
 from agent._exceptions import (
     ContainerNotFoundError,
@@ -11,6 +14,11 @@ from agent._exceptions import (
 )
 from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
+from agent.handlers.container_launcher import (
+    LAUNCHER_PROTOCOL,
+    LAUNCHER_PROTOCOL_LABEL,
+    launch_model_container,
+)
 from agent.monitoring.instrumentation import InferenceInstrumentation
 from agent.monitoring.telemetry import TelemetrySetup
 from agent.schemas import (
@@ -28,8 +36,19 @@ from agent.settings import config
 
 logger = logging.getLogger(__name__)
 
+# written into the deployment's error message while a relaunched container boots;
+# the next reconciliation reads it back to resume the wait
+RECOVERING_REASON = "Recovering"
+
+# 4xx that are a verdict on the deployment; 401/403 speak about this Agent,
+# 408/429 about the moment
+REFUSAL_CODES = frozenset({400, 404, 409, 410})
+AUTH_CODES = frozenset({401, 403})
+
 
 class ModelServerHandler:
+    recovery_health_check_timeout = 1800
+
     def __init__(self, telemetry: TelemetrySetup | None = None) -> None:
         self.deployments: dict[str, LocalDeployment] = {}
         self._openapi_cache_invalidation_callbacks: list[Callable] = []
@@ -106,53 +125,148 @@ class ModelServerHandler:
         self.deployments = active_deployments
         return list(active_deployments.values())
 
-    async def sync_deployments(self) -> None:
-        logger.info("[ModelServerHandler] sync_deployments...")
-        async with (
-            PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform_client,
-            DockerService() as docker,
-        ):
-            deployments_db = await platform_client.list_deployments()
-            active_deployments_db = [
-                dep for dep in deployments_db if dep.get("status", "") == "active"
-            ]
+    async def _relaunch(
+        self,
+        docker: DockerService,
+        platform: PlatformClient,
+        deployment_id: str,
+        reason: str,
+    ) -> bool:
+        """Recreate a deployment's model container under the current launch contract.
 
-            logger.info(
-                f"[active_deployments_db] {[d.get('id', '') for d in active_deployments_db]}"
+        The recovery marker is persisted before the old container is touched:
+        replacement is delete-then-create, and the marker is the only proof that a
+        missing container is recovery's own doing and may be recreated.
+        """
+        logger.info(f"[ModelServerHandler] relaunching '{deployment_id}': {reason}")
+        try:
+            await platform.update_deployment(
+                deployment_id,
+                DeploymentUpdate(
+                    status=DeploymentStatus.NOT_RESPONDING,
+                    error_message=ErrorMessage(
+                        reason=RECOVERING_REASON,
+                        error=f"Container is being relaunched: {reason}",
+                    ),
+                ),
+            )
+        except Exception as error:
+            # no persisted marker — no destructive replacement
+            logger.warning(
+                f"[ModelServerHandler] could not mark '{deployment_id}' as recovering, "
+                f"leaving its container alone: {error}"
+            )
+            return False
+
+        try:
+            deployment = await platform.get_deployment(UUID(deployment_id))
+            if deployment is None:
+                raise ValueError("deployment not found on the Platform")
+            await launch_model_container(platform, docker, deployment)
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] relaunch of '{deployment_id}' failed: {error}")
+            # the marker stays: only records carrying it get a container-less retry
+            with suppress(Exception):
+                await platform.update_deployment(
+                    deployment_id,
+                    DeploymentUpdate(
+                        status=DeploymentStatus.NOT_RESPONDING,
+                        error_message=ErrorMessage(
+                            reason=RECOVERING_REASON,
+                            error=(
+                                f"Relaunch failed, the next start will retry: {error}. "
+                                f"Relaunch reason: {reason}"
+                            ),
+                        ),
+                    ),
+                )
+            return False
+
+        return True
+
+    @staticmethod
+    def _recovery_marked(dep: dict[str, Any]) -> bool:
+        """Whether this Platform record is mid-recovery by some Agent's own hand."""
+        return (
+            dep.get("status", "") == DeploymentStatus.NOT_RESPONDING
+            and (dep.get("error_message") or {}).get("reason") == RECOVERING_REASON
+        )
+
+    @staticmethod
+    def _monitoring_url(dep: dict[str, Any]) -> str | None:
+        return monitoring_url_for_deployment(
+            dep["id"],
+            dep.get("monitoring_mode"),
+            monitoring_capability_present=config.MONITORING_ENABLED,
+        )
+
+    @staticmethod
+    async def _report_monitoring_url(
+        platform: PlatformClient, dep_id: str, monitoring_url: str | None
+    ) -> None:
+        """Tell the Platform where this deployment's dashboard lives.
+
+        Informational: a refusal or a blip here must not unserve a healthy deployment.
+        """
+        try:
+            await platform.update_deployment(
+                dep_id, DeploymentUpdate(monitoring_url=monitoring_url)
+            )
+        except Exception as error:
+            logger.warning(
+                f"[ModelServerHandler] could not report the monitoring URL of '{dep_id}': {error}"
             )
 
-            for dep in active_deployments_db:
-                dep_id = dep["id"]
-                try:
-                    await docker.check_container_running(dep_id)
-                except ContainerNotFoundError:
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Not Found",
-                                error=f"Container with deployment id '{dep_id}' not found",
-                            ),
-                        ),
-                    )
-                    continue
-                except ContainerNotRunningError as e:
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Container not running", error=str(e)
-                            ),
-                        ),
-                    )
-                    continue
+    async def _settle_recovered(
+        self, docker: DockerService, platform: PlatformClient, dep: dict[str, Any]
+    ) -> None:
+        """Wait for a relaunched container to answer, then record what actually happened."""
+        dep_id = dep["id"]
+        timeout = int(
+            (dep.get("satellite_parameters") or {}).get(
+                "health_check_timeout", self.recovery_health_check_timeout
+            )
+        )
 
-                async with ModelServerClient() as client:
-                    health_ok = await client.is_healthy(dep_id)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
 
-                if health_ok:
+        async with ModelServerClient() as client:
+            while loop.time() < deadline:
+                if await client.check_health_once(dep_id):
+                    try:
+                        await platform.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(
+                                status=DeploymentStatus.ACTIVE,
+                                error_message=None,
+                                monitoring_url=self._monitoring_url(dep),
+                            ),
+                        )
+                    except httpx.HTTPStatusError as error:
+                        code = error.response.status_code
+                        if code in REFUSAL_CODES:
+                            logger.warning(
+                                f"[ModelServerHandler] not promoting '{dep_id}': the "
+                                f"Platform refused ({error})"
+                            )
+                            await self._remove_orphan(docker, dep_id)
+                            return
+                        if code in AUTH_CODES:
+                            logger.warning(
+                                f"[ModelServerHandler] not promoting '{dep_id}': this "
+                                f"Agent is not authorized ({error})"
+                            )
+                            return
+                        logger.warning(
+                            f"[ModelServerHandler] promoting '{dep_id}' failed on the "
+                            f"Platform side ({error}); serving it locally anyway"
+                        )
+                    except Exception as error:
+                        logger.warning(
+                            f"[ModelServerHandler] promoting '{dep_id}' failed "
+                            f"({error}); serving it locally anyway"
+                        )
                     monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
@@ -160,16 +274,194 @@ class ModelServerHandler:
                         monitoring_enabled=monitoring_enabled,
                         metadata=DeploymentMetadata.from_platform(dep),
                     )
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            monitoring_url=monitoring_url_for_deployment(
-                                dep_id,
-                                dep.get("monitoring_mode"),
-                                monitoring_capability_present=config.MONITORING_ENABLED,
-                            )
+                    logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
+                    return
+                await asyncio.sleep(1)
+
+        logs = await self._container_logs(docker, dep_id)
+        try:
+            await platform.update_deployment(
+                dep_id,
+                DeploymentUpdate(
+                    status=DeploymentStatus.NOT_RESPONDING,
+                    error_message=ErrorMessage(
+                        reason="Relaunched container did not become healthy",
+                        error=(
+                            f"Deployment '{dep_id}' was relaunched but did not answer "
+                            f"in {timeout}s."
+                            + (f"\n\nContainer logs:\n{logs[-3000:]}" if logs else "")
                         ),
+                    ),
+                ),
+            )
+        except httpx.HTTPStatusError as error:
+            logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
+            if error.response.status_code in REFUSAL_CODES:
+                await self._remove_orphan(docker, dep_id)
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
+
+    @staticmethod
+    async def _remove_orphan(docker: DockerService, deployment_id: str) -> None:
+        logger.warning(
+            f"[ModelServerHandler] removing container of deleted deployment '{deployment_id}'"
+        )
+        with suppress(Exception):
+            await docker.remove_model_container(deployment_id=deployment_id)
+
+    async def _remove_orphan_containers(
+        self, docker: DockerService, platform: PlatformClient
+    ) -> None:
+        """Remove model containers whose deployment no longer exists anywhere.
+
+        Checked against a listing fetched right here, not the reconciliation's opening
+        snapshot: a deployment deleted after that snapshot would hide behind it, and a
+        record always exists before its container does, so a deployment created
+        moments ago is in the fresh listing and cannot be mistaken for an orphan.
+        """
+        try:
+            owned: list[str] = []
+            for container in await docker.client.containers.list(all=True):
+                info = await container.show()
+                labels = info.get("Config", {}).get("Labels") or {}
+                dep_id = labels.get("df.deployment_id")
+                name = (info.get("Name") or "").lstrip("/")
+                if dep_id and name.startswith("sat-"):
+                    owned.append(dep_id)
+
+            if not owned:
+                return
+
+            fresh_ids = {dep.get("id", "") for dep in await platform.list_deployments()}
+            for dep_id in owned:
+                if dep_id not in fresh_ids:
+                    await self._remove_orphan(docker, dep_id)
+        except Exception as error:
+            logger.warning(f"[ModelServerHandler] orphan container check failed: {error}")
+
+    @staticmethod
+    async def _container_logs(docker: DockerService, deployment_id: str) -> str:
+        with suppress(Exception):
+            container = await docker.client.containers.get(f"sat-{deployment_id}")
+            logs = await container.log(stdout=True, stderr=True, follow=False, tail=100)
+            return "".join(logs) if isinstance(logs, list) else str(logs)
+        return ""
+
+    async def sync_deployments(self) -> None:
+        logger.info("[ModelServerHandler] sync_deployments...")
+        async with (
+            PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform_client,
+            DockerService() as docker,
+        ):
+            deployments_db = await platform_client.list_deployments()
+
+            serving_deployments_db = [
+                dep
+                for dep in deployments_db
+                if dep.get("status", "")
+                in (DeploymentStatus.ACTIVE, DeploymentStatus.NOT_RESPONDING)
+            ]
+
+            logger.info(
+                f"[serving_deployments_db] {[d.get('id', '') for d in serving_deployments_db]}"
+            )
+
+            recovering: list[dict[str, Any]] = []
+
+            for dep in serving_deployments_db:
+                dep_id = dep["id"]
+                try:
+                    labels = await docker.check_container_running(dep_id)
+                except ContainerNotFoundError:
+                    if self._recovery_marked(dep):
+                        if await self._relaunch(
+                            docker,
+                            platform_client,
+                            dep_id,
+                            "retrying a replacement that lost its container",
+                        ):
+                            recovering.append(dep)
+                        continue
+
+                    with suppress(Exception):  # refused mid-deletion — nothing to report
+                        await platform_client.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(
+                                status=DeploymentStatus.NOT_RESPONDING,
+                                error_message=ErrorMessage(
+                                    reason="Not Found",
+                                    error=f"Container with deployment id '{dep_id}' not found",
+                                ),
+                            ),
+                        )
+                    continue
+                except ContainerNotRunningError as e:
+                    if await self._relaunch(docker, platform_client, dep_id, str(e)):
+                        recovering.append(dep)
+                    continue
+
+                if labels.get(LAUNCHER_PROTOCOL_LABEL) != LAUNCHER_PROTOCOL:
+                    if await self._relaunch(
+                        docker,
+                        platform_client,
+                        dep_id,
+                        "container was launched under an older Agent protocol",
+                    ):
+                        recovering.append(dep)
+                    continue
+
+                async with ModelServerClient() as client:
+                    health_ok = await client.is_healthy(dep_id)
+
+                if health_ok:
+                    monitoring_url = self._monitoring_url(dep)
+                    if dep.get("status", "") != DeploymentStatus.ACTIVE:
+                        try:
+                            await platform_client.update_deployment(
+                                dep_id,
+                                DeploymentUpdate(
+                                    status=DeploymentStatus.ACTIVE,
+                                    error_message=None,
+                                    monitoring_url=monitoring_url,
+                                ),
+                            )
+                        except httpx.HTTPStatusError as error:
+                            code = error.response.status_code
+                            if code in REFUSAL_CODES:
+                                logger.warning(
+                                    f"[ModelServerHandler] not promoting '{dep_id}': "
+                                    f"the Platform refused ({error})"
+                                )
+
+                                if code in (404, 410):
+                                    await self._remove_orphan(docker, dep_id)
+                                continue
+                            if code in AUTH_CODES:
+                                logger.warning(
+                                    f"[ModelServerHandler] not promoting '{dep_id}': "
+                                    f"this Agent is not authorized ({error})"
+                                )
+                                continue
+                            logger.warning(
+                                f"[ModelServerHandler] promoting '{dep_id}' failed on "
+                                f"the Platform side ({error}); serving it locally anyway"
+                            )
+                        except Exception as error:
+                            logger.warning(
+                                f"[ModelServerHandler] promoting '{dep_id}' failed "
+                                f"({error}); serving it locally anyway"
+                            )
+                    else:
+                        await self._report_monitoring_url(platform_client, dep_id, monitoring_url)
+                    monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
+                    await self.add_single_deployment(
+                        dep_id,
+                        dep.get("dynamic_attributes_secrets"),
+                        monitoring_enabled=monitoring_enabled,
+                        metadata=DeploymentMetadata.from_platform(dep),
                     )
+                elif self._recovery_marked(dep):
+                    recovering.append(dep)
                 else:
                     logs = ""
                     with suppress(Exception):
@@ -178,19 +470,41 @@ class ModelServerHandler:
                             stdout=True, stderr=True, follow=False, tail=100
                         )
                         logs = "".join(logs_list) if isinstance(logs_list, list) else str(logs_list)
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            status=DeploymentStatus.NOT_RESPONDING,
-                            error_message=ErrorMessage(
-                                reason="Health check failed",
-                                error=(
-                                    f"Health check failed for deployment '{dep_id}'."
-                                    + (f"\n\nContainer logs:\n{str(logs)[-3000:]}" if logs else "")
+                    with suppress(Exception):  # refused mid-deletion — nothing to report
+                        await platform_client.update_deployment(
+                            dep_id,
+                            DeploymentUpdate(
+                                status=DeploymentStatus.NOT_RESPONDING,
+                                error_message=ErrorMessage(
+                                    reason="Health check failed",
+                                    error=(
+                                        f"Health check failed for deployment '{dep_id}'."
+                                        + (
+                                            f"\n\nContainer logs:\n{str(logs)[-3000:]}"
+                                            if logs
+                                            else ""
+                                        )
+                                    ),
                                 ),
                             ),
-                        ),
-                    )
+                        )
+
+            if recovering:
+                results = await asyncio.gather(
+                    *(self._settle_recovered(docker, platform_client, dep) for dep in recovering),
+                    return_exceptions=True,
+                )
+                for settled_dep, result in zip(recovering, results, strict=True):
+                    if isinstance(result, BaseException):
+                        logger.warning(
+                            f"[ModelServerHandler] settling '{settled_dep['id']}' failed: {result}"
+                        )
+
+            await self._remove_orphan_containers(docker, platform_client)
+
+            await docker.cleanup_stale_staging(
+                keep_artifacts={str(dep.get("artifact_id", "")) for dep in deployments_db}
+            )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

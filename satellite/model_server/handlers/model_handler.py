@@ -2,25 +2,29 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import tempfile
 import traceback
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
+from clients.agent_client import AgentClient
 from conda_manager import ModelCondaManager
 from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
 from utils.logging import log_success  # type: ignore
 
-from .file_handler import FileHandler
+from .file_handler import ArtifactAccessExpired, FileHandler
 
 logger = logging.getLogger(__name__)
 
 
 class ModelHandler:
-    def __init__(self, url: str | None = None) -> None:
-        self._model_url = os.getenv("MODEL_ARTIFACT_URL") if url is None else url
+    def __init__(self, url: str | None = None, agent: AgentClient | None = None) -> None:
+        self._model_url = url
+        self._agent = agent or AgentClient()
         self._models_cache_dir = self._get_model_cache_dir()
         self._file_handler = FileHandler()
         self._request_model_schema = None
@@ -29,7 +33,7 @@ class ModelHandler:
         self.conda_worker: ModelCondaManager | None = None
 
         try:
-            self.extracted_path = self._get_or_extract_model(self._model_url)
+            self.extracted_path = self._get_or_extract_model()
             self._model_envs = self._create_model_env()
 
             self.conda_worker = ModelCondaManager(
@@ -63,9 +67,26 @@ class ModelHandler:
 
     @staticmethod
     def _generate_model_id(url: str) -> str:
+        """Fallback cache key for a caller that supplied its own URL and no artifact id."""
         parsed_url = urlparse(url)
         url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
+
+    def _download_with_retry(self, url: str) -> Path:
+        """Download, and on a refused URL ask the Agent for one more and try again.
+
+        A large artifact can outlive its own link: the URL is signed before the transfer
+        starts and may expire part-way through. One retry with a freshly signed URL covers
+        that without turning a genuinely revoked artifact into a retry loop.
+        """
+        try:
+            return self._download_model(url)
+        except ArtifactAccessExpired:
+            if self._caller_supplied_url():  # caller-supplied URL: nothing fresher to ask
+                raise
+            logger.warning("Download URL was refused; asking the Agent for a fresh one.")
+            fresh_url, _ = self._resolve_artifact()
+            return self._download_model(fresh_url)
 
     @log_success("Model downloaded successfully.")
     def _download_model(self, url: str) -> Path:
@@ -84,22 +105,74 @@ class ModelHandler:
     def _unpack_model_archive(self, model_archive_path: Path, extraction_dir: Path) -> str:
         return self._file_handler.unpack_tar_archive(model_archive_path, extraction_dir)
 
+    def _caller_supplied_url(self) -> str | None:
+        """A download URL the container was handed instead of a token, if any.
+
+        Tests and local runs pass one directly; an Agent from before the token
+        contract passes one through MODEL_ARTIFACT_URL.
+        """
+        return self._model_url or os.getenv("MODEL_ARTIFACT_URL") or None
+
+    def _known_model_id(self) -> str | None:
+        """The cache key, if it can be known without asking anyone."""
+        url = self._caller_supplied_url()
+        if url:
+            return self._generate_model_id(url)
+        return os.getenv("MODEL_ARTIFACT_ID") or None
+
+    def _resolve_artifact(self) -> tuple[str, str]:
+        """The download URL and the cache key, asking the Agent for a link signed just now."""
+        url = self._caller_supplied_url()
+        if url:
+            return url, self._generate_model_id(url)
+        artifact = self._agent.fetch_artifact()
+        return artifact.url, artifact.artifact_id
+
     @log_success("Unpacked Model path extracted successfully.")
-    def _get_or_extract_model(self, url: str) -> str:
-        model_id = self._generate_model_id(url)
+    def _get_or_extract_model(self) -> str:
+        """The extracted model, from the shared cache when it is already there.
+
+        The cache is checked before anything is asked of anyone, so a container whose model
+        is already unpacked comes back up even while the Agent or the Platform is down. Only
+        a miss needs a download URL, and that one is minted on the spot.
+        """
+        known_id = self._known_model_id()
+        if known_id:
+            cached = self._models_cache_dir / known_id
+            if self._file_handler.dir_exist(cached):
+                logger.info(f"Using cached model {known_id} from {cached}")
+                return str(cached)
+
+        url, model_id = self._resolve_artifact()
         extraction_dir = self._models_cache_dir / model_id
 
-        # if self._file_handler.dir_exist(extraction_dir):
-        #     logger.info(f"Using cached model {model_id} from {extraction_dir}")
-        #     return str(extraction_dir)
-        #
-        # logger.info("Model not in cache, downloading...")
-        model_archive_path = self._download_model(url)
+        if self._file_handler.dir_exist(extraction_dir):
+            logger.info(f"Using cached model {model_id} from {extraction_dir}")
+            return str(extraction_dir)
 
-        extracted_path = self._unpack_model_archive(model_archive_path, extraction_dir)
-        self._clean_model_archive(model_archive_path)
+        logger.info("Model not in cache, downloading...")
+        model_archive_path = self._download_with_retry(url)
 
-        return extracted_path
+        # staged beside the target, moved in only once complete — a crash mid-unpack must
+        # not read as a cache hit; unique per attempt because the cache is shared
+        staging_dir = self._models_cache_dir / f".{model_id}.{os.getpid()}.{uuid4().hex}.partial"
+        try:
+            self._unpack_model_archive(model_archive_path, staging_dir)
+            try:
+                os.replace(staging_dir, extraction_dir)
+            except OSError:
+                # someone else finished first — the archive is immutable, keep theirs
+                if not self._file_handler.dir_exist(extraction_dir):
+                    raise
+                logger.info(f"Model {model_id} was cached by another container; using it.")
+                shutil.rmtree(staging_dir, ignore_errors=True)
+        except Exception:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise
+        finally:
+            self._clean_model_archive(model_archive_path)
+
+        return str(extraction_dir)
 
     @log_success("Model manifest.json loaded successfully.")
     def _get_manifest(self) -> dict[str, Any]:

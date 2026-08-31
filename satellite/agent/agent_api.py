@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from agent._exceptions import DeploymentNotHostedError
 from agent.clients import ModelServerError
+from agent.handlers import artifact_tokens
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
@@ -22,6 +23,7 @@ from agent.monitoring.app import MONITORING_APP_PATH
 from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.monitoring.health import HealthSnapshot, worker_health
 from agent.schemas import (
+    ArtifactDownload,
     DeploymentInfo,
     Healthz,
     InferenceAccessIn,
@@ -39,6 +41,7 @@ SATELLITE_FACET = "satellite"
 DEPLOYMENT_FACET = "deployment"
 INFERENCE_ACCESS_PATH = "/satellites/deployments/inference-access"
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "options", "head", "trace"})
+ResolveArtifactFn = Callable[[UUID], Awaitable[ArtifactDownload]]
 
 
 class OpenAPISchemaBuilder:
@@ -161,7 +164,7 @@ def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
-    asyncio.create_task(ms_handler.sync_deployments())
+    app.state.sync_task = asyncio.create_task(ms_handler.sync_deployments())
 
     yield
 
@@ -173,6 +176,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
 def create_agent_app(
     authorize_access: Callable[[str], Awaitable[bool]],
     introspect_monitoring_token: IntrospectFn,
+    resolve_artifact: ResolveArtifactFn | None = None,
 ) -> FastAPI:
     app = FastAPI(lifespan=lifespan, openapi_url=None, docs_url=None, redoc_url=None)
     security = HTTPBearer()
@@ -250,6 +254,29 @@ def create_agent_app(
             raise HTTPException(
                 status_code=502, detail=f"Authorization check failed: {str(err)}"
             ) from err
+
+    @app.get(
+        "/satellites/deployments/{deployment_id}/artifact",
+        response_model=ArtifactDownload,
+        include_in_schema=False,
+    )
+    async def artifact_download(
+        deployment_id: UUID,
+        x_artifact_token: str | None = Header(default=None),
+    ) -> ArtifactDownload:
+        """A download URL for this deployment's artifact, signed for this request."""
+        if not artifact_tokens.verify(str(deployment_id), x_artifact_token):
+            raise HTTPException(status_code=403, detail="Invalid artifact token")
+        if resolve_artifact is None:
+            raise HTTPException(status_code=503, detail="Artifact resolution unavailable")
+        try:
+            return await resolve_artifact(deployment_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Unknown deployment") from error
+        except Exception as error:
+            raise HTTPException(
+                status_code=502, detail=f"Could not resolve artifact: {error}"
+            ) from error
 
     @app.get(
         "/healthz",

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.models import DeploymentOrm, SatelliteQueueOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.deployment import (
@@ -82,6 +83,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             dep = result.scalar_one_or_none()
             return dep.to_deployment() if dep else None
 
+    _DELETION_STATUSES = frozenset(
+        {DeploymentStatus.DELETION_PENDING, DeploymentStatus.DELETION_FAILED}
+    )
+
     async def update_deployment(
         self,
         deployment_id: UUID,
@@ -90,17 +95,31 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
     ) -> Deployment | None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(DeploymentOrm).where(
+                select(DeploymentOrm)
+                .where(
                     DeploymentOrm.id == deployment_id,
                     DeploymentOrm.satellite_id == satellite_id,
                 )
+                .with_for_update()
             )
             dep = result.scalar_one_or_none()
             if not dep:
                 return None
-            for field, value in update.model_dump(
-                exclude_unset=True, exclude={"id"}
-            ).items():
+
+            update_fields = update.model_dump(exclude_unset=True, exclude={"id"})
+            new_status = update_fields.get("status")
+            if "status" in update_fields and new_status is None:
+                raise InvalidStatusTransitionError("Deployment status cannot be null")
+            if (
+                dep.status in self._DELETION_STATUSES
+                and new_status is not None
+                and new_status not in self._DELETION_STATUSES
+            ):
+                raise InvalidStatusTransitionError(
+                    f"Deployment is being deleted; refusing status '{new_status}'"
+                )
+
+            for field, value in update_fields.items():
                 setattr(dep, field, value)
             await session.commit()
             await session.refresh(dep)

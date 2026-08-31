@@ -5,6 +5,14 @@ from pathlib import Path
 import httpx
 
 
+class ArtifactAccessExpired(ValueError):
+    """The download URL was refused — signed too long ago, or access revoked.
+
+    Distinct from other download failures because it is the one worth retrying: a fresh URL
+    from the Agent usually fixes it. Subclasses ValueError so existing handling still works.
+    """
+
+
 class FileHandler:
     @staticmethod
     def _calculate_optimal_chunk_size(file_size: int) -> int:
@@ -37,10 +45,9 @@ class FileHandler:
 
             with httpx.stream("GET", url, timeout=timeout) as response:
                 if response.status_code == 403:
-                    raise ValueError(
+                    raise ArtifactAccessExpired(
                         "Access denied to model artifact. "
-                        "The download URL may have expired or access is restricted. "
-                        "Please regenerate the deployment or check permissions."
+                        "The download URL may have expired or access is restricted."
                     )
                 elif response.status_code == 404:
                     raise ValueError(
@@ -63,6 +70,9 @@ class FileHandler:
 
             return file_path
 
+        except ArtifactAccessExpired:
+            # kept distinct from the catch-all below: the caller retries this one
+            raise
         except httpx.TimeoutException as error:
             raise ValueError(f"Download timeout: {str(error)}") from error
         except httpx.ConnectError as error:

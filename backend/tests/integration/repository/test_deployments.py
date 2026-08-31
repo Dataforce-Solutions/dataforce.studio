@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
@@ -281,6 +282,139 @@ async def test_partial_deployment_update_preserves_omitted_fields_and_clears_nul
     assert cleared.monitoring_url is None
     assert cleared.inference_url == inference_url
     assert cleared.status == DeploymentStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_with_only_status_set_keeps_the_rest(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """A status-only update must not erase routing metadata.
+
+    Reconciliation on the Satellite flips deployment statuses without resending
+    inference_url, schemas or tags; only the fields actually marked as set may reach
+    the row, or every such flip would strip an active deployment of its routing.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            tags=["routed"],
+        )
+    )
+    inference_url = f"https://test-inference{uuid.uuid4()}.com/api"
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            inference_url=inference_url,
+            schemas={"openapi": "3.0.0"},
+            status=DeploymentStatus.ACTIVE,
+        ),
+    )
+
+    updated = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, status=DeploymentStatus.NOT_RESPONDING),
+    )
+
+    assert updated
+    assert updated.status == DeploymentStatus.NOT_RESPONDING
+    assert updated.inference_url == inference_url
+    assert updated.schemas == {"openapi": "3.0.0"}
+    assert updated.tags == ["routed"]
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_cannot_pull_a_deployment_out_of_deletion(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """A stale worker write must not cancel a deletion in progress.
+
+    Satellite recovery can wait half an hour before promoting a deployment to active;
+    a deletion requested during that wait must win, or the undeploy task removes the
+    container and then finds a status it refuses to delete.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, status=DeploymentStatus.DELETION_PENDING),
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=DeploymentStatus.ACTIVE),
+        )
+
+    # writes within the deletion family still land: the undeploy task reports
+    # its failure
+    updated = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            status=DeploymentStatus.DELETION_FAILED,
+            error_message={"reason": "x", "error": "y"},
+        ),
+    )
+    assert updated
+    assert updated.status == DeploymentStatus.DELETION_FAILED
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_rejects_an_explicit_null_status(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """An explicit null is not "leave it alone" — and must not become a 500.
+
+    The status column is NOT NULL; without the guard an explicit null sailed past
+    the deletion check and blew up as an IntegrityError inside the locked
+    transaction.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=None),
+        )
+
+    unchanged = await repo.get_deployment(created.id, data.orbit.id)
+    assert unchanged
+    assert unchanged.status == DeploymentStatus.PENDING
 
 
 @pytest.mark.asyncio

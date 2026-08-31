@@ -67,13 +67,20 @@ class UndeployTask(Task):
 
         await ms_handler.remove_deployment(deployment_id)
 
-        # if model_id:
-        #     try:
-        #         await self.docker.cleanup_model_cache(model_id)
-        #     except Exception as error:
-        #         logger.error(
-        #             f"[UndeployTask] Failed to clean model '{model_id}' cache.\n{str(error)}"
-        #         )
+        if model_id:
+            try:
+                records = await self.platform.list_deployments()
+                if any(str(dep.get("artifact_id", "")) == model_id for dep in records):
+                    logger.info(
+                        f"[UndeployTask] Model '{model_id}' is still referenced by a "
+                        f"deployment; keeping its cache."
+                    )
+                else:
+                    await self.docker.cleanup_model_cache(model_id)
+            except Exception as error:
+                logger.error(
+                    f"[UndeployTask] Failed to clean model '{model_id}' cache.\n{str(error)}"
+                )
 
         await self.platform.update_task_status(
             task.id,
