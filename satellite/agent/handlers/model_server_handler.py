@@ -144,10 +144,10 @@ class ModelServerHandler:
                 deployment_id,
                 DeploymentUpdate(
                     status=DeploymentStatus.NOT_RESPONDING,
-                    error_message={
-                        "reason": RECOVERING_REASON,
-                        "error": f"Container is being relaunched: {reason}",
-                    },
+                    error_message=ErrorMessage(
+                        reason=RECOVERING_REASON,
+                        error=f"Container is being relaunched: {reason}",
+                    ),
                 ),
             )
         except Exception as error:
@@ -171,13 +171,13 @@ class ModelServerHandler:
                     deployment_id,
                     DeploymentUpdate(
                         status=DeploymentStatus.NOT_RESPONDING,
-                        error_message={
-                            "reason": RECOVERING_REASON,
-                            "error": (
+                        error_message=ErrorMessage(
+                            reason=RECOVERING_REASON,
+                            error=(
                                 f"Relaunch failed, the next start will retry: {error}. "
                                 f"Relaunch reason: {reason}"
                             ),
-                        },
+                        ),
                     ),
                 )
             return False
@@ -191,6 +191,31 @@ class ModelServerHandler:
             dep.get("status", "") == DeploymentStatus.NOT_RESPONDING
             and (dep.get("error_message") or {}).get("reason") == RECOVERING_REASON
         )
+
+    @staticmethod
+    def _monitoring_url(dep: dict[str, Any]) -> str | None:
+        return monitoring_url_for_deployment(
+            dep["id"],
+            dep.get("monitoring_mode"),
+            monitoring_capability_present=config.MONITORING_ENABLED,
+        )
+
+    @staticmethod
+    async def _report_monitoring_url(
+        platform: PlatformClient, dep_id: str, monitoring_url: str | None
+    ) -> None:
+        """Tell the Platform where this deployment's dashboard lives.
+
+        Informational: a refusal or a blip here must not unserve a healthy deployment.
+        """
+        try:
+            await platform.update_deployment(
+                dep_id, DeploymentUpdate(monitoring_url=monitoring_url)
+            )
+        except Exception as error:
+            logger.warning(
+                f"[ModelServerHandler] could not report the monitoring URL of '{dep_id}': {error}"
+            )
 
     async def _settle_recovered(
         self, docker: DockerService, platform: PlatformClient, dep: dict[str, Any]
@@ -212,7 +237,11 @@ class ModelServerHandler:
                     try:
                         await platform.update_deployment(
                             dep_id,
-                            DeploymentUpdate(status=DeploymentStatus.ACTIVE, error_message=None),
+                            DeploymentUpdate(
+                                status=DeploymentStatus.ACTIVE,
+                                error_message=None,
+                                monitoring_url=self._monitoring_url(dep),
+                            ),
                         )
                     except httpx.HTTPStatusError as error:
                         code = error.response.status_code
@@ -243,6 +272,7 @@ class ModelServerHandler:
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
+                        metadata=DeploymentMetadata.from_platform(dep),
                     )
                     logger.info(f"[ModelServerHandler] '{dep_id}' recovered")
                     return
@@ -254,14 +284,14 @@ class ModelServerHandler:
                 dep_id,
                 DeploymentUpdate(
                     status=DeploymentStatus.NOT_RESPONDING,
-                    error_message={
-                        "reason": "Relaunched container did not become healthy",
-                        "error": (
+                    error_message=ErrorMessage(
+                        reason="Relaunched container did not become healthy",
+                        error=(
                             f"Deployment '{dep_id}' was relaunched but did not answer "
                             f"in {timeout}s."
                             + (f"\n\nContainer logs:\n{logs[-3000:]}" if logs else "")
                         ),
-                    },
+                    ),
                 ),
             )
         except httpx.HTTPStatusError as error:
@@ -358,10 +388,10 @@ class ModelServerHandler:
                             dep_id,
                             DeploymentUpdate(
                                 status=DeploymentStatus.NOT_RESPONDING,
-                                error_message={
-                                    "reason": "Not Found",
-                                    "error": f"Container with deployment id '{dep_id}' not found",
-                                },
+                                error_message=ErrorMessage(
+                                    reason="Not Found",
+                                    error=f"Container with deployment id '{dep_id}' not found",
+                                ),
                             ),
                         )
                     continue
@@ -384,12 +414,15 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
+                    monitoring_url = self._monitoring_url(dep)
                     if dep.get("status", "") != DeploymentStatus.ACTIVE:
                         try:
                             await platform_client.update_deployment(
                                 dep_id,
                                 DeploymentUpdate(
-                                    status=DeploymentStatus.ACTIVE, error_message=None
+                                    status=DeploymentStatus.ACTIVE,
+                                    error_message=None,
+                                    monitoring_url=monitoring_url,
                                 ),
                             )
                         except httpx.HTTPStatusError as error:
@@ -418,22 +451,14 @@ class ModelServerHandler:
                                 f"[ModelServerHandler] promoting '{dep_id}' failed "
                                 f"({error}); serving it locally anyway"
                             )
+                    else:
+                        await self._report_monitoring_url(platform_client, dep_id, monitoring_url)
                     monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
                         metadata=DeploymentMetadata.from_platform(dep),
-                    )
-                    await platform_client.update_deployment(
-                        dep_id,
-                        DeploymentUpdate(
-                            monitoring_url=monitoring_url_for_deployment(
-                                dep_id,
-                                dep.get("monitoring_mode"),
-                                monitoring_capability_present=config.MONITORING_ENABLED,
-                            )
-                        ),
                     )
                 elif self._recovery_marked(dep):
                     recovering.append(dep)
@@ -450,9 +475,9 @@ class ModelServerHandler:
                             dep_id,
                             DeploymentUpdate(
                                 status=DeploymentStatus.NOT_RESPONDING,
-                                error_message={
-                                    "reason": "Health check failed",
-                                    "error": (
+                                error_message=ErrorMessage(
+                                    reason="Health check failed",
+                                    error=(
                                         f"Health check failed for deployment '{dep_id}'."
                                         + (
                                             f"\n\nContainer logs:\n{str(logs)[-3000:]}"
@@ -460,7 +485,7 @@ class ModelServerHandler:
                                             else ""
                                         )
                                     ),
-                                },
+                                ),
                             ),
                         )
 

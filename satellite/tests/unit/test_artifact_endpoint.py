@@ -11,6 +11,7 @@ from agent.clients import PlatformClient
 from agent.handlers import artifact_tokens
 from agent.handlers.artifact_urls import presigned_expiry
 from agent.schemas import ArtifactDownload
+from agent.schemas.monitoring import MonitoringIntrospection
 from agent.settings import config
 
 DEPLOYMENT_ID = str(uuid.uuid4())
@@ -23,11 +24,17 @@ async def _authorize(_: str) -> bool:
     return True
 
 
+async def _introspect(_: str) -> MonitoringIntrospection:
+    return MonitoringIntrospection(active=False)
+
+
 def _client(resolve=None) -> TestClient:  # noqa: ANN001 — test helper
     async def default_resolve(deployment_id: uuid.UUID) -> ArtifactDownload:
         return ArtifactDownload(url=SIGNED_URL, artifact_id=ARTIFACT_ID)
 
-    return TestClient(create_agent_app(_authorize, resolve or default_resolve))
+    return TestClient(
+        create_agent_app(_authorize, _introspect, resolve_artifact=resolve or default_resolve)
+    )
 
 
 def _url(deployment_id: str = DEPLOYMENT_ID) -> str:

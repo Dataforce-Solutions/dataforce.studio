@@ -38,7 +38,7 @@ def _platform_record() -> dict:
         "artifact_name": "iris_classification",
         "collection_id": str(uuid.uuid4()),
         "status": "active",
-        "satellite_parameters": {"monitoring_enabled": True},
+        "monitoring_mode": "full",
         "dynamic_attributes_secrets": {},
         "env_variables": {},
         "env_variables_secrets": {},
@@ -509,6 +509,9 @@ class TestContainerRelaunch:
             ]
         )
         _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=record)
+        )
         docker = _running_docker()
         docker.client.containers.list = AsyncMock(
             return_value=[
@@ -536,9 +539,7 @@ class TestContainerRelaunch:
         is bounded by elapsed time, so a check that hangs simply gets fewer attempts.
         """
         handler = ModelServerHandler()
-        record = _platform_record() | {
-            "satellite_parameters": {"health_check_timeout": 2, "monitoring_enabled": False}
-        }
+        record = _platform_record() | {"satellite_parameters": {"health_check_timeout": 2}}
         _mock_platform(record=record)
         _mock_model_server()
         patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
@@ -629,6 +630,9 @@ class TestContainerRelaunch:
         handler = ModelServerHandler()
         _mock_platform()
         _mock_model_server()
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
         docker = _running_docker()
 
         with _patched(docker):
@@ -637,6 +641,8 @@ class TestContainerRelaunch:
         # recreating a healthy container would drop live traffic for no reason
         docker.run_model_container.assert_not_awaited()
         assert DEPLOYMENT_ID in handler.deployments
+        # the only thing written back is where its dashboard lives — never a status
+        assert all(b'"status"' not in call.request.read() for call in patch_route.calls)
 
     @respx.mock
     async def test_a_healthy_legacy_container_is_replaced_with_the_new_protocol(self) -> None:

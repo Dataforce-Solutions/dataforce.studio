@@ -90,4 +90,6 @@ async def test_deploy_reports_monitoring_url_when_available(
         "inference_url": f"/deployments/{DEPLOYMENT_ID}",
         "monitoring_url": expected_url,
         "schemas": schemas,
+        # cleared explicitly: the Platform honours only the fields actually sent
+        "error_message": None,
     }
