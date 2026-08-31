@@ -2,7 +2,9 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
+import subprocess
 import tempfile
 import traceback
 from importlib import metadata as importlib_metadata
@@ -19,6 +21,16 @@ from utils.logging import log_success  # type: ignore
 from .file_handler import ArtifactAccessExpired, FileHandler
 
 logger = logging.getLogger(__name__)
+
+# What the conda worker imports on top of the model's own dependencies.
+WORKER_PACKAGES = (
+    "uvicorn",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-grpc",
+)
+_OTEL_FAMILY = "opentelemetry-"
+_SPEC_SPLIT = re.compile(r"[=<>!~;\[ ]")
 
 
 class ModelHandler:
@@ -233,6 +245,68 @@ class ModelHandler:
             }
         }
 
+    @staticmethod
+    def _package_name(spec: str) -> str:
+        """The distribution a requirement line names, PEP 503-normalized."""
+        name = _SPEC_SPLIT.split(spec.strip(), maxsplit=1)[0]
+        return re.sub(r"[-_.]+", "-", name).lower()
+
+    @staticmethod
+    def _pinned_version(spec: str) -> str | None:
+        """The exact version a requirement line pins, if it pins one."""
+        match = re.search(r"==\s*([0-9][^\s;,]*)", spec)
+        return match.group(1) if match else None
+
+    @classmethod
+    def _worker_dependencies(cls, dependencies: list[Any]) -> list[dict[str, Any]]:
+        """The worker's packages, at versions that resolve next to the model's own.
+
+        The OpenTelemetry distribution is released in lockstep and its parts refuse to
+        mix versions. A model that ships any part of it — a tracing SDK pulls it in
+        routinely — would pin the family to one version while the image adds its own
+        parts at another, and pip has no solution for that. So when the model pins the
+        family, the worker's parts follow that pin; only otherwise do they take the
+        image's versions.
+        """
+        pinned: dict[str, str | None] = {}
+        for dep in dependencies:
+            if isinstance(dep, dict) and "package" in dep:
+                pinned[cls._package_name(dep["package"])] = cls._pinned_version(dep["package"])
+        family_version = next(
+            (v for name, v in pinned.items() if name.startswith(_OTEL_FAMILY) and v), None
+        )
+        extra: list[dict[str, Any]] = []
+        for pkg_name in WORKER_PACKAGES:
+            if pkg_name in pinned:
+                continue
+            if pkg_name.startswith(_OTEL_FAMILY) and family_version:
+                version = family_version
+            else:
+                version = importlib_metadata.version(pkg_name)
+            extra.append({"package": f"{pkg_name}=={version}"})
+        return extra
+
+    @staticmethod
+    def _discard_env(env_manager: Any, env_name: str) -> None:  # noqa: ANN401
+        """Remove an environment whose build failed halfway.
+
+        The prefix is created before pip installs anything into it. Left behind, the
+        container's next start (Docker restarts it up to three times) finds it, reuses
+        it and dies on the first missing package — reporting that instead of the
+        failure that actually happened.
+        """
+        exe = getattr(env_manager, "_exe", None) or "micromamba"
+        try:
+            subprocess.run(
+                [exe, "env", "remove", "-n", env_name, "-y"],
+                check=False,
+                capture_output=True,
+                timeout=300,
+            )
+            logger.info(f"[CREATE_ENV] Discarded the half-built environment {env_name}")
+        except Exception as error:  # noqa: BLE001 — cleanup must not mask the real failure
+            logger.warning(f"[CREATE_ENV] Could not discard {env_name}: {error}")
+
     @log_success("Model env created successfully.")
     def _create_model_env(self) -> dict[str, Any]:
         env_spec = self._get_env()
@@ -245,26 +319,15 @@ class ModelHandler:
 
             if "dependencies" not in env_config:
                 env_config["dependencies"] = []
-
-            existing_packages = set()
-            for dep in env_config["dependencies"]:
-                if isinstance(dep, dict) and "package" in dep:
-                    existing_packages.add(
-                        dep["package"].split("==")[0].split(">=")[0].split("<=")[0].strip()
-                    )
-            for pkg_name in [
-                "uvicorn",
-                "opentelemetry-api",
-                "opentelemetry-sdk",
-                "opentelemetry-exporter-otlp-proto-grpc",
-            ]:
-                if pkg_name not in existing_packages:
-                    version = importlib_metadata.version(pkg_name)
-                    env_config["dependencies"].append({"package": f"{pkg_name}=={version}"})
+            env_config["dependencies"].extend(self._worker_dependencies(env_config["dependencies"]))
 
             env_manager = CondaLikeEnvManager(env_config)
-            env_path = env_manager.ensure()
             env_name = f"fnnx-{env_manager.env_id}"
+            try:
+                env_path = env_manager.ensure()
+            except Exception:
+                self._discard_env(env_manager, env_name)
+                raise
 
             return {"name": env_name, "path": env_path, "manager": env_manager}
 
