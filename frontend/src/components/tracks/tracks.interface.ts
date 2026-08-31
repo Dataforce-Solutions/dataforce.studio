@@ -1,13 +1,15 @@
 import type { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 
 export interface TrackCardProps {
-  date: string
   type: ArtifactTypeEnum.dataset | ArtifactTypeEnum.experiment | ArtifactTypeEnum.model
   artifactsCount: number
   id: string
   name: string
   description: string | undefined
   stages: string[]
+  createdAt: string
+  updatedAt: string | null
+  tags: string[]
 }
 
 export interface TrackBreadcrumbsProps {

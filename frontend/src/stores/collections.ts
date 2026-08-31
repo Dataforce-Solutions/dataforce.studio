@@ -13,6 +13,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   const collectionsList = ref<OrbitCollection[]>([])
   const currentCollection = ref<OrbitCollection | null>(null)
   const creatorVisible = ref(false)
+  const collectionsTags = ref<string[]>([])
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -35,6 +36,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       payload,
     )
     setCollectionsList([collection, ...collectionsList.value])
+    await getCollectionsTags()
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
@@ -48,6 +50,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       return collection.id === collectionId ? updatedCollection : collection
     })
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   async function deleteCollection(collectionId: string) {
@@ -60,6 +63,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       (collection) => collection.id !== collectionId,
     )
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   function setCollectionsList(collections: OrbitCollection[]) {
@@ -78,6 +82,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   function reset() {
     collectionsList.value = []
     resetCurrentCollection()
+    collectionsTags.value = []
   }
 
   function showCreator() {
@@ -96,6 +101,14 @@ export const useCollectionsStore = defineStore('collections', () => {
     )
   }
 
+  async function getCollectionsTags() {
+    const tags = await api.orbitCollections.getCollectionsTags(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+    )
+    collectionsTags.value = tags
+  }
+
   return {
     collectionsList,
     setCollectionsList,
@@ -111,5 +124,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     showCreator,
     hideCreator,
     getCollection,
+    getCollectionsTags,
+    collectionsTags,
   }
 })
