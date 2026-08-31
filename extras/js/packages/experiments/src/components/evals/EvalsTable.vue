@@ -236,12 +236,12 @@ const getParentColumnWidth = computed(() => (columnName: string, childrenLength:
     return childrenLength * 194 + 'px'
   }
   if (columnName === 'refs') {
-    return childrenLength * 140 + 'px'
+    return childrenLength * 200 + 'px'
   }
   if (columnName.startsWith('expectation')) {
     return childrenLength * 194 + 'px'
   }
-  return childrenLength * 110 + 'px'
+  return childrenLength * 200 + 'px'
 })
 
 const useScroll = computed(() => tableData.value.length > 8)
