@@ -198,9 +198,13 @@ class TestContainerRelaunch:
                 f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
             ).mock(return_value=httpx.Response(200, json=record))
             docker = AsyncMock()
-            docker.check_container_running = AsyncMock(
-                side_effect=ContainerNotFoundError(DEPLOYMENT_ID)
-            )
+
+            async def absent_until_recreated(deployment_id: str) -> dict[str, str]:
+                if docker.run_model_container.await_count == 0:
+                    raise ContainerNotFoundError(deployment_id)
+                return {LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}
+
+            docker.check_container_running = AsyncMock(side_effect=absent_until_recreated)
             docker.__aenter__ = AsyncMock(return_value=docker)
             docker.__aexit__ = AsyncMock(return_value=False)
             with _patched(docker):
@@ -408,6 +412,46 @@ class TestContainerRelaunch:
             await handler.sync_deployments()
 
         docker.remove_model_container.assert_awaited_once_with(deployment_id=DEPLOYMENT_ID)
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
+    async def test_a_container_removed_mid_recovery_ends_the_wait_at_once(self) -> None:
+        """The undeploy task removes the replacement while recovery still waits for it.
+
+        The wait used to run the full health timeout — half an hour of polling a
+        container that no longer exists — before a 404 on the report finally ended it.
+        The container's absence is checked along the way; once it is gone there is
+        nothing to settle and nothing to report.
+        """
+        handler = ModelServerHandler()
+        handler.recovery_health_check_timeout = 30
+        handler.recovery_presence_check_interval = 0
+        _mock_platform()
+        _mock_model_server(healthy=False)
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _stopped_docker()
+        checks = {"n": 0}
+
+        async def stopped_then_gone(deployment_id: str) -> dict[str, str]:
+            checks["n"] += 1
+            if checks["n"] == 1:  # reconciliation finds it stopped and relaunches it
+                raise ContainerNotRunningError(deployment_id, "exited")
+            raise ContainerNotFoundError(deployment_id)  # …and undeploy took the replacement
+
+        docker.check_container_running = AsyncMock(side_effect=stopped_then_gone)
+
+        started = asyncio.get_running_loop().time()
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert asyncio.get_running_loop().time() - started < 5
+        docker.run_model_container.assert_awaited_once()
+        # only the recovery marker was written: no "did not become healthy" for a
+        # deployment somebody else is taking down, and no container of ours to remove
+        assert len(patch_route.calls) == 1
+        docker.remove_model_container.assert_not_awaited()
         assert DEPLOYMENT_ID not in handler.deployments
 
     @respx.mock

@@ -48,6 +48,8 @@ AUTH_CODES = frozenset({401, 403})
 
 class ModelServerHandler:
     recovery_health_check_timeout = 1800
+    # how often, while waiting for a relaunched container, to check it is still there
+    recovery_presence_check_interval = 10.0
 
     def __init__(self, telemetry: TelemetrySetup | None = None) -> None:
         self.deployments: dict[str, LocalDeployment] = {}
@@ -230,9 +232,22 @@ class ModelServerHandler:
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
+        next_presence_check = loop.time()
 
         async with ModelServerClient() as client:
             while loop.time() < deadline:
+                if loop.time() >= next_presence_check:
+                    next_presence_check = loop.time() + self.recovery_presence_check_interval
+                    if not await self._container_present(docker, dep_id):
+                        # Whoever removed the container we were waiting for owns the
+                        # outcome — an undeploy that won the race, or an operator. There
+                        # is nothing left to settle: a record that still exists carries
+                        # the recovery marker and is retried on the next start.
+                        logger.warning(
+                            f"[ModelServerHandler] the container of '{dep_id}' disappeared "
+                            f"while it was being recovered; not waiting for it"
+                        )
+                        return
                 if await client.check_health_once(dep_id):
                     try:
                         await platform.update_deployment(
@@ -300,6 +315,17 @@ class ModelServerHandler:
                 await self._remove_orphan(docker, dep_id)
         except Exception as error:
             logger.warning(f"[ModelServerHandler] could not report '{dep_id}' unhealthy: {error}")
+
+    @staticmethod
+    async def _container_present(docker: DockerService, deployment_id: str) -> bool:
+        """Whether the deployment's container still exists, whatever state it is in."""
+        try:
+            await docker.check_container_running(deployment_id)
+        except ContainerNotFoundError:
+            return False
+        except Exception:  # noqa: BLE001 — stopped, or a Docker hiccup: the health loop decides
+            return True
+        return True
 
     @staticmethod
     async def _remove_orphan(docker: DockerService, deployment_id: str) -> None:
