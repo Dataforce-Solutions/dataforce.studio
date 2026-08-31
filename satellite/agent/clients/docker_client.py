@@ -6,6 +6,7 @@ from typing import Any, Self
 from uuid import UUID
 
 import aiodocker
+import aiohttp
 from aiodocker.containers import DockerContainer
 from aiodocker.exceptions import DockerError
 
@@ -137,14 +138,16 @@ class DockerService:
 
     # a daemon hiccup while inspecting a container is retried this many times, a second apart
     INSPECT_ATTEMPTS = 3
+    # what a hiccup looks like: the daemon answering badly, or not answering at all
+    INSPECT_RETRIED = (DockerError, aiohttp.ClientError, TimeoutError, OSError)
 
     async def check_container_running(self, deployment_id: str) -> dict[str, str]:
         """Raise unless the deployment's container is running; return its labels.
 
         Only a 404 means the container is not there. Any other answer from the daemon —
-        a 5xx, a timeout — says nothing about the container, and callers act on
-        "not found" (recreating, or giving up a wait), so it is retried and then raised
-        as the Docker error it is.
+        a 5xx, a dropped connection, a timeout — says nothing about the container, and
+        callers act on "not found" (recreating, or giving up a wait), so it is retried
+        and then raised as the error it is.
         """
         for attempt in range(1, self.INSPECT_ATTEMPTS + 1):
             try:
@@ -152,8 +155,8 @@ class DockerService:
                 # the container can be removed between the lookup and this read
                 container_info = await container.show()
                 break
-            except DockerError as e:
-                if e.status == 404:
+            except self.INSPECT_RETRIED as e:
+                if isinstance(e, DockerError) and e.status == 404:
                     raise ContainerNotFoundError(deployment_id) from e
                 if attempt == self.INSPECT_ATTEMPTS:
                     raise

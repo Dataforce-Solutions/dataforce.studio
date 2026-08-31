@@ -199,7 +199,9 @@ class DeployTask(Task):
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
-            await self.platform.update_deployment(
+            failed = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
+            # the deployment may already be registered and showing `active`
+            ms_handler.note_platform_record(dep_id, failed)

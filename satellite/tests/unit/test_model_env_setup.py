@@ -84,14 +84,18 @@ class TestModelEnvSetup:
 
     def test_packages_the_model_already_ships_are_not_added_twice(self) -> None:
         """Name matching is by distribution, however the model spelled it."""
-        extra = ModelHandler._worker_dependencies(
-            _deps("Uvicorn==0.30.6", "opentelemetry_api==1.42.1 ; python_version >= '3.10'")
-        )
+        with patch.object(
+            model_handler_module.importlib_metadata, "version", return_value="1.43.0"
+        ):
+            extra = ModelHandler._worker_dependencies(
+                _deps("Uvicorn==0.30.6", "opentelemetry_api==1.42.1 ; python_version >= '3.10'")
+            )
 
         names = set(_packages(extra))
         assert "uvicorn" not in names
         assert "opentelemetry-api" not in names
-        assert _packages(extra)["opentelemetry-sdk"] == "1.42.1"
+        # the only family pin carries a marker, so the rest of the family is the resolver's
+        assert _packages(extra)["opentelemetry-sdk"] is None
 
     def test_a_family_floor_without_an_exact_pin_leaves_the_core_to_the_resolver(self) -> None:
         """`>=` is a constraint, not a version: nothing to follow, but something to respect.
@@ -110,6 +114,27 @@ class TestModelEnvSetup:
         assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
         assert "opentelemetry-api" not in packages  # the model brought it
         assert packages["uvicorn"] == "1.43.0"
+
+    def test_conditional_pins_are_left_to_the_resolver(self) -> None:
+        """Mutually exclusive pins for different Pythons: which one holds inside the
+        target environment is the resolver's call, so neither is followed."""
+        with patch.object(
+            model_handler_module.importlib_metadata, "version", return_value="1.43.0"
+        ):
+            extra = ModelHandler._worker_dependencies(
+                [
+                    {"package": 'opentelemetry-api==1.20.0 ; python_version < "3.11"'},
+                    {"package": 'opentelemetry-api==1.42.1 ; python_version >= "3.11"'},
+                    {
+                        "package": "opentelemetry-sdk==1.42.1",
+                        "condition": "python_version >= '3.11'",
+                    },
+                ]
+            )
+
+        packages = _packages(extra)
+        assert packages["opentelemetry-exporter-otlp-proto-grpc"] is None
+        assert "opentelemetry-api" not in packages and "opentelemetry-sdk" not in packages
 
     def test_a_beta_package_of_the_family_does_not_set_the_api_version(self) -> None:
         """semantic-conventions and the instrumentations run a 0.x line of their own.

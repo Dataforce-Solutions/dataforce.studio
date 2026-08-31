@@ -265,7 +265,14 @@ class ModelHandler:
 
     @staticmethod
     def _pinned_version(spec: str) -> str | None:
-        """The exact version a requirement line pins, if it pins one."""
+        """The exact version a requirement line pins unconditionally, if it pins one.
+
+        A line with an environment marker (``; python_version < "3.11"``) pins a version
+        only where the marker holds; which of several such lines applies inside the
+        target environment is the resolver's to decide, so none of them is followed.
+        """
+        if ";" in spec:
+            return None
         match = re.search(r"==\s*([0-9][^\s;,]*)", spec)
         return match.group(1) if match else None
 
@@ -286,7 +293,10 @@ class ModelHandler:
         pinned: dict[str, str | None] = {}
         for dep in dependencies:
             if isinstance(dep, dict) and "package" in dep:
-                pinned[cls._package_name(dep["package"])] = cls._pinned_version(dep["package"])
+                name = cls._package_name(dep["package"])
+                version = None if dep.get("condition") else cls._pinned_version(dep["package"])
+                # a later unconditional pin may follow a conditional one; never the reverse
+                pinned[name] = version if version else pinned.get(name)
         family_version = next((pinned[name] for name in _OTEL_CORE if pinned.get(name)), None)
         family_mentioned = any(name.startswith(_OTEL_FAMILY) for name in pinned)
         extra: list[dict[str, Any]] = []

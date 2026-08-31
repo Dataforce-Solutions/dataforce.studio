@@ -186,6 +186,32 @@ class TestRetention:
         assert len(alters) == 2
         await store.aclose()
 
+    @respx.mock
+    async def test_legacy_metric_tables_are_not_asked_about_again(self) -> None:
+        """Nothing creates them any more; a fresh stand would retry five ALTERs forever."""
+
+        def nothing_exists_yet(request: httpx.Request) -> httpx.Response:
+            if "ALTER TABLE" in _statements_of(request):
+                return httpx.Response(400, json={"code": 4001, "error": "Table not found: x"})
+            return httpx.Response(200, json={"output": []})
+
+        route = respx.post(_URL).mock(side_effect=nothing_exists_yet)
+        store = GreptimeMonitoringStore(
+            host="gt", port=4000, events_ttl="7d", metrics_ttl="7d", ttl_retry_seconds=0
+        )
+
+        await store._ensure_tables()
+        await store._ensure_tables()  # the retry pass
+
+        assert set(store._pending_ttl) == {INFERENCE_EVENTS_TABLE}
+        legacy_alters = [
+            s
+            for s in _statements(route)
+            if any(f"ALTER TABLE {t}" in s for t in LEGACY_METRIC_TABLES)
+        ]
+        assert len(legacy_alters) == len(LEGACY_METRIC_TABLES)  # once each, never again
+        await store.aclose()
+
 
 def _statements_of(request: httpx.Request) -> str:
     from urllib.parse import unquote_plus

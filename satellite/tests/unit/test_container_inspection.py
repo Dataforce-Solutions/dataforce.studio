@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, patch
 
+import aiohttp
 import pytest
 from aiodocker.exceptions import DockerError
 
@@ -91,3 +92,29 @@ class TestContainerInspection:
 
         assert labels == {"df.model_id": "m"}
         assert flaky.show.await_count == 2
+
+    async def test_a_timeout_is_a_hiccup_too(self) -> None:
+        """The daemon not answering at all is no more an answer than a 5xx.
+
+        Transport failures come from aiohttp, not as DockerError; they used to escape the
+        retry and were then taken for "could not inspect" by every caller.
+        """
+        get = AsyncMock(side_effect=[TimeoutError(), _container()])
+        service = _service(get)
+
+        with patch("agent.clients.docker_client.asyncio.sleep", new=AsyncMock()):
+            labels = await service.check_container_running(DEPLOYMENT_ID)
+
+        assert labels == {"df.model_id": "m"}
+
+    async def test_a_dropped_connection_is_retried_and_then_raised(self) -> None:
+        get = AsyncMock(side_effect=aiohttp.ClientConnectionError("socket gone"))
+        service = _service(get)
+
+        with (
+            patch("agent.clients.docker_client.asyncio.sleep", new=AsyncMock()),
+            pytest.raises(aiohttp.ClientConnectionError),
+        ):
+            await service.check_container_running(DEPLOYMENT_ID)
+
+        assert get.await_count == DockerService.INSPECT_ATTEMPTS

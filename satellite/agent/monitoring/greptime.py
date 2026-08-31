@@ -263,16 +263,21 @@ class GreptimeMonitoringStore:
         await self._apply_ttl(INFERENCE_EVENTS_TABLE, self._events_ttl)
         await self._apply_ttl(OTEL_TRACES_TABLE, self._traces_ttl)
         for table in LEGACY_METRIC_TABLES:
-            await self._apply_ttl(table, self._metrics_ttl)
+            # nothing writes these any more: on a stand that has them the TTL drains
+            # them, on a fresh one they will never appear — not worth asking again
+            await self._apply_ttl(table, self._metrics_ttl, retry_when_missing=False)
         self._tables_ready = True
 
-    async def _apply_ttl(self, table: str, ttl: str) -> None:
+    async def _apply_ttl(self, table: str, ttl: str, *, retry_when_missing: bool = True) -> None:
         """Retention for a table that already exists; a missing one is retried later."""
         if not ttl:
             return
         try:
             await self._execute(f"ALTER TABLE {table} SET 'ttl' = '{ttl}'")
         except TableMissing:
+            if not retry_when_missing:
+                logger.debug("No %s table to set retention on; not expecting one", table)
+                return
             if table not in self._pending_ttl:
                 logger.debug("Retention on %s waits for the collector to create the table", table)
             self._pending_ttl[table] = ttl

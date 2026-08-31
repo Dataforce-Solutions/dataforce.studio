@@ -493,11 +493,34 @@ class TestContainerRelaunch:
         assert checks["n"] > 1
 
     @respx.mock
+    async def test_a_record_docker_could_not_answer_for_gets_a_second_look(self) -> None:
+        """Reconciliation runs once per start; a daemon that was busy for a moment must
+        not cost a healthy deployment its registration until the next restart."""
+        handler = ModelServerHandler()
+        handler.docker_recheck_delay = 0
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _running_docker()
+        docker.check_container_running = AsyncMock(
+            side_effect=[TimeoutError(), {LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}]
+        )
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert docker.check_container_running.await_count == 2
+        assert DEPLOYMENT_ID in handler.deployments
+
+    @respx.mock
     async def test_a_docker_error_on_one_record_does_not_end_the_reconciliation(self) -> None:
         """Docker could not say whether the container is there: the record is left alone."""
         from aiodocker.exceptions import DockerError
 
         handler = ModelServerHandler()
+        handler.docker_recheck_delay = 0
         _mock_platform()
         _mock_model_server()
         patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(

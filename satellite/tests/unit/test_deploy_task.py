@@ -188,3 +188,45 @@ class TestDeployTask:
         task_status = platform.update_task_status.await_args_list[-1].args[1]
         assert task_status == SatelliteTaskStatus.DONE
         docker.remove_model_container.assert_not_awaited()
+
+    async def test_a_failed_finalization_is_what_the_header_shows(
+        self, monkeypatch: pytest.MonkeyPatch, mock_model_server: object
+    ) -> None:
+        """The task-status write fails after the deployment was already marked active.
+
+        The fallback marks the deployment failed on the Platform; the header must not
+        keep saying `active` from the write that succeeded a moment earlier.
+        """
+        monkeypatch.setattr(config, "MONITORING_ENABLED", False)
+        inference_url = f"/deployments/{DEPLOYMENT_ID}"
+        platform = AsyncMock()
+        platform.get_deployment.return_value = _deployment("off")
+        platform.get_artifact_download_url.return_value = "https://artifacts.example/model.luml"
+        platform.update_deployment.side_effect = [
+            _deployment("off", status="active", inference_url=inference_url),
+            _deployment("off", status="failed", inference_url=inference_url),
+        ]
+        platform.update_task_status.side_effect = [
+            None,  # RUNNING
+            RuntimeError("platform hiccup on DONE"),
+            None,  # FAILED
+        ]
+        docker = AsyncMock()
+        docker.run_model_container.return_value = AsyncMock()
+        client = AsyncMock()
+        client.check_health_once.return_value = True
+        client_context = AsyncMock()
+        client_context.__aenter__.return_value = client
+        task_handler = TaskHandler(platform=platform, docker=docker)._handlers[
+            SatelliteTaskType.DEPLOY
+        ]
+
+        try:
+            with patch("agent.tasks.deploy.ModelServerClient", return_value=client_context):
+                await task_handler.run(_task())
+
+            statuses = [c.args[1].status for c in platform.update_deployment.await_args_list]
+            assert statuses == [DeploymentStatus.ACTIVE, DeploymentStatus.FAILED]
+            assert ms_handler.deployments[DEPLOYMENT_ID].metadata.status == "failed"
+        finally:
+            ms_handler.deployments.pop(DEPLOYMENT_ID, None)
