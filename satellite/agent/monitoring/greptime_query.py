@@ -76,6 +76,15 @@ class _QueryError(RuntimeError):
     """A query-level GreptimeDB error (e.g. a table that does not exist yet)."""
 
 
+class _TableMissing(_QueryError):
+    """The statement named a table GreptimeDB has not created yet.
+
+    The collector creates ``inference_events`` and ``otel_traces`` with the first span,
+    the worker creates its own tables on its first tick. Until then a read of them is
+    not an error the dashboard should show — there is simply nothing there yet.
+    """
+
+
 def _sql_ts(moment: datetime) -> str:
     return _sql_str(moment.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -191,7 +200,10 @@ class GreptimeQueryStore:
                 f"GreptimeDB bad response ({response.status_code})"
             ) from error
         if payload.get("code", 0) != 0:
-            raise _QueryError(str(payload.get("error", payload)))
+            error = str(payload.get("error", payload))
+            if "table not found" in error.lower():
+                raise _TableMissing(error)
+            raise _QueryError(error)
         for item in payload.get("output", []):
             records = item.get("records")
             if records:
@@ -205,7 +217,10 @@ class GreptimeQueryStore:
             f"SELECT max(timestamp) FROM {INFERENCE_EVENTS_TABLE} "
             f"WHERE json_get_string(span_attributes, {_json_path(_ATTR_DEPLOYMENT)}) = {dep}"
         )
-        _columns, rows = await self._query(sql)
+        try:
+            _columns, rows = await self._query(sql)
+        except _TableMissing:
+            rows = []  # no span has reached the collector yet — nothing predicted so far
         last = rows[0][0] if rows and rows[0] else None
         meta = self._deployment_source(deployment_id) if self._deployment_source else None
         if last is None and not meta:
@@ -234,8 +249,8 @@ class GreptimeQueryStore:
         )
         try:
             _columns, rows = await self._query(sql)
-        except MonitoringStoreUnavailable:
-            return None
+        except (MonitoringStoreUnavailable, _TableMissing):
+            return None  # the worker has not materialized anything yet
         value = rows[0][0] if rows and rows[0] else None
         return _ms_to_dt(value) if value is not None else None
 
@@ -249,7 +264,10 @@ class GreptimeQueryStore:
             f"AND timestamp >= {_to_ns(start)} AND timestamp < {_to_ns(end)} "
             f"ORDER BY timestamp"
         )
-        columns, rows = await self._query(sql)
+        try:
+            columns, rows = await self._query(sql)
+        except _TableMissing:
+            return []
         events = []
         for row in rows:
             record = dict(zip(columns, row, strict=False))

@@ -314,3 +314,85 @@ class TestGreptimeQuery:
         # the resolved one is gone even though it still has open rows behind it
         assert [alert.metric for alert in alerts] == ["runtime:error_rate"]
         await store.aclose()
+
+
+class TestBeforeTheFirstSpan:
+    """A fresh GreptimeDB has no collector tables until the first inference lands.
+
+    The dashboard is opened before that — right after a deploy — and its header used
+    to answer 500 with "Table not found: inference_events". Nothing there yet is not
+    an error; it is an empty dashboard with the deployment's identity in the header.
+    """
+
+    @staticmethod
+    def _missing(table: str) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "code": 4001,
+                "error": f"Failed to plan SQL: Table not found: greptime.public.{table}",
+            },
+        )
+
+    @respx.mock
+    async def test_the_header_has_the_platform_identity_and_no_timestamps(self) -> None:
+        def answer(request: httpx.Request) -> httpx.Response:
+            sql = request.content.decode()
+            if "inference_events" in sql:
+                return self._missing("inference_events")
+            if "monitoring_results" in sql:
+                return self._missing("monitoring_results")  # the worker has not ticked yet
+            return httpx.Response(200, json=_records([], []))
+
+        respx.post(_URL).mock(side_effect=answer)
+        store = GreptimeQueryStore(
+            host="gt",
+            port=4000,
+            deployment_source=lambda _id: {
+                "name": "iris",
+                "status": "active",
+                "model_kind": "tabular",
+            },
+        )
+
+        descriptor = await store.describe_deployment(UUID("01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"))
+
+        assert descriptor is not None
+        assert descriptor.name == "iris" and descriptor.status == "active"
+        assert descriptor.last_prediction_at is None
+        assert descriptor.last_monitored_at is None
+        await store.aclose()
+
+    @respx.mock
+    async def test_a_window_before_the_table_exists_is_empty(self) -> None:
+        respx.post(_URL).mock(return_value=self._missing("inference_events"))
+        store = _store()
+
+        events = await store.fetch_events(
+            UUID("01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"),
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 2, tzinfo=UTC),
+        )
+
+        assert events == []
+        await store.aclose()
+
+    @respx.mock
+    async def test_any_other_query_error_still_fails_the_read(self) -> None:
+        """Only a missing table is a phase; a rejected statement is a bug to surface."""
+        from agent.monitoring.greptime_query import _QueryError
+
+        respx.post(_URL).mock(
+            return_value=httpx.Response(
+                400, json={"code": 3000, "error": "Failed to plan SQL: syntax"}
+            )
+        )
+        store = _store()
+
+        with pytest.raises(_QueryError):
+            await store.fetch_events(
+                UUID("01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"),
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 2, tzinfo=UTC),
+            )
+        await store.aclose()
