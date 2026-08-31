@@ -342,7 +342,13 @@ class ModelServerHandler:
             await docker.check_container_running(deployment_id)
         except ContainerNotFoundError:
             return False
-        except Exception:  # noqa: BLE001 — stopped, or a Docker hiccup: the health loop decides
+        except ContainerNotRunningError:
+            return True  # stopped, or still booting: the health loop decides
+        except Exception as error:  # noqa: BLE001 — a Docker hiccup is not an answer
+            logger.warning(
+                f"[ModelServerHandler] could not inspect the container of "
+                f"'{deployment_id}' while waiting for it: {error}"
+            )
             return True
         return True
 
@@ -443,6 +449,15 @@ class ModelServerHandler:
                 except ContainerNotRunningError as e:
                     if await self._relaunch(docker, platform_client, dep_id, str(e)):
                         recovering.append(dep)
+                    continue
+                except Exception as error:  # noqa: BLE001 — one record must not end the run
+                    # Docker could not say whether the container is there. Nothing here
+                    # is worth acting on blind: the record is left as it is for the next
+                    # reconciliation, and the others get their turn.
+                    logger.warning(
+                        f"[ModelServerHandler] could not inspect the container of "
+                        f"'{dep_id}': {error}; leaving it for the next reconciliation"
+                    )
                     continue
 
                 if labels.get(LAUNCHER_PROTOCOL_LABEL) != LAUNCHER_PROTOCOL:

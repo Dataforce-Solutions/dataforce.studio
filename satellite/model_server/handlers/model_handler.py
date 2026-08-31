@@ -30,6 +30,18 @@ WORKER_PACKAGES = (
     "opentelemetry-exporter-otlp-proto-grpc",
 )
 _OTEL_FAMILY = "opentelemetry-"
+# The parts of the OpenTelemetry distribution that share the API/SDK version line. The
+# instrumentation packages and semantic-conventions run a 0.x line of their own next to
+# them, so their pins say nothing about which API/SDK version the model expects.
+_OTEL_CORE = (
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-proto",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-exporter-otlp-proto-common",
+    "opentelemetry-exporter-otlp-proto-grpc",
+    "opentelemetry-exporter-otlp-proto-http",
+)
 _SPEC_SPLIT = re.compile(r"[=<>!~;\[ ]")
 
 
@@ -272,9 +284,7 @@ class ModelHandler:
         for dep in dependencies:
             if isinstance(dep, dict) and "package" in dep:
                 pinned[cls._package_name(dep["package"])] = cls._pinned_version(dep["package"])
-        family_version = next(
-            (v for name, v in pinned.items() if name.startswith(_OTEL_FAMILY) and v), None
-        )
+        family_version = next((pinned[name] for name in _OTEL_CORE if pinned.get(name)), None)
         extra: list[dict[str, Any]] = []
         for pkg_name in WORKER_PACKAGES:
             if pkg_name in pinned:
@@ -297,15 +307,23 @@ class ModelHandler:
         """
         exe = getattr(env_manager, "_exe", None) or "micromamba"
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [exe, "env", "remove", "-n", env_name, "-y"],
                 check=False,
                 capture_output=True,
+                text=True,
                 timeout=300,
             )
-            logger.info(f"[CREATE_ENV] Discarded the half-built environment {env_name}")
         except Exception as error:  # noqa: BLE001 — cleanup must not mask the real failure
             logger.warning(f"[CREATE_ENV] Could not discard {env_name}: {error}")
+            return
+        if result.returncode == 0:
+            logger.info(f"[CREATE_ENV] Discarded the half-built environment {env_name}")
+        else:
+            logger.warning(
+                f"[CREATE_ENV] Could not discard {env_name} (exit {result.returncode}); "
+                f"the next start will find it half-built: {(result.stderr or '')[-500:]}"
+            )
 
     @log_success("Model env created successfully.")
     def _create_model_env(self) -> dict[str, Any]:

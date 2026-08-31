@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import logging
 from collections.abc import Iterable
@@ -134,12 +135,31 @@ class DockerService:
 
         return container
 
+    # a daemon hiccup while inspecting a container is retried this many times, a second apart
+    INSPECT_ATTEMPTS = 3
+
     async def check_container_running(self, deployment_id: str) -> dict[str, str]:
-        """Raise unless the deployment's container is running; return its labels."""
-        try:
-            container = await self.client.containers.get(f"sat-{deployment_id}")
-        except DockerError as e:
-            raise ContainerNotFoundError(deployment_id) from e
+        """Raise unless the deployment's container is running; return its labels.
+
+        Only a 404 means the container is not there. Any other answer from the daemon —
+        a 5xx, a timeout — says nothing about the container, and callers act on
+        "not found" (recreating, or giving up a wait), so it is retried and then raised
+        as the Docker error it is.
+        """
+        for attempt in range(1, self.INSPECT_ATTEMPTS + 1):
+            try:
+                container = await self.client.containers.get(f"sat-{deployment_id}")
+                break
+            except DockerError as e:
+                if e.status == 404:
+                    raise ContainerNotFoundError(deployment_id) from e
+                if attempt == self.INSPECT_ATTEMPTS:
+                    raise
+                logger.warning(
+                    f"[DockerService] inspecting 'sat-{deployment_id}' failed "
+                    f"(attempt {attempt}/{self.INSPECT_ATTEMPTS}): {e}"
+                )
+                await asyncio.sleep(1)
 
         container_info = await container.show()
         status = container_info["State"]["Status"]

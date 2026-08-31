@@ -6,11 +6,14 @@ pins unsatisfiable, and a build that fails must not leave a half-built environme
 the container's next start to trip over.
 """
 
+import logging
 import subprocess
 import sys
 import types
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 # model_server code imports via bare module names (e.g. `from clients...`) because
 # conda_worker.py runs with model_server/ on sys.path.
@@ -94,6 +97,58 @@ class TestModelEnvSetup:
             extra = ModelHandler._worker_dependencies(_deps("opentelemetry-api>=1.30"))
 
         assert _packages(extra)["opentelemetry-sdk"] == "1.43.0"
+
+    def test_a_beta_package_of_the_family_does_not_set_the_api_version(self) -> None:
+        """semantic-conventions and the instrumentations run a 0.x line of their own.
+
+        Pinning the API/SDK to 0.63b1 would be invalid; the version comes from the
+        core parts only, whichever order the model listed them in.
+        """
+        extra = ModelHandler._worker_dependencies(
+            _deps(
+                "opentelemetry-semantic-conventions==0.63b1",
+                "opentelemetry-instrumentation-httpx==0.63b1",
+                "opentelemetry-sdk==1.42.1",
+            )
+        )
+
+        packages = _packages(extra)
+        assert packages["opentelemetry-api"] == "1.42.1"
+        assert packages["opentelemetry-exporter-otlp-proto-grpc"] == "1.42.1"
+
+    def test_only_a_beta_package_present_leaves_the_image_versions(self) -> None:
+        with patch.object(
+            model_handler_module.importlib_metadata, "version", return_value="1.43.0"
+        ):
+            extra = ModelHandler._worker_dependencies(
+                _deps("opentelemetry-semantic-conventions==0.63b1")
+            )
+
+        assert _packages(extra)["opentelemetry-api"] == "1.43.0"
+
+    def test_a_removal_that_fails_is_said_so_and_the_build_error_still_surfaces(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        handler = ModelHandler.__new__(ModelHandler)
+        handler._get_env = lambda: {  # type: ignore[method-assign]
+            "python3::conda_pip": {"python_version": "3.12", "dependencies": _deps("numpy==2.0")}
+        }
+
+        def locked(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="environment is locked")
+
+        with (
+            patch.object(model_handler_module, "CondaLikeEnvManager", FakeEnvManager),
+            patch.object(model_handler_module.importlib_metadata, "version", return_value="1.0"),
+            patch.object(model_handler_module.subprocess, "run", locked),
+            caplog.at_level(logging.WARNING),
+            pytest.raises(RuntimeError, match="pip install"),
+        ):
+            handler._create_model_env()
+
+        warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("Could not discard fnnx-deadbeef" in w and "locked" in w for w in warnings)
+        assert not any("Discarded" in r.getMessage() for r in caplog.records)
 
     def test_a_failed_build_discards_the_half_built_environment(self) -> None:
         """Left behind, the prefix is 'reused' on the container's restart and the worker

@@ -459,6 +459,64 @@ class TestContainerRelaunch:
         assert DEPLOYMENT_ID not in handler.deployments
 
     @respx.mock
+    async def test_a_docker_hiccup_during_the_wait_does_not_end_it(self) -> None:
+        """Only "not found" ends the wait; a daemon error is not an answer.
+
+        Ending the one-time startup reconciliation on a 5xx from Docker would leave a
+        healthy replacement unregistered until the Agent restarts.
+        """
+        from aiodocker.exceptions import DockerError
+
+        handler = ModelServerHandler()
+        handler.recovery_presence_check_interval = 0
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _stopped_docker()
+        checks = {"n": 0}
+
+        async def stopped_then_flaky(deployment_id: str) -> dict[str, str]:
+            checks["n"] += 1
+            if checks["n"] == 1:
+                raise ContainerNotRunningError(deployment_id, "exited")
+            raise DockerError(500, {"message": "daemon is busy"})  # every presence check
+
+        docker.check_container_running = AsyncMock(side_effect=stopped_then_flaky)
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        # waited through the hiccups, saw it answer, registered it
+        assert DEPLOYMENT_ID in handler.deployments
+        assert checks["n"] > 1
+
+    @respx.mock
+    async def test_a_docker_error_on_one_record_does_not_end_the_reconciliation(self) -> None:
+        """Docker could not say whether the container is there: the record is left alone."""
+        from aiodocker.exceptions import DockerError
+
+        handler = ModelServerHandler()
+        _mock_platform()
+        _mock_model_server()
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _running_docker()
+        docker.check_container_running = AsyncMock(
+            side_effect=DockerError(500, {"message": "daemon is busy"})
+        )
+
+        with _patched(docker):
+            await handler.sync_deployments()  # must not raise
+
+        # nothing acted on blind: no relaunch, no status written, not registered
+        docker.run_model_container.assert_not_awaited()
+        assert not patch_route.called
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
     async def test_a_platform_blip_during_promotion_does_not_unserve_a_healthy_container(
         self,
     ) -> None:
