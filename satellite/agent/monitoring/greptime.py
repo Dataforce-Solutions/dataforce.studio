@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -17,6 +18,19 @@ from agent.monitoring.models import (
 )
 
 logger = logging.getLogger("satellite")
+
+
+class TableMissing(RuntimeError):
+    """The statement named a table GreptimeDB has not created yet.
+
+    The collector creates its tables with the first span it receives, so on a fresh
+    database every read of ``inference_events`` and every retention ALTER on a
+    collector-owned table fails this way until traffic arrives. That is a phase of the
+    stand's life, not a storage failure, and callers treat it accordingly.
+    """
+
+
+_TABLE_NOT_FOUND = "table not found"
 
 # The collector writes inference events as OpenTelemetry spans: a nanosecond ``timestamp``
 # time index plus a ``span_attributes`` JSON object carrying the ``inference.*`` payload.
@@ -171,6 +185,7 @@ class GreptimeMonitoringStore:
         alerts_ttl: str = "",
         traces_ttl: str = "",
         metrics_ttl: str = "",
+        ttl_retry_seconds: float = 60.0,
     ) -> None:
         self._events_ttl = events_ttl
         self._results_ttl = results_ttl
@@ -183,6 +198,12 @@ class GreptimeMonitoringStore:
         self._client = client
         self._owns_client = client is None
         self._tables_ready = False
+        # Collector-owned tables that did not exist when their retention was first set;
+        # tried again, at most once per ``ttl_retry_seconds``, until they appear.
+        self._pending_ttl: dict[str, str] = {}
+        self._ttl_retry_seconds = ttl_retry_seconds
+        self._ttl_retry_at = 0.0
+        self._events_table_missing_reported = False
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -198,6 +219,12 @@ class GreptimeMonitoringStore:
         response = await self._get_client().post(
             self._url, params={"db": self._database}, data={"sql": sql}
         )
+        if response.status_code == 400:
+            # GreptimeDB answers a plan error with 400 and the reason in the JSON body;
+            # a missing table is the one reason that has its own meaning here.
+            error = _error_text(response)
+            if _TABLE_NOT_FOUND in error.lower():
+                raise TableMissing(error)
         response.raise_for_status()
         payload = response.json()
         if payload.get("code", 0) != 0:
@@ -220,9 +247,12 @@ class GreptimeMonitoringStore:
         in, and raw events hold the model's own inputs and outputs. The TTL is applied on
         every start — including to tables that already exist, and to every table the
         collector owns — so changing the setting is enough to change retention. Tables the
-        collector has not created yet are simply skipped and picked up on a later start.
+        collector has not created yet — every one of them on a fresh database — are
+        remembered and retried once they appear, so their retention does not wait for the
+        next restart of the Agent.
         """
         if self._tables_ready:
+            await self._retry_pending_ttl()
             return
         await self._execute(_with_ttl(_CREATE_RESULTS, self._results_ttl))
         await self._execute(_with_ttl(_CREATE_ALERTS, self._alerts_ttl))
@@ -237,13 +267,30 @@ class GreptimeMonitoringStore:
         self._tables_ready = True
 
     async def _apply_ttl(self, table: str, ttl: str) -> None:
-        """Retention for a table that already exists; missing tables are simply skipped."""
+        """Retention for a table that already exists; a missing one is retried later."""
         if not ttl:
             return
         try:
             await self._execute(f"ALTER TABLE {table} SET 'ttl' = '{ttl}'")
+        except TableMissing:
+            if table not in self._pending_ttl:
+                logger.debug("Retention on %s waits for the collector to create the table", table)
+            self._pending_ttl[table] = ttl
         except Exception as error:  # noqa: BLE001 — retention must not block the worker
             logger.warning("Could not set retention on %s: %s", table, error)
+        else:
+            if self._pending_ttl.pop(table, None) is not None:
+                logger.info("Retention on %s set to %s once the table appeared", table, ttl)
+
+    async def _retry_pending_ttl(self) -> None:
+        if not self._pending_ttl:
+            return
+        now = time.monotonic()
+        if now < self._ttl_retry_at:
+            return
+        self._ttl_retry_at = now + self._ttl_retry_seconds
+        for table, ttl in list(self._pending_ttl.items()):
+            await self._apply_ttl(table, ttl)
 
     async def read_events(self, deployment_id: str, window: TimeWindow) -> list[InferenceEvent]:
         sql = (
@@ -252,7 +299,20 @@ class GreptimeMonitoringStore:
             f"= {_sql_str(deployment_id)} "
             f"AND timestamp >= {_to_ns(window.start)} AND timestamp < {_to_ns(window.end)}"
         )
-        columns, rows = self._records(await self._execute(sql))
+        try:
+            columns, rows = self._records(await self._execute(sql))
+        except TableMissing:
+            # No span has reached the collector yet, so there are no events — for any
+            # deployment. Said once, at a level that does not read as a failure.
+            if not self._events_table_missing_reported:
+                logger.info(
+                    "[monitoring] %s does not exist yet; the collector creates it with the "
+                    "first inference — treating the window as empty",
+                    INFERENCE_EVENTS_TABLE,
+                )
+                self._events_table_missing_reported = True
+            return []
+        self._events_table_missing_reported = False
         return [
             self._to_event(deployment_id, dict(zip(columns, row, strict=False))) for row in rows
         ]
@@ -397,6 +457,16 @@ class GreptimeMonitoringStore:
             first_seen=_parse_timestamp(row.get("first_seen")) or datetime.now(UTC),
             last_seen=_parse_timestamp(row.get("last_seen")) or datetime.now(UTC),
         )
+
+
+def _error_text(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text
+    if isinstance(payload, dict):
+        return str(payload.get("error", payload))
+    return str(payload)
 
 
 def _coerce_enum[E: StrEnum](enum: type[E], value: Any, fallback: E) -> E:  # noqa: ANN401

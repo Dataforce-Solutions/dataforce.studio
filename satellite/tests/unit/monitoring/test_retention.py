@@ -1,6 +1,9 @@
 """Retention: the monitoring tables must not grow forever."""
 
+import logging
+
 import httpx
+import pytest
 import respx
 
 from agent.monitoring.greptime import (
@@ -111,3 +114,89 @@ class TestRetention:
         sql = " ".join(_statements(route))
         assert "ALTER" not in sql.upper()
         await store.aclose()
+
+    @respx.mock
+    async def test_a_table_the_collector_has_not_created_gets_its_retention_once_it_appears(
+        self,
+    ) -> None:
+        """On a fresh database no collector table exists at Agent start.
+
+        Retention used to be applied only at start, so a fresh stand's traces kept
+        growing until the Agent happened to restart. The missing table is remembered
+        and the ALTER retried until GreptimeDB has it.
+        """
+        exists = {"events": False}
+
+        def answer(request: httpx.Request) -> httpx.Response:
+            sql = _statements_of(request)
+            if f"ALTER TABLE {INFERENCE_EVENTS_TABLE}" in sql and not exists["events"]:
+                return httpx.Response(
+                    400,
+                    json={
+                        "code": 4001,
+                        "error": f"Table not found: greptime.public.{INFERENCE_EVENTS_TABLE}",
+                    },
+                )
+            return httpx.Response(200, json={"output": []})
+
+        route = respx.post(_URL).mock(side_effect=answer)
+        store = GreptimeMonitoringStore(host="gt", port=4000, events_ttl="7d", ttl_retry_seconds=0)
+
+        await store._ensure_tables()
+        assert store._pending_ttl == {INFERENCE_EVENTS_TABLE: "7d"}
+
+        exists["events"] = True  # the first span arrived; the collector created the table
+        await store._ensure_tables()
+
+        alters = [s for s in _statements(route) if f"ALTER TABLE {INFERENCE_EVENTS_TABLE}" in s]
+        assert len(alters) == 2
+        assert store._pending_ttl == {}
+        await store.aclose()
+
+    @respx.mock
+    async def test_a_missing_collector_table_is_not_a_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Eight lines of WARNING per start on every fresh stand hid real storage errors."""
+        respx.post(_URL).mock(side_effect=_traces_table_missing)
+        store = GreptimeMonitoringStore(host="gt", port=4000, traces_ttl="30d")
+
+        with caplog.at_level(logging.DEBUG, logger="satellite"):
+            await store._ensure_tables()
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warnings == []
+        assert any("waits for the collector" in r.getMessage() for r in caplog.records)
+        await store.aclose()
+
+    @respx.mock
+    async def test_retries_are_rate_limited(self) -> None:
+        """A pending table is asked about once per interval, not on every store call."""
+        route = respx.post(_URL).mock(side_effect=_traces_table_missing)
+        store = GreptimeMonitoringStore(
+            host="gt", port=4000, traces_ttl="30d", ttl_retry_seconds=3600
+        )
+
+        await store._ensure_tables()
+        await store._ensure_tables()
+        await store._ensure_tables()
+
+        alters = [s for s in _statements(route) if "ALTER TABLE otel_traces" in s]
+        # one at start, one retry on the first later call, then the interval holds
+        assert len(alters) == 2
+        await store.aclose()
+
+
+def _statements_of(request: httpx.Request) -> str:
+    from urllib.parse import unquote_plus
+
+    return unquote_plus(request.content.decode()) if request.content else ""
+
+
+def _traces_table_missing(request: httpx.Request) -> httpx.Response:
+    """The collector has not created ``otel_traces`` yet; everything else works."""
+    if "ALTER TABLE otel_traces" in _statements_of(request):
+        return httpx.Response(
+            400, json={"code": 4001, "error": "Table not found: greptime.public.otel_traces"}
+        )
+    return httpx.Response(200, json={"output": []})
