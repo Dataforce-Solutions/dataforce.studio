@@ -14,6 +14,7 @@ class MetricInput:
     context: DeploymentContext
     events: list[InferenceEvent]
     window: TimeWindow
+    open_signals: frozenset[str] = frozenset()
 
     @property
     def profile(self) -> dict | None:

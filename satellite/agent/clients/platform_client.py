@@ -7,6 +7,7 @@ from cashews import cache
 
 from agent.schemas import Deployment, DeploymentUpdate, SatelliteTaskStatus
 from agent.schemas.deployments import ErrorMessage
+from agent.schemas.monitoring import MonitoringIntrospection
 
 logger = logging.getLogger("satellite")
 
@@ -53,7 +54,7 @@ class PlatformClient:
         self,
         task_id: str,
         status: SatelliteTaskStatus,
-        result: ErrorMessage | dict[str, str] | None = None,
+        result: ErrorMessage | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         assert self._session is not None
         body: dict[str, Any] = {"status": status.value}
@@ -84,12 +85,23 @@ class PlatformClient:
         r.raise_for_status()
 
     async def pair_satellite(
-        self, base_url: str, capabilities: dict[str, Any], slug: str | None = None
+        self,
+        base_url: str,
+        capabilities: dict[str, Any],
+        slug: str | None = None,
+        openapi: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         assert self._session is not None
+        body: dict[str, Any] = {
+            "base_url": base_url,
+            "capabilities": capabilities,
+            "slug": slug,
+        }
+        if openapi is not None:
+            body["openapi"] = openapi
         r = await self._session.post(
             self._url("/satellites/v1/pair"),
-            json={"base_url": base_url, "capabilities": capabilities, "slug": slug},
+            json=body,
         )
         r.raise_for_status()
         return r.json()
@@ -104,6 +116,15 @@ class PlatformClient:
         r.raise_for_status()
         data = r.json()
         return bool(data.get("authorized", False))
+
+    async def introspect_monitoring_token(self, token: str) -> MonitoringIntrospection:
+        assert self._session is not None
+        r = await self._session.post(
+            self._url("/satellites/v1/monitoring/introspect"),
+            json={"token": token},
+        )
+        r.raise_for_status()
+        return MonitoringIntrospection.model_validate(r.json())
 
     async def get_artifact_download_url(self, artifact_id: UUID) -> str:
         assert self._session is not None
@@ -150,6 +171,7 @@ class PlatformClient:
     async def update_deployment(
         self, deployment_id: str, deployment: DeploymentUpdate
     ) -> Deployment:
+        assert self._session is not None
         r = await self._session.patch(
             self._url(f"/satellites/v1/deployments/{deployment_id}"),
             json=deployment.model_dump(exclude_unset=True),

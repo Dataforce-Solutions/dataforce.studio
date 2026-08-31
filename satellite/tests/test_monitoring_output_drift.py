@@ -175,3 +175,261 @@ async def test_worker_skips_output_drift_without_output_summary() -> None:
     groups = {result.metric for result in store.results}
     assert "runtime" in groups
     assert "output_drift" not in groups
+
+
+def test_prediction_is_unwrapped_from_the_response_body_by_name() -> None:
+    """The agent records the model's whole response, not the bare prediction: the model
+    server answers ``{"y": [value]}``. Scoring that envelope as-is found nothing numeric
+    and output drift silently stayed empty on every real deployment."""
+    summary = {**NUM_OUT, "name": "y"}
+    values = [5] * 25 + [15] * 25 + [25] * 25 + [35] * 25
+    outputs = [{"y": [value], "decision": ["assisted"]} for value in values]
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+    assert result.severity == Severity.NORMAL
+
+
+def test_batched_response_contributes_every_prediction() -> None:
+    summary = {**NUM_OUT, "name": "y"}
+    outputs = [{"y": [5, 15, 25, 35]}] * 25
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_single_output_response_needs_no_name() -> None:
+    result = _compute(_events([{"prediction": 5.0}] * 100), _profile(NUM_OUT))
+
+    assert result.values["count"] == 100
+    assert result.severity == Severity.CRITICAL
+
+
+def test_ambiguous_response_without_a_matching_name_is_not_guessed_at() -> None:
+    summary = {**NUM_OUT, "name": "y"}
+    outputs = [{"score": 5.0, "confidence": 0.9}] * 100
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values == {}
+    assert result.severity == Severity.NORMAL
+
+
+def test_classification_predictions_are_unwrapped_too() -> None:
+    summary = {**CAT_OUT, "name": "label"}
+    outputs = [{"label": [value]} for value in (["cat"] * 50 + ["dog"] * 50)]
+
+    result = _compute(_events(outputs), _profile(summary, task_type="classification"))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_bare_scalar_output_still_scores() -> None:
+    result = _compute(_events([5] * 25 + [15] * 25 + [25] * 25 + [35] * 25), _profile(NUM_OUT))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_numerical_window_carries_the_distribution_and_identity() -> None:
+    """The two halves the PSI compares ride in the window, same shape as feature drift."""
+    summary = {**NUM_OUT, "name": "y_pred"}
+    outputs = [{"y_pred": [5.0]}, {"y_pred": [15.0]}, {"y_pred": [25.0]}]
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["name"] == "y_pred"
+    assert result.values["kind"] == "numeric"
+    assert result.values["status"] in ("normal", "warning", "critical")
+    distribution = result.values["distribution"]
+    assert distribution["kind"] == "numeric"
+    shares = [entry["current"] for entry in distribution["bins"]]
+    assert sum(shares) == pytest.approx(1.0)
+    assert all("reference" in entry and "label" in entry for entry in distribution["bins"])
+
+
+def test_categorical_window_carries_the_distribution_with_unseen_classes() -> None:
+    summary = {**CAT_OUT, "name": "decision"}
+    outputs = [{"decision": ["approve"]}] * 3 + [{"decision": ["escalate"]}]
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["kind"] == "categorical"
+    labels = [entry["label"] for entry in result.values["distribution"]["bins"]]
+    # a class the reference never saw still shows up, with reference share zero
+    assert "escalate" in labels
+    escalate = next(
+        entry for entry in result.values["distribution"]["bins"] if entry["label"] == "escalate"
+    )
+    assert escalate["reference"] == 0.0
+    assert escalate["current"] == pytest.approx(0.25)
+
+
+CONFIDENCE_REF = {
+    "bin_edges": [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    "probabilities": [0.02, 0.03, 0.05, 0.2, 0.7],
+    "quantiles": {"q05": 0.88},
+}
+
+
+def _confident_profile() -> dict[str, Any]:
+    profile = _profile({**CAT_OUT, "name": "y"}, task_type="classification")
+    profile["output_summaries"] = {"numerical_outputs": {"y_score": CONFIDENCE_REF}}
+    return profile
+
+
+def _scored_events(labels: list[str], scores: list[float]) -> list[InferenceEvent]:
+    return _events(
+        [{"y": [label], "y_score": [score]} for label, score in zip(labels, scores, strict=True)]
+    )
+
+
+def test_confident_predictions_keep_the_confidence_block_quiet() -> None:
+    """Scores shaped like the training data's: PSI small, low-confidence share small."""
+    # mirror the reference proportions across the bins: 2/3/5/20/70 out of 100
+    scores = [0.55] * 2 + [0.65] * 3 + [0.75] * 5 + [0.85] * 20 + [0.95] * 70
+    events = _scored_events(["cat", "dog"] * 50, scores)
+
+    result = _compute(events, _confident_profile())
+
+    confidence = result.values["confidence"]
+    assert confidence["psi"] < 0.1
+    # exactly the rows below the training q05 of 0.88
+    assert confidence["low_confidence_rate"] == pytest.approx(0.3)
+    assert confidence["low_confidence_threshold"] == 0.88
+    assert confidence["distribution"]["kind"] == "numeric"
+    assert not any(s.key == "confidence" for s in result.signals)
+
+
+def test_sagging_confidence_raises_its_own_signal() -> None:
+    """The model still answers the same classes, but it is guessing now."""
+    events = _scored_events(["cat", "dog"] * 10, [0.55, 0.52] * 10)
+
+    result = _compute(events, _confident_profile())
+
+    confidence = result.values["confidence"]
+    assert confidence["psi"] > 0.25
+    # every row is below the training q05: worse than 95% of what training saw
+    assert confidence["low_confidence_rate"] == 1.0
+    signal = next(s for s in result.signals if s.key == "confidence")
+    assert signal.severity is Severity.CRITICAL
+    assert result.severity is Severity.CRITICAL
+
+
+def test_a_profile_without_a_confidence_reference_changes_nothing() -> None:
+    """Old artifacts and regressions: the block simply is not there."""
+    events = _scored_events(["cat", "dog"], [0.9, 0.9])
+    profile = _profile({**CAT_OUT, "name": "y"}, task_type="classification")
+
+    result = _compute(events, profile)
+
+    assert "confidence" not in result.values
+
+
+def test_events_without_scores_leave_the_block_out() -> None:
+    """A new profile serving events from before the redeploy: labels only."""
+    events = _events([{"y": ["cat"]}, {"y": ["dog"]}])
+
+    result = _compute(events, _confident_profile())
+
+    assert "confidence" not in result.values
+    assert result.values["psi"] is not None  # labels still scored
+
+
+PROBA_REF = {
+    "name": "y_proba",
+    "classes": ["cat", "dog"],
+    "per_class": {
+        "cat": {"bin_edges": [0.0, 0.25, 0.5, 0.75, 1.0], "probabilities": [0.4, 0.1, 0.1, 0.4]},
+        "dog": {"bin_edges": [0.0, 0.25, 0.5, 0.75, 1.0], "probabilities": [0.4, 0.1, 0.1, 0.4]},
+    },
+    "positive_class": "dog",
+    "decision_threshold": 0.5,
+    "threshold_band": 0.05,
+    "reference_near_threshold_rate": 0.02,
+}
+
+
+def _proba_events(rows: list[list[float]]) -> list[InferenceEvent]:
+    return _events([{"y": ["dog" if row[1] >= 0.5 else "cat"], "y_proba": [row]} for row in rows])
+
+
+def _proba_profile() -> dict[str, Any]:
+    profile = _profile({**CAT_OUT, "name": "y"}, task_type="classification")
+    profile["probability_summary"] = PROBA_REF
+    return profile
+
+
+def test_per_class_probability_drift_names_the_worst_class() -> None:
+    # every dog probability crowds 0.5–0.75 while the reference lived at the extremes
+    rows = [[0.4, 0.6]] * 20
+    result = _compute(_proba_events(rows), _proba_profile())
+
+    block = result.values["probabilities"]
+    assert [entry["label"] for entry in block["per_class"]][0] in ("cat", "dog")
+    assert all(entry["psi"] > 0.25 for entry in block["per_class"])
+    signal = next(s for s in result.signals if s.key.startswith("probability."))
+    assert signal.severity is Severity.CRITICAL
+
+
+def test_the_coin_flip_zone_is_measured_against_training() -> None:
+    """Predictions huddling at the decision boundary are decisions in name only."""
+    rows = [[0.48, 0.52]] * 10 + [[0.1, 0.9]] * 10
+    result = _compute(_proba_events(rows), _proba_profile())
+
+    near = result.values["probabilities"]["near_threshold"]
+    assert near["rate"] == pytest.approx(0.5)
+    assert near["reference_rate"] == pytest.approx(0.02)
+    assert near["threshold"] == 0.5
+    assert near["positive_class"] == "dog"
+
+
+def test_label_only_events_leave_probabilities_out() -> None:
+    result = _compute(_events([{"y": ["cat"]}, {"y": ["dog"]}]), _proba_profile())
+
+    assert "probabilities" not in result.values
+
+
+FORECAST_PROFILE: dict[str, Any] = {
+    "profile_status": "ready",
+    "task_type": "forecasting",
+    "forecast_summary": {"name": "y", "horizons": ["h1", "h7"]},
+    "output_summary": {"name": "h1", "type": "numerical", "summary": {}},
+    "output_summaries": {
+        "numerical_outputs": {
+            "h1": {"bin_edges": [0, 10, 20, 30, 40], "probabilities": [0.25] * 4},
+            "h7": {"bin_edges": [0, 10, 20, 30, 40], "probabilities": [0.25] * 4},
+        }
+    },
+}
+
+
+def test_forecasting_scores_every_horizon_and_leads_with_the_worst() -> None:
+    """h1 stays на месте, h7 уехал: заголовок и алерт — про h7."""
+    rows = [[5.0, 35.0], [15.0, 36.0], [25.0, 38.0], [35.0, 39.0]] * 5
+    events = _events([{"y": [row]} for row in rows])
+
+    result = _compute(events, FORECAST_PROFILE)
+
+    assert result.values["kind"] == "forecast"
+    horizons = {entry["label"]: entry["psi"] for entry in result.values["horizons"]}
+    assert horizons["h1"] < 0.1  # spread like the reference
+    assert horizons["h7"] > 0.25  # crowded into one bin
+    assert result.values["name"] == "y[h7]"
+    assert result.values["psi"] == pytest.approx(horizons["h7"])
+    signal = next(s for s in result.signals if s.key == "horizon.h7")
+    assert signal.severity is Severity.CRITICAL
+    assert result.values["distribution"]["kind"] == "numeric"
+
+
+def test_a_forecast_without_usable_columns_is_empty() -> None:
+    events = _events([{"y": ["not-a-number"]}])
+
+    result = _compute(events, FORECAST_PROFILE)
+
+    assert result.values == {}

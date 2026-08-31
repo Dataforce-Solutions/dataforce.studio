@@ -14,6 +14,9 @@ async def main() -> None:
         logger.error(f"[main] Failed to initialize ModelHandler: {error}")
         sys.exit(1)
 
+    if model_handler.conda_worker is None:
+        logger.error("[main] No conda worker found")
+        return
     process = model_handler.conda_worker.process
     if process:
         logger.info("[main] conda_manager working...")

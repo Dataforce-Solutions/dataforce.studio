@@ -36,6 +36,7 @@ export interface Satellite {
   base_url: string
   paired: boolean
   capabilities: SatelliteCapabilities
+  present_capabilities: string[]
   created_at: string
   updated_at: string
   last_seen_at: string
@@ -43,12 +44,40 @@ export interface Satellite {
   slug?: string
 }
 
-export interface SatelliteCapabilities {
-  deploy?: CapabilitiesDeploy
+export interface CapabilityEnvelope {
+  version: number
+  api_versions?: number[]
+  facets?: string[]
+  [field: string]: unknown
 }
 
-export interface CapabilitiesDeploy {
-  version: number
+export interface SatelliteCapabilities {
+  [name: string]: CapabilityEnvelope | undefined
+  deploy?: CapabilitiesDeploy
+  monitoring?: CapabilitiesMonitoring
+}
+
+export enum MonitoringFeature {
+  runtime = 'runtime',
+  traces = 'traces',
+  alerts = 'alerts',
+  data_quality = 'data_quality',
+  feature_drift = 'feature_drift',
+  output_drift = 'output_drift',
+  multivariate_drift = 'multivariate_drift',
+}
+
+export interface CapabilitiesMonitoring extends CapabilityEnvelope {
+  version: 1
+  api_versions: number[]
+  facets: string[]
+  features: MonitoringFeature[]
+}
+
+export interface CapabilitiesDeploy extends CapabilityEnvelope {
+  version: 1
+  api_versions: number[]
+  facets: string[]
   supported_variants: string[]
   supported_tags_combinations: string[][] | null
   extra_fields_form_spec: SatelliteField[]

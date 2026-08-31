@@ -5,7 +5,7 @@ from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
-from luml.schemas.bucket_secrets import S3BucketSecretCreate
+from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
 from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.orbit import (
     Orbit,
@@ -100,7 +100,7 @@ async def test_attach_bucket_secret(
     )
     assert orbit
 
-    secret = await secret_repo.create_bucket_secret(
+    new_secret = await secret_repo.create_bucket_secret(
         S3BucketSecretCreate(
             organization_id=organization.id,
             endpoint="s3",
@@ -108,16 +108,16 @@ async def test_attach_bucket_secret(
             region="us-east-1",
         )
     )
-    assert secret
+    assert isinstance(new_secret, S3BucketSecret)
 
     updated = await repo.update_orbit(
         orbit.id,
         organization.id,
-        OrbitUpdate(name=orbit.name, bucket_secret_id=secret.id),
+        OrbitUpdate(name=orbit.name, bucket_secret_id=new_secret.id),
     )
 
     assert updated
-    assert updated.bucket_secret_id == secret.id
+    assert updated.bucket_secret_id == new_secret.id
 
 
 @pytest.mark.asyncio

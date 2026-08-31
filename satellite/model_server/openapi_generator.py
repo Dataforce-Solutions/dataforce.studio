@@ -9,19 +9,19 @@ class OpenAPIGenerator:
         version: str = "0.1.0",
         description: str = "Model API",
         *,
-        manifest: dict,
-        dtypes_schemas: dict,
+        manifest: dict[str, Any] | None = None,
+        dtypes_schemas: dict[str, Any] | None = None,
     ) -> None:
         self.title = title
         self.version = version
         self.description = description
-        self.manifest = manifest
-        self.dtypes_schemas = dtypes_schemas
+        self.manifest = manifest or {}
+        self.dtypes_schemas = dtypes_schemas or {}
 
-        self.schema = self.get_simple_schema()
+        self.schema: dict[str, Any] = self.get_simple_schema()
 
-        self.request_schema = None
-        self.response_schema = None
+        self.request_schema: dict[str, Any] | None = None
+        self.response_schema: dict[str, Any] | None = None
 
     def get_simple_schema(self) -> dict[str, Any]:  # noqa: ANN401
         return {
@@ -225,9 +225,9 @@ class OpenAPIGenerator:
 
     @staticmethod
     def _build_ndjson_schema_with_shape(dtype_ref: str, shape: list[int | str]) -> dict[str, Any]:  # noqa: ANN401
-        base_schema = {"$ref": f"#/components/schemas/{dtype_ref}"}
+        base_schema: dict[str, Any] = {"$ref": f"#/components/schemas/{dtype_ref}"}
 
-        result = base_schema
+        result: dict[str, Any] = base_schema
         for dim in reversed(shape):
             if isinstance(dim, str):
                 result = {"type": "array", "items": result}
@@ -244,6 +244,8 @@ class OpenAPIGenerator:
     def _push_type_ref_schema(self, spec: dict[str, Any], response: dict[str, Any]) -> None:  # noqa: ANN401
         dtype = spec.get("dtype")
         content_type = spec.get("content_type")
+        if not isinstance(dtype, str):
+            return
 
         if content_type == "JSON" and dtype in self.dtypes_schemas:
             response["properties"][spec["name"]] = {"$ref": f"#/components/schemas/{dtype}"}
@@ -285,12 +287,14 @@ class OpenAPIGenerator:
         if "schemas" not in self.schema["components"]:
             self.components_schemas = {}
 
-        if "$defs" in self.request_schema:
+        if self.request_schema and "$defs" in self.request_schema:
             for def_name, def_schema in self.request_schema["$defs"].items():
                 self.components_schemas[def_name] = self._transform_refs(def_schema.copy())
 
     def _inject_compute_request_schema(self) -> None:  # noqa: ANN401
         self._init_components_structure()
+        if self.request_schema is None:
+            raise RuntimeError("request schema has not been generated")
 
         inputs_prop = self.request_schema["properties"]["inputs"]
         dynamic_attrs_prop = self.request_schema["properties"]["dynamic_attributes"]
@@ -323,6 +327,8 @@ class OpenAPIGenerator:
 
     def _inject_compute_response_schema(self) -> None:  # noqa: ANN401
         self._init_components_structure()
+        if self.response_schema is None:
+            raise RuntimeError("response schema has not been generated")
 
         self.components_schemas["ComputeResponse"] = self._transform_refs(
             {

@@ -1,4 +1,5 @@
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -23,9 +24,9 @@ from model_server.telemetry import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _reset_tracer() -> None:
+def _reset_tracer() -> Iterator[None]:
     reset()
-    yield  # type: ignore[misc]
+    yield
     reset()
 
 
@@ -140,7 +141,7 @@ class TestExtractContext:
 
 class TestBaseServiceHeaders:
     async def test_post_handler_receives_headers(self) -> None:
-        from services.base_service import UvicornBaseService
+        from services.base_service import UvicornBaseService  # type: ignore[import-not-found]
 
         app = UvicornBaseService()
         captured: dict[str, str] = {}

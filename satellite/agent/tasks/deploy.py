@@ -16,6 +16,7 @@ from agent.schemas import (
     DeploymentUpdate,
     SatelliteQueueTask,
     SatelliteTaskStatus,
+    monitoring_url_for_deployment,
 )
 from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
@@ -31,11 +32,12 @@ class DeployTask(Task):
         self, container: DockerContainer, task_id: str, dep_id: str
     ) -> None:
         try:
-            logs = await container.log(stdout=True, stderr=True, follow=False, tail=80)
-            if isinstance(logs, list):
-                logs = "".join(logs)
-            elif not isinstance(logs, str):
-                logs = str(logs) if logs is not None else ""
+            logs_response = await container.log(stdout=True, stderr=True, follow=False, tail=80)
+            logs = (
+                "".join(logs_response)
+                if isinstance(logs_response, list)
+                else str(logs_response or "")
+            )
         except Exception:
             logs = ""
         error_message = ErrorMessage(reason="healthcheck timeout", error=str(logs)[-1000:])
@@ -80,7 +82,7 @@ class DeployTask(Task):
     async def _get_container_env(
         self, presigned_url: str, deployment: Deployment
     ) -> dict[str, str]:
-        secrets_env = await self._get_secrets_env(deployment.env_variables_secrets)
+        secrets_env = await self._get_secrets_env(deployment.env_variables_secrets or {})
 
         env: dict[str, str] = {
             "MODEL_ARTIFACT_URL": str(presigned_url),
@@ -93,7 +95,7 @@ class DeployTask(Task):
         for key, value in secrets_env.items():
             env[key] = value
 
-        for key, value in deployment.env_variables.items():
+        for key, value in (deployment.env_variables or {}).items():
             env[key] = value
 
         return env
@@ -127,11 +129,12 @@ class DeployTask(Task):
         self, container: DockerContainer, task_id: str, dep_id: str, error_str: str
     ) -> None:
         try:
-            logs = await container.log(stdout=True, stderr=True, follow=False, tail=100)
-            if isinstance(logs, list):
-                logs = "".join(logs)
-            elif not isinstance(logs, str):
-                logs = str(logs) if logs is not None else ""
+            logs_response = await container.log(stdout=True, stderr=True, follow=False, tail=100)
+            logs = (
+                "".join(logs_response)
+                if isinstance(logs_response, list)
+                else str(logs_response or "")
+            )
         except Exception:
             logs = ""
 
@@ -150,7 +153,7 @@ class DeployTask(Task):
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 
         dep_id = (task.payload or {}).get("deployment_id")
-        if dep_id is None:
+        if not isinstance(dep_id, str):
             await self.platform.update_task_status(
                 task.id,
                 SatelliteTaskStatus.FAILED,
@@ -213,7 +216,14 @@ class DeployTask(Task):
             await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
-                    inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
+                    inference_url=inference_url,
+                    monitoring_url=monitoring_url_for_deployment(
+                        dep_id,
+                        dep.monitoring_mode,
+                        monitoring_capability_present=config.MONITORING_ENABLED,
+                    ),
+                    schemas=schemas,
+                    status=DeploymentStatus.ACTIVE,
                 ),
             )
             await self.platform.update_task_status(

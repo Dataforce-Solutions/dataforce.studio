@@ -1,15 +1,11 @@
 import json
 import logging
+from typing import Protocol
 
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.metrics import MeterProvider, NoOpMeterProvider
 from opentelemetry.sdk.metrics import MeterProvider as SDKMeterProvider
-from opentelemetry.sdk.metrics.export import (
-    MetricExporter,
-    PeriodicExportingMetricReader,
-)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
@@ -21,6 +17,12 @@ from agent.monitoring.metrics import InferenceMetrics
 logger = logging.getLogger(__name__)
 
 _SERVICE_NAME = "satellite-agent"
+
+
+class _EventExporter(Protocol):
+    def emit(self, event: InferenceEvent) -> None: ...
+
+    def shutdown(self) -> None: ...
 
 
 class _NoOpEventExporter:
@@ -60,9 +62,8 @@ class TelemetrySetup:
         enabled: bool = True,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
-        event_exporter: _NoOpEventExporter | _OTLPEventExporter | None = None,
+        event_exporter: _EventExporter | None = None,
         span_exporter: SpanExporter | None = None,
-        metric_exporter: MetricExporter | None = None,
     ) -> None:
         self._active = False
         self._owns_providers = False
@@ -70,9 +71,7 @@ class TelemetrySetup:
         if tracer_provider or meter_provider or event_exporter:
             self._tracer_provider: TracerProvider = tracer_provider or NoOpTracerProvider()
             self._meter_provider: MeterProvider = meter_provider or NoOpMeterProvider()
-            self._event_exporter: _NoOpEventExporter | _OTLPEventExporter = (
-                event_exporter or _NoOpEventExporter()
-            )
+            self._event_exporter: _EventExporter = event_exporter or _NoOpEventExporter()
             self._active = bool(enabled and endpoint)
             return
 
@@ -85,16 +84,12 @@ class TelemetrySetup:
         try:
             resource = Resource.create({"service.name": _SERVICE_NAME})
             _span_exporter = span_exporter or OTLPSpanExporter(endpoint=endpoint, insecure=True)
-            _metric_exporter = metric_exporter or OTLPMetricExporter(
-                endpoint=endpoint, insecure=True
-            )
 
             tp = SDKTracerProvider(resource=resource)
             tp.add_span_processor(BatchSpanProcessor(_span_exporter))
             self._tracer_provider = tp
 
-            reader = PeriodicExportingMetricReader(_metric_exporter)
-            self._meter_provider = SDKMeterProvider(resource=resource, metric_readers=[reader])
+            self._meter_provider = NoOpMeterProvider()
 
             event_span_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             self._event_exporter = _OTLPEventExporter(event_span_exporter)

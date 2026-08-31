@@ -37,6 +37,13 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             )
             return db_sat.to_satellite() if db_sat else None
 
+    async def get_satellite_openapi(self, satellite_id: UUID) -> dict[str, Any] | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(SatelliteOrm.openapi).where(SatelliteOrm.id == satellite_id)
+            )
+            return result.scalar_one_or_none()
+
     async def update_satellite(
         self, satellite: SatelliteUpdate | SatelliteRegenerateApiKey
     ) -> Satellite | None:

@@ -11,34 +11,46 @@ from agent.handlers.handler_instances import ms_handler
 from agent.handlers.tasks import TaskHandler
 from agent.monitoring import (
     GreptimeMonitoringStore,
+    MetricRegistry,
     MonitoringWorker,
     default_registry,
     monitored_deployments,
 )
+from agent.monitoring.health import worker_health
 from agent.settings import config
 
 
-def _build_monitoring_worker() -> tuple[MonitoringWorker, GreptimeMonitoringStore]:
+def _build_monitoring_worker(
+    registry: MetricRegistry,
+) -> tuple[MonitoringWorker, GreptimeMonitoringStore]:
     store = GreptimeMonitoringStore(
         host=config.GREPTIMEDB_HOST,
         port=config.GREPTIMEDB_HTTP_PORT,
         database=config.GREPTIMEDB_DATABASE,
+        events_ttl=config.MONITORING_EVENTS_TTL,
+        results_ttl=config.MONITORING_RESULTS_TTL,
+        alerts_ttl=config.MONITORING_ALERTS_TTL,
+        traces_ttl=config.MONITORING_TRACES_TTL,
+        metrics_ttl=config.MONITORING_METRICS_TTL,
     )
     worker = MonitoringWorker(
         store=store,
-        registry=default_registry(
-            latency_p95_threshold_ms=config.MONITORING_LATENCY_P95_THRESHOLD_MS
-        ),
+        registry=registry,
         provider=lambda: monitored_deployments(ms_handler.deployments.values()),
         window_seconds=config.MONITORING_WINDOW_SEC,
         interval_seconds=config.MONITORING_INTERVAL_SEC,
+        health=worker_health,
+        max_backfill_windows=config.MONITORING_BACKFILL_MAX_WINDOWS,
     )
     return worker, store
 
 
 async def run_async() -> None:
     async with PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform:
-        agent_app = create_agent_app(platform.authorize_inference_access)
+        agent_app = create_agent_app(
+            platform.authorize_inference_access,
+            platform.introspect_monitoring_token,
+        )
 
         uv_config = uvicorn.Config(
             agent_app,
@@ -52,13 +64,16 @@ async def run_async() -> None:
             controller = PeriodicController(
                 handler=handler, poll_interval_s=float(config.POLL_INTERVAL_SEC)
             )
-            satellite_manager = SatelliteManager(platform)
+            monitoring_registry = default_registry(
+                latency_p95_threshold_ms=config.MONITORING_LATENCY_P95_THRESHOLD_MS
+            )
+            satellite_manager = SatelliteManager(platform, agent_app, monitoring_registry)
 
             monitoring_worker = None
             monitoring_store = None
             monitoring_task = None
             if config.MONITORING_ENABLED:
-                monitoring_worker, monitoring_store = _build_monitoring_worker()
+                monitoring_worker, monitoring_store = _build_monitoring_worker(monitoring_registry)
                 monitoring_task = asyncio.create_task(monitoring_worker.run_forever())
 
             try:

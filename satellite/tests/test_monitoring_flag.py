@@ -1,17 +1,21 @@
+import json
+
 import httpx
+import pytest
 import respx
 
 from agent.handlers.model_server_handler import ModelServerHandler
 from agent.schemas.deployments import Deployment, LocalDeployment
+from agent.settings import config
+
+# The mock must follow PLATFORM_URL from the environment, not a pinned literal.
+PLATFORM_URL = str(config.PLATFORM_URL).rstrip("/")
 
 
 def _make_deployment(
-    monitoring_enabled: object = None,
+    monitoring_mode: str = "off",
     deployment_id: str = "dep-1",
 ) -> Deployment:
-    params: dict = {}
-    if monitoring_enabled is not None:
-        params["monitoring_enabled"] = monitoring_enabled
     return Deployment(
         id=deployment_id,
         orbit_id="orbit-1",
@@ -22,35 +26,26 @@ def _make_deployment(
         artifact_name="model-a",
         collection_id="col-1",
         status="active",
-        satellite_parameters=params if params else None,
+        monitoring_mode=monitoring_mode,
         created_at="2026-01-01T00:00:00Z",
     )
 
 
 class TestReadMonitoringEnabled:
-    def test_true_when_set(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": True}) is True
+    def test_true_when_full(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled("full") is True
 
-    def test_false_when_explicitly_false(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": False}) is False
+    def test_false_when_off(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled("off") is False
 
-    def test_false_when_absent(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({}) is False
-
-    def test_false_when_none_params(self) -> None:
+    def test_false_when_none(self) -> None:
         assert ModelServerHandler._read_monitoring_enabled(None) is False
 
-    def test_true_when_string_true(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": "true"}) is True
+    def test_true_case_insensitive(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled("FULL") is True
 
-    def test_true_when_integer_one(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": 1}) is True
-
-    def test_false_when_string_falsey(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": "off"}) is False
-
-    def test_false_when_integer_zero(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": 0}) is False
+    def test_false_when_unknown(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled("garbage") is False
 
 
 class TestLocalDeploymentMonitoringDefault:
@@ -67,7 +62,7 @@ class TestAddDeploymentCarriesFlag:
     @respx.mock
     async def test_monitoring_enabled_propagated(self, mock_model_server: None) -> None:
         handler = ModelServerHandler()
-        dep = _make_deployment(monitoring_enabled=True)
+        dep = _make_deployment(monitoring_mode="full")
         await handler.add_deployment(dep)
 
         local = handler.deployments[dep.id]
@@ -82,33 +77,47 @@ class TestAddDeploymentCarriesFlag:
         local = handler.deployments[dep.id]
         assert local.monitoring_enabled is False
 
-    @respx.mock
-    async def test_monitoring_invalid_value_treated_as_off(self, mock_model_server: None) -> None:
-        handler = ModelServerHandler()
-        dep = _make_deployment(monitoring_enabled="garbage")
-        await handler.add_deployment(dep)
-
-        local = handler.deployments[dep.id]
-        assert local.monitoring_enabled is False
-
 
 class TestSyncDeploymentsCarriesFlag:
+    @pytest.mark.parametrize(
+        ("monitoring_capability_present", "expected_monitoring_url"),
+        [
+            (True, "/deployments/dep-sync-1/monitoring"),
+            (False, None),
+        ],
+    )
     @respx.mock
-    async def test_sync_reads_monitoring_flag(self) -> None:
+    async def test_sync_reads_monitoring_mode(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        monitoring_capability_present: bool,
+        expected_monitoring_url: str | None,
+    ) -> None:
+        monkeypatch.setattr(config, "MONITORING_ENABLED", monitoring_capability_present)
         handler = ModelServerHandler()
+        deployment_record = {
+            "id": "dep-sync-1",
+            "orbit_id": "orbit-1",
+            "satellite_id": "sat-1",
+            "satellite_name": "test-sat",
+            "name": "synced deployment",
+            "artifact_id": "art-1",
+            "artifact_name": "model-a",
+            "collection_id": "col-1",
+            "inference_url": "/deployments/dep-sync-1",
+            "status": "active",
+            "monitoring_mode": "full",
+            "dynamic_attributes_secrets": {},
+            "created_at": "2026-01-01T00:00:00Z",
+        }
 
-        platform_url = "https://api.luml.ai"
-        respx.get(f"{platform_url}/satellites/v1/deployments").mock(
+        respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
+            return_value=httpx.Response(200, json=[deployment_record])
+        )
+        update_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/dep-sync-1").mock(
             return_value=httpx.Response(
                 200,
-                json=[
-                    {
-                        "id": "dep-sync-1",
-                        "status": "active",
-                        "satellite_parameters": {"monitoring_enabled": True},
-                        "dynamic_attributes_secrets": {},
-                    }
-                ],
+                json=deployment_record | {"monitoring_url": expected_monitoring_url},
             )
         )
 
@@ -136,24 +145,48 @@ class TestSyncDeploymentsCarriesFlag:
             await handler.sync_deployments()
 
         assert "dep-sync-1" in handler.deployments
-        assert handler.deployments["dep-sync-1"].monitoring_enabled is True
+        local = handler.deployments["dep-sync-1"]
+        assert local.monitoring_enabled is True
+        # the dashboard header reads its identity from here, not from telemetry
+        assert local.metadata.name == "synced deployment"
+        assert local.metadata.status == "active"
+        assert local.metadata.model_name == "model-a"
+        assert local.metadata.satellite == "test-sat"
+        assert local.metadata.inference_url == "/deployments/dep-sync-1"
+        assert json.loads(update_route.calls[0].request.content) == {
+            "monitoring_url": expected_monitoring_url
+        }
 
     @respx.mock
-    async def test_sync_absent_flag_means_off(self) -> None:
+    async def test_sync_absent_mode_means_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config, "MONITORING_ENABLED", True)
         handler = ModelServerHandler()
+        deployment_record = {
+            "id": "dep-sync-2",
+            "status": "active",
+            "dynamic_attributes_secrets": {},
+        }
+        update_response = {
+            "id": "dep-sync-2",
+            "orbit_id": "orbit-1",
+            "satellite_id": "sat-1",
+            "satellite_name": "test-sat",
+            "name": "synced deployment",
+            "artifact_id": "art-1",
+            "artifact_name": "model-a",
+            "collection_id": "col-1",
+            "status": "active",
+            "dynamic_attributes_secrets": {},
+            "created_at": "2026-01-01T00:00:00Z",
+        }
 
-        platform_url = "https://api.luml.ai"
-        respx.get(f"{platform_url}/satellites/v1/deployments").mock(
+        respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
+            return_value=httpx.Response(200, json=[deployment_record])
+        )
+        update_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/dep-sync-2").mock(
             return_value=httpx.Response(
                 200,
-                json=[
-                    {
-                        "id": "dep-sync-2",
-                        "status": "active",
-                        "satellite_parameters": {},
-                        "dynamic_attributes_secrets": {},
-                    }
-                ],
+                json=update_response | {"monitoring_url": None},
             )
         )
 
@@ -178,4 +211,8 @@ class TestSyncDeploymentsCarriesFlag:
             await handler.sync_deployments()
 
         assert "dep-sync-2" in handler.deployments
-        assert handler.deployments["dep-sync-2"].monitoring_enabled is False
+        local = handler.deployments["dep-sync-2"]
+        assert local.monitoring_enabled is False
+        # a record without those fields simply leaves the header empty
+        assert local.metadata.name is None
+        assert json.loads(update_route.calls[0].request.content) == {"monitoring_url": None}

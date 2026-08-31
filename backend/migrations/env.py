@@ -30,9 +30,12 @@ config.set_main_option("sqlalchemy.url", postgresql_dsn)
 def run_migrations_online() -> None:
     connectable = context.config.attributes.get("connection", None)
     if connectable is None:
+        configuration = context.config.get_section(context.config.config_ini_section)
+        if configuration is None:
+            raise RuntimeError("Alembic configuration section not found")
         connectable = AsyncEngine(
             engine_from_config(
-                context.config.get_section(context.config.config_ini_section),
+                configuration,
                 prefix="sqlalchemy.",
                 poolclass=pool.NullPool,
                 future=True,

@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -149,6 +150,7 @@ class TestModelErrorRecordedAndReraised:
         evt = fake_telemetry.events[0]
         assert evt.status == "error"
         assert evt.status_code == 422
+        assert evt.error is not None
         assert "bad input" in evt.error
         assert evt.event_id is not None
 
@@ -184,20 +186,16 @@ class TestTelemetryFailureDoesNotBreakInference:
         fake_telemetry: FakeTelemetry,
         mock_model_server: respx.MockRouter,
     ) -> None:
-        original_emit = fake_telemetry.event_exporter.emit
-        fake_telemetry.event_exporter.emit = lambda e: (_ for _ in ()).throw(
-            RuntimeError("exporter down")
-        )
+        with patch.object(
+            fake_telemetry.event_exporter, "emit", side_effect=RuntimeError("exporter down")
+        ):
+            handler = ModelServerHandler(telemetry=fake_telemetry.setup)
+            handler.deployments[DEP_ID] = _local_deployment()
 
-        handler = ModelServerHandler(telemetry=fake_telemetry.setup)
-        handler.deployments[DEP_ID] = _local_deployment()
-
-        result, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
+            result, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert result == {"prediction": 42}
         assert event_id is not None
-
-        fake_telemetry.event_exporter.emit = original_emit
 
 
 class TestSecretsAbsentFromEvent:
@@ -287,7 +285,7 @@ class TestExtractSafeInputs:
         assert result is None
 
     def test_empty_dynamic_attributes(self) -> None:
-        body = {"dynamic_attributes": {}}
+        body: dict[str, Any] = {"dynamic_attributes": {}}
         dep = _local_deployment(secrets={"api_key": "secret-id"})
         result = _extract_safe_inputs(body, dep)
         assert result == {"dynamic_attributes": {}}
