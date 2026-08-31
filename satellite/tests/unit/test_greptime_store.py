@@ -1,7 +1,9 @@
+import logging
 import urllib.parse
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 
 from agent.monitoring.greptime import GreptimeMonitoringStore, _to_ns
 from agent.monitoring.models import Alert, AlertState, MetricResult, Severity, TimeWindow
@@ -216,3 +218,47 @@ class TestGreptimeStore:
 
         assert alerts == []
         assert alerts_table_created
+
+    async def test_read_events_before_the_collector_created_the_table_is_empty(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A fresh database has no ``inference_events`` until the first span lands.
+
+        Every worker tick used to log a WARNING per monitored deployment and count a
+        storage failure against it. There simply are no events yet.
+        """
+        recorder = Recorder()
+        missing = {"code": 4001, "error": "Table not found: greptime.public.inference_events"}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            sql = urllib.parse.parse_qs(request.content.decode())["sql"][0]
+            recorder.statements.append(sql)
+            if "FROM inference_events" in sql:
+                return httpx.Response(400, json=missing)
+            return httpx.Response(200, json=_affected())
+
+        store = GreptimeMonitoringStore(
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), database="public"
+        )
+
+        with caplog.at_level(logging.DEBUG, logger="satellite"):
+            first = await store.read_events("dep-1", WINDOW)
+            second = await store.read_events("dep-2", WINDOW)
+
+        assert first == [] and second == []
+        assert all(r.levelno < logging.WARNING for r in caplog.records)
+        notices = [r for r in caplog.records if "does not exist yet" in r.getMessage()]
+        assert len(notices) == 1  # said once, not once per deployment per tick
+
+    async def test_other_400s_still_fail_the_read(self) -> None:
+        """Only a missing table is a phase; a malformed query is a bug and must surface."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(400, json={"code": 3000, "error": "Failed to plan SQL: syntax"})
+
+        store = GreptimeMonitoringStore(
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), database="public"
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await store.read_events("dep-1", WINDOW)

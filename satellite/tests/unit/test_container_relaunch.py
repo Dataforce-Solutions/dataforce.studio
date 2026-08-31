@@ -132,6 +132,8 @@ class TestContainerRelaunch:
         # once it answers, the deployment is serving again and known locally
         assert DEPLOYMENT_ID in handler.deployments
         assert handler.deployments[DEPLOYMENT_ID].monitoring_enabled is True
+        # …and the header shows the record the promotion answered with, not the snapshot
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "active"
         # recovering while it boots, active once it answers — and never `pending`, which
         # reconciliation skips: an Agent dying mid-recovery must not strand the deployment
         updates = [call.request.read() for call in patch_route.calls]
@@ -198,9 +200,13 @@ class TestContainerRelaunch:
                 f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}"
             ).mock(return_value=httpx.Response(200, json=record))
             docker = AsyncMock()
-            docker.check_container_running = AsyncMock(
-                side_effect=ContainerNotFoundError(DEPLOYMENT_ID)
-            )
+
+            async def absent_until_recreated(deployment_id: str) -> dict[str, str]:
+                if docker.run_model_container.await_count == 0:
+                    raise ContainerNotFoundError(deployment_id)
+                return {LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}
+
+            docker.check_container_running = AsyncMock(side_effect=absent_until_recreated)
             docker.__aenter__ = AsyncMock(return_value=docker)
             docker.__aexit__ = AsyncMock(return_value=False)
             with _patched(docker):
@@ -261,7 +267,7 @@ class TestContainerRelaunch:
         _mock_platform(record=record)
         _mock_model_server()
         patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
-            return_value=httpx.Response(200, json=record)
+            return_value=httpx.Response(200, json=record | {"status": "active"})
         )
         docker = _running_docker()
 
@@ -271,6 +277,8 @@ class TestContainerRelaunch:
         # it answers on its own, so it is promoted without touching the container
         docker.run_model_container.assert_not_awaited()
         assert b'"active"' in patch_route.calls[-1].request.read()
+        # the header follows the Platform's answer, not the not_responding snapshot
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "active"
 
     async def test_a_recovery_the_agent_did_not_live_to_finish_is_settled_by_the_next_start(
         self,
@@ -411,6 +419,127 @@ class TestContainerRelaunch:
         assert DEPLOYMENT_ID not in handler.deployments
 
     @respx.mock
+    async def test_a_container_removed_mid_recovery_ends_the_wait_at_once(self) -> None:
+        """The undeploy task removes the replacement while recovery still waits for it.
+
+        The wait used to run the full health timeout — half an hour of polling a
+        container that no longer exists — before a 404 on the report finally ended it.
+        The container's absence is checked along the way; once it is gone there is
+        nothing to settle and nothing to report.
+        """
+        handler = ModelServerHandler()
+        handler.recovery_health_check_timeout = 30
+        handler.recovery_presence_check_interval = 0
+        _mock_platform()
+        _mock_model_server(healthy=False)
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _stopped_docker()
+        checks = {"n": 0}
+
+        async def stopped_then_gone(deployment_id: str) -> dict[str, str]:
+            checks["n"] += 1
+            if checks["n"] == 1:  # reconciliation finds it stopped and relaunches it
+                raise ContainerNotRunningError(deployment_id, "exited")
+            raise ContainerNotFoundError(deployment_id)  # …and undeploy took the replacement
+
+        docker.check_container_running = AsyncMock(side_effect=stopped_then_gone)
+
+        started = asyncio.get_running_loop().time()
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert asyncio.get_running_loop().time() - started < 5
+        docker.run_model_container.assert_awaited_once()
+        # only the recovery marker was written: no "did not become healthy" for a
+        # deployment somebody else is taking down, and no container of ours to remove
+        assert len(patch_route.calls) == 1
+        docker.remove_model_container.assert_not_awaited()
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
+    async def test_a_docker_hiccup_during_the_wait_does_not_end_it(self) -> None:
+        """Only "not found" ends the wait; a daemon error is not an answer.
+
+        Ending the one-time startup reconciliation on a 5xx from Docker would leave a
+        healthy replacement unregistered until the Agent restarts.
+        """
+        from aiodocker.exceptions import DockerError
+
+        handler = ModelServerHandler()
+        handler.recovery_presence_check_interval = 0
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _stopped_docker()
+        checks = {"n": 0}
+
+        async def stopped_then_flaky(deployment_id: str) -> dict[str, str]:
+            checks["n"] += 1
+            if checks["n"] == 1:
+                raise ContainerNotRunningError(deployment_id, "exited")
+            raise DockerError(500, {"message": "daemon is busy"})  # every presence check
+
+        docker.check_container_running = AsyncMock(side_effect=stopped_then_flaky)
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        # waited through the hiccups, saw it answer, registered it
+        assert DEPLOYMENT_ID in handler.deployments
+        assert checks["n"] > 1
+
+    @respx.mock
+    async def test_a_record_docker_could_not_answer_for_gets_a_second_look(self) -> None:
+        """Reconciliation runs once per start; a daemon that was busy for a moment must
+        not cost a healthy deployment its registration until the next restart."""
+        handler = ModelServerHandler()
+        handler.docker_recheck_delay = 0
+        _mock_platform()
+        _mock_model_server()
+        respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _running_docker()
+        docker.check_container_running = AsyncMock(
+            side_effect=[TimeoutError(), {LAUNCHER_PROTOCOL_LABEL: LAUNCHER_PROTOCOL}]
+        )
+
+        with _patched(docker):
+            await handler.sync_deployments()
+
+        assert docker.check_container_running.await_count == 2
+        assert DEPLOYMENT_ID in handler.deployments
+
+    @respx.mock
+    async def test_a_docker_error_on_one_record_does_not_end_the_reconciliation(self) -> None:
+        """Docker could not say whether the container is there: the record is left alone."""
+        from aiodocker.exceptions import DockerError
+
+        handler = ModelServerHandler()
+        handler.docker_recheck_delay = 0
+        _mock_platform()
+        _mock_model_server()
+        patch_route = respx.patch(f"{PLATFORM_URL}/satellites/v1/deployments/{DEPLOYMENT_ID}").mock(
+            return_value=httpx.Response(200, json=_platform_record())
+        )
+        docker = _running_docker()
+        docker.check_container_running = AsyncMock(
+            side_effect=DockerError(500, {"message": "daemon is busy"})
+        )
+
+        with _patched(docker):
+            await handler.sync_deployments()  # must not raise
+
+        # nothing acted on blind: no relaunch, no status written, not registered
+        docker.run_model_container.assert_not_awaited()
+        assert not patch_route.called
+        assert DEPLOYMENT_ID not in handler.deployments
+
+    @respx.mock
     async def test_a_platform_blip_during_promotion_does_not_unserve_a_healthy_container(
         self,
     ) -> None:
@@ -434,6 +563,8 @@ class TestContainerRelaunch:
 
         assert DEPLOYMENT_ID in handler.deployments
         docker.remove_model_container.assert_not_awaited()
+        # served locally, but the header does not claim a status the Platform never wrote
+        assert handler.deployments[DEPLOYMENT_ID].metadata.status == "not_responding"
 
     @respx.mock
     async def test_a_rate_limited_promotion_is_a_blip_not_a_refusal(self) -> None:

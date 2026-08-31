@@ -147,6 +147,15 @@ class DeployTask(Task):
                     except (ContainerNotFoundError, ContainerNotRunningError) as e:
                         await self._handle_deploying_error(container, task.id, dep_id, str(e))
                         return
+                    except Exception as error:  # noqa: BLE001 — Docker's silence is not a verdict
+                        # The container check only shortens the wait for a container that
+                        # died; whether the model is up is the health endpoint's call.
+                        # Failing here would leave the record pending with its container
+                        # running, which nothing reconciles.
+                        logger.warning(
+                            f"[deploy] could not inspect the container of '{dep_id}': "
+                            f"{error}; still waiting for it to answer"
+                        )
                     next_container_check = loop.time() + 5
 
                 if await client.check_health_once(dep_id):
@@ -163,7 +172,7 @@ class DeployTask(Task):
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
-            await self.platform.update_deployment(
+            activated = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
                     inference_url=inference_url,
@@ -177,6 +186,8 @@ class DeployTask(Task):
                     error_message=None,
                 ),
             )
+            # registered from the record as it was while pending; the header shows this one
+            ms_handler.note_platform_record(dep_id, activated)
             await self.platform.update_task_status(
                 task.id,
                 SatelliteTaskStatus.DONE,
@@ -188,7 +199,9 @@ class DeployTask(Task):
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
-            await self.platform.update_deployment(
+            failed = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
+            # the deployment may already be registered and showing `active`
+            ms_handler.note_platform_record(dep_id, failed)
