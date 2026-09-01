@@ -165,7 +165,7 @@ test.describe('Collections', () => {
 
       await page.goto(orbitRegistryUrl)
       const card = page.locator('.card').filter({ hasText: 'Main Collection' })
-      await card.locator('.right').getByRole('button').click()
+      await card.locator('.p-button-icon-only').click()
 
       const dialog = page
         .getByRole('dialog')
@@ -196,7 +196,7 @@ test.describe('Collections', () => {
       await page.goto(orbitRegistryUrl)
 
       const card = page.locator('.card').filter({ hasText: 'Main Collection' })
-      await card.locator('.right').getByRole('button').click()
+      await card.locator('.p-button-icon-only').click()
 
       const dialog = page
         .getByRole('dialog')
@@ -257,10 +257,7 @@ test.describe('Collections', () => {
 
       await page.goto(orbitRegistryUrl)
       const initialCallCount = calls.length
-      await page
-        .locator('.p-multiselect')
-        .filter({ hasText: 'Filter by type' })
-        .click()
+      await page.locator('.type-control .p-multiselect').click()
       await page
         .locator('.p-multiselect-overlay, .p-multiselect-panel, [role="listbox"]')
         .getByText('Model', { exact: true })

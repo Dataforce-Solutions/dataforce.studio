@@ -1,8 +1,11 @@
 import pytest
+from luml.models import OrganizationOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
+from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.schemas.bucket_secrets import S3BucketSecretCreate
+from luml.repositories.users import UserRepository
+from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
 from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.orbit import (
     Orbit,
@@ -14,12 +17,21 @@ from luml.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
+from luml.schemas.orbit_secret import OrbitSecretCreate
+from luml.schemas.organization import OrganizationCreateIn
 
 from tests.conftest import (
+    CollectionFixtureData,
     OrbitFixtureData,
     OrbitWithMembersFixtureData,
     OrganizationFixtureData,
 )
+
+
+async def _create_sibling_organization(data: OrbitFixtureData) -> OrganizationOrm:
+    return await UserRepository(data.engine).create_organization(
+        data.user.id, OrganizationCreateIn(name="sibling org")
+    )
 
 
 @pytest.mark.asyncio
@@ -61,12 +73,13 @@ async def test_update_orbit(
 
     new_name = created_orbit.name + "updated"
     updated_orbit = await repo.update_orbit(
-        created_orbit.id, OrbitUpdate(name=new_name)
+        created_orbit.id, organization.id, OrbitUpdate(name=new_name)
     )
 
     assert updated_orbit
     assert updated_orbit.id == created_orbit.id
     assert updated_orbit.name == new_name
+    assert updated_orbit.bucket_secret_id == secret.id
 
 
 @pytest.mark.asyncio
@@ -87,7 +100,7 @@ async def test_attach_bucket_secret(
     )
     assert orbit
 
-    secret = await secret_repo.create_bucket_secret(
+    new_secret = await secret_repo.create_bucket_secret(
         S3BucketSecretCreate(
             organization_id=organization.id,
             endpoint="s3",
@@ -95,14 +108,16 @@ async def test_attach_bucket_secret(
             region="us-east-1",
         )
     )
-    assert secret
+    assert isinstance(new_secret, S3BucketSecret)
 
     updated = await repo.update_orbit(
-        orbit.id, OrbitUpdate(name=orbit.name, bucket_secret_id=secret.id)
+        orbit.id,
+        organization.id,
+        OrbitUpdate(name=orbit.name, bucket_secret_id=new_secret.id),
     )
 
     assert updated
-    assert updated.bucket_secret_id == secret.id
+    assert updated.bucket_secret_id == new_secret.id
 
 
 @pytest.mark.asyncio
@@ -111,10 +126,77 @@ async def test_delete_orbit(create_orbit: OrbitFixtureData) -> None:
     repo = OrbitRepository(data.engine)
     orbit = data.orbit
 
-    await repo.delete_orbit(orbit.id)
+    assert await repo.delete_orbit(orbit.id, orbit.organization_id) is True
     fetched_orbit = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
 
     assert fetched_orbit is None
+
+
+@pytest.mark.asyncio
+async def test_update_orbit_from_another_organization(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
+    other_organization = await _create_sibling_organization(data)
+
+    result = await repo.update_orbit(
+        orbit.id, other_organization.id, OrbitUpdate(name="renamed")
+    )
+
+    assert result is None
+
+    untouched = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
+    assert untouched is not None
+    assert untouched.name == orbit.name
+
+
+@pytest.mark.asyncio
+async def test_delete_orbit_from_another_organization(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
+    other_organization = await _create_sibling_organization(data)
+
+    assert await repo.delete_orbit(orbit.id, other_organization.id) is False
+    assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_orbit_from_another_organization_keeps_cascade_children(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    orbit_repo = OrbitRepository(data.engine)
+    collection_repo = CollectionRepository(data.engine)
+    secret_repo = OrbitSecretRepository(data.engine)
+    orbit = data.orbit
+    other_organization = await _create_sibling_organization(data)
+
+    secret = await secret_repo.create_orbit_secret(
+        OrbitSecretCreate(name="child-secret", value="plaintext", orbit_id=orbit.id)
+    )
+
+    assert await orbit_repo.delete_orbit(orbit.id, other_organization.id) is False
+
+    assert await collection_repo.get_collection(data.collection.id) is not None
+    assert await secret_repo.get_orbit_secret(secret.id, orbit.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_simple_from_another_organization(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
+    other_organization = await _create_sibling_organization(data)
+
+    assert await repo.get_orbit_simple(orbit.id, other_organization.id) is None
+    assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None
 
 
 @pytest.mark.asyncio

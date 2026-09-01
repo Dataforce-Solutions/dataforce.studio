@@ -19,6 +19,11 @@ class DeploymentStatus(StrEnum):
     NOT_RESPONDING = "not_responding"
 
 
+class MonitoringMode(StrEnum):
+    OFF = "off"
+    FULL = "full"
+
+
 class DeploymentBase(BaseModel, BaseOrmConfig):
     id: UUID
     name: str
@@ -31,13 +36,17 @@ class Deployment(DeploymentBase):
     orbit_id: UUID
     satellite_id: UUID
     satellite_name: str
+    # The orbit's name doubles as the deployment's environment label on dashboards.
+    orbit_name: str | None = None
     name: str
     artifact_id: UUID
     artifact_name: str
     collection_id: UUID
     inference_url: str | None = None
+    monitoring_url: str | None = None
     status: DeploymentStatus
-    satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
+    monitoring_mode: MonitoringMode = MonitoringMode.OFF
+    satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)
     env_variables_secrets: dict[str, str] = Field(default_factory=dict)
@@ -64,7 +73,8 @@ class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
     name: str = Field(max_length=100)
-    satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
+    monitoring_mode: MonitoringMode = MonitoringMode.OFF
+    satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = Field(default=None, max_length=1000)
     env_variables: dict[str, str] = Field(default_factory=dict)
     tags: TagList | None = None
@@ -85,6 +95,7 @@ class DeploymentCreate(DeploymentCreateBase, BaseOrmConfig):
 
 class DeploymentUpdateIn(BaseModel):
     inference_url: str | None = Field(default=None, max_length=2048)
+    monitoring_url: str | None = Field(default=None, max_length=2048)
     status: DeploymentStatus | None = None
     tags: TagList | None = None
     schemas: dict[str, Any] | None = None
@@ -106,6 +117,7 @@ class InferenceAccessOut(BaseModel):
 class DeploymentDetailsUpdateBase(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
+    monitoring_mode: MonitoringMode | None = None
     schemas: dict[str, Any] | None = None
     error_message: dict[str, Any] | None = None
     tags: TagList | None = None

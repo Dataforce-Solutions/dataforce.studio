@@ -15,7 +15,6 @@ import type {
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
   IResetPasswordRequest,
-  ISendEmailRequest,
   Organization,
   Invitation,
   CreateOrganizationPayload,
@@ -43,6 +42,7 @@ import { ApiKeysApi } from './api-keys'
 import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
 import { DeploymentsApi } from './deployments'
+import { MonitoringApi } from './monitoring'
 import { OrbitTracksApi } from './orbit-tracks'
 import { PrismaApi } from './prisma'
 
@@ -55,6 +55,7 @@ export class ApiClass {
   public satellites: SatellitesApi
   public orbitSecrets: OrbitSecretsApi
   public deployments: DeploymentsApi
+  public monitoring: MonitoringApi
   public orbitTracks: OrbitTracksApi
   public dataAgent: PrismaApi
 
@@ -74,6 +75,7 @@ export class ApiClass {
     this.satellites = new SatellitesApi(this.api)
     this.orbitSecrets = new OrbitSecretsApi(this.api)
     this.deployments = new DeploymentsApi(this.api)
+    this.monitoring = new MonitoringApi(this.api)
     this.orbitTracks = new OrbitTracksApi(this.api)
     this.dataAgent = new PrismaApi()
   }
@@ -159,12 +161,6 @@ export class ApiClass {
 
   public async resetPassword(data: IResetPasswordRequest) {
     await this.api.post('/v1/auth/reset-password', data)
-  }
-
-  public async sendEmail(data: ISendEmailRequest) {
-    await this.api.post('/v1/stats/email-send', data, {
-      skipInterceptors: true,
-    })
   }
 
   public async getInvitations() {

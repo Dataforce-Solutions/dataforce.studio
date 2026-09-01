@@ -7,11 +7,17 @@ export enum DeploymentStatusEnum {
   not_responding = 'not_responding',
 }
 
+export enum MonitoringMode {
+  off = 'off',
+  full = 'full',
+}
+
 export interface CreateDeploymentPayload {
   name: string
   description: string
   satellite_id: string
   artifact_id: string
+  monitoring_mode: MonitoringMode
   satellite_parameters: Record<string, string | number | boolean>
   dynamic_attributes_secrets: Record<string, string>
   env_variables_secrets: Record<string, string>
@@ -26,6 +32,7 @@ export interface Deployment {
   artifact_id: string
   inference_url: string
   status: DeploymentStatusEnum
+  monitoring_mode: MonitoringMode
   secrets: Record<string, string>
   created_by_user: string
   tags: string[]
@@ -46,6 +53,7 @@ export interface UpdateDeploymentPayload {
   description: string
   tags: string[]
   dynamic_attributes_secrets: Record<string, string>
+  monitoring_mode?: MonitoringMode
 }
 
 export interface DeploymentErrorMessage {

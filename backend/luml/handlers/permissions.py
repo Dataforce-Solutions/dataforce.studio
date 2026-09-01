@@ -4,6 +4,7 @@ from uuid import UUID
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     InsufficientPermissionsError,
+    NotFoundError,
 )
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
@@ -49,6 +50,13 @@ class PermissionsHandler:
 
         if not org_member_role:
             raise InsufficientPermissionsError()
+
+        # Must precede the org-role short-circuit: every user owns a personal
+        # organization, so an org role alone says nothing about the addressed orbit.
+        if orbit_id and not await self.__orbits_repository.get_orbit_simple(
+            orbit_id, organization_id
+        ):
+            raise NotFoundError("Orbit not found")
 
         has_org_permission = self.has_organization_permission(
             org_member_role, resource, action

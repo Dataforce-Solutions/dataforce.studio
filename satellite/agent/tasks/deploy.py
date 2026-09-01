@@ -1,14 +1,12 @@
 import asyncio
-import hashlib
 import logging
-from urllib.parse import urlparse
 from uuid import UUID
 
 from aiodocker.containers import DockerContainer
-from aiodocker.exceptions import DockerError
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
 from agent.clients import ModelServerClient
+from agent.handlers.container_launcher import launch_model_container
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
     Deployment,
@@ -16,6 +14,7 @@ from agent.schemas import (
     DeploymentUpdate,
     SatelliteQueueTask,
     SatelliteTaskStatus,
+    monitoring_url_for_deployment,
 )
 from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
@@ -31,11 +30,12 @@ class DeployTask(Task):
         self, container: DockerContainer, task_id: str, dep_id: str
     ) -> None:
         try:
-            logs = await container.log(stdout=True, stderr=True, follow=False, tail=80)
-            if isinstance(logs, list):
-                logs = "".join(logs)
-            elif not isinstance(logs, str):
-                logs = str(logs) if logs is not None else ""
+            logs_response = await container.log(stdout=True, stderr=True, follow=False, tail=80)
+            logs = (
+                "".join(logs_response)
+                if isinstance(logs_response, list)
+                else str(logs_response or "")
+            )
         except Exception:
             logs = ""
         error_message = ErrorMessage(reason="healthcheck timeout", error=str(logs)[-1000:])
@@ -44,19 +44,14 @@ class DeployTask(Task):
             dep_id, DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message)
         )
 
-    async def _get_deployment_artifacts(self, dep_id: str, task_id: str) -> tuple[Deployment, str]:
+    async def _get_deployment(self, dep_id: str, task_id: str) -> Deployment:
         try:
             deployment = await self.platform.get_deployment(UUID(dep_id))
             if not deployment:
                 raise ValueError("deployment not found")
-            presigned_url = await self.platform.get_artifact_download_url(
-                UUID(deployment.artifact_id)
-            )
-            return deployment, presigned_url
+            return deployment
         except Exception as e:
-            error_message = ErrorMessage(
-                reason="failed to get model artifact details", error=str(e)
-            )
+            error_message = ErrorMessage(reason="failed to get deployment details", error=str(e))
             await self.platform.update_task_status(
                 task_id, SatelliteTaskStatus.FAILED, error_message
             )
@@ -65,41 +60,6 @@ class DeployTask(Task):
                 DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
             raise
-
-    async def _get_secrets_env(self, secrets_payload: dict[str, str]) -> dict[str, str]:
-        secrets_env: dict[str, str] = {}
-        if isinstance(secrets_payload, dict):
-            for key, secret_id in secrets_payload.items():
-                try:
-                    secret = await self.platform.get_orbit_secret(UUID(secret_id))
-                    secrets_env[str(key)] = str(secret.get("value", ""))
-                except Exception:
-                    continue
-        return secrets_env
-
-    async def _get_container_env(
-        self, presigned_url: str, deployment: Deployment
-    ) -> dict[str, str]:
-        secrets_env = await self._get_secrets_env(deployment.env_variables_secrets)
-
-        env: dict[str, str] = {
-            "MODEL_ARTIFACT_URL": str(presigned_url),
-            "DEPLOYMENT_ID": str(deployment.id),
-            "MODEL_NAME": deployment.artifact_name,
-        }
-        for key, value in secrets_env.items():
-            env[key] = value
-
-        for key, value in deployment.env_variables.items():
-            env[key] = value
-
-        return env
-
-    @staticmethod
-    def _get_model_id_from_url(url: str) -> str:
-        parsed_url = urlparse(url)
-        url_path = parsed_url.path.split("?")[0]
-        return hashlib.md5(url_path.encode()).hexdigest()
 
     async def _handle_container_creation_error(
         self, task_id: str, dep_id: str, error_str: str
@@ -124,11 +84,12 @@ class DeployTask(Task):
         self, container: DockerContainer, task_id: str, dep_id: str, error_str: str
     ) -> None:
         try:
-            logs = await container.log(stdout=True, stderr=True, follow=False, tail=100)
-            if isinstance(logs, list):
-                logs = "".join(logs)
-            elif not isinstance(logs, str):
-                logs = str(logs) if logs is not None else ""
+            logs_response = await container.log(stdout=True, stderr=True, follow=False, tail=100)
+            logs = (
+                "".join(logs_response)
+                if isinstance(logs_response, list)
+                else str(logs_response or "")
+            )
         except Exception:
             logs = ""
 
@@ -147,7 +108,7 @@ class DeployTask(Task):
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 
         dep_id = (task.payload or {}).get("deployment_id")
-        if dep_id is None:
+        if not isinstance(dep_id, str):
             await self.platform.update_task_status(
                 task.id,
                 SatelliteTaskStatus.FAILED,
@@ -157,7 +118,7 @@ class DeployTask(Task):
             )
             return
         try:
-            dep, presigned_url = await self._get_deployment_artifacts(dep_id, task.id)
+            dep = await self._get_deployment(dep_id, task.id)
         except Exception:
             return
 
@@ -167,31 +128,35 @@ class DeployTask(Task):
         )
 
         try:
-            container = await self.docker.run_model_container(
-                image=config.MODEL_IMAGE,
-                name=f"sat-{dep_id}",
-                container_port=config.MODEL_SERVER_PORT,
-                labels={
-                    "df.deployment_id": dep_id,
-                    "df.model_id": self._get_model_id_from_url(presigned_url),
-                },
-                env=await self._get_container_env(presigned_url, dep),
-            )
-        except DockerError as e:
+            container = await launch_model_container(self.platform, self.docker, dep)
+        except Exception as e:
             await self._handle_container_creation_error(task.id, dep_id, str(e))
             return
 
         inference_url = f"/deployments/{dep_id}"
 
         health_ok = False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + int(health_check_timeout)
+        next_container_check = loop.time()
         async with ModelServerClient() as client:
-            for i in range(int(health_check_timeout)):
-                if i % 5 == 0:
+            while loop.time() < deadline:
+                if loop.time() >= next_container_check:
                     try:
                         await self.docker.check_container_running(dep_id)
                     except (ContainerNotFoundError, ContainerNotRunningError) as e:
                         await self._handle_deploying_error(container, task.id, dep_id, str(e))
                         return
+                    except Exception as error:  # noqa: BLE001 — Docker's silence is not a verdict
+                        # The container check only shortens the wait for a container that
+                        # died; whether the model is up is the health endpoint's call.
+                        # Failing here would leave the record pending with its container
+                        # running, which nothing reconciles.
+                        logger.warning(
+                            f"[deploy] could not inspect the container of '{dep_id}': "
+                            f"{error}; still waiting for it to answer"
+                        )
+                    next_container_check = loop.time() + 5
 
                 if await client.check_health_once(dep_id):
                     health_ok = True
@@ -207,12 +172,22 @@ class DeployTask(Task):
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
-            await self.platform.update_deployment(
+            activated = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(
-                    inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
+                    inference_url=inference_url,
+                    monitoring_url=monitoring_url_for_deployment(
+                        dep_id,
+                        dep.monitoring_mode,
+                        monitoring_capability_present=config.MONITORING_ENABLED,
+                    ),
+                    schemas=schemas,
+                    status=DeploymentStatus.ACTIVE,
+                    error_message=None,
                 ),
             )
+            # registered from the record as it was while pending; the header shows this one
+            ms_handler.note_platform_record(dep_id, activated)
             await self.platform.update_task_status(
                 task.id,
                 SatelliteTaskStatus.DONE,
@@ -224,7 +199,9 @@ class DeployTask(Task):
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
-            await self.platform.update_deployment(
+            failed = await self.platform.update_deployment(
                 dep_id,
                 DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
+            # the deployment may already be registered and showing `active`
+            ms_handler.note_platform_record(dep_id, failed)

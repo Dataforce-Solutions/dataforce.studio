@@ -2,8 +2,10 @@ from uuid import uuid4
 
 import pytest
 from luml.infra.exceptions import DatabaseConstraintError
+from luml.models import OrganizationOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import (
     BucketSecretUpdate,
     S3BucketSecret,
@@ -11,8 +13,17 @@ from luml.schemas.bucket_secrets import (
     S3BucketSecretOut,
 )
 from luml.schemas.orbit import OrbitCreateIn
+from luml.schemas.organization import OrganizationCreateIn
 
 from tests.conftest import OrganizationFixtureData
+
+
+async def _create_sibling_organization(
+    data: OrganizationFixtureData,
+) -> OrganizationOrm:
+    return await UserRepository(data.engine).create_organization(
+        data.user.id, OrganizationCreateIn(name="sibling org")
+    )
 
 
 @pytest.mark.asyncio
@@ -38,7 +49,7 @@ async def test_create_bucket_secret(
 
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    assert created_secret
+    assert isinstance(created_secret, S3BucketSecret)
     assert created_secret.id
     assert created_secret.endpoint == endpoint
     assert created_secret.bucket_name == secret_data.bucket_name
@@ -84,7 +95,9 @@ async def test_get_bucket_secret(
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
-    fetched_secret = await repo.get_bucket_secret(created_secret.id)
+    fetched_secret = await repo.get_bucket_secret(
+        created_secret.id, data.organization.id
+    )
 
     assert fetched_secret
     assert isinstance(fetched_secret, S3BucketSecret)
@@ -119,7 +132,9 @@ async def test_get_bucket_secret_details(
     )
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    details = await repo.get_bucket_secret_details(created_secret.id)
+    details = await repo.get_bucket_secret_details(
+        created_secret.id, data.organization.id
+    )
 
     assert details is not None
     assert isinstance(details, S3BucketSecretOut)
@@ -132,9 +147,10 @@ async def test_get_bucket_secret_details(
 async def test_get_bucket_secret_details_not_found(
     create_organization_with_user: OrganizationFixtureData,
 ) -> None:
-    repo = BucketSecretRepository(create_organization_with_user.engine)
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
 
-    details = await repo.get_bucket_secret_details(uuid4())
+    details = await repo.get_bucket_secret_details(uuid4(), data.organization.id)
 
     assert details is None
 
@@ -180,6 +196,7 @@ async def test_update_bucket_secret(
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
+    assert isinstance(created_secret, S3BucketSecret)
 
     new_bucket_name = "updated-bucket-name"
     new_region = "eu-west-1"
@@ -190,9 +207,9 @@ async def test_update_bucket_secret(
         endpoint=f"https://{endpoint}",
     )
 
-    updated_secret = await repo.update_bucket_secret(update_data)
+    updated_secret = await repo.update_bucket_secret(update_data, data.organization.id)
 
-    assert updated_secret
+    assert isinstance(updated_secret, S3BucketSecret)
     assert updated_secret.id == created_secret.id
     assert updated_secret.bucket_name == new_bucket_name
     assert updated_secret.region == new_region
@@ -221,7 +238,7 @@ async def test_update_bucket_secret_s3_credentials(
         session_token="new_session_token",
     )
 
-    updated_secret = await repo.update_bucket_secret(update_data)
+    updated_secret = await repo.update_bucket_secret(update_data, data.organization.id)
 
     assert updated_secret is not None
     assert updated_secret.id == created_secret.id
@@ -248,7 +265,7 @@ async def test_update_bucket_secret_strips_http_protocol(
         endpoint="https://s3.new-endpoint.com",
     )
 
-    updated_secret = await repo.update_bucket_secret(update_data)
+    updated_secret = await repo.update_bucket_secret(update_data, data.organization.id)
 
     assert updated_secret
     assert updated_secret.endpoint == "s3.new-endpoint.com"
@@ -267,7 +284,7 @@ async def test_update_bucket_secret_not_found(
         bucket_name="new-name",
     )
 
-    updated_secret = await repo.update_bucket_secret(update_data)
+    updated_secret = await repo.update_bucket_secret(update_data, data.organization.id)
 
     assert updated_secret is None
 
@@ -296,7 +313,7 @@ async def test_update_bucket_secret_duplicate_raises_error(
     )
 
     with pytest.raises(DatabaseConstraintError):
-        await repo.update_bucket_secret(update_data)
+        await repo.update_bucket_secret(update_data, data.organization.id)
 
 
 @pytest.mark.asyncio
@@ -315,7 +332,7 @@ async def test_delete_bucket_secret(
 
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    await repo.delete_bucket_secret(created_secret.id)
+    assert await repo.delete_bucket_secret(created_secret.id, data.organization.id)
 
     fetched_secret = await repo.get_bucket_secret(created_secret.id)
     assert fetched_secret is None
@@ -341,4 +358,79 @@ async def test_delete_bucket_secret_in_use_raises_error(
     await orbit_repo.create_orbit(data.organization.id, orbit_data)
 
     with pytest.raises(DatabaseConstraintError):
-        await secret_repo.delete_bucket_secret(created_secret.id)
+        await secret_repo.delete_bucket_secret(created_secret.id, data.organization.id)
+
+
+@pytest.mark.asyncio
+async def test_get_bucket_secret_from_another_organization(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+    other_organization = await _create_sibling_organization(data)
+
+    secret = data.bucket_secret
+
+    assert await repo.get_bucket_secret(secret.id, other_organization.id) is None
+    assert await repo.get_bucket_secret(secret.id, data.organization.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_get_bucket_secret_details_from_another_organization(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+    other_organization = await _create_sibling_organization(data)
+
+    secret = data.bucket_secret
+
+    assert (
+        await repo.get_bucket_secret_details(secret.id, other_organization.id) is None
+    )
+    assert (
+        await repo.get_bucket_secret_details(secret.id, data.organization.id)
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_bucket_secret_from_another_organization(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+    other_organization = await _create_sibling_organization(data)
+
+    secret = data.bucket_secret
+
+    result = await repo.update_bucket_secret(
+        BucketSecretUpdate(
+            id=secret.id,
+            endpoint="other.s3.com",
+            bucket_name="other-bucket",
+            access_key="other-access-key",
+        ),
+        other_organization.id,
+    )
+
+    assert result is None
+
+    untouched = await repo.get_bucket_secret(secret.id, data.organization.id)
+    assert untouched
+    assert untouched.endpoint == secret.endpoint
+    assert untouched.bucket_name == secret.bucket_name
+
+
+@pytest.mark.asyncio
+async def test_delete_bucket_secret_from_another_organization(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+    other_organization = await _create_sibling_organization(data)
+
+    secret = data.bucket_secret
+
+    assert await repo.delete_bucket_secret(secret.id, other_organization.id) is False
+    assert await repo.get_bucket_secret(secret.id, data.organization.id) is not None

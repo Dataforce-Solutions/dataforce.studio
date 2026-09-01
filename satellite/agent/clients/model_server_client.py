@@ -43,10 +43,12 @@ class ModelServerClient:
         self,
         deployment_id: str,
         body: dict,
+        *,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict:
         assert self._session is not None
         url = f"{self._url(deployment_id)}/compute"
-        response = await self._session.post(url, json=body)
+        response = await self._session.post(url, json=body, headers=extra_headers)
         if response.status_code >= 400:
             detail: str
             try:
@@ -108,4 +110,14 @@ class ModelServerClient:
                 return response.json()
         except Exception as error:
             logger.warning(f"Error getting manifest for {deployment_id}: {error}")
+        return None
+
+    async def get_reference_profile(self, deployment_id: str) -> dict | None:
+        assert self._session is not None
+        try:
+            response = await self._session.get(f"{self._url(deployment_id)}/reference_profile")
+            if response.status_code == 200:
+                return response.json()
+        except Exception as error:
+            logger.warning(f"Error getting reference profile for {deployment_id}: {error}")
         return None

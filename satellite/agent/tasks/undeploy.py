@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
@@ -18,7 +19,16 @@ class UndeployTask(Task):
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 
         payload = task.payload or {}
-        deployment_id = payload.get("deployment_id")
+        try:
+            deployment_id = UUID(str(payload["deployment_id"]))
+        except (KeyError, TypeError, ValueError):
+            await self.platform.update_task_status(
+                task.id,
+                SatelliteTaskStatus.FAILED,
+                ErrorMessage(reason="Invalid task payload.", error="Missing deployment_id."),
+            )
+            return
+        deployment_key = str(deployment_id)
 
         try:
             container_removed, model_id = await self.docker.remove_model_container(
@@ -33,7 +43,7 @@ class UndeployTask(Task):
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
             await self.platform.update_deployment(
-                deployment_id,
+                deployment_key,
                 DeploymentUpdate(
                     error_message=error_message, status=DeploymentStatus.DELETION_FAILED
                 ),
@@ -48,7 +58,7 @@ class UndeployTask(Task):
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
             await self.platform.update_deployment(
-                deployment_id,
+                deployment_key,
                 DeploymentUpdate(
                     error_message=error_message, status=DeploymentStatus.DELETION_FAILED
                 ),
@@ -57,13 +67,20 @@ class UndeployTask(Task):
 
         await ms_handler.remove_deployment(deployment_id)
 
-        # if model_id:
-        #     try:
-        #         await self.docker.cleanup_model_cache(model_id)
-        #     except Exception as error:
-        #         logger.error(
-        #             f"[UndeployTask] Failed to clean model '{model_id}' cache.\n{str(error)}"
-        #         )
+        if model_id:
+            try:
+                records = await self.platform.list_deployments()
+                if any(str(dep.get("artifact_id", "")) == model_id for dep in records):
+                    logger.info(
+                        f"[UndeployTask] Model '{model_id}' is still referenced by a "
+                        f"deployment; keeping its cache."
+                    )
+                else:
+                    await self.docker.cleanup_model_cache(model_id)
+            except Exception as error:
+                logger.error(
+                    f"[UndeployTask] Failed to clean model '{model_id}' cache.\n{str(error)}"
+                )
 
         await self.platform.update_task_status(
             task.id,

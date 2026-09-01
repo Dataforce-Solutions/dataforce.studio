@@ -8,7 +8,6 @@ from starlette.middleware.authentication import AuthenticationMiddleware
 
 from luml.api.auth import api_key_validate_router, auth_router
 from luml.api.bucket_secret_urls import bucket_secret_urls_router
-from luml.api.email_routes import email_routers
 from luml.api.organization.organization import organization_router
 from luml.api.organization_routes import organization_all_routers
 from luml.api.satellites import satellite_worker_router
@@ -24,7 +23,6 @@ class AppService(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, prefix="/v1")
-        self.include_router(router=email_routers, prefix="/v1")
         self.include_router(router=users_routers, prefix="/v1")
         self.include_router(router=organization_router, prefix="/v1")
         self.include_router(router=organization_all_routers, prefix="/v1")

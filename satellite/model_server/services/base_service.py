@@ -34,10 +34,10 @@ class UvicornBaseService:
         self,
         path: str,
         *,
-        summary: str = None,
-        description: str = None,
-        response_model: type = None,
-        tags: list = None,
+        summary: str | None = None,
+        description: str | None = None,
+        response_model: type[Any] | None = None,
+        tags: list[Any] | None = None,
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(
@@ -84,11 +84,11 @@ class UvicornBaseService:
         self,
         path: str,
         *,
-        summary: str = None,
-        description: str = None,
-        request_model: type = None,
-        response_model: type = None,
-        tags: list = None,
+        summary: str | None = None,
+        description: str | None = None,
+        request_model: type[Any] | None = None,
+        response_model: type[Any] | None = None,
+        tags: list[Any] | None = None,
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(
@@ -100,6 +100,8 @@ class UvicornBaseService:
                 try:
                     body = await service._read_body(receive)
                     request_data = json.loads(body) if body else {}
+
+                    headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
 
                     sig = inspect.signature(func)
                     param_names = list(sig.parameters.keys())
@@ -114,7 +116,9 @@ class UvicornBaseService:
                         else:
                             result = await func(service)
                     elif len(param_names) == 2:
-                        if "scope" in param_names and "request_data" in param_names:
+                        if "headers" in param_names and "request_data" in param_names:
+                            result = await func(headers=headers, request_data=request_data)
+                        elif "scope" in param_names and "request_data" in param_names:
                             result = await func(scope, request_data)
                         else:
                             result = await func(service, request_data)

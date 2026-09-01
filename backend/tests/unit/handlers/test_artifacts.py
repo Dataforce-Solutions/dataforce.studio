@@ -2127,7 +2127,9 @@ async def test_force_delete_artifact_without_deployments(
         id=orbit_id, organization_id=organization_id
     )
     mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
-    mock_get_artifact.return_value = Mock(id=artifact_id, deployments=None)
+    mock_get_artifact.return_value = Mock(
+        id=artifact_id, collection_id=collection_id, deployments=None
+    )
 
     await handler.force_delete_artifact(
         user_id, organization_id, orbit_id, collection_id, artifact_id
@@ -2189,7 +2191,9 @@ async def test_force_delete_artifact_with_deployments(
     )
     mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
     mock_get_artifact.return_value = Mock(
-        id=artifact_id, deployments=[Mock(id=deployment_id)]
+        id=artifact_id,
+        collection_id=collection_id,
+        deployments=[Mock(id=deployment_id)],
     )
 
     await handler.force_delete_artifact(
@@ -2215,12 +2219,17 @@ async def test_force_delete_artifact_with_deployments(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_satellite_artifact(
     mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
     mock_storage_client: Mock,
@@ -2252,6 +2261,7 @@ async def test_get_satellite_artifact(
     )
 
     mock_get_artifact.return_value = artifact
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
     mock_get_orbit_by_id.return_value = Mock(
         id=orbit_id, bucket_secret_id=test_bucket.id
     )
@@ -2268,6 +2278,7 @@ async def test_get_satellite_artifact(
     assert result.artifact == artifact
     assert result.url == expected_url
     mock_get_artifact.assert_awaited_once_with(artifact_id)
+    mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
     mock_get_bucket_secret.assert_awaited_once_with(test_bucket.id)
     mock_storage_instance.get_download_url.assert_awaited_once_with(bucket_location)
@@ -2298,18 +2309,25 @@ async def test_get_satellite_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_satellite_artifact_orbit_not_found(
     mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
 ) -> None:
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
 
-    mock_get_artifact.return_value = Mock(id=artifact_id)
+    mock_get_artifact.return_value = Mock(id=artifact_id, collection_id=collection_id)
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
     mock_get_orbit_by_id.return_value = None
 
     with pytest.raises(OrbitNotFoundError) as error:
@@ -2664,6 +2682,30 @@ _ORBIT = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 _USER = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
 _COLLECTION = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
 _ARTIFACT = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+# Collection and orbit of another tenant, addressable only by guessing their UUID.
+_FOREIGN_COLLECTION = UUID("0199c337-09f5-7c3d-8a11-4e2b9d7c6f01")
+_FOREIGN_ORBIT = UUID("0199c337-09f6-7b8e-9c22-5f3c8e6d7a02")
+
+
+def _make_artifact(manifest: Manifest, collection_id: UUID) -> Artifact:
+    return Artifact(
+        id=_ARTIFACT,
+        collection_id=collection_id,
+        file_name="foreign.luml",
+        name="foreign",
+        extra_values={},
+        manifest=manifest,
+        file_hash="hash",
+        file_index={},
+        bucket_location="foreign/loc",
+        size=1,
+        unique_identifier="uid",
+        tags=None,
+        status=ArtifactStatus.UPLOADED,
+        created_at=datetime.now(),
+        updated_at=None,
+        type=ArtifactType.MODEL,
+    )
 
 
 @patch(
@@ -2690,7 +2732,7 @@ async def test_request_delete_url_blocked_by_tracks(
     mock_perms: AsyncMock,
 ) -> None:
     mock_check_access.return_value = None
-    mock_get_details.return_value = Mock(deployments=None)
+    mock_get_details.return_value = Mock(collection_id=_COLLECTION, deployments=None)
     mock_has_entries.return_value = True
 
     with pytest.raises(
@@ -2698,3 +2740,307 @@ async def test_request_delete_url_blocked_by_tracks(
     ) as exc:
         await handler.request_delete_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
     assert exc.value.status_code == 409
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_download_url_rejects_artifact_from_another_collection(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+) -> None:
+    mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
+    mock_get_artifact.return_value = Mock(
+        id=_ARTIFACT, collection_id=_FOREIGN_COLLECTION, bucket_location="foreign/loc"
+    )
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.request_download_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
+
+    assert error.value.status_code == 404
+    mock_get_storage_client.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.update_status",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_rejects_artifact_from_another_collection(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_details: AsyncMock,
+    mock_has_entries: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+    mock_update_status: AsyncMock,
+) -> None:
+    mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
+    mock_get_orbit_simple.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
+    mock_get_details.return_value = Mock(
+        id=_ARTIFACT,
+        collection_id=_FOREIGN_COLLECTION,
+        bucket_location="foreign/loc",
+        deployments=None,
+    )
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.request_delete_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
+
+    assert error.value.status_code == 404
+    mock_get_storage_client.assert_not_awaited()
+    mock_update_status.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.update_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_artifact_rejects_artifact_from_another_collection(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_update_artifact: AsyncMock,
+) -> None:
+    mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
+    mock_get_artifact.return_value = Mock(
+        id=_ARTIFACT,
+        collection_id=_FOREIGN_COLLECTION,
+        status=ArtifactStatus.UPLOADED,
+    )
+
+    # UPLOADED -> UPLOADED is an illegal transition, so an unscoped read would
+    # answer 400 and confirm the foreign artifact's status.
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.update_artifact(
+            _USER,
+            _ORG,
+            _ORBIT,
+            _COLLECTION,
+            _ARTIFACT,
+            ArtifactUpdateIn(status=ArtifactStatus.UPLOADED),
+        )
+
+    assert error.value.status_code == 404
+    mock_update_artifact.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_artifact_deletion_checks_rejects_artifact_from_another_collection(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_details: AsyncMock,
+    mock_has_entries: AsyncMock,
+) -> None:
+    mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
+    mock_get_details.return_value = Mock(
+        id=_ARTIFACT, collection_id=_FOREIGN_COLLECTION, deployments=None
+    )
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler._artifact_deletion_checks(
+            _USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT
+        )
+
+    assert error.value.status_code == 404
+    mock_has_entries.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.delete_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.DeploymentRepository.delete_deployments_by_artifact_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_artifact_rejects_artifact_from_another_collection(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_details: AsyncMock,
+    mock_has_entries: AsyncMock,
+    mock_delete_deployments: AsyncMock,
+    mock_delete_artifact: AsyncMock,
+) -> None:
+    mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
+    mock_get_details.return_value = Mock(
+        id=_ARTIFACT,
+        collection_id=_FOREIGN_COLLECTION,
+        deployments=[Mock(id=uuid7())],
+    )
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.force_delete_artifact(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
+
+    assert error.value.status_code == 404
+    mock_delete_deployments.assert_not_awaited()
+    mock_delete_artifact.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_artifact_rejects_artifact_outside_orbit(
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    mock_get_artifact.return_value = _make_artifact(
+        manifest_example, _FOREIGN_COLLECTION
+    )
+    mock_get_collection.return_value = Mock(
+        id=_FOREIGN_COLLECTION, orbit_id=_FOREIGN_ORBIT
+    )
+    mock_get_orbit_by_id.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
+    mock_get_storage_client.return_value.get_download_url.return_value = "url"
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.get_satellite_artifact(_ORBIT, _ARTIFACT)
+
+    assert error.value.status_code == 404
+    mock_get_collection.assert_awaited_once_with(_FOREIGN_COLLECTION)
+    mock_get_orbit_by_id.assert_not_awaited()
+    mock_get_storage_client.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_artifact_collection_not_found(
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    mock_get_artifact.return_value = _make_artifact(
+        manifest_example, _FOREIGN_COLLECTION
+    )
+    mock_get_collection.return_value = None
+    mock_get_orbit_by_id.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
+    mock_get_storage_client.return_value.get_download_url.return_value = "url"
+
+    with pytest.raises(ArtifactNotFoundError) as error:
+        await handler.get_satellite_artifact(_ORBIT, _ARTIFACT)
+
+    assert error.value.status_code == 404
+    mock_get_storage_client.assert_not_awaited()

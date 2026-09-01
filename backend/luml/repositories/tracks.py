@@ -62,6 +62,7 @@ class TrackRepository(RepositoryBase, CrudMixin):
         pagination: PaginationParams,
         search: str | None = None,
         types: list[str] | None = None,
+        tags: list[str] | None = None,
     ) -> tuple[list[Track], Cursor | None]:
         async with self._get_session() as session:
             conditions = [TrackOrm.orbit_id == orbit_id]
@@ -78,6 +79,9 @@ class TrackRepository(RepositoryBase, CrudMixin):
             if types:
                 conditions.append(or_(*[TrackOrm.artifact_type == t for t in types]))
 
+            if tags:
+                conditions.append(or_(*[TrackOrm.tags.contains([tag]) for tag in tags]))
+
             result = await self.get_models_with_pagination(
                 session,
                 TrackOrm,
@@ -91,6 +95,15 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 else self._get_cursor_from_record(db_tracks[-1], pagination)
             )
             return [Track.model_validate(t) for t in db_tracks], cursor
+
+    async def get_orbit_tracks_tags(self, orbit_id: UUID) -> list[str]:
+        async with self._get_session() as session:
+            tags_query = select(TrackOrm.tags).where(
+                TrackOrm.orbit_id == orbit_id,
+                TrackOrm.tags.is_not(None),
+            )
+            tags_query_result = await session.execute(tags_query)
+            return self.collect_unique_values_from_array_column(tags_query_result.all())
 
     async def update_track(
         self,

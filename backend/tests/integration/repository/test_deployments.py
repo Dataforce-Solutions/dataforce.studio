@@ -1,19 +1,59 @@
 import uuid
 
 import pytest
+from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbits import OrbitRepository
+from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import (
+    Deployment,
     DeploymentCreate,
     DeploymentDetailsUpdate,
     DeploymentStatus,
     DeploymentUpdate,
+    MonitoringMode,
 )
+from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.satellite import (
+    Satellite,
+    SatelliteCreate,
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
 
 from tests.conftest import SatelliteFixtureData
+
+
+async def _create_sibling_orbit(data: SatelliteFixtureData) -> OrbitDetails:
+    orbit = await OrbitRepository(data.engine).create_orbit(
+        data.organization.id,
+        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
+    )
+    assert orbit is not None
+    return orbit
+
+
+async def _create_satellite_in(
+    data: SatelliteFixtureData, orbit: OrbitDetails
+) -> Satellite:
+    return await SatelliteRepository(data.engine).create_satellite(
+        SatelliteCreate(
+            orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="sibling satellite"
+        )
+    )
+
+
+async def _create_deployment(data: SatelliteFixtureData) -> Deployment:
+    deployment, _ = await DeploymentRepository(data.engine).create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.DELETION_PENDING,
+        )
+    )
+    return deployment
 
 
 @pytest.mark.asyncio
@@ -74,7 +114,7 @@ async def test_get_deployment(create_satellite: SatelliteFixtureData) -> None:
     )
     deployment, _ = await repo.create_deployment(deployment_data)
 
-    fetched_deployment = await repo.get_deployment(deployment.id)
+    fetched_deployment = await repo.get_deployment(deployment.id, orbit.id)
 
     assert fetched_deployment
     assert fetched_deployment.id == deployment.id
@@ -193,6 +233,191 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
 
 
 @pytest.mark.asyncio
+async def test_partial_deployment_update_preserves_omitted_fields_and_clears_null(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="monitored-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+    inference_url = f"https://inference-{uuid.uuid4()}.example/api"
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            inference_url=inference_url,
+            status=DeploymentStatus.ACTIVE,
+        ),
+    )
+
+    monitored = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            monitoring_url=f"/deployments/{created.id}/monitoring",
+        ),
+    )
+
+    assert monitored is not None
+    assert monitored.monitoring_url == f"/deployments/{created.id}/monitoring"
+    assert monitored.inference_url == inference_url
+    assert monitored.status == DeploymentStatus.ACTIVE
+
+    cleared = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, monitoring_url=None),
+    )
+
+    assert cleared is not None
+    assert cleared.monitoring_url is None
+    assert cleared.inference_url == inference_url
+    assert cleared.status == DeploymentStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_with_only_status_set_keeps_the_rest(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """A status-only update must not erase routing metadata.
+
+    Reconciliation on the Satellite flips deployment statuses without resending
+    inference_url, schemas or tags; only the fields actually marked as set may reach
+    the row, or every such flip would strip an active deployment of its routing.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            tags=["routed"],
+        )
+    )
+    inference_url = f"https://test-inference{uuid.uuid4()}.com/api"
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            inference_url=inference_url,
+            schemas={"openapi": "3.0.0"},
+            status=DeploymentStatus.ACTIVE,
+        ),
+    )
+
+    updated = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, status=DeploymentStatus.NOT_RESPONDING),
+    )
+
+    assert updated
+    assert updated.status == DeploymentStatus.NOT_RESPONDING
+    assert updated.inference_url == inference_url
+    assert updated.schemas == {"openapi": "3.0.0"}
+    assert updated.tags == ["routed"]
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_cannot_pull_a_deployment_out_of_deletion(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """A stale worker write must not cancel a deletion in progress.
+
+    Satellite recovery can wait half an hour before promoting a deployment to active;
+    a deletion requested during that wait must win, or the undeploy task removes the
+    container and then finds a status it refuses to delete.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+    await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(id=created.id, status=DeploymentStatus.DELETION_PENDING),
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=DeploymentStatus.ACTIVE),
+        )
+
+    # writes within the deletion family still land: the undeploy task reports
+    # its failure
+    updated = await repo.update_deployment(
+        created.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=created.id,
+            status=DeploymentStatus.DELETION_FAILED,
+            error_message={"reason": "x", "error": "y"},
+        ),
+    )
+    assert updated
+    assert updated.status == DeploymentStatus.DELETION_FAILED
+
+
+@pytest.mark.asyncio
+async def test_update_deployment_rejects_an_explicit_null_status(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    """An explicit null is not "leave it alone" — and must not become a 500.
+
+    The status column is NOT NULL; without the guard an explicit null sailed past
+    the deletion check and blew up as an IntegrityError inside the locked
+    transaction.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await repo.update_deployment(
+            created.id,
+            data.satellite.id,
+            DeploymentUpdate(id=created.id, status=None),
+        )
+
+    unchanged = await repo.get_deployment(created.id, data.orbit.id)
+    assert unchanged
+    assert unchanged.status == DeploymentStatus.PENDING
+
+
+@pytest.mark.asyncio
 async def test_update_deployment_details(
     create_satellite: SatelliteFixtureData,
 ) -> None:
@@ -234,6 +459,80 @@ async def test_update_deployment_details(
     assert updated.dynamic_attributes_secrets == details.dynamic_attributes_secrets
     assert updated.tags == details.tags
     assert updated.collection_id == model.collection_id
+
+
+@pytest.mark.asyncio
+async def test_update_monitoring_mode_enqueues_reconcile(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    engine, orbit, model, satellite = (
+        data.engine,
+        data.orbit,
+        data.model,
+        data.satellite,
+    )
+    repo = DeploymentRepository(engine)
+    sat_repo = SatelliteRepository(engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=orbit.id,
+            satellite_id=satellite.id,
+            artifact_id=model.id,
+            monitoring_mode=MonitoringMode.OFF,
+        )
+    )
+
+    updated = await repo.update_deployment_details(
+        orbit.id,
+        created.id,
+        DeploymentDetailsUpdate(monitoring_mode=MonitoringMode.FULL),
+    )
+
+    assert updated is not None
+    assert updated.monitoring_mode == MonitoringMode.FULL
+
+    tasks = await sat_repo.list_tasks(satellite.id)
+    reconcile_tasks = [t for t in tasks if t.type == SatelliteTaskType.RECONCILE]
+    assert len(reconcile_tasks) == 1
+    assert reconcile_tasks[0].payload["deployment_id"] == str(created.id)
+
+
+@pytest.mark.asyncio
+async def test_update_details_without_mode_change_no_reconcile(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    engine, orbit, model, satellite = (
+        data.engine,
+        data.orbit,
+        data.model,
+        data.satellite,
+    )
+    repo = DeploymentRepository(engine)
+    sat_repo = SatelliteRepository(engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=orbit.id,
+            satellite_id=satellite.id,
+            artifact_id=model.id,
+            monitoring_mode=MonitoringMode.FULL,
+        )
+    )
+
+    # Same mode + unrelated field change must not enqueue a reconcile task.
+    await repo.update_deployment_details(
+        orbit.id,
+        created.id,
+        DeploymentDetailsUpdate(description="new", monitoring_mode=MonitoringMode.FULL),
+    )
+
+    tasks = await sat_repo.list_tasks(satellite.id)
+    assert [t for t in tasks if t.type == SatelliteTaskType.RECONCILE] == []
 
 
 @pytest.mark.asyncio
@@ -305,3 +604,54 @@ async def test_enqueue_undeploy_task(create_satellite: SatelliteFixtureData) -> 
     duplicate_task = await repo.enqueue_undeploy_task(deployment.id)
     assert duplicate_task is not None
     assert duplicate_task.id == task.id
+
+
+@pytest.mark.asyncio
+async def test_get_deployment_from_another_orbit(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    assert await repo.get_deployment(deployment.id, sibling_orbit.id) is None
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_deployment_from_another_orbit(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    sibling_orbit = await _create_sibling_orbit(data)
+
+    await repo.delete_deployment(deployment.id, sibling_orbit.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+    await repo.delete_deployment(deployment.id, data.orbit.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_satellite_deployment_from_another_satellite(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment = await _create_deployment(data)
+    foreign_satellite = await _create_satellite_in(
+        data, await _create_sibling_orbit(data)
+    )
+
+    await repo.delete_satellite_deployment(deployment.id, foreign_satellite.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
+
+    await repo.delete_satellite_deployment(deployment.id, data.satellite.id)
+
+    assert await repo.get_deployment(deployment.id, data.orbit.id) is None

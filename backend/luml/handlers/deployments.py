@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from fastapi import status
+
 from luml.handlers.api_keys import APIKeyHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
@@ -15,6 +17,7 @@ from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.artifacts import Artifact
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -24,9 +27,16 @@ from luml.schemas.deployment import (
     DeploymentStatus,
     DeploymentUpdate,
     DeploymentUpdateIn,
+    MonitoringMode,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.schemas.satellite import SatelliteQueueTask
+from luml.schemas.satellite import (
+    DEPLOY_CAPABILITY,
+    MONITORING_CAPABILITY,
+    DeployCapabilityV1,
+    Satellite,
+    SatelliteQueueTask,
+)
 
 
 class DeploymentHandler:
@@ -45,6 +55,50 @@ class DeploymentHandler:
         dynamic_attributes: dict[str, UUID],
     ) -> dict[str, str]:
         return {k: str(v) for k, v in (dynamic_attributes or {}).items()}
+
+    @staticmethod
+    def _require_present_capability(
+        satellite: Satellite,
+        capability: str,
+    ) -> None:
+        if capability not in satellite.present_capabilities:
+            raise ApplicationError(
+                f"Satellite does not have a present '{capability}' capability",
+                status.HTTP_409_CONFLICT,
+            )
+
+    @classmethod
+    def _validate_create_capabilities(
+        cls,
+        satellite: Satellite,
+        artifact: Artifact,
+        monitoring_mode: MonitoringMode,
+    ) -> None:
+        cls._require_present_capability(satellite, DEPLOY_CAPABILITY)
+        deploy = DeployCapabilityV1.model_validate(
+            satellite.capabilities[DEPLOY_CAPABILITY]
+        )
+        if artifact.manifest.variant not in deploy.supported_variants:
+            raise ApplicationError(
+                f"Artifact variant '{artifact.manifest.variant}' is not in deploy "
+                "supported_variants",
+                status.HTTP_409_CONFLICT,
+            )
+
+        tag_combinations = deploy.supported_tags_combinations
+        producer_tags = set(artifact.manifest.producer_tags)
+        if tag_combinations is not None and not any(
+            all(tag in producer_tags for tag in combination)
+            for combination in tag_combinations
+        ):
+            raise ApplicationError(
+                "Artifact producer tags do not satisfy deploy "
+                "supported_tags_combinations",
+                status.HTTP_409_CONFLICT,
+            )
+
+        if monitoring_mode != MonitoringMode.OFF:
+            cls._require_present_capability(satellite, MONITORING_CAPABILITY)
 
     async def create_deployment(
         self,
@@ -81,12 +135,19 @@ class DeploymentHandler:
         if not user:
             raise NotFoundError("User not found")
 
+        self._validate_create_capabilities(
+            satellite,
+            artifact,
+            data.monitoring_mode,
+        )
+
         deployment, _ = await self.__repo.create_deployment(
             DeploymentCreate(
                 orbit_id=orbit_id,
                 satellite_id=data.satellite_id,
                 artifact_id=data.artifact_id,
                 name=data.name,
+                monitoring_mode=data.monitoring_mode,
                 satellite_parameters=data.satellite_parameters,
                 description=data.description,
                 dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(
@@ -168,12 +229,12 @@ class DeploymentHandler:
             Action.DELETE,
             orbit_id,
         )
-        dep = await self.__repo.get_deployment(deployment_id)
+        dep = await self.__repo.get_deployment(deployment_id, orbit_id)
 
         if not dep:
             raise NotFoundError("Deployment not found")
 
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_deployment(deployment_id, orbit_id)
 
     async def list_worker_deployments(self, satellite_id: UUID) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
@@ -194,13 +255,8 @@ class DeploymentHandler:
         deployment_id: UUID,
         data: DeploymentUpdateIn,
     ) -> Deployment:
-        update_data = DeploymentUpdate(
-            id=deployment_id,
-            inference_url=data.inference_url,
-            status=data.status,
-            schemas=data.schemas,
-            error_message=data.error_message,
-            tags=data.tags,
+        update_data = DeploymentUpdate.model_validate(
+            {"id": deployment_id, **data.model_dump(exclude_unset=True)}
         )
         deployment = await self.__repo.update_deployment(
             deployment_id,
@@ -211,8 +267,12 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return deployment
 
-    async def delete_worker_deployment(self, deployment_id: UUID) -> None:
-        deployment = await self.__repo.get_deployment(deployment_id)
+    async def delete_worker_deployment(
+        self, satellite_id: UUID, deployment_id: UUID
+    ) -> None:
+        deployment = await self.__repo.get_satellite_deployment(
+            deployment_id, satellite_id
+        )
         if not deployment:
             raise NotFoundError("Deployment not found")
         if deployment.status != DeploymentStatus.DELETION_PENDING:
@@ -220,7 +280,9 @@ class DeploymentHandler:
                 "Incorrect deployment status. Request deployment deletion first.",
                 409,
             )
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_satellite_deployment(
+            deployment_id, satellite_id
+        )
 
     async def update_deployment_details(
         self,
@@ -237,6 +299,22 @@ class DeploymentHandler:
             Action.UPDATE,
             orbit_id,
         )
+        if (
+            data.monitoring_mode is not None
+            and data.monitoring_mode != MonitoringMode.OFF
+        ):
+            deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
+            if not deployment:
+                raise NotFoundError("Deployment not found")
+            if data.monitoring_mode != deployment.monitoring_mode:
+                satellite = await self.__sat_repo.get_satellite(deployment.satellite_id)
+                if not satellite:
+                    raise NotFoundError("Satellite not found")
+                self._require_present_capability(
+                    satellite,
+                    MONITORING_CAPABILITY,
+                )
+
         updated = await self.__repo.update_deployment_details(
             orbit_id,
             deployment_id,

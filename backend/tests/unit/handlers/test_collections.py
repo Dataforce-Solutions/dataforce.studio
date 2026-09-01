@@ -316,7 +316,7 @@ async def test_update_collection(
         name=data_in.name,
         tags=data_in.tags,
     )
-    mock_update.assert_awaited_once_with(collection_id, expected_update)
+    mock_update.assert_awaited_once_with(collection_id, orbit_id, expected_update)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,
@@ -365,7 +365,7 @@ async def test_update_collection_not_found(
         name=data_in.name,
         tags=data_in.tags,
     )
-    mock_update.assert_awaited_once_with(collection_id, expected_update)
+    mock_update.assert_awaited_once_with(collection_id, orbit_id, expected_update)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,
@@ -469,7 +469,7 @@ async def test_delete_collection_empty(
 
     await handler.delete_collection(user_id, organization_id, orbit_id, collection_id)
 
-    mock_delete.assert_awaited_once_with(collection_id)
+    mock_delete.assert_awaited_once_with(collection_id, orbit_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,
@@ -719,6 +719,7 @@ async def test_get_orbit_collections_success(
         ),
         search=None,
         types=None,
+        tags=None,
     )
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
@@ -727,6 +728,77 @@ async def test_get_orbit_collections_success(
         Action.LIST,
         orbit_id,
     )
+
+
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_tags_success(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+    mock_get_tags.return_value = ["prod", "staging"]
+
+    result = await handler.get_orbit_collections_tags(
+        user_id, organization_id, orbit_id
+    )
+
+    assert result == ["prod", "staging"]
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_get_tags.assert_awaited_once_with(orbit_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.LIST,
+        orbit_id,
+    )
+
+
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections_tags",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_tags_orbit_not_found(
+    mock_get_tags: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_get_orbit_simple.return_value = None
+
+    with pytest.raises(NotFoundError, match="Orbit not found"):
+        await handler.get_orbit_collections_tags(user_id, organization_id, orbit_id)
+
+    mock_get_tags.assert_not_called()
 
 
 def test_validate_cursor_matching() -> None:
@@ -836,3 +908,136 @@ async def test_get_collection_details_not_found(
         organization_id, user_id, Resource.COLLECTION, Action.READ, orbit_id
     )
     mock_get_collection.assert_awaited_once_with(collection_id)
+
+
+USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+OTHER_ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+OTHER_ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+OWNER_ORBIT_ID = UUID("0199c337-0aa1-7c33-8f6c-2c6d0a4e91be")
+OWNER_COLLECTION_ID = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+
+def _owner_collection() -> Collection:
+    return Collection(
+        id=OWNER_COLLECTION_ID,
+        orbit_id=OWNER_ORBIT_ID,
+        description="owner description",
+        name="owner-collection",
+        type=CollectionType.MODEL,
+        tags=["owner"],
+        total_artifacts=0,
+        created_at=datetime(2026, 1, 1),
+        updated_at=None,
+    )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.update_collection",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_collection_from_foreign_orbit(
+    mock_update: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    stored = {OWNER_COLLECTION_ID: _owner_collection()}
+
+    async def scoped_update(
+        collection_id: UUID, orbit_id: UUID, update: CollectionUpdate
+    ) -> Collection | None:
+        collection = stored.get(collection_id)
+        if not collection or collection.orbit_id != orbit_id:
+            return None
+        stored[collection_id] = collection.model_copy(
+            update=update.model_dump(exclude_unset=True, exclude={"id"})
+        )
+        return stored[collection_id]
+
+    mock_update.side_effect = scoped_update
+    mock_get_orbit_simple.return_value = Mock(organization_id=OTHER_ORGANIZATION_ID)
+
+    with pytest.raises(NotFoundError, match="Collection not found") as error:
+        await handler.update_collection(
+            USER_ID,
+            OTHER_ORGANIZATION_ID,
+            OTHER_ORBIT_ID,
+            OWNER_COLLECTION_ID,
+            CollectionUpdateIn(name="renamed"),
+        )
+
+    assert error.value.status_code == 404
+    assert stored[OWNER_COLLECTION_ID] == _owner_collection()
+    mock_update.assert_awaited_once_with(
+        OWNER_COLLECTION_ID,
+        OTHER_ORBIT_ID,
+        CollectionUpdate(
+            id=OWNER_COLLECTION_ID, description=None, name="renamed", tags=None
+        ),
+    )
+    mock_check_permissions.assert_awaited_once_with(
+        OTHER_ORGANIZATION_ID,
+        USER_ID,
+        Resource.COLLECTION,
+        Action.UPDATE,
+        OTHER_ORBIT_ID,
+    )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.delete_collection",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_collection_from_foreign_orbit(
+    mock_delete: AsyncMock,
+    mock_get_count: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    mock_get_collection.return_value = _owner_collection()
+    mock_get_orbit_simple.return_value = Mock(organization_id=OTHER_ORGANIZATION_ID)
+    # A non-zero count would surface as CollectionDeleteError if the orbit check ran
+    # after it, confirming to the caller that the foreign collection exists.
+    mock_get_count.return_value = 5
+
+    with pytest.raises(NotFoundError, match="Collection not found") as error:
+        await handler.delete_collection(
+            USER_ID, OTHER_ORGANIZATION_ID, OTHER_ORBIT_ID, OWNER_COLLECTION_ID
+        )
+
+    assert error.value.status_code == 404
+    mock_get_count.assert_not_awaited()
+    mock_delete.assert_not_awaited()
+    mock_check_permissions.assert_awaited_once_with(
+        OTHER_ORGANIZATION_ID,
+        USER_ID,
+        Resource.COLLECTION,
+        Action.DELETE,
+        OTHER_ORBIT_ID,
+    )

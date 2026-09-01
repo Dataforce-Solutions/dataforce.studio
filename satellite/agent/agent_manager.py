@@ -1,29 +1,77 @@
 from typing import Any
 
+from fastapi import FastAPI
+
+from agent.agent_api import OpenAPISchemaBuilder
 from agent.clients import PlatformClient
+from agent.monitoring import MetricRegistry, default_registry
 from agent.settings import config
+
+_UNIVERSAL_MONITORING_FEATURES = ["runtime", "traces", "alerts"]
+_PROFILE_FEATURE_BY_METRIC = (
+    ("data_quality", "data_quality"),
+    ("feature_drift", "feature_drift"),
+    ("output_drift", "output_drift"),
+    ("multivariate", "multivariate_drift"),
+)
 
 
 class SatelliteManager:
-    def __init__(self, platform: PlatformClient) -> None:
+    def __init__(
+        self,
+        platform: PlatformClient,
+        app: FastAPI,
+        monitoring_registry: MetricRegistry,
+    ) -> None:
         self.platform = platform
-        self.slug = "docker-2026.01-v1-debian12"
+        self.app = app
+        self.monitoring_registry = monitoring_registry
+        self.slug = "docker-2026.01-v2-debian12"
 
     async def pair(self) -> None:
+        capabilities = self.get_capabilities(self.monitoring_registry)
+        facets = {facet for declaration in capabilities.values() for facet in declaration["facets"]}
+        openapi = OpenAPISchemaBuilder.generate_static_schema(self.app, facets)
         await self.platform.pair_satellite(
-            config.BASE_URL.rstrip("/"), self.get_capabilities(), self.slug
+            base_url=config.BASE_URL.rstrip("/"),
+            capabilities=capabilities,
+            slug=self.slug,
+            openapi=openapi,
         )
 
     @staticmethod
-    def get_capabilities() -> dict[str, Any]:
-        return {
+    def get_capabilities(
+        monitoring_registry: MetricRegistry | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        capabilities: dict[str, dict[str, Any]] = {
             "deploy": {
                 "version": 1,
+                "api_versions": [1],
+                "facets": ["satellite", "deployment"],
                 "supported_variants": ["pyfunc", "pipeline"],
                 "supported_tags_combinations": None,
-                "extra_fields_form_spec": None,
+                "extra_fields_form_spec": [],
             }
         }
+        if not config.MONITORING_ENABLED:
+            return capabilities
+
+        registry = monitoring_registry or default_registry(
+            latency_p95_threshold_ms=config.MONITORING_LATENCY_P95_THRESHOLD_MS
+        )
+        registered_metrics = {metric.metric for metric in registry.metrics()}
+        profile_features = [
+            feature
+            for metric, feature in _PROFILE_FEATURE_BY_METRIC
+            if metric in registered_metrics
+        ]
+        capabilities["monitoring"] = {
+            "version": 1,
+            "api_versions": [1],
+            "facets": ["deployment:monitoring"],
+            "features": [*_UNIVERSAL_MONITORING_FEATURES, *profile_features],
+        }
+        return capabilities
 
     @staticmethod
     def _generate_form_spec() -> list[dict[str, Any]]:

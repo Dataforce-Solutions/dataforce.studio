@@ -95,11 +95,6 @@ export interface IResetPasswordRequest {
   new_password: string
 }
 
-export interface ISendEmailRequest {
-  email: string
-  description: string
-}
-
 export interface Organization {
   id: string
   name: string

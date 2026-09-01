@@ -134,7 +134,7 @@ class ArtifactHandler:
 
         artifact = await self.__repository.get_artifact_details(artifact_id)
 
-        if not artifact:
+        if not artifact or artifact.collection_id != collection_id:
             raise ArtifactNotFoundError()
 
         if await self.__track_entry_repository.has_entries_for_artifact(artifact_id):
@@ -291,7 +291,7 @@ class ArtifactHandler:
 
         artifact_obj = await self.__repository.get_artifact(artifact_id)
 
-        if not artifact_obj:
+        if not artifact_obj or artifact_obj.collection_id != collection_id:
             raise ArtifactNotFoundError()
 
         if artifact.status and artifact.status not in self.__artifact_transitions.get(
@@ -335,7 +335,7 @@ class ArtifactHandler:
             organization_id, orbit_id, collection_id
         )
         artifact = await self.__repository.get_artifact(artifact_id)
-        if not artifact:
+        if not artifact or artifact.collection_id != collection_id:
             raise ArtifactNotFoundError()
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
@@ -360,7 +360,7 @@ class ArtifactHandler:
             organization_id, orbit_id, collection_id
         )
         artifact = await self.__repository.get_artifact_details(artifact_id)
-        if not artifact:
+        if not artifact or artifact.collection_id != collection_id:
             raise ArtifactNotFoundError()
 
         if artifact.deployments:
@@ -549,6 +549,12 @@ class ArtifactHandler:
     ) -> SatelliteArtifactResponse:
         artifact = await self.__repository.get_artifact(artifact_id)
         if not artifact:
+            raise ArtifactNotFoundError()
+
+        collection = await self.__collection_repository.get_collection(
+            artifact.collection_id
+        )
+        if not collection or collection.orbit_id != orbit_id:
             raise ArtifactNotFoundError()
 
         orbit = await self.__orbit_repository.get_orbit_by_id(orbit_id)

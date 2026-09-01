@@ -1,6 +1,8 @@
 from agent.schemas.deployments import (
+    ArtifactDownload,
     Deployment,
     DeploymentInfo,
+    DeploymentMetadata,
     DeploymentStatus,
     DeploymentUpdate,
     Healthz,
@@ -8,6 +10,9 @@ from agent.schemas.deployments import (
     InferenceAccessOut,
     LocalDeployment,
     Secret,
+    gate_reference_profile,
+    monitoring_url_for_deployment,
+    usable_reference_profile,
 )
 from agent.schemas.task import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 
@@ -19,9 +24,14 @@ __all__ = [
     "DeploymentStatus",
     "DeploymentUpdate",
     "Secret",
+    "DeploymentMetadata",
     "LocalDeployment",
     "DeploymentInfo",
     "InferenceAccessIn",
     "InferenceAccessOut",
+    "ArtifactDownload",
     "Healthz",
+    "gate_reference_profile",
+    "monitoring_url_for_deployment",
+    "usable_reference_profile",
 ]

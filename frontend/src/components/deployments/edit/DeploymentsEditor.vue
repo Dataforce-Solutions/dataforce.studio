@@ -28,6 +28,38 @@
         :showTitle="false"
         class="base-settings"
       ></DeploymentsFormBasicsSettings>
+      <div v-if="showMonitoringField" class="monitoring-field">
+        <div class="monitoring-header">
+          <label class="label">Live monitoring</label>
+          <ToggleSwitch
+            v-model="initialValues.monitoringEnabled"
+            name="monitoringEnabled"
+            data-testid="editor-monitoring-toggle"
+          />
+        </div>
+        <p
+          v-if="satelliteSupportsMonitoring"
+          class="monitoring-hint"
+          data-testid="monitoring-sections-hint"
+        >
+          Monitoring sections: {{ monitoringHint.sectionLabels.join(', ') }}.
+        </p>
+        <p
+          v-if="satelliteSupportsMonitoring && monitoringHint.recommendRepack"
+          class="monitoring-hint"
+          data-testid="monitoring-repack-hint"
+        >
+          Repack this model with reference data to enable data quality and drift monitoring.
+        </p>
+        <p
+          v-if="initialValues.monitoringEnabled && !satelliteSupportsMonitoring"
+          class="monitoring-warning"
+        >
+          <Info :size="12" class="monitoring-warning-icon" />
+          The selected satellite does not report the monitoring capability, so the dashboard stays
+          unavailable until it does.
+        </p>
+      </div>
       <Accordion v-if="initialValues.secretDynamicAttributes.length" style="margin-bottom: 12px">
         <template #expandicon>
           <ChevronDown :size="20"></ChevronDown>
@@ -68,7 +100,7 @@
           :disabled="loading"
           @click="onForceDeleteClick"
         >
-          force delete deployment
+          Force delete deployment
         </Button>
         <Button
           v-else
@@ -77,10 +109,10 @@
           :disabled="loading"
           @click="onDeleteClick"
         >
-          stop deployment
+          Stop deployment
         </Button>
       </div>
-      <Button type="submit" :loading="loading" form="createDeploymentForm">save changes</Button>
+      <Button type="submit" :loading="loading" form="createDeploymentForm">Save changes</Button>
     </template>
     <DeploymentsDelete
       v-if="isDeleting"
@@ -112,16 +144,20 @@ import {
   AccordionPanel,
   AccordionHeader,
   AccordionContent,
+  ToggleSwitch,
 } from 'primevue'
 import {
   DeploymentStatusEnum,
+  MonitoringMode,
   type Deployment,
   type UpdateDeploymentPayload,
 } from '@/lib/api/deployments/interfaces'
 import type { FieldInfo } from '../deployments.interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
+import type { MonitoringFeature } from '@/lib/api/satellites/interfaces'
 import type { Var } from '@fnnx-ai/common/dist/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
-import { ChevronDown, ChevronUp, HelpCircle, Rocket } from 'lucide-vue-next'
+import { ChevronDown, ChevronUp, HelpCircle, Info, Rocket } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { Form, FormField } from '@primevue/forms'
@@ -131,12 +167,14 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useRoute } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { useDeploymentsStore } from '@/stores/deployments'
+import { useSatellitesStore } from '@/stores/satellites'
 import { editorDialogPt } from '../deployments.const'
 import { getErrorMessage } from '@/helpers/helpers'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsDelete from '@/components/orbits/delete/DeploymentsDelete.vue'
 import SecretsSelect from '../form/SecretsSelect.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
+import { getMonitoringHint } from '../monitoring-hint'
 
 const FORCE_DELETE_TEXT =
   'This action will schedule a task for your satellite to shut down this deployment. <br /> If you are sure, then write "delete" below'
@@ -147,6 +185,7 @@ interface FormValues {
   tags: string[]
   collectionId: string
   modelId: string
+  monitoringEnabled: boolean
   secretDynamicAttributes: FieldInfo[]
 }
 
@@ -173,10 +212,36 @@ const initialValues = ref<FormValues>({
   tags: props.data.tags,
   collectionId: props.data.collection_id,
   modelId: props.data.artifact_id,
+  monitoringEnabled: props.data.monitoring_mode === MonitoringMode.full,
   secretDynamicAttributes: [],
 })
 
 const loading = ref(false)
+const modelArtifact = ref<ModelArtifact | null>(null)
+
+const satellitesStore = useSatellitesStore()
+
+const selectedSatellite = computed(() => {
+  return satellitesStore.satellitesList.find(({ id }) => id === props.data.satellite_id) ?? null
+})
+
+const satelliteSupportsMonitoring = computed(() => {
+  return selectedSatellite.value?.present_capabilities.includes('monitoring') ?? false
+})
+
+const showMonitoringField = computed(
+  () => satelliteSupportsMonitoring.value || initialValues.value.monitoringEnabled,
+)
+
+const monitoringHint = computed(() => {
+  const features = satelliteSupportsMonitoring.value
+    ? (selectedSatellite.value?.capabilities.monitoring?.features ?? [])
+    : []
+  return getMonitoringHint(
+    modelArtifact.value?.manifest.producer_tags ?? [],
+    features as MonitoringFeature[],
+  )
+})
 
 const organizationId = computed(() => {
   if (typeof route.params.organizationId !== 'string') throw new Error('Incorrect organization ID')
@@ -203,6 +268,9 @@ async function saveChanges() {
       description: initialValues.value.description,
       tags: initialValues.value.tags,
       dynamic_attributes_secrets,
+      monitoring_mode: initialValues.value.monitoringEnabled
+        ? MonitoringMode.full
+        : MonitoringMode.off,
     }
     await deploymentsStore.update(organizationId.value, props.data.orbit_id, props.data.id, payload)
     toast.add(simpleSuccessToast('Deployment changes saved successfully.'))
@@ -258,6 +326,13 @@ function setSecrets(secrets: Var[]) {
 
 onBeforeMount(async () => {
   try {
+    if (!satellitesStore.satellitesList.length) {
+      const satellites = await satellitesStore.loadSatellites(
+        organizationId.value,
+        props.data.orbit_id,
+      )
+      satellitesStore.setList(satellites)
+    }
     await secretsStore.loadSecrets(organizationId.value, props.data.orbit_id)
     const requestInfo = {
       organizationId: organizationId.value,
@@ -266,6 +341,7 @@ onBeforeMount(async () => {
     }
     const currentModel = await artifactsStore.getArtifact(props.data.artifact_id, requestInfo)
     if (!currentModel) return
+    modelArtifact.value = currentModel
     const { secrets } = FnnxService.getDynamicAttributes(currentModel.manifest)
     setSecrets(secrets)
   } catch (e) {
@@ -290,6 +366,46 @@ onBeforeMount(async () => {
 
 .model-settings {
   margin: -20px;
+}
+
+.monitoring-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.monitoring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monitoring-header .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--p-text-color);
+}
+
+.monitoring-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-button-text-secondary-color);
+  margin: 0;
+}
+
+.monitoring-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.monitoring-warning-icon {
+  flex: 0 0 auto;
 }
 
 .accordion-title {

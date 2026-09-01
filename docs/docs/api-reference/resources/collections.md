@@ -682,7 +682,9 @@ async def update(
 
 Update collection by ID or use default collection if collection_id not provided.
 
-Updates the collection's data. Only provided parameters will be updated, others remain unchanged. If collection_id is None, the default collection from client will be used.
+Updates the collection's data. Only provided parameters will be
+updated, others remain unchanged. If collection_id is None,
+the default collection from client will be used.
 
 **Arguments**:
 

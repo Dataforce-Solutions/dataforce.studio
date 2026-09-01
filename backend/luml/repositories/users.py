@@ -11,7 +11,6 @@ from luml.models import (
     OrganizationInviteOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
-    StatsEmailSendOrm,
     UserOrm,
 )
 from luml.repositories.base import CrudMixin, RepositoryBase
@@ -28,7 +27,6 @@ from luml.schemas.organization import (
     OrgRole,
     UpdateOrganizationMember,
 )
-from luml.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
 from luml.schemas.user import (
     CreateUser,
     UpdateUser,
@@ -370,13 +368,6 @@ class UserRepository(RepositoryBase, CrudMixin):
             return await self.get_model_count(
                 session, OrganizationMemberOrm, OrganizationMemberOrm.user_id == user_id
             )
-
-    async def create_stats_email_send_obj(
-        self, stat: StatsEmailSendCreate
-    ) -> StatsEmailSendOut:
-        async with self._get_session() as session:
-            db_email_send = await self.create_model(session, StatsEmailSendOrm, stat)
-            return db_email_send.to_email_send()
 
     async def create_user_api_key(self, user: UpdateUserAPIKey) -> bool:
         async with self._get_session() as session:

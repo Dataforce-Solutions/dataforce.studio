@@ -99,7 +99,7 @@ class AuthHandler:
 
     def _create_tokens(self, user_email: EmailStr) -> Token:
         access_token = self._create_token(
-            data={"sub": user_email},
+            data={"sub": user_email, "type": "access"},
             expires_delta=self.access_token_expire,
         )
         refresh_token = self._create_token(
@@ -115,6 +115,8 @@ class AuthHandler:
     def _verify_token(self, token: str) -> EmailStr:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            if payload.get("type") != "access":
+                raise AuthError("Invalid token type", 401)
             email: EmailStr = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 401)
@@ -323,6 +325,8 @@ class AuthHandler:
             email: EmailStr = payload.get("sub")
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err
+        if payload.get("type") != "email_confirmation":
+            raise AuthError("Invalid token type", 400)
         if email is None:
             raise AuthError("Invalid token", 400)
 
@@ -339,6 +343,8 @@ class AuthHandler:
     async def handle_reset_password(self, token: str, new_password: str) -> None:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            if payload.get("type") != "password_reset":
+                raise AuthError("Invalid token type", 400)
             email: EmailStr = payload.get("sub")
             exp = payload.get("exp")
             if exp is None or exp < time():

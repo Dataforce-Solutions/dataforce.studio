@@ -65,6 +65,24 @@ def get_tokens() -> Token:
     )
 
 
+@pytest.fixture
+def tokens_by_purpose() -> dict[str, str]:
+    """One token of every kind the service mints, plus a pre-cutover typeless one."""
+    email = "purpose@example.com"
+    tokens = handler._create_tokens(email)
+    assert tokens.refresh_token
+
+    return {
+        "access": tokens.access_token,
+        "refresh": tokens.refresh_token,
+        "email_confirmation": handler._generate_email_confirmation_token(email),
+        "password_reset": handler._generate_password_reset_token(email),
+        "legacy_typeless": handler._create_token(
+            data={"sub": email}, expires_delta=3600
+        ),
+    }
+
+
 @patch.object(AuthHandler, "_password_hasher")
 def test_get_password_hash(mock_password_hasher: Mock, passwords: Passwords) -> None:
     passwords_data = passwords
@@ -218,11 +236,19 @@ async def test_create_tokens() -> None:
     assert actual.refresh_token
     assert actual.token_type == "bearer"
 
+    access_payload = jwt.decode(actual.access_token, secret_key, algorithms=[algorithm])
+    refresh_payload = jwt.decode(
+        actual.refresh_token, secret_key, algorithms=[algorithm]
+    )
+
+    assert access_payload["type"] == "access"
+    assert refresh_payload["type"] == "refresh"
+
 
 @patch("luml.handlers.auth.jwt.decode")
 def test_verify_token_valid(mock_jwt_decode: MagicMock) -> None:
     email = "test@example.com"
-    mock_jwt_decode.return_value = {"sub": email}
+    mock_jwt_decode.return_value = {"sub": email, "type": "access"}
 
     actual = handler._verify_token("token")
 
@@ -232,7 +258,7 @@ def test_verify_token_valid(mock_jwt_decode: MagicMock) -> None:
 
 @patch("luml.handlers.auth.jwt.decode")
 def test_verify_token_cant_get_email(mock_jwt_decode: MagicMock) -> None:
-    mock_jwt_decode.return_value = {"sub": None}
+    mock_jwt_decode.return_value = {"sub": None, "type": "access"}
 
     with pytest.raises(AuthError, match="Invalid token") as exc_info:
         handler._verify_token("invalid_token")
@@ -250,6 +276,27 @@ def test_verify_token_invalid_jwt(mock_jwt_decode: MagicMock) -> None:
 
     assert exc_info.value.status_code == 401
     mock_jwt_decode.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "purpose",
+    ["refresh", "email_confirmation", "password_reset", "legacy_typeless"],
+)
+def test_verify_token_rejects_tokens_not_minted_for_api_access(
+    purpose: str, tokens_by_purpose: dict[str, str]
+) -> None:
+    with pytest.raises(AuthError) as error:
+        handler._verify_token(tokens_by_purpose[purpose])
+
+    assert error.value.status_code == 401
+
+
+def test_verify_token_accepts_access_token() -> None:
+    email = "signed-in@example.com"
+
+    tokens = handler._create_tokens(email)
+
+    assert handler._verify_token(tokens.access_token) == email
 
 
 @patch.object(AuthHandler, "_get_password_hash")
@@ -604,6 +651,43 @@ async def test_handle_logout_invalid_refresh_token(mock_jwt_decode: Mock) -> Non
     assert error.value.status_code == 400
 
 
+@patch("luml.handlers.auth.TokenBlackListRepository.add_token", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_signin_refresh_and_logout_flow_survives_token_typing(
+    mock_authenticate_user: AsyncMock,
+    mock_get_user: AsyncMock,
+    mock_is_token_blacklisted: AsyncMock,
+    mock_add_token: AsyncMock,
+    test_user: User,
+    passwords: Passwords,
+) -> None:
+    user = test_user
+    mock_authenticate_user.return_value = user
+    mock_get_user.return_value = user
+    mock_is_token_blacklisted.return_value = False
+
+    signin = await handler.handle_signin(
+        SignInUser(email=user.email, password=passwords.password)
+    )
+    assert signin.token.refresh_token
+    assert handler._verify_token(signin.token.access_token) == user.email
+
+    refreshed = await handler.handle_refresh_token(signin.token.refresh_token)
+    assert refreshed.refresh_token
+    assert handler._verify_token(refreshed.access_token) == user.email
+
+    await handler.handle_logout(refreshed.access_token, refreshed.refresh_token)
+
+    blacklisted = {call.args[0] for call in mock_add_token.await_args_list}
+    assert {refreshed.access_token, refreshed.refresh_token} <= blacklisted
+
+
 @patch(
     "luml.clients.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
     new_callable=AsyncMock,
@@ -641,6 +725,7 @@ async def test_handle_oauth_google(
     expected = OAuthLogin(token=get_tokens, user_id=created_user.id)
 
     mock_exchange_code.return_value = "access_token"
+    assert test_user.full_name is not None
     mock_get_user_info.return_value = UserInfo(
         email=test_user.email,
         full_name=test_user.full_name,
@@ -784,7 +869,7 @@ async def test_handle_email_confirmation(
     user = test_user.model_copy()
     user.email_verified = False
 
-    mock_jwt_decode.return_value = {"sub": user.email}
+    mock_jwt_decode.return_value = {"sub": user.email, "type": "email_confirmation"}
     mock_get_user.return_value = user
 
     await handler.handle_email_confirmation("token")
@@ -812,7 +897,7 @@ async def test_handle_email_confirmation_invalid_token(
 async def test_handle_email_confirmation_cant_get_email(
     mock_jwt_decode: MagicMock,
 ) -> None:
-    mock_jwt_decode.return_value = {"sub": None}
+    mock_jwt_decode.return_value = {"sub": None, "type": "email_confirmation"}
 
     with pytest.raises(AuthError, match="Invalid token") as error:
         await handler.handle_email_confirmation("token")
@@ -827,7 +912,7 @@ async def test_handle_email_confirmation_user_not_found(
     mock_get_user: AsyncMock, mock_jwt_decode: MagicMock, test_user: User
 ) -> None:
     user = test_user
-    mock_jwt_decode.return_value = {"sub": user.email}
+    mock_jwt_decode.return_value = {"sub": user.email, "type": "email_confirmation"}
     mock_get_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -847,7 +932,7 @@ async def test_handle_email_confirmation_already_verified(
     user = test_user
     user.email_verified = True
 
-    mock_jwt_decode.return_value = {"sub": user.email}
+    mock_jwt_decode.return_value = {"sub": user.email, "type": "email_confirmation"}
     mock_get_user.return_value = user
 
     with pytest.raises(AuthError, match="Email already verified") as error:
@@ -856,6 +941,45 @@ async def test_handle_email_confirmation_already_verified(
     assert error.value.status_code == 400
     mock_jwt_decode.assert_called_once()
     mock_get_user.assert_awaited_once()
+
+
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@pytest.mark.parametrize(
+    "purpose", ["access", "refresh", "password_reset", "legacy_typeless"]
+)
+@pytest.mark.asyncio
+async def test_handle_email_confirmation_rejects_other_token_purposes(
+    mock_get_user: AsyncMock,
+    mock_update_user: AsyncMock,
+    purpose: str,
+    tokens_by_purpose: dict[str, str],
+) -> None:
+    with pytest.raises(AuthError, match="Invalid token") as error:
+        await handler.handle_email_confirmation(tokens_by_purpose[purpose])
+
+    assert error.value.status_code == 400
+    mock_get_user.assert_not_awaited()
+    mock_update_user.assert_not_awaited()
+
+
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_handle_email_confirmation_accepts_a_minted_confirmation_token(
+    mock_get_user: AsyncMock, mock_update_user: AsyncMock, test_user: User
+) -> None:
+    user = test_user.model_copy()
+    user.email_verified = False
+    mock_get_user.return_value = user
+
+    await handler.handle_email_confirmation(
+        handler._generate_email_confirmation_token(user.email)
+    )
+
+    mock_update_user.assert_awaited_once_with(
+        UpdateUser(email=user.email, email_verified=True)
+    )
 
 
 @patch("luml.handlers.auth.jwt.decode")
@@ -873,7 +997,11 @@ async def test_handle_reset_password(
     user = test_user
     new_password = "new_pass"
     update_user = UpdateUser(email=user.email, hashed_password=user.hashed_password)
-    mock_jwt_decode.return_value = {"sub": user.email, "exp": int(time()) + 3600}
+    mock_jwt_decode.return_value = {
+        "sub": user.email,
+        "type": "password_reset",
+        "exp": int(time()) + 3600,
+    }
     mock_get_user.return_value = user
     mock_hash.return_value = user.hashed_password
 
@@ -892,7 +1020,11 @@ async def test_handle_reset_expired(
 ) -> None:
     user = test_user_create
     new_password = "new_pass"
-    mock_jwt_decode.return_value = {"sub": user.email, "exp": None}
+    mock_jwt_decode.return_value = {
+        "sub": user.email,
+        "type": "password_reset",
+        "exp": None,
+    }
 
     with pytest.raises(AuthError, match="Token expired") as error:
         await handler.handle_reset_password("token", new_password)
@@ -905,7 +1037,11 @@ async def test_handle_reset_expired(
 @pytest.mark.asyncio
 async def test_handle_reset_password_cant_get_email(mock_jwt_decode: MagicMock) -> None:
     new_password = "new_pass"
-    mock_jwt_decode.return_value = {"sub": None, "exp": int(time()) + 3600}
+    mock_jwt_decode.return_value = {
+        "sub": None,
+        "type": "password_reset",
+        "exp": int(time()) + 3600,
+    }
 
     with pytest.raises(AuthError, match="Invalid token") as error:
         await handler.handle_reset_password("token", new_password)
@@ -922,7 +1058,11 @@ async def test_handle_reset_password_user_not_found(
 ) -> None:
     user = test_user
     new_password = "new_pass"
-    mock_jwt_decode.return_value = {"sub": user.email, "exp": int(time()) + 3600}
+    mock_jwt_decode.return_value = {
+        "sub": user.email,
+        "type": "password_reset",
+        "exp": int(time()) + 3600,
+    }
     mock_get_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
@@ -943,6 +1083,49 @@ async def test_handle_reset_password_invalid_token(mock_jwt_decode: MagicMock) -
 
     assert exc.value.status_code == 400
     mock_jwt_decode.assert_called_once()
+
+
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@pytest.mark.parametrize(
+    "purpose", ["access", "refresh", "email_confirmation", "legacy_typeless"]
+)
+@pytest.mark.asyncio
+async def test_handle_reset_password_rejects_other_token_purposes(
+    mock_get_user: AsyncMock,
+    mock_update_user: AsyncMock,
+    purpose: str,
+    tokens_by_purpose: dict[str, str],
+) -> None:
+    with pytest.raises(AuthError, match="Invalid token") as error:
+        await handler.handle_reset_password(tokens_by_purpose[purpose], "new_pass")
+
+    assert error.value.status_code == 400
+    mock_get_user.assert_not_awaited()
+    mock_update_user.assert_not_awaited()
+
+
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.AuthHandler._get_password_hash")
+@pytest.mark.asyncio
+async def test_handle_reset_password_accepts_a_minted_reset_token(
+    mock_hash: MagicMock,
+    mock_get_user: AsyncMock,
+    mock_update_user: AsyncMock,
+    test_user: User,
+) -> None:
+    user = test_user
+    mock_get_user.return_value = user
+    mock_hash.return_value = "argon_hash"
+
+    await handler.handle_reset_password(
+        handler._generate_password_reset_token(user.email), "new_pass"
+    )
+
+    mock_update_user.assert_awaited_once_with(
+        UpdateUser(email=user.email, hashed_password="argon_hash")
+    )
 
 
 @patch(
