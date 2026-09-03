@@ -720,11 +720,11 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] `refresh_node_copy` before and `delete_edgeless_nodes` after `delete_artifact` in the physical deletion path of `ArtifactHandler`
   - [x] Tests in `backend/tests/unit/handlers/test_artifacts.py` and `backend/tests/integration/repository/test_artifacts.py` for the "creation with inputs" and "artifact deletion" scenarios
 
-- [ ] **API client: lineage and inputs on upload**
-  - [ ] Types `LineageNode`, `LineageEdge`, `LineageGraph` in `_types.py`
-  - [ ] `get_lineage`, `log_lineage`, `remove_lineage` in the base, sync and async artifact resources, with docstrings in the existing style
-  - [ ] `lineage_inputs` on `create` and `upload` (sync and async); field omitted when `None`
-  - [ ] `sdk/python/api/tests/unit/test_lineage_resource.py` (HTTP mocked with `respx`): URLs, bodies, parsing, exceptions, field omitted without inputs, rejection before storage, async variant
+- [x] **API client: lineage and inputs on upload**
+  - [x] Types `LineageNode`, `LineageEdge`, `LineageGraph` in `_types.py`
+  - [x] `get_lineage`, `log_lineage`, `remove_lineage` in the base, sync and async artifact resources, with docstrings in the existing style
+  - [x] `lineage_inputs` on `create` and `upload` (sync and async); field omitted when `None`
+  - [x] `sdk/python/api/tests/unit/test_lineage_resource.py` (HTTP mocked with `respx`): URLs, bodies, parsing, exceptions, field omitted without inputs, rejection before storage, async variant
 
 - [ ] **Tracker store: remembered platform ids**
   - [ ] Meta-DB migration `006_remote_artifacts.py` with `up`/`down`; `META_DB_LAST_VERSION` → 6 in `sdk/python/sdk/tests/experiments/test_migration_runner.py`

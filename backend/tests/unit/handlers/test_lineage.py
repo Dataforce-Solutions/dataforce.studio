@@ -49,6 +49,7 @@ MISSING_ID = UUID("0199c337-0a04-7755-b82e-8f38a1128ca1")
 EDGE_ID = UUID("0199c337-0a05-7cb3-8d16-c40ab75581b9")
 NEW_EDGE_A_ID = UUID("0199c337-0a06-7123-9ceb-2251e583cb88")
 NEW_EDGE_B_ID = UUID("0199c337-0a07-7fef-962d-435a52af014e")
+SECOND_EDGE_ID = UUID("0199c337-0a08-729d-a574-8909b52627b9")
 CREATED_AT = datetime(2026, 9, 3, tzinfo=UTC)
 
 handler = LineageHandler()
@@ -602,6 +603,121 @@ async def test_apply_changes_replaces_a_node_and_keeps_its_position(
         mocks.session,
     )
     mocks.delete_edgeless_nodes.assert_awaited_once_with(ORBIT_ID, mocks.session)
+
+
+@pytest.mark.asyncio
+async def test_apply_changes_replaces_a_deleted_node_with_all_of_its_connections(
+    lineage_mocks: HandlerMocks,
+) -> None:
+    mocks = lineage_mocks
+    node_a = _node(NODE_A_ID, ARTIFACT_A_ID, "A")
+    node_b = _node(NODE_B_ID, ARTIFACT_B_ID, "B")
+    replacement = _artifact(ARTIFACT_C_ID, "A prime")
+    replacement_node = _node(NODE_C_ID, ARTIFACT_C_ID, "A prime")
+    deleted_edges = [
+        _edge(EDGE_ID, MISSING_ID, NODE_B_ID),
+        _edge(SECOND_EDGE_ID, NODE_A_ID, MISSING_ID),
+    ]
+    created_edges = [
+        _edge(NEW_EDGE_A_ID, NODE_C_ID, NODE_B_ID),
+        _edge(NEW_EDGE_B_ID, NODE_A_ID, NODE_C_ID),
+    ]
+    mocks.get_edges_by_ids.return_value = deleted_edges
+    mocks.get_artifacts.return_value = [replacement]
+    mocks.get_nodes_by_ids.side_effect = [[node_b, node_a], []]
+    mocks.get_or_create_node.return_value = replacement_node
+    mocks.create_edges.return_value = created_edges
+    mocks.get_nodes_by_artifact_ids.return_value = [replacement_node]
+    changes = LineageBatchIn(
+        delete=[edge.id for edge in deleted_edges],
+        create=[
+            LineagePair(
+                source=LineageNodeRef(artifact_id=ARTIFACT_C_ID),
+                target=LineageNodeRef(node_id=NODE_B_ID),
+            ),
+            LineagePair(
+                source=LineageNodeRef(node_id=NODE_A_ID),
+                target=LineageNodeRef(artifact_id=ARTIFACT_C_ID),
+            ),
+        ],
+        positions=[
+            LineagePosition(
+                ref=LineageNodeRef(artifact_id=ARTIFACT_C_ID),
+                x=300.0,
+                y=100.0,
+            )
+        ],
+    )
+
+    result = await handler.apply_changes(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        changes,
+        LineageVia.UI,
+    )
+
+    assert result.deleted == [edge.to_edge() for edge in deleted_edges]
+    assert result.created == [edge.to_edge() for edge in created_edges]
+    mocks.create_edges.assert_awaited_once_with(
+        ORBIT_ID,
+        [(NODE_C_ID, NODE_B_ID), (NODE_A_ID, NODE_C_ID)],
+        "Lineage User",
+        LineageVia.UI,
+        mocks.session,
+    )
+    mocks.update_positions.assert_awaited_once_with(
+        ORBIT_ID,
+        {NODE_C_ID: (300.0, 100.0)},
+        mocks.session,
+    )
+    mocks.delete_edgeless_nodes.assert_awaited_once_with(ORBIT_ID, mocks.session)
+
+
+@pytest.mark.asyncio
+async def test_apply_changes_recreates_a_deleted_pair_with_a_new_edge(
+    lineage_mocks: HandlerMocks,
+) -> None:
+    mocks = lineage_mocks
+    node_a = _node(NODE_A_ID, ARTIFACT_A_ID, "A")
+    node_b = _node(NODE_B_ID, ARTIFACT_B_ID, "B")
+    deleted_edge = _edge(EDGE_ID, NODE_A_ID, NODE_B_ID)
+    created_edge = _edge(NEW_EDGE_A_ID, NODE_A_ID, NODE_B_ID)
+    mocks.get_edges_by_ids.return_value = [deleted_edge]
+    mocks.get_nodes_by_ids.return_value = [node_a, node_b]
+    mocks.create_edges.return_value = [created_edge]
+    changes = LineageBatchIn(
+        delete=[EDGE_ID],
+        create=[
+            LineagePair(
+                source=LineageNodeRef(node_id=NODE_A_ID),
+                target=LineageNodeRef(node_id=NODE_B_ID),
+            )
+        ],
+    )
+
+    result = await handler.apply_changes(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        changes,
+        LineageVia.API,
+    )
+
+    assert result.deleted == [deleted_edge.to_edge()]
+    assert result.created == [created_edge.to_edge()]
+    assert result.created[0].id != result.deleted[0].id
+    mocks.delete_edges.assert_awaited_once_with(ORBIT_ID, [EDGE_ID], mocks.session)
+    mocks.get_edges_by_pairs.assert_awaited_once_with(
+        ORBIT_ID, [(NODE_A_ID, NODE_B_ID)], mocks.session
+    )
+    mocks.create_edges.assert_awaited_once_with(
+        ORBIT_ID,
+        [(NODE_A_ID, NODE_B_ID)],
+        "Lineage User",
+        LineageVia.API,
+        mocks.session,
+    )
 
 
 @pytest.mark.asyncio

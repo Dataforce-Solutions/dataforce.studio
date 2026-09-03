@@ -11,6 +11,8 @@ from luml_api._types import (
     ArtifactStatus,
     ArtifactType,
     CreatedArtifact,
+    LineageEdge,
+    LineageGraph,
     SortOrder,
     is_uuid,
 )
@@ -18,7 +20,7 @@ from luml_api._utils import find_by_value
 from luml_api.handlers.model_artifacts import ModelFileHandler
 from luml_api.handlers.s3_file_handler import S3FileHandler
 from luml_api.resources._listed_resource import ListedResource
-from luml_api.resources._validators import validate_collection
+from luml_api.resources._validators import validate_collection, validate_orbit
 from luml_api.services.upload_service import AsyncUploadService, UploadService
 from luml_api.utils.progress import BaseProgressHandler
 
@@ -54,6 +56,24 @@ class ArtifactResourceBase(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def get_lineage(
+        self, artifact_id: str, depth: int = 2
+    ) -> LineageGraph | Coroutine[Any, Any, LineageGraph]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def log_lineage(
+        self, source_artifact_id: str, target_artifact_ids: builtins.list[str]
+    ) -> builtins.list[LineageEdge] | Coroutine[Any, Any, builtins.list[LineageEdge]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_lineage(
+        self, artifact_id: str, edge_id: str
+    ) -> LineageEdge | Coroutine[Any, Any, LineageEdge]:
+        raise NotImplementedError()
+
+    @abstractmethod
     def download_url(
         self, artifact_id: str, *, collection_id: str | None = None
     ) -> dict | Coroutine[Any, Any, dict]:
@@ -72,6 +92,7 @@ class ArtifactResourceBase(ABC):
         name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
         on_progress: BaseProgressHandler | None = None,
@@ -101,6 +122,7 @@ class ArtifactResourceBase(ABC):
         name: str,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
     ) -> (
         dict[str, str | CreatedArtifact]
         | Coroutine[Any, Any, dict[str, str | CreatedArtifact]]
@@ -482,6 +504,60 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
 
         return ArtifactsList.model_validate(response)
 
+    @validate_orbit
+    def get_lineage(self, artifact_id: str, depth: int = 2) -> LineageGraph:
+        """Get the lineage graph around an artifact.
+
+        Args:
+            artifact_id: ID of the focal artifact.
+            depth: Number of graph levels to load, from 1 through 5.
+
+        Returns:
+            The lineage graph around the artifact.
+        """
+        response = self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{artifact_id}/lineage",
+            params={"depth": depth},
+        )
+        return LineageGraph.model_validate(response)
+
+    @validate_orbit
+    def log_lineage(
+        self,
+        source_artifact_id: str,
+        target_artifact_ids: builtins.list[str],
+    ) -> builtins.list[LineageEdge]:
+        """Create lineage connections from one artifact to other artifacts.
+
+        Args:
+            source_artifact_id: ID of the source artifact.
+            target_artifact_ids: IDs of the artifacts produced from the source.
+
+        Returns:
+            The created lineage connections.
+        """
+        response = self._client.post(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{source_artifact_id}/lineage",
+            json={"target_artifact_ids": target_artifact_ids},
+        )
+        return [LineageEdge.model_validate(edge) for edge in response]
+
+    @validate_orbit
+    def remove_lineage(self, artifact_id: str, edge_id: str) -> LineageEdge:
+        """Remove a lineage connection touching an artifact.
+
+        Args:
+            artifact_id: ID of either artifact in the connection.
+            edge_id: ID of the lineage connection to remove.
+
+        Returns:
+            The removed lineage connection.
+        """
+        response = self._client.delete(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{artifact_id}/lineage/{edge_id}"
+        )
+        return LineageEdge.model_validate(response)
+
     @validate_collection
     def download_url(
         self, artifact_id: str, *, collection_id: str | None = None
@@ -566,6 +642,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
         on_progress: BaseProgressHandler | None = None,
@@ -582,6 +659,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             name: Name for the artifact. If not provided, uses the file name.
             description: Optional description of the model.
             tags: Optional list of tags for organizing models.
+            lineage_inputs: Optional IDs of artifacts used to produce this artifact.
             collection_id: ID of the collection to upload to. If not provided,
                 uses the default collection set in the client.
 
@@ -693,6 +771,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             name=name,
             description=description,
             tags=tags,
+            lineage_inputs=lineage_inputs,
             collection_id=collection_id,
         )
         artifact = created_artifact_data.artifact
@@ -807,6 +886,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         name: str,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
     ) -> CreatedArtifact:
         """Create new artifact record with upload URL.
 
@@ -824,6 +904,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             name: Optional name for the model.
             description: Optional description.
             tags: Optional list of tags.
+            lineage_inputs: Optional IDs of artifacts used to produce this artifact.
 
         Returns:
             Dictionary containing upload URL and created Artifact object.
@@ -923,19 +1004,23 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
+        payload: dict[str, Any] = {
+            "file_name": file_name,
+            "extra_values": extra_values,
+            "manifest": manifest,
+            "file_hash": file_hash,
+            "file_index": file_index,
+            "size": size,
+            "name": name,
+            "description": description,
+            "tags": tags,
+        }
+        if lineage_inputs is not None:
+            payload["lineage_inputs"] = lineage_inputs
+
         response = self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
-            json={
-                "file_name": file_name,
-                "extra_values": extra_values,
-                "manifest": manifest,
-                "file_hash": file_hash,
-                "file_index": file_index,
-                "size": size,
-                "name": name,
-                "description": description,
-                "tags": tags,
-            },
+            json=payload,
         )
         return CreatedArtifact.model_validate(response)
 
@@ -1482,6 +1567,60 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
 
         return ArtifactsList.model_validate(response)
 
+    @validate_orbit
+    async def get_lineage(self, artifact_id: str, depth: int = 2) -> LineageGraph:
+        """Get the lineage graph around an artifact.
+
+        Args:
+            artifact_id: ID of the focal artifact.
+            depth: Number of graph levels to load, from 1 through 5.
+
+        Returns:
+            The lineage graph around the artifact.
+        """
+        response = await self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{artifact_id}/lineage",
+            params={"depth": depth},
+        )
+        return LineageGraph.model_validate(response)
+
+    @validate_orbit
+    async def log_lineage(
+        self,
+        source_artifact_id: str,
+        target_artifact_ids: builtins.list[str],
+    ) -> builtins.list[LineageEdge]:
+        """Create lineage connections from one artifact to other artifacts.
+
+        Args:
+            source_artifact_id: ID of the source artifact.
+            target_artifact_ids: IDs of the artifacts produced from the source.
+
+        Returns:
+            The created lineage connections.
+        """
+        response = await self._client.post(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{source_artifact_id}/lineage",
+            json={"target_artifact_ids": target_artifact_ids},
+        )
+        return [LineageEdge.model_validate(edge) for edge in response]
+
+    @validate_orbit
+    async def remove_lineage(self, artifact_id: str, edge_id: str) -> LineageEdge:
+        """Remove a lineage connection touching an artifact.
+
+        Args:
+            artifact_id: ID of either artifact in the connection.
+            edge_id: ID of the lineage connection to remove.
+
+        Returns:
+            The removed lineage connection.
+        """
+        response = await self._client.delete(
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts/{artifact_id}/lineage/{edge_id}"
+        )
+        return LineageEdge.model_validate(response)
+
     @validate_collection
     async def download_url(
         self, artifact_id: str, *, collection_id: str | None = None
@@ -1583,6 +1722,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         name: str,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
     ) -> CreatedArtifact:
         """
         Create new artifact record with upload URL.
@@ -1601,6 +1741,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             name: Optional name for the model.
             description: Optional description.
             tags: Optional list of tags.
+            lineage_inputs: Optional IDs of artifacts used to produce this artifact.
 
         Returns:
             Dictionary containing upload URL and created Artifact object.
@@ -1703,19 +1844,23 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
+        payload: dict[str, Any] = {
+            "file_name": file_name,
+            "extra_values": extra_values,
+            "manifest": manifest,
+            "file_hash": file_hash,
+            "file_index": file_index,
+            "size": size,
+            "name": name,
+            "description": description,
+            "tags": tags,
+        }
+        if lineage_inputs is not None:
+            payload["lineage_inputs"] = lineage_inputs
+
         response = await self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
-            json={
-                "file_name": file_name,
-                "extra_values": extra_values,
-                "manifest": manifest,
-                "file_hash": file_hash,
-                "file_index": file_index,
-                "size": size,
-                "name": name,
-                "description": description,
-                "tags": tags,
-            },
+            json=payload,
         )
         return CreatedArtifact.model_validate(response)
 
@@ -1726,6 +1871,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
+        lineage_inputs: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
         on_progress: BaseProgressHandler | None = None,
@@ -1743,6 +1889,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             name: Name for the artifact. If not provided, uses the file name.
             description: Optional description of the model.
             tags: Optional list of tags for organizing models.
+            lineage_inputs: Optional IDs of artifacts used to produce this artifact.
             collection_id: ID of the collection to upload to. If not provided,
                 uses the default collection set in the client.
 
@@ -1866,6 +2013,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             name=name,
             description=description,
             tags=tags,
+            lineage_inputs=lineage_inputs,
             collection_id=collection_id,
         )
         artifact = created_artifact_data.artifact
