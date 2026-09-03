@@ -436,7 +436,7 @@ async def create_organization_with_user(
             region="us-east-1",
         )
     )
-    assert secret is not None, (
+    assert isinstance(secret, S3BucketSecret), (
         "BucketSecret should not be None in create_organization_with_user fixture"
     )
 
@@ -528,7 +528,7 @@ async def create_orbit(
             region="us-east-1",
         )
     )
-    assert bucket_secret is not None, (
+    assert isinstance(bucket_secret, S3BucketSecret), (
         "BucketSecret should not be None in create_orbit fixture"
     )
 

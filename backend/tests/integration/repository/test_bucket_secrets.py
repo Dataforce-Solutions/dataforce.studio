@@ -49,7 +49,7 @@ async def test_create_bucket_secret(
 
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    assert created_secret
+    assert isinstance(created_secret, S3BucketSecret)
     assert created_secret.id
     assert created_secret.endpoint == endpoint
     assert created_secret.bucket_name == secret_data.bucket_name
@@ -208,7 +208,7 @@ async def test_update_bucket_secret(
 
     updated_secret = await repo.update_bucket_secret(update_data, data.organization.id)
 
-    assert updated_secret
+    assert isinstance(updated_secret, S3BucketSecret)
     assert updated_secret.id == created_secret.id
     assert updated_secret.bucket_name == new_bucket_name
     assert updated_secret.region == new_region

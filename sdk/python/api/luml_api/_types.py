@@ -233,6 +233,19 @@ class Artifact(BaseModel, BaseOrmConfig):
     updated_at: str | None = None
 
 
+class DeploymentBase(BaseModel):
+    id: str
+    name: str
+    status: str
+    orbit_id: str
+
+
+class ArtifactListed(Artifact):
+    created_by_user: str | None = None
+    deployments: list[DeploymentBase] = []
+    collection_name: str
+
+
 class ArtifactsList(PaginatedList[Artifact]):
     pass
 
@@ -285,6 +298,35 @@ class BucketMultipartUpload(BaseModel):
 class CreatedArtifact(BaseModel):
     upload_details: UploadDetails
     artifact: Artifact
+
+
+class LineageEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    created_by_user: str
+    created_via: Literal["ui", "api"]
+    created_at: str
+
+
+class LineageNode(BaseModel):
+    id: str
+    artifact_id: str | None
+    type: str
+    name: str
+    collection_name: str | None
+    x: float | None
+    y: float | None
+    is_deleted: bool
+    data: ArtifactListed | None
+
+
+class LineageGraph(BaseModel):
+    nodes: list[LineageNode]
+    edges: list[LineageEdge]
+    focal_artifact_id: str
+    depth: int
+    truncated: bool
 
 
 class StageUpsertIn(BaseModel):

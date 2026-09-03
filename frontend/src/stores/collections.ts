@@ -13,6 +13,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   const collectionsList = ref<OrbitCollection[]>([])
   const currentCollection = ref<OrbitCollection | null>(null)
   const creatorVisible = ref(false)
+  let currentCollectionRequest = 0
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -67,11 +68,13 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   async function setCurrentCollection(collectionId: string) {
+    const requestId = ++currentCollectionRequest
     const collection = await getCollection(collectionId)
-    currentCollection.value = collection
+    if (requestId === currentCollectionRequest) currentCollection.value = collection
   }
 
   function resetCurrentCollection() {
+    currentCollectionRequest += 1
     currentCollection.value = null
   }
 

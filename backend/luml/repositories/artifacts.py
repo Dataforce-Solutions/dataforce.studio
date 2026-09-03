@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
@@ -219,6 +220,47 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             db_artifact = await self.get_model(session, ArtifactOrm, artifact_id)
             return db_artifact.to_artifact() if db_artifact else None
+
+    async def get_artifacts_by_ids_in_orbit(
+        self,
+        orbit_id: UUID,
+        artifact_ids: list[UUID],
+        session: AsyncSession | None = None,
+    ) -> list[ArtifactListed]:
+        if not artifact_ids:
+            return []
+        if session is None:
+            async with self._get_session() as owned_session:
+                return await self.get_artifacts_by_ids_in_orbit(
+                    orbit_id, artifact_ids, owned_session
+                )
+
+        result = await session.scalars(
+            select(ArtifactOrm)
+            .join(CollectionOrm, ArtifactOrm.collection_id == CollectionOrm.id)
+            .where(
+                CollectionOrm.orbit_id == orbit_id,
+                ArtifactOrm.id.in_(artifact_ids),
+            )
+            .options(
+                selectinload(ArtifactOrm.collection).load_only(
+                    CollectionOrm.id,
+                    CollectionOrm.name,
+                ),
+                selectinload(
+                    ArtifactOrm.deployments.and_(
+                        DeploymentOrm.status == DeploymentStatus.ACTIVE.value
+                    )
+                ).load_only(
+                    DeploymentOrm.id,
+                    DeploymentOrm.name,
+                    DeploymentOrm.status,
+                    DeploymentOrm.orbit_id,
+                    DeploymentOrm.artifact_id,
+                ),
+            )
+        )
+        return [artifact.to_listed_artifact() for artifact in result.all()]
 
     async def get_artifact_details(self, artifact_id: UUID) -> ArtifactDetails | None:
         async with self._get_session() as session:

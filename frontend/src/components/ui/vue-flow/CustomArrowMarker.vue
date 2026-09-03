@@ -17,25 +17,13 @@
       <marker
         :id="`${id}-arrow`"
         viewBox="0 0 30 30"
-        refX="18"
+        refX="15"
         refY="12"
         :markerWidth="markerWidth * 4"
         :markerHeight="markerWidth * 4"
         markerUnits="strokeWidth"
         orient="auto"
       >
-        <!-- rect -->
-        <rect
-          x="1"
-          y="6"
-          width="4"
-          height="13"
-          rx="2"
-          ry="2"
-          :fill="fill"
-          transform="rotate(180 12 12) translate(3 0)"
-        />
-        <!-- chevron -->
         <path
           d="m9 18 6-6-6-6"
           :stroke="arrowFill"
@@ -43,7 +31,6 @@
           stroke-linecap="round"
           stroke-linejoin="round"
           fill="none"
-          transform="rotate(180 12 12) translate(-11 0)"
         />
       </marker>
     </defs>

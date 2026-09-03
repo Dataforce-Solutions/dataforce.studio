@@ -8,14 +8,15 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.artifacts import (
     Artifact,
+    ArtifactCreateIn,
     ArtifactDetails,
-    ArtifactIn,
     ArtifactsList,
     ArtifactType,
     ArtifactUpdateIn,
     CreateArtifactResponse,
 )
 from luml.schemas.general import SortOrder
+from luml.schemas.lineage import LineageVia
 
 artifacts_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}",
@@ -24,6 +25,12 @@ artifacts_router = APIRouter(
 )
 
 artifacts_handler = ArtifactHandler()
+
+
+def _creation_via(request: Request) -> LineageVia:
+    if "api_key" in request.auth.scopes:
+        return LineageVia.API
+    return LineageVia.UI
 
 
 @artifacts_router.post(
@@ -36,7 +43,7 @@ async def create_artifact(
     organization_id: UUID,
     orbit_id: UUID,
     collection_id: UUID,
-    artifact: ArtifactIn,
+    artifact: ArtifactCreateIn,
 ) -> CreateArtifactResponse:
     return await artifacts_handler.create_artifact(
         request.user.id,
@@ -44,6 +51,7 @@ async def create_artifact(
         orbit_id,
         collection_id,
         artifact,
+        _creation_via(request),
     )
 
 

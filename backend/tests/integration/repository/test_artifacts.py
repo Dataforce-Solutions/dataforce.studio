@@ -5,6 +5,7 @@ from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
@@ -18,6 +19,7 @@ from luml.schemas.artifacts import (
 from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.lineage import LineageVia
 from luml.schemas.orbit import OrbitCreateIn
 from luml.schemas.satellite import SatelliteCreate
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
@@ -298,12 +300,71 @@ async def test_delete_artifact(
 
 
 @pytest.mark.asyncio
+async def test_delete_artifact_preserves_connected_lineage_node_snapshot(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    artifact_repo = ArtifactRepository(data.engine)
+    lineage_repo = LineageRepository(data.engine)
+    deleted_artifact = await _make_artifact(
+        artifact_repo,
+        test_artifact,
+        data.collection.id,
+        name="artifact-to-delete",
+    )
+    surviving_artifact = await _make_artifact(
+        artifact_repo,
+        test_artifact,
+        data.collection.id,
+        name="surviving-artifact",
+    )
+    listed = await artifact_repo.get_artifacts_by_ids_in_orbit(
+        data.orbit.id, [deleted_artifact.id, surviving_artifact.id]
+    )
+    listed_by_id = {artifact.id: artifact for artifact in listed}
+    deleted_node = await lineage_repo.get_or_create_node(
+        data.orbit.id, listed_by_id[deleted_artifact.id]
+    )
+    surviving_node = await lineage_repo.get_or_create_node(
+        data.orbit.id, listed_by_id[surviving_artifact.id]
+    )
+    edge = (
+        await lineage_repo.create_edges(
+            data.orbit.id,
+            [(deleted_node.id, surviving_node.id)],
+            "Artifact User",
+            LineageVia.API,
+        )
+    )[0]
+    await artifact_repo.update_artifact(
+        deleted_artifact.id,
+        data.collection.id,
+        ArtifactUpdate(id=deleted_artifact.id, name="refreshed-name"),
+    )
+
+    await lineage_repo.refresh_node_copy(deleted_artifact.id)
+    await artifact_repo.delete_artifact(deleted_artifact.id)
+    await lineage_repo.delete_edgeless_nodes(data.orbit.id)
+
+    assert await artifact_repo.get_artifact(deleted_artifact.id) is None
+    detached_node = (
+        await lineage_repo.get_nodes_by_ids(data.orbit.id, [deleted_node.id])
+    )[0]
+    assert detached_node.artifact_id is None
+    assert detached_node.name == "refreshed-name"
+    assert detached_node.type == ArtifactType.MODEL.value
+    assert detached_node.collection_name == data.collection.name
+    assert await lineage_repo.get_edges_by_ids(data.orbit.id, [edge.id])
+
+
+@pytest.mark.asyncio
 async def test_delete_artifact_with_deployment_constraint(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:
     data = create_collection
     engine, orbit, collection = data.engine, data.orbit, data.collection
     repo = ArtifactRepository(engine)
+    lineage_repo = LineageRepository(engine)
     satellite_repo = SatelliteRepository(engine)
     deployment_repo = DeploymentRepository(engine)
 
@@ -311,6 +372,27 @@ async def test_delete_artifact_with_deployment_constraint(
     model.collection_id = collection.id
 
     created_model = await repo.create_artifact(model)
+    peer_model = await _make_artifact(
+        repo, test_artifact, collection.id, name="lineage-peer"
+    )
+    listed = await repo.get_artifacts_by_ids_in_orbit(
+        orbit.id, [created_model.id, peer_model.id]
+    )
+    listed_by_id = {artifact.id: artifact for artifact in listed}
+    created_node = await lineage_repo.get_or_create_node(
+        orbit.id, listed_by_id[created_model.id]
+    )
+    peer_node = await lineage_repo.get_or_create_node(
+        orbit.id, listed_by_id[peer_model.id]
+    )
+    edge = (
+        await lineage_repo.create_edges(
+            orbit.id,
+            [(created_node.id, peer_node.id)],
+            "Artifact User",
+            LineageVia.API,
+        )
+    )[0]
 
     satellite = await satellite_repo.create_satellite(
         SatelliteCreate(
@@ -326,11 +408,18 @@ async def test_delete_artifact_with_deployment_constraint(
         status=DeploymentStatus.PENDING,
     )
     await deployment_repo.create_deployment(deployment_data)
+    await lineage_repo.refresh_node_copy(created_model.id)
 
     with pytest.raises(DatabaseConstraintError) as error:
         await repo.delete_artifact(created_model.id)
 
     assert error.value.status_code == 409
+    assert await repo.get_artifact(created_model.id) is not None
+    attached_node = (await lineage_repo.get_nodes_by_ids(orbit.id, [created_node.id]))[
+        0
+    ]
+    assert attached_node.artifact_id == created_model.id
+    assert await lineage_repo.get_edges_by_ids(orbit.id, [edge.id])
 
 
 @pytest.mark.asyncio
