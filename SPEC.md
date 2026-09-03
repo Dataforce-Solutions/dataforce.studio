@@ -731,9 +731,9 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] `set_remote_artifact`, `get_remote_artifact`, `delete_remote_artifact` in `_base.py`, `sqlite.py`, and `ExperimentTracker`
   - [x] `sdk/python/sdk/tests/experiments/test_remote_artifacts.py` for the "Tracker store" scenarios
 
-- [ ] **lumlflow: ordered publish with linking**
-  - [ ] `ArtifactHandler`: experiment before models in `_upload_all`; `_resolve_experiment_artifact_id` (job → remembered id for the job's orbit → none) with no platform request; stale remembered id: not-found on create → row deleted, one retry without `lineage_inputs`; `lineage_inputs` on model uploads; `set_remote_artifact` after each upload; `upload_model` uses the same resolution
-  - [ ] `lumlflow/tests/test_artifact_handler_lineage.py` with a mocked client and a temporary tracker for the "lumlflow" scenarios
+- [x] **lumlflow: ordered publish with linking**
+  - [x] `ArtifactHandler`: experiment before models in `_upload_all`; `_resolve_experiment_artifact_id` (job → remembered id for the job's orbit → none) with no platform request; stale remembered id: not-found on create → row deleted, one retry without `lineage_inputs`; `lineage_inputs` on model uploads; `set_remote_artifact` after each upload; `upload_model` uses the same resolution
+  - [x] `lumlflow/tests/test_artifact_handler_lineage.py` with a mocked client and a temporary tracker for the "lumlflow" scenarios
 
 - [ ] **Frontend: API client and lineage store**
   - [ ] Types for `LineageGraph`, `LineageNode`, `LineageEdge`, `LineageNodeData` (with `nodeId`/`artifactId`/`collectionId`), references and batch; client methods at the orbit level in the existing API layer
