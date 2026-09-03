@@ -726,10 +726,10 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] `lineage_inputs` on `create` and `upload` (sync and async); field omitted when `None`
   - [x] `sdk/python/api/tests/unit/test_lineage_resource.py` (HTTP mocked with `respx`): URLs, bodies, parsing, exceptions, field omitted without inputs, rejection before storage, async variant
 
-- [ ] **Tracker store: remembered platform ids**
-  - [ ] Meta-DB migration `006_remote_artifacts.py` with `up`/`down`; `META_DB_LAST_VERSION` → 6 in `sdk/python/sdk/tests/experiments/test_migration_runner.py`
-  - [ ] `set_remote_artifact`, `get_remote_artifact`, `delete_remote_artifact` in `_base.py`, `sqlite.py`, and `ExperimentTracker`
-  - [ ] `sdk/python/sdk/tests/experiments/test_remote_artifacts.py` for the "Tracker store" scenarios
+- [x] **Tracker store: remembered platform ids**
+  - [x] Meta-DB migration `006_remote_artifacts.py` with `up`/`down`; `META_DB_LAST_VERSION` → 6 in `sdk/python/sdk/tests/experiments/test_migration_runner.py`
+  - [x] `set_remote_artifact`, `get_remote_artifact`, `delete_remote_artifact` in `_base.py`, `sqlite.py`, and `ExperimentTracker`
+  - [x] `sdk/python/sdk/tests/experiments/test_remote_artifacts.py` for the "Tracker store" scenarios
 
 - [ ] **lumlflow: ordered publish with linking**
   - [ ] `ArtifactHandler`: experiment before models in `_upload_all`; `_resolve_experiment_artifact_id` (job → remembered id for the job's orbit → none) with no platform request; stale remembered id: not-found on create → row deleted, one retry without `lineage_inputs`; `lineage_inputs` on model uploads; `set_remote_artifact` after each upload; `upload_model` uses the same resolution
