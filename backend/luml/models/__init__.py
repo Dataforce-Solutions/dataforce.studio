@@ -4,6 +4,7 @@ from luml.models.base import Base, TimestampMixin
 from luml.models.bucket_secrets import BucketSecretOrm
 from luml.models.collection import CollectionOrm
 from luml.models.deployment import DeploymentOrm
+from luml.models.lineage import LineageEdgeOrm, LineageNodeOrm
 from luml.models.orbit import OrbitMembersOrm, OrbitOrm
 from luml.models.orbit_secret import OrbitSecretOrm
 from luml.models.organization import (
@@ -30,6 +31,8 @@ __all__ = [
     "SatelliteOrm",
     "SatelliteQueueOrm",
     "DeploymentOrm",
+    "LineageNodeOrm",
+    "LineageEdgeOrm",
     "OrbitSecretOrm",
     "StatsEmailSendOrm",
     "BucketSecretOrm",

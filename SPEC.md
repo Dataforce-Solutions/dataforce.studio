@@ -703,12 +703,12 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
 
 # Tasks
 
-- [ ] **Backend: lineage schema and storage**
-  - [ ] Migration `backend/migrations/versions/034_lineage.py`: `lineage_nodes`, `lineage_edges` with the constraints and indexes from Design
-  - [ ] ORM `backend/luml/models/lineage.py` (`LineageNodeOrm`, `LineageEdgeOrm` with `to_edge()`, `uuid7` ids) and schemas `backend/luml/schemas/lineage.py`
-  - [ ] `LineageRepository` in `backend/luml/repositories/lineage.py`: get-or-create a node by artifact (`ON CONFLICT DO NOTHING` + re-select); nodes by ids within the orbit; bulk edge creation; edges by ids within the orbit; edges by pairs in both directions; edge deletion; position writes; `delete_edgeless_nodes(orbit_id)`; level-by-level traversal with the node limit; `refresh_node_copy(artifact_id)` — all operations accept an optional session so `apply_changes` runs in one transaction
-  - [ ] `ArtifactRepository.get_artifacts_by_ids_in_orbit(orbit_id, ids, session=None)` joined through `CollectionOrm.orbit_id`
-  - [ ] `backend/tests/integration/repository/test_lineage.py`: node lifecycle, uniqueness, traversal (depth, cycle, limit, level 1), positions, cleanup, orbit scoping
+- [x] **Backend: lineage schema and storage**
+  - [x] Migration `backend/migrations/versions/034_lineage.py`: `lineage_nodes`, `lineage_edges` with the constraints and indexes from Design
+  - [x] ORM `backend/luml/models/lineage.py` (`LineageNodeOrm`, `LineageEdgeOrm` with `to_edge()`, `uuid7` ids) and schemas `backend/luml/schemas/lineage.py`
+  - [x] `LineageRepository` in `backend/luml/repositories/lineage.py`: get-or-create a node by artifact (`ON CONFLICT DO NOTHING` + re-select); nodes by ids within the orbit; bulk edge creation; edges by ids within the orbit; edges by pairs in both directions; edge deletion; position writes; `delete_edgeless_nodes(orbit_id)`; level-by-level traversal with the node limit; `refresh_node_copy(artifact_id)` — all operations accept an optional session so `apply_changes` runs in one transaction
+  - [x] `ArtifactRepository.get_artifacts_by_ids_in_orbit(orbit_id, ids, session=None)` joined through `CollectionOrm.orbit_id`
+  - [x] `backend/tests/integration/repository/test_lineage.py`: node lifecycle, uniqueness, traversal (depth, cycle, limit, level 1), positions, cleanup, orbit scoping
 
 - [ ] **Backend: lineage operations and API**
   - [ ] `LineageHandler` in `backend/luml/handlers/lineage.py`: `apply_changes` (transaction; deletions → creations → positions → cleanup; all checks and codes from Design), `create_links`, `delete_link` with the ownership check, `get_graph` (empty graph without a node, copied fields for deleted nodes, coordinates, `truncated`); permission checks `ARTIFACT` `READ`/`UPDATE`; orbit resolved inside the organization

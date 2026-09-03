@@ -725,6 +725,7 @@ async def test_handle_oauth_google(
     expected = OAuthLogin(token=get_tokens, user_id=created_user.id)
 
     mock_exchange_code.return_value = "access_token"
+    assert test_user.full_name is not None
     mock_get_user_info.return_value = UserInfo(
         email=test_user.email,
         full_name=test_user.full_name,

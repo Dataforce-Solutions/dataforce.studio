@@ -120,7 +120,9 @@ async def test_create_track(
     assert result == expected
     mock_create_track.assert_awaited_once()
     # Stages passed through as-is (no default fallback).
-    assert mock_create_track.await_args.kwargs["stage_names"] == ["Staging", "Prod"]
+    create_call = mock_create_track.await_args
+    assert create_call is not None
+    assert create_call.kwargs["stage_names"] == ["Staging", "Prod"]
     mock_perms.assert_awaited_once_with(
         ORG_ID, USER_ID, Resource.TRACK, Action.CREATE, ORBIT_ID
     )
@@ -151,7 +153,9 @@ async def test_create_track_without_stages(
 
     await tracks_handler.create_track(USER_ID, ORG_ID, ORBIT_ID, data)
 
-    assert mock_create_track.await_args.kwargs["stage_names"] == []
+    create_call = mock_create_track.await_args
+    assert create_call is not None
+    assert create_call.kwargs["stage_names"] == []
 
 
 @patch(
@@ -441,7 +445,9 @@ async def test_update_track_partial_does_not_null_unset_fields(
 
     await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data_in)
 
-    passed_update = mock_update.await_args.args[1]
+    update_call = mock_update.await_args
+    assert update_call is not None
+    passed_update = update_call.args[1]
     dumped = passed_update.model_dump(exclude_unset=True, exclude={"id"})
     assert dumped == {"name": "new-name"}
     assert "description" not in dumped
@@ -581,7 +587,9 @@ async def test_create_entry(
 
     assert result == expected
     # No stage requested -> repo receives stage_id=None.
-    assert mock_create.await_args.args[0].stage_id is None
+    create_call = mock_create.await_args
+    assert create_call is not None
+    assert create_call.args[0].stage_id is None
     mock_perms.assert_awaited_once_with(
         ORG_ID, USER_ID, Resource.TRACK, Action.CREATE, ORBIT_ID
     )
@@ -627,7 +635,9 @@ async def test_create_entry_with_stage(
         TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
     )
 
-    assert mock_create.await_args.args[0].stage_id == STAGE_ID
+    create_call = mock_create.await_args
+    assert create_call is not None
+    assert create_call.args[0].stage_id == STAGE_ID
 
 
 @patch(
@@ -807,7 +817,7 @@ async def test_create_entry_duplicate(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
-    mock_create.side_effect = IntegrityError("", {}, None)
+    mock_create.side_effect = IntegrityError("", {}, Exception())
 
     with pytest.raises(ApplicationError, match="already an entry") as exc:
         await tracks_handler.create_entry(
@@ -1259,7 +1269,7 @@ async def test_create_stage_duplicate_name(
     mock_perms: AsyncMock,
 ) -> None:
     mock_get_track.return_value = _make_track()
-    mock_create.side_effect = IntegrityError("", {}, None)
+    mock_create.side_effect = IntegrityError("", {}, Exception())
 
     with pytest.raises(ApplicationError, match="already exists") as exc:
         await tracks_handler.create_stage(
@@ -1614,7 +1624,9 @@ async def test_list_tracks_with_valid_cursor(
 
     await tracks_handler.list_tracks(USER_ID, ORG_ID, ORBIT_ID, cursor_str=cursor_str)
 
-    pagination = mock_list.await_args.kwargs["pagination"]
+    list_call = mock_list.await_args
+    assert list_call is not None
+    pagination = list_call.kwargs["pagination"]
     assert pagination.cursor is not None
 
 
@@ -1888,7 +1900,9 @@ async def test_list_entries_with_valid_cursor(
         USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, cursor_str=cursor_str
     )
 
-    pagination = mock_list.await_args.kwargs["pagination"]
+    list_call = mock_list.await_args
+    assert list_call is not None
+    pagination = list_call.kwargs["pagination"]
     assert pagination.cursor is not None
 
 
@@ -1986,7 +2000,7 @@ async def test_update_stage_duplicate_name(
     mock_update: AsyncMock, mock_get_track: AsyncMock, mock_perms: AsyncMock
 ) -> None:
     mock_get_track.return_value = _make_track()
-    mock_update.side_effect = IntegrityError("", {}, None)
+    mock_update.side_effect = IntegrityError("", {}, Exception())
     with pytest.raises(ApplicationError, match="already exists") as exc:
         await tracks_handler.update_stage(
             USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID, StageUpdateIn(name="dup")
@@ -2037,7 +2051,9 @@ async def test_update_track_syncs_stages(
     await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data)
 
     # Stages are synced inside update_track (one transaction), not separately.
-    assert mock_update.await_args.kwargs["stages"] == desired
+    update_call = mock_update.await_args
+    assert update_call is not None
+    assert update_call.kwargs["stages"] == desired
     # No redundant re-fetch: update_track already returns fresh stages.
     mock_get_track.assert_not_awaited()
 
@@ -2064,7 +2080,9 @@ async def test_update_track_stages_none_skips_sync(
         USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, TrackUpdateIn(name="t")
     )
 
-    assert mock_update.await_args.kwargs["stages"] is None
+    update_call = mock_update.await_args
+    assert update_call is not None
+    assert update_call.kwargs["stages"] is None
     mock_get_track.assert_not_awaited()
 
 
