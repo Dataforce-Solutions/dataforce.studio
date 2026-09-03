@@ -6,6 +6,9 @@
     :default-viewport="{ zoom: 1 }"
     :min-zoom="0.2"
     :max-zoom="4"
+    :delete-key-code="['Backspace', 'Delete']"
+    :nodes-deletable="false"
+    @node-click="onNodeClick"
   >
     <template #node-lineage="props">
       <LineageNode
@@ -13,6 +16,7 @@
         :title="props.data.title"
         :collectionName="props.data.collectionName"
         :variant="props.data.variant"
+        :is-deleted="props.data.isDeleted"
         :deployments="props.data.deployments || []"
         :tracks="props.data.tracks || []"
         @replace="replaceNode(props.id)"
@@ -28,16 +32,19 @@
 
 <script setup lang="ts">
 import { Background } from '@vue-flow/background'
-import { VueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow, type NodeMouseEvent } from '@vue-flow/core'
 import { useLineageStore } from '@/stores/lineage'
 import { unlinkArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useConfirm } from 'primevue'
+import { nextTick, watch } from 'vue'
+import type { LineageNodeData } from './lineage.interface'
 import LineageNode from './LineageNode.vue'
 import CustomArrowEdge from '../ui/vue-flow/CustomArrowEdge.vue'
 
 const confirm = useConfirm()
 
 const lineageStore = useLineageStore()
+const { fitView } = useVueFlow()
 
 function replaceNode(id: string) {
   lineageStore.setReplaceableArtifactId(id)
@@ -49,6 +56,22 @@ function unlinkNode(id: string) {
   }
   confirm.require(unlinkArtifactConfirmOptions(accept))
 }
+
+function onNodeClick({ node }: NodeMouseEvent): void {
+  const data = node.data as LineageNodeData
+  if (data.isDeleted) return
+  lineageStore.setDetailedArtifact(data)
+}
+
+watch(
+  () => lineageStore.initialNodes,
+  async (nodes) => {
+    if (nodes.length === 0) return
+    await nextTick()
+    await fitView({ padding: 0.2 })
+  },
+  { immediate: true, flush: 'post' },
+)
 </script>
 
 <style scoped>
@@ -74,6 +97,7 @@ function unlinkNode(id: string) {
 }
 :deep(.vue-flow__node-lineage:has(.disabled)) {
   opacity: 0.6;
+  border-style: dashed;
 }
 :deep(.vue-flow__node-lineage:has(.disabled):hover) {
   border-color: var(--p-content-border-color);

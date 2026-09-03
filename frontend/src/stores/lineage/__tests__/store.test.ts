@@ -232,6 +232,27 @@ describe('lineage store', () => {
     expect(store.history).toEqual([])
   })
 
+  it('records a keyboard-removed edge and sends it after the orphaned node is removed', async () => {
+    apiMocks.getGraph.mockResolvedValue(connectedGraph())
+    apiMocks.applyChanges.mockResolvedValue({ created: [], deleted: [] })
+    const store = useLineageStore()
+    await store.load()
+
+    flow().edges.value = []
+    flow().edgeChangeHandlers[0]([{ type: 'remove' }])
+    expect(store.hasEdits).toBe(true)
+    expect(store.unconnectedArtifactsCount).toBe(1)
+
+    store.unlinkArtifact('node-output')
+    await store.save()
+
+    expect(apiMocks.applyChanges).toHaveBeenCalledWith(
+      'org',
+      'orbit',
+      expect.objectContaining({ create: [], delete: ['edge-output'] }),
+    )
+  })
+
   it('records moving, reset positions, unlink, and undo as edits', async () => {
     apiMocks.getGraph.mockResolvedValue(connectedGraph())
     const store = useLineageStore()
@@ -318,5 +339,21 @@ describe('lineage store', () => {
         }
       ).position,
     ).toEqual({ x: 300, y: 50 })
+  })
+
+  it('discards edits and restores the loaded graph before leaving', async () => {
+    apiMocks.getGraph.mockResolvedValue(connectedGraph())
+    const store = useLineageStore()
+    await store.load()
+
+    store.unlinkArtifact('node-output')
+    expect(store.hasEdits).toBe(true)
+    expect(flow().nodes.value).toHaveLength(1)
+
+    store.discardChanges()
+
+    expect(store.hasEdits).toBe(false)
+    expect(flow().nodes.value).toHaveLength(2)
+    expect(flow().edges.value).toHaveLength(1)
   })
 })

@@ -741,10 +741,10 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] Store delegates to the modules: loading, depth, `truncated`, history (moving and "Reset positions" as edits), keeping edits on error, Unlink, `usedArtifactsIds` from node data
   - [x] `frontend/src/stores/lineage/__tests__/*.test.ts` for the logic-related UI scenarios, against the pure modules
 
-- [ ] **Frontend: Lineage tab interface**
-  - [ ] Loading on open and on artifact change; leave confirmation via `onBeforeRouteLeave` + `onBeforeRouteUpdate` and in the depth handler
-  - [ ] Node: live / focal / deleted states; menu; handles and arrow direction; `nodes-deletable=false` and both delete keys on `<VueFlow>`
-  - [ ] `LineageArtifactDetails.vue` with "Open artifact" and "Focus lineage" links, wired from `@node-click`; `ArtifactDetailsModal` removed
-  - [ ] Toolbar: depth, empty state, truncation notice, "Reset positions" enable rule, toasts
-  - [ ] Collection page: reload on collection change in the URL
-  - [ ] Type check and lint; manual walkthrough of the UI scenarios
+- [x] **Frontend: Lineage tab interface**
+  - [x] Loading on open and on artifact change; leave confirmation via `onBeforeRouteLeave` + `onBeforeRouteUpdate` and in the depth handler
+  - [x] Node: live / focal / deleted states; menu; handles and arrow direction; `nodes-deletable=false` and both delete keys on `<VueFlow>`
+  - [x] `LineageArtifactDetails.vue` with "Open artifact" and "Focus lineage" links, wired from `@node-click`; `ArtifactDetailsModal` removed
+  - [x] Toolbar: depth, empty state, truncation notice, "Reset positions" enable rule, toasts
+  - [x] Collection page: reload on collection change in the URL
+  - [x] Type check and lint; manual walkthrough of the UI scenarios

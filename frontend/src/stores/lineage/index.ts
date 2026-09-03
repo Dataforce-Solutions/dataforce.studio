@@ -1,4 +1,8 @@
-import type { HistorySnapshot, LineageCanvasNode } from '@/components/lineage/lineage.interface'
+import type {
+  HistorySnapshot,
+  LineageCanvasNode,
+  LineageNodeData,
+} from '@/components/lineage/lineage.interface'
 import type { Artifact } from '@/lib/api/artifacts/interfaces'
 import { api } from '@/lib/api'
 import { useArtifactsStore } from '@/stores/artifacts'
@@ -36,7 +40,7 @@ export const useLineageStore = defineStore('lineage', () => {
 
   const currentArtifactId = computed(() => String(route.params.artifactId))
   const creatorVisible = ref(false)
-  const detailedArtifact = ref<Artifact | null>(null)
+  const detailedArtifact = ref<LineageNodeData | null>(null)
   const initialNodes = shallowRef<LineageCanvasNode[]>([])
   const initialEdges = shallowRef<Edge[]>([])
   const loadedState = shallowRef<HistorySnapshot>({ nodes: [], edges: [] })
@@ -187,12 +191,14 @@ export const useLineageStore = defineStore('lineage', () => {
   )
 
   const hasEdits = computed(() => history.value.length > 0)
+  const hasNodes = computed(() => nodes.value.length > 0)
+  const hasEdges = computed(() => edges.value.length > 0)
 
   function setCreatorVisible(value: boolean): void {
     creatorVisible.value = value
   }
 
-  function setDetailedArtifact(artifact: Artifact | null): void {
+  function setDetailedArtifact(artifact: LineageNodeData | null): void {
     detailedArtifact.value = artifact
   }
 
@@ -264,6 +270,11 @@ export const useLineageStore = defineStore('lineage', () => {
     })
   }
 
+  function discardChanges(): void {
+    replaceCanvasWithoutHistory(loadedState.value)
+    detailedArtifact.value = null
+  }
+
   async function save(): Promise<void> {
     closeHistoryWindow()
     if (history.value.length === 0 || unconnectedArtifactsCount.value > 0) return
@@ -318,6 +329,8 @@ export const useLineageStore = defineStore('lineage', () => {
     replaceArtifact,
     history,
     hasEdits,
+    hasNodes,
+    hasEdges,
     unconnectedArtifactsCount,
     depth,
     setDepth,
@@ -326,6 +339,7 @@ export const useLineageStore = defineStore('lineage', () => {
     currentArtifactId,
     load,
     goBack,
+    discardChanges,
     resetPositions,
     save,
   }

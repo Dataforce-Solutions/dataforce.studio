@@ -1,8 +1,8 @@
 <template>
   <base-edge
     :path="path[0]"
-    :marker-start="`url(#${markerId}-arrow)`"
-    :marker-end="`url(#${markerId})`"
+    :marker-start="`url(#${markerId})`"
+    :marker-end="`url(#${markerId}-arrow)`"
   />
   <custom-arrow-marker
     :id="markerId"

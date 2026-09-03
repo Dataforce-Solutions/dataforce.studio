@@ -1,19 +1,27 @@
 <template>
-  <div class="node" :class="{ [variant]: true, [artifactType]: true }">
+  <div
+    class="node"
+    :class="{ [variant]: true, [artifactType]: true }"
+    :data-lineage-state="isDeleted ? 'deleted' : variant === 'main' ? 'focal' : 'live'"
+  >
     <div class="node__header">
-      <component
-        :is="artifactTypeData.icon"
-        :size="14"
-        :color="artifactTypeData.color"
-        class="node__icon"
-      />
+      <div class="node__type-icon">
+        <component
+          :is="artifactTypeData.icon"
+          :size="14"
+          :color="artifactTypeData.color"
+          class="node__icon"
+        />
+        <span v-if="isDeleted" class="node__deleted-badge">Deleted</span>
+      </div>
       <div class="node__title">{{ title }}</div>
       <Button
-        v-if="variant === 'default'"
+        v-if="variant !== 'main'"
         variant="text"
         severity="secondary"
         class="node__options-button"
-        @click="toggle"
+        aria-label="Artifact actions"
+        @click.stop="toggle"
       >
         <template #icon>
           <Ellipsis :size="14" />
@@ -23,14 +31,20 @@
     </div>
     <div class="node__collection">
       <Folders :size="14" class="node__collection-icon" />
-      <div class="node__collection-name">{{ collectionName }}</div>
+      <div class="node__collection-name">{{ collectionName ?? 'Unknown collection' }}</div>
     </div>
     <div v-if="showIconsBlock" class="node__icons">
-      <Rocket v-if="deployments.length" :size="14" class="node__icon" />
-      <TrainTrack v-if="tracks.length" :size="14" class="node__icon" />
+      <span v-if="deployments.length" class="node__count" title="Deployments">
+        <Rocket :size="14" class="node__icon" />
+        {{ deployments.length }}
+      </span>
+      <span v-if="tracks.length" class="node__count" title="Tracks">
+        <TrainTrack :size="14" class="node__icon" />
+        {{ tracks.length }}
+      </span>
     </div>
-    <Handle :position="Position.Left" type="source" />
-    <Handle :position="Position.Right" type="target" />
+    <Handle :position="Position.Left" type="target" :connectable="!isDeleted" />
+    <Handle :position="Position.Right" type="source" :connectable="!isDeleted" />
   </div>
 </template>
 
@@ -48,8 +62,9 @@ import type { Deployment } from '@/lib/api/deployments/interfaces'
 interface Props {
   artifactType: ArtifactTypeEnum
   title: string
-  collectionName: string
+  collectionName: string | null
   variant: LineageNodeVariant
+  isDeleted: boolean
   deployments: Deployment[]
   tracks: ArtifactTrack[]
 }
@@ -102,12 +117,32 @@ const toggle = (event: MouseEvent) => {
   width: 220px;
   padding: 12px;
 }
+.node.disabled {
+  opacity: 0.65;
+}
 .node__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow: hidden;
   margin-bottom: 8px;
+}
+.node__type-icon {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+.node__deleted-badge {
+  position: absolute;
+  left: -5px;
+  bottom: calc(100% + 4px);
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--p-text-muted-color);
+  background: var(--p-surface-100);
+  border: 1px solid var(--p-content-border-color);
+  font-size: 9px;
+  line-height: 12px;
+  white-space: nowrap;
 }
 .node__icon {
   width: 14px;
@@ -154,6 +189,13 @@ const toggle = (event: MouseEvent) => {
   align-items: center;
   gap: 8px;
   padding-top: 8px;
+}
+.node__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--p-tabs-tab-color);
+  font-size: 12px;
 }
 .node__icon {
   width: 14px;

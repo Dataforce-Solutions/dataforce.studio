@@ -1,6 +1,6 @@
 <template>
   <div ref="viewRef" class="view">
-    <LineageWrapper v-model:is-maximized="isMaximized" />
+    <LineageWrapper v-model:is-maximized="isMaximized" @depth-change="onDepthChange" />
   </div>
 
   <Teleport to="body">
@@ -12,22 +12,32 @@
   <LinkCreator />
   <ReplaceArtifactModal />
 
-  <ArtifactDetailsModal
+  <LineageArtifactDetails
     :visible="!!lineageStore.detailedArtifact"
     :data="lineageStore.detailedArtifact"
-    @update:visible="hideArtifactDetails"
-  ></ArtifactDetailsModal>
+    @update:visible="onDetailsVisibilityChange"
+  />
 </template>
 
 <script setup lang="ts">
 import { useLineageStore } from '@/stores/lineage'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute } from 'vue-router'
+import { useConfirm, useToast } from 'primevue'
+import { discardLineageChangesConfirmOptions } from '@/lib/primevue/data/confirm'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
+import { useArtifactsStore } from '@/stores/artifacts'
 import LineageWrapper from '@/components/lineage/LineageWrapper.vue'
 import LinkCreator from '@/components/lineage/LinkCreator.vue'
-import ArtifactDetailsModal from '@/components/orbits/tabs/registry/collection/artifact/ArtifactDetailsModal.vue'
 import ReplaceArtifactModal from '@/components/lineage/ReplaceArtifactModal.vue'
+import LineageArtifactDetails from '@/components/lineage/LineageArtifactDetails.vue'
 
 const lineageStore = useLineageStore()
+const artifactsStore = useArtifactsStore()
+const route = useRoute()
+const confirm = useConfirm()
+const toast = useToast()
 
 const isMaximized = ref(false)
 const viewRef = ref<HTMLElement | null>(null)
@@ -97,9 +107,66 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-function hideArtifactDetails() {
-  lineageStore.setDetailedArtifact(null)
+function onDetailsVisibilityChange(visible: boolean): void {
+  if (!visible) lineageStore.setDetailedArtifact(null)
 }
+
+async function loadLineage(): Promise<boolean> {
+  try {
+    await lineageStore.load()
+    return true
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to load lineage')))
+    return false
+  }
+}
+
+async function confirmDiscardChanges(): Promise<boolean> {
+  if (!lineageStore.hasEdits) return true
+
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (result: boolean): void => {
+      if (settled) return
+      settled = true
+      if (result) {
+        lineageStore.discardChanges()
+        lineageStore.setDetailedArtifact(null)
+      }
+      resolve(result)
+    }
+
+    confirm.require(
+      discardLineageChangesConfirmOptions(
+        () => finish(true),
+        () => finish(false),
+        () => finish(false),
+      ),
+    )
+  })
+}
+
+async function onDepthChange(depth: number): Promise<void> {
+  if (depth === lineageStore.depth) return
+  const previousDepth = lineageStore.depth
+  if (!(await confirmDiscardChanges())) return
+
+  lineageStore.setDepth(depth)
+  if (!(await loadLineage())) lineageStore.setDepth(previousDepth)
+}
+
+watch(
+  () => [route.params.artifactId, artifactsStore.currentArtifact?.id] as const,
+  ([artifactId, currentArtifactId]) => {
+    if (typeof artifactId !== 'string' || artifactId !== currentArtifactId) return
+    lineageStore.setDetailedArtifact(null)
+    void loadLineage()
+  },
+  { immediate: true },
+)
+
+onBeforeRouteLeave(confirmDiscardChanges)
+onBeforeRouteUpdate(confirmDiscardChanges)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))

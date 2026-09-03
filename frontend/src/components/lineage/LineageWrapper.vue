@@ -3,7 +3,20 @@
     <LineageHeading v-if="isMaximized" title="Lineage" class="heading"></LineageHeading>
     <LineageToolbar class="toolbar"></LineageToolbar>
     <LineageStateControls class="state-controls"></LineageStateControls>
-    <LineageActions class="actions" v-model:is-maximized="isMaximized"></LineageActions>
+    <LineageActions
+      v-model:is-maximized="isMaximized"
+      class="actions"
+      @depth-change="emit('depthChange', $event)"
+    ></LineageActions>
+    <div v-if="lineageStore.isLoading" class="notice notice--loading">
+      <ProgressSpinner class="spinner" />
+    </div>
+    <div v-else-if="!lineageStore.hasEdges" class="notice">
+      No lineage recorded yet — link an artifact to get started
+    </div>
+    <div v-if="!lineageStore.isLoading && lineageStore.truncated" class="limit-notice">
+      Graph is limited to 200 artifacts — reduce depth to see complete levels
+    </div>
     <LineageArea></LineageArea>
   </div>
 </template>
@@ -14,8 +27,12 @@ import LineageToolbar from './LineageToolbar.vue'
 import LineageArea from './LineageArea.vue'
 import LineageActions from './LineageActions.vue'
 import LineageHeading from './LineageHeading.vue'
+import { useLineageStore } from '@/stores/lineage'
+import { ProgressSpinner } from 'primevue'
 
 const isMaximized = defineModel('isMaximized', { default: false })
+const emit = defineEmits<{ depthChange: [depth: number] }>()
+const lineageStore = useLineageStore()
 </script>
 
 <style scoped>
@@ -51,5 +68,49 @@ const isMaximized = defineModel('isMaximized', { default: false })
   top: 20px;
   left: 20px;
   z-index: 10;
+}
+
+.notice {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  z-index: 5;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--p-text-muted-color);
+  background: color-mix(in srgb, var(--p-card-background) 92%, transparent);
+  box-shadow: var(--card-shadow);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.notice--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+}
+
+.limit-notice {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  z-index: 5;
+  max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--p-orange-300);
+  border-radius: 8px;
+  color: var(--p-orange-700);
+  background: var(--p-orange-50);
+  font-size: 13px;
+}
+
+.heading ~ .limit-notice {
+  top: 64px;
 }
 </style>

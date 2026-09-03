@@ -262,21 +262,24 @@ export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationO
   accept,
 })
 
-export const saveLineageChangesConfirmOptions = (
+export const discardLineageChangesConfirmOptions = (
   accept: () => void,
   reject: () => void,
+  onHide: () => void,
 ): ConfirmationOptions => ({
   message: 'If you exit without saving, your changes will be lost.',
-  header: 'Save changes before exit lineage?',
+  header: 'Discard lineage changes?',
   rejectProps: {
-    label: 'Exit without saving',
+    label: 'Keep editing',
     severity: 'secondary',
   },
   acceptProps: {
-    label: 'Save',
+    label: 'Discard changes',
+    severity: 'warn',
   },
   accept,
   reject,
+  onHide,
 })
 
 export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOptions => ({
