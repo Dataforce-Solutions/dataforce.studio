@@ -1,163 +1,307 @@
-import type { HistorySnapshot, LineageNodeData } from '@/components/lineage/lineage.interface'
+import type { HistorySnapshot, LineageCanvasNode } from '@/components/lineage/lineage.interface'
 import type { Artifact } from '@/lib/api/artifacts/interfaces'
-import { useVueFlow, type Edge, type Node } from '@vue-flow/core'
-import { useDebounceFn } from '@vueuse/core'
+import { api } from '@/lib/api'
+import { useArtifactsStore } from '@/stores/artifacts'
+import {
+  useVueFlow,
+  type Edge,
+  type EdgeChange,
+  type NodeChange,
+  type XYPosition,
+} from '@vue-flow/core'
 import { defineStore } from 'pinia'
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, shallowRef } from 'vue'
 import { useRoute } from 'vue-router'
+import { buildLineageBatch } from './diff'
+import { layoutLineageNodes } from './layout'
+import {
+  artifactCanvasNodeId,
+  artifactNodeData,
+  mapGraphToCanvas,
+  type LineageFocalArtifact,
+} from './mapping'
+import { countUnconnectedArtifacts, isValidLineageConnection } from './validation'
 
 const STATE_CHANGE_DEBOUNCE_MS = 200
 
+function cloneState(state: HistorySnapshot): HistorySnapshot {
+  return JSON.parse(JSON.stringify(state)) as HistorySnapshot
+}
+
 export const useLineageStore = defineStore('lineage', () => {
-  const {
-    nodes,
-    edges,
-    addNodes,
-    removeNodes,
-    onConnect,
-    addEdges,
-    onNodesChange,
-    onEdgesChange,
-    setNodes,
-    setEdges,
-  } = useVueFlow()
+  const { nodes, edges, addEdges, onConnect, onNodesChange, onEdgesChange, setNodes, setEdges } =
+    useVueFlow()
   const route = useRoute()
+  const artifactsStore = useArtifactsStore()
 
   const currentArtifactId = computed(() => String(route.params.artifactId))
-
   const creatorVisible = ref(false)
   const detailedArtifact = ref<Artifact | null>(null)
-  const initialNodes = shallowRef<Node[]>([])
+  const initialNodes = shallowRef<LineageCanvasNode[]>([])
   const initialEdges = shallowRef<Edge[]>([])
+  const loadedState = shallowRef<HistorySnapshot>({ nodes: [], edges: [] })
   const replaceableArtifactId = ref<string | null>(null)
-
   const history = shallowRef<HistorySnapshot[]>([])
+  const depth = ref(2)
+  const truncated = ref(false)
+  const isLoading = ref(false)
+
+  let stableState: HistorySnapshot = { nodes: [], edges: [] }
+  let historyWindowOpen = false
+  let historyTimer: ReturnType<typeof setTimeout> | null = null
   let isRestoring = false
+  let latestLoad = 0
 
-  const snapshot = () => ({
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value)),
-  })
+  function snapshot(): HistorySnapshot {
+    return cloneState({
+      nodes: nodes.value as unknown as LineageCanvasNode[],
+      edges: edges.value,
+    })
+  }
 
-  let prev: HistorySnapshot = snapshot()
+  function closeHistoryWindow(): void {
+    if (historyTimer) clearTimeout(historyTimer)
+    historyTimer = null
+    if (!historyWindowOpen) return
+    stableState = snapshot()
+    historyWindowOpen = false
+  }
 
-  function goBack() {
-    const state = history.value[history.value.length - 1]
-    history.value = history.value.slice(0, -1)
-    if (!state) return
+  function recordFlowChange(): void {
+    if (isRestoring) return
+    if (!historyWindowOpen) {
+      history.value = [...history.value, cloneState(stableState)]
+      historyWindowOpen = true
+    }
+    if (historyTimer) clearTimeout(historyTimer)
+    historyTimer = setTimeout(closeHistoryWindow, STATE_CHANGE_DEBOUNCE_MS)
+  }
+
+  function replaceCanvasWithEdit(state: HistorySnapshot): void {
+    closeHistoryWindow()
+    const previous = snapshot()
+    const nextState = cloneState(state)
     isRestoring = true
-    setNodes(state.nodes)
-    setEdges(state.edges)
-    prev = snapshot()
-    setTimeout(() => {
+    setNodes(nextState.nodes)
+    setEdges(nextState.edges)
+    history.value = [...history.value, previous]
+    stableState = snapshot()
+    isRestoring = false
+  }
+
+  function replaceCanvasWithoutHistory(state: HistorySnapshot): void {
+    closeHistoryWindow()
+    const nextState = cloneState(state)
+    isRestoring = true
+    setNodes(nextState.nodes)
+    setEdges(nextState.edges)
+    initialNodes.value = cloneState(nextState).nodes
+    initialEdges.value = cloneState(nextState).edges
+    loadedState.value = cloneState(nextState)
+    history.value = []
+    stableState = snapshot()
+    isRestoring = false
+  }
+
+  function currentFocalArtifact(): LineageFocalArtifact {
+    const artifact = artifactsStore.currentArtifact
+    if (!artifact) throw new Error('Current artifact does not exist')
+
+    const detailed = artifact as Artifact & {
+      collection?: { id: string; name: string }
+    }
+    return {
+      ...artifact,
+      collection: detailed.collection ?? {
+        id: artifact.collection_id,
+        name: artifact.collection_name,
+      },
+    }
+  }
+
+  function requestInfo(): { organizationId: string; orbitId: string; artifactId: string } {
+    if (typeof route.params.organizationId !== 'string') {
+      throw new Error('Current organization not found')
+    }
+    if (typeof route.params.id !== 'string') throw new Error('Orbit was not found')
+    if (typeof route.params.artifactId !== 'string') throw new Error('Artifact was not found')
+    return {
+      organizationId: route.params.organizationId,
+      orbitId: route.params.id,
+      artifactId: route.params.artifactId,
+    }
+  }
+
+  async function load(): Promise<void> {
+    if (!Number.isInteger(depth.value) || depth.value < 1 || depth.value > 5) {
+      throw new RangeError('Lineage depth must be between 1 and 5')
+    }
+
+    const loadId = ++latestLoad
+    const { organizationId, orbitId, artifactId } = requestInfo()
+    const focalArtifact = currentFocalArtifact()
+    isLoading.value = true
+    try {
+      const graph = await api.lineage.getGraph(organizationId, orbitId, artifactId, depth.value)
+      if (loadId !== latestLoad) return
+      replaceCanvasWithoutHistory(mapGraphToCanvas(graph, focalArtifact))
+      truncated.value = graph.truncated
+      depth.value = graph.depth
+    } finally {
+      if (loadId === latestLoad) isLoading.value = false
+    }
+  }
+
+  function setDepth(value: number): void {
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      throw new RangeError('Lineage depth must be between 1 and 5')
+    }
+    depth.value = value
+  }
+
+  function goBack(): void {
+    closeHistoryWindow()
+    const state = history.value[history.value.length - 1]
+    if (!state) return
+
+    history.value = history.value.slice(0, -1)
+    isRestoring = true
+    const previous = cloneState(state)
+    setNodes(previous.nodes)
+    setEdges(previous.edges)
+    stableState = snapshot()
+    void nextTick(() => {
       isRestoring = false
-    }, STATE_CHANGE_DEBOUNCE_MS)
+    })
   }
 
   const usedArtifactsIds = computed(() => {
-    return nodes.value.map((node) => node.id)
+    const ids = (nodes.value as unknown as LineageCanvasNode[])
+      .map((node) => node.data.artifactId)
+      .filter((id): id is string => id !== null)
+    return [...new Set(ids)]
   })
 
-  function setCreatorVisible(value: boolean) {
+  const unconnectedArtifactsCount = computed(() =>
+    countUnconnectedArtifacts(nodes.value as unknown as LineageCanvasNode[], edges.value),
+  )
+
+  const hasEdits = computed(() => history.value.length > 0)
+
+  function setCreatorVisible(value: boolean): void {
     creatorVisible.value = value
   }
 
-  function setDetailedArtifact(artifact: Artifact | null) {
+  function setDetailedArtifact(artifact: Artifact | null): void {
     detailedArtifact.value = artifact
   }
 
-  function addArtifact(artifact: Artifact) {
-    const node: Node = {
-      id: artifact.id,
+  function addArtifact(artifact: Artifact, position: XYPosition = { x: 20, y: 20 }): void {
+    if (usedArtifactsIds.value.includes(artifact.id)) return
+    const state = snapshot()
+    state.nodes.push({
+      id: artifactCanvasNodeId(artifact.id),
       type: 'lineage',
-      position: { x: 20, y: 20 },
-      data: prepareNodeData(artifact),
-    }
-    addNodes(node)
+      position,
+      data: artifactNodeData(artifact, {
+        id: artifact.collection_id,
+        name: artifact.collection_name,
+      }),
+    })
+    replaceCanvasWithEdit(state)
   }
 
-  function replaceArtifact(artifact: Artifact) {
+  function replaceArtifact(artifact: Artifact): void {
     const oldId = replaceableArtifactId.value
-    if (!oldId) return
-    const nodeToReplace = nodes.value.find((node) => node.id === oldId)
-    if (!nodeToReplace) return
-    const newId = artifact.id
-    const updatedNodes = nodes.value.map((node) =>
-      node.id === oldId ? { ...node, id: newId, data: prepareNodeData(artifact) } : node,
+    if (!oldId || usedArtifactsIds.value.includes(artifact.id)) return
+    const state = snapshot()
+    const nodeToReplace = state.nodes.find((node) => node.id === oldId)
+    if (!nodeToReplace || nodeToReplace.data.variant === 'main') return
+
+    const newId = artifactCanvasNodeId(artifact.id)
+    state.nodes = state.nodes.map((node) =>
+      node.id === oldId
+        ? {
+            ...node,
+            id: newId,
+            connectable: true,
+            data: artifactNodeData(artifact, {
+              id: artifact.collection_id,
+              name: artifact.collection_name,
+            }),
+          }
+        : node,
     )
-    const updatedEdges = edges.value.map((edge) => ({
+    state.edges = state.edges.map((edge) => ({
       ...edge,
       source: edge.source === oldId ? newId : edge.source,
       target: edge.target === oldId ? newId : edge.target,
     }))
-    setNodes(updatedNodes)
-    setEdges(updatedEdges)
+    replaceCanvasWithEdit(state)
   }
 
-  function prepareNodeData(artifact: Artifact): LineageNodeData {
-    const variant = artifact.id === currentArtifactId.value ? 'main' : 'default'
-    return {
-      type: artifact.type,
-      title: artifact.name,
-      collectionName: artifact.collection_name,
-      variant,
-      deployments: artifact.deployments,
-      tracks: artifact.tracks,
-    }
+  function unlinkArtifact(artifactId: string): void {
+    const state = snapshot()
+    const node = state.nodes.find((candidate) => candidate.id === artifactId)
+    if (!node || node.data.variant === 'main') return
+    replaceCanvasWithEdit({
+      nodes: state.nodes.filter((candidate) => candidate.id !== artifactId),
+      edges: state.edges.filter((edge) => edge.source !== artifactId && edge.target !== artifactId),
+    })
   }
 
-  function unlinkArtifact(artifactId: string) {
-    const node = nodes.value.find((node) => node.id === artifactId)
-    if (!node) return
-    removeNodes([node])
-  }
-
-  function setReplaceableArtifactId(artifactId: string | null) {
+  function setReplaceableArtifactId(artifactId: string | null): void {
     replaceableArtifactId.value = artifactId
   }
 
-  function onStateChanged() {
-    if (isRestoring) return
-    history.value = [...history.value, prev]
-    prev = snapshot()
-  }
-
-  function resetPositions() {
-    if (history.value.length === 0 || isRestoring) return
-    isRestoring = true
-    setNodes(history.value[0].nodes)
-    setEdges(history.value[0].edges)
-    history.value = []
-    prev = snapshot()
-    setTimeout(() => {
-      isRestoring = false
-    }, STATE_CHANGE_DEBOUNCE_MS)
-  }
-
-  async function save() {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    // await api.lineage.save(history.value)
-    isRestoring = true
-    initialNodes.value = nodes.value
-    initialEdges.value = edges.value
-    history.value = []
-    await nextTick(() => {
-      isRestoring = false
+  function resetPositions(): void {
+    const state = snapshot()
+    if (state.nodes.length === 0) return
+    const focalNode = state.nodes.find((node) => node.data.variant === 'main') ?? state.nodes[0]
+    replaceCanvasWithEdit({
+      nodes: layoutLineageNodes(state.nodes, state.edges, focalNode.id),
+      edges: state.edges,
     })
+  }
+
+  async function save(): Promise<void> {
+    closeHistoryWindow()
+    if (history.value.length === 0 || unconnectedArtifactsCount.value > 0) return
+
+    const { organizationId, orbitId } = requestInfo()
+    const changes = buildLineageBatch(loadedState.value, snapshot())
+    await api.lineage.applyChanges(organizationId, orbitId, changes)
+    await load()
   }
 
   onConnect((connection) => {
-    addEdges({
-      ...connection,
-      type: 'custom',
-    })
+    if (
+      !isValidLineageConnection(
+        connection,
+        nodes.value as unknown as LineageCanvasNode[],
+        edges.value,
+      )
+    ) {
+      return
+    }
+    addEdges({ ...connection, type: 'custom' })
   })
 
-  const debouncedOnStateChanged = useDebounceFn(onStateChanged, STATE_CHANGE_DEBOUNCE_MS)
+  onNodesChange((changes: NodeChange[]) => {
+    if (changes.some((change) => ['add', 'remove', 'position'].includes(change.type))) {
+      recordFlowChange()
+    }
+  })
 
-  onNodesChange(debouncedOnStateChanged)
+  onEdgesChange((changes: EdgeChange[]) => {
+    if (changes.some((change) => change.type === 'add' || change.type === 'remove')) {
+      recordFlowChange()
+    }
+  })
 
-  onEdgesChange(debouncedOnStateChanged)
+  onScopeDispose(() => {
+    if (historyTimer) clearTimeout(historyTimer)
+  })
 
   return {
     creatorVisible,
@@ -173,6 +317,14 @@ export const useLineageStore = defineStore('lineage', () => {
     setReplaceableArtifactId,
     replaceArtifact,
     history,
+    hasEdits,
+    unconnectedArtifactsCount,
+    depth,
+    setDepth,
+    truncated,
+    isLoading,
+    currentArtifactId,
+    load,
     goBack,
     resetPositions,
     save,

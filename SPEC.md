@@ -735,11 +735,11 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] `ArtifactHandler`: experiment before models in `_upload_all`; `_resolve_experiment_artifact_id` (job → remembered id for the job's orbit → none) with no platform request; stale remembered id: not-found on create → row deleted, one retry without `lineage_inputs`; `lineage_inputs` on model uploads; `set_remote_artifact` after each upload; `upload_model` uses the same resolution
   - [x] `lumlflow/tests/test_artifact_handler_lineage.py` with a mocked client and a temporary tracker for the "lumlflow" scenarios
 
-- [ ] **Frontend: API client and lineage store**
-  - [ ] Types for `LineageGraph`, `LineageNode`, `LineageEdge`, `LineageNodeData` (with `nodeId`/`artifactId`/`collectionId`), references and batch; client methods at the orbit level in the existing API layer
-  - [ ] Pure modules `mapping.ts` (graph → canvas, focal synthesis from `currentArtifact.collection.name`, canvas node ids), `layout.ts` (constants, full and partial layout), `diff.ts` (`node_id`/`artifact_id` references, positions of all nodes, Replace as delete + create + position), `validation.ts` (connection rules, unconnected-node blocker)
-  - [ ] Store delegates to the modules: loading, depth, `truncated`, history (moving and "Reset positions" as edits), keeping edits on error, Unlink, `usedArtifactsIds` from node data
-  - [ ] `frontend/src/stores/lineage/__tests__/*.test.ts` for the logic-related UI scenarios, against the pure modules
+- [x] **Frontend: API client and lineage store**
+  - [x] Types for `LineageGraph`, `LineageNode`, `LineageEdge`, `LineageNodeData` (with `nodeId`/`artifactId`/`collectionId`), references and batch; client methods at the orbit level in the existing API layer
+  - [x] Pure modules `mapping.ts` (graph → canvas, focal synthesis from `currentArtifact.collection.name`, canvas node ids), `layout.ts` (constants, full and partial layout), `diff.ts` (`node_id`/`artifact_id` references, positions of all nodes, Replace as delete + create + position), `validation.ts` (connection rules, unconnected-node blocker)
+  - [x] Store delegates to the modules: loading, depth, `truncated`, history (moving and "Reset positions" as edits), keeping edits on error, Unlink, `usedArtifactsIds` from node data
+  - [x] `frontend/src/stores/lineage/__tests__/*.test.ts` for the logic-related UI scenarios, against the pure modules
 
 - [ ] **Frontend: Lineage tab interface**
   - [ ] Loading on open and on artifact change; leave confirmation via `onBeforeRouteLeave` + `onBeforeRouteUpdate` and in the depth handler

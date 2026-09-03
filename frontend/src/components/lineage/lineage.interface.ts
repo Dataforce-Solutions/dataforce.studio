@@ -11,15 +11,22 @@ export interface LinkCreatorForm {
 }
 
 export interface LineageNodeData {
+  nodeId: string | null
+  artifactId: string | null
+  collectionId: string | null
+  collectionName: string | null
+  isDeleted: boolean
   type: ArtifactTypeEnum
   title: string
-  collectionName: string
   variant: LineageNodeVariant
+  data: Artifact | null
   deployments?: Artifact['deployments']
   tracks?: ArtifactTrack[]
 }
 
+export type LineageCanvasNode = Node<LineageNodeData> & { data: LineageNodeData }
+
 export interface HistorySnapshot {
-  nodes: Node<Record<string, unknown>>[]
+  nodes: LineageCanvasNode[]
   edges: Edge[]
 }
