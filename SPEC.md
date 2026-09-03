@@ -715,10 +715,10 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] Router `backend/luml/api/orbits/orbit_lineage.py` (graph, single create, single delete, batch), `created_via` from `request.auth.scopes`, registered in `organization_routes.py`
   - [x] `backend/tests/unit/handlers/test_lineage.py` and `backend/tests/unit/api/test_lineage_routes.py` for the "writes" and "reading the graph" scenarios, including both orbit-boundary scenarios and permissions
 
-- [ ] **Backend: inputs at creation and artifact deletion**
-  - [ ] `ArtifactCreateIn(ArtifactIn)` with `lineage_inputs`; the create route accepts it and passes `via` from `request.auth.scopes`; `ArtifactHandler.create_artifact(..., via)` validates inputs inside the orbit in the path, builds `ArtifactCreate` without the new field, links after the row is created, and deletes the row on linking failure; existing calls in `backend/tests/unit/handlers/test_artifacts.py` updated for the new parameter
-  - [ ] `refresh_node_copy` before and `delete_edgeless_nodes` after `delete_artifact` in the physical deletion path of `ArtifactHandler`
-  - [ ] Tests in `backend/tests/unit/handlers/test_artifacts.py` and `backend/tests/integration/repository/test_artifacts.py` for the "creation with inputs" and "artifact deletion" scenarios
+- [x] **Backend: inputs at creation and artifact deletion**
+  - [x] `ArtifactCreateIn(ArtifactIn)` with `lineage_inputs`; the create route accepts it and passes `via` from `request.auth.scopes`; `ArtifactHandler.create_artifact(..., via)` validates inputs inside the orbit in the path, builds `ArtifactCreate` without the new field, links after the row is created, and deletes the row on linking failure; existing calls in `backend/tests/unit/handlers/test_artifacts.py` updated for the new parameter
+  - [x] `refresh_node_copy` before and `delete_edgeless_nodes` after `delete_artifact` in the physical deletion path of `ArtifactHandler`
+  - [x] Tests in `backend/tests/unit/handlers/test_artifacts.py` and `backend/tests/integration/repository/test_artifacts.py` for the "creation with inputs" and "artifact deletion" scenarios
 
 - [ ] **API client: lineage and inputs on upload**
   - [ ] Types `LineageNode`, `LineageEdge`, `LineageGraph` in `_types.py`

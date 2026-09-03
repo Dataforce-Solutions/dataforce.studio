@@ -269,6 +269,8 @@ class LineageHandler:
         source_artifact_id: UUID,
         target_artifact_ids: list[UUID],
         via: LineageVia,
+        *,
+        check_access: bool = True,
     ) -> list[LineageEdge]:
         changes = LineageBatchIn(
             create=[
@@ -279,9 +281,12 @@ class LineageHandler:
                 for target_artifact_id in target_artifact_ids
             ]
         )
-        result = await self.apply_changes(
-            user_id, organization_id, orbit_id, changes, via
-        )
+        if check_access:
+            result = await self.apply_changes(
+                user_id, organization_id, orbit_id, changes, via
+            )
+        else:
+            result = await self._apply_changes(user_id, orbit_id, changes, via)
         return result.created
 
     async def delete_link(

@@ -157,6 +157,10 @@ class ArtifactIn(BaseModel):
         return value
 
 
+class ArtifactCreateIn(ArtifactIn):
+    lineage_inputs: list[UUID] | None = None
+
+
 class ArtifactCreate(ArtifactIn):
     type: ArtifactType
     collection_id: UUID

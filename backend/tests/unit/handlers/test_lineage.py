@@ -440,6 +440,30 @@ async def test_create_links_collapses_duplicate_targets(
 
 
 @pytest.mark.asyncio
+async def test_create_links_can_use_access_checked_by_artifact_creation(
+    lineage_mocks: HandlerMocks,
+) -> None:
+    mocks = lineage_mocks
+    node_a, node_b = _configure_artifact_pair(mocks)
+    edge = _edge(NEW_EDGE_A_ID, node_a.id, node_b.id)
+    mocks.create_edges.return_value = [edge]
+
+    result = await handler.create_links(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        ARTIFACT_A_ID,
+        [ARTIFACT_B_ID],
+        LineageVia.API,
+        check_access=False,
+    )
+
+    assert result == [edge.to_edge()]
+    mocks.check_permissions.assert_not_awaited()
+    mocks.get_orbit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_apply_changes_orders_operations_and_collapses_duplicate_pairs(
     lineage_mocks: HandlerMocks,
 ) -> None:
