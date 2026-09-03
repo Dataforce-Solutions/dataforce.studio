@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import type { TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces.js'
+import type { TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces'
 import { InputText, Textarea, useToast, useConfirm } from 'primevue'
 import { useTracksStore } from '@/stores/tracks'
 import { Bolt } from 'lucide-vue-next'
