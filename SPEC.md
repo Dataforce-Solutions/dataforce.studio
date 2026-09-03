@@ -710,10 +710,10 @@ Each package keeps its own test style: module-level `test_*` functions with `@pa
   - [x] `ArtifactRepository.get_artifacts_by_ids_in_orbit(orbit_id, ids, session=None)` joined through `CollectionOrm.orbit_id`
   - [x] `backend/tests/integration/repository/test_lineage.py`: node lifecycle, uniqueness, traversal (depth, cycle, limit, level 1), positions, cleanup, orbit scoping
 
-- [ ] **Backend: lineage operations and API**
-  - [ ] `LineageHandler` in `backend/luml/handlers/lineage.py`: `apply_changes` (transaction; deletions → creations → positions → cleanup; all checks and codes from Design), `create_links`, `delete_link` with the ownership check, `get_graph` (empty graph without a node, copied fields for deleted nodes, coordinates, `truncated`); permission checks `ARTIFACT` `READ`/`UPDATE`; orbit resolved inside the organization
-  - [ ] Router `backend/luml/api/orbits/orbit_lineage.py` (graph, single create, single delete, batch), `created_via` from `request.auth.scopes`, registered in `organization_routes.py`
-  - [ ] `backend/tests/unit/handlers/test_lineage.py` and `backend/tests/unit/api/test_lineage_routes.py` for the "writes" and "reading the graph" scenarios, including both orbit-boundary scenarios and permissions
+- [x] **Backend: lineage operations and API**
+  - [x] `LineageHandler` in `backend/luml/handlers/lineage.py`: `apply_changes` (transaction; deletions → creations → positions → cleanup; all checks and codes from Design), `create_links`, `delete_link` with the ownership check, `get_graph` (empty graph without a node, copied fields for deleted nodes, coordinates, `truncated`); permission checks `ARTIFACT` `READ`/`UPDATE`; orbit resolved inside the organization
+  - [x] Router `backend/luml/api/orbits/orbit_lineage.py` (graph, single create, single delete, batch), `created_via` from `request.auth.scopes`, registered in `organization_routes.py`
+  - [x] `backend/tests/unit/handlers/test_lineage.py` and `backend/tests/unit/api/test_lineage_routes.py` for the "writes" and "reading the graph" scenarios, including both orbit-boundary scenarios and permissions
 
 - [ ] **Backend: inputs at creation and artifact deletion**
   - [ ] `ArtifactCreateIn(ArtifactIn)` with `lineage_inputs`; the create route accepts it and passes `via` from `request.auth.scopes`; `ArtifactHandler.create_artifact(..., via)` validates inputs inside the orbit in the path, builds `ArtifactCreate` without the new field, links after the row is created, and deletes the row on linking failure; existing calls in `backend/tests/unit/handlers/test_artifacts.py` updated for the new parameter

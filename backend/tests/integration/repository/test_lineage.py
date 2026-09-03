@@ -205,27 +205,31 @@ async def test_repository_operations_share_a_caller_transaction(
         data.engine, data.orbit.id, [first.id, second.id]
     )
 
-    async with lineage_repo.transaction() as session:
-        first_node = await lineage_repo.get_or_create_node(
-            data.orbit.id, listed[first.id], session
-        )
-        second_node = await lineage_repo.get_or_create_node(
-            data.orbit.id, listed[second.id], session
-        )
-        edges = await lineage_repo.create_edges(
-            data.orbit.id,
-            [(first_node.id, second_node.id)],
-            "Test User",
-            LineageVia.API,
-            session,
-        )
-        await lineage_repo.update_positions(
-            data.orbit.id, {first_node.id: (10.0, 20.0)}, session
-        )
-        assert await lineage_repo.get_edges_by_ids(
-            data.orbit.id, [edges[0].id], session
-        )
-        await session.rollback()
+    async def write_then_fail() -> None:
+        async with lineage_repo.transaction() as session:
+            first_node = await lineage_repo.get_or_create_node(
+                data.orbit.id, listed[first.id], session
+            )
+            second_node = await lineage_repo.get_or_create_node(
+                data.orbit.id, listed[second.id], session
+            )
+            edges = await lineage_repo.create_edges(
+                data.orbit.id,
+                [(first_node.id, second_node.id)],
+                "Test User",
+                LineageVia.API,
+                session,
+            )
+            await lineage_repo.update_positions(
+                data.orbit.id, {first_node.id: (10.0, 20.0)}, session
+            )
+            assert await lineage_repo.get_edges_by_ids(
+                data.orbit.id, [edges[0].id], session
+            )
+            raise RuntimeError("roll back lineage changes")
+
+    with pytest.raises(RuntimeError, match="roll back lineage changes"):
+        await write_then_fail()
 
     assert (
         await lineage_repo.get_nodes_by_artifact_ids(
